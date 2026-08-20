@@ -2,7 +2,7 @@
 
 export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, benchmarkName, lang }) {
   if (benchmarkReturn == null || !isFinite(benchmarkReturn)) return (
-    <div className="bg-theme-card/40 rounded-xl border border-glass-border/30 p-4 text-center">
+    <div className="text-center py-2">
       <p className="text-sm text-slate-500">{lang === 'es' ? 'Benchmark no disponible' : 'Benchmark unavailable'}</p>
     </div>
   )
@@ -17,15 +17,15 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
 
   if (unreliable) {
     return (
-      <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+      <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
             {t('Benchmark', 'Benchmark')}
           </span>
-          <span className="text-xs text-slate-600">{name}</span>
+          <span className="text-xs text-slate-500">{name}</span>
         </div>
         <div className="text-center py-2">
-          <span className="text-base font-bold" style={{ color: benchmarkReturn >= 0 ? '#34d399' : '#f87171' }}>
+          <span className="text-base font-bold" style={{ color: benchmarkReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {benchmarkReturn >= 0 ? '+' : ''}{benchmarkReturn.toFixed(2)}%
           </span>
           <p className="text-xs text-slate-500 mt-2">
@@ -37,24 +37,24 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
   }
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
           {t('Benchmark', 'Benchmark')}
         </span>
-        <span className="text-xs text-slate-600">{name}</span>
+        <span className="text-xs text-slate-500">{name}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-2">
         <div>
           <span className="text-xs text-slate-500 block">{t('Tu portafolio', 'Your portfolio')}</span>
-          <span className="text-base font-bold" style={{ color: displayPR >= 0 ? '#34d399' : '#f87171' }}>
+          <span className="text-base font-bold" style={{ color: displayPR >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {displayPR >= 0 ? '+' : ''}{displayPR.toFixed(2)}%
           </span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">{name}</span>
-          <span className="text-base font-bold" style={{ color: benchmarkReturn >= 0 ? '#34d399' : '#f87171' }}>
+          <span className="text-base font-bold" style={{ color: benchmarkReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             {benchmarkReturn >= 0 ? '+' : ''}{benchmarkReturn.toFixed(2)}%
           </span>
         </div>
@@ -62,8 +62,8 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
 
       <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium"
         style={isOut
-          ? { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
-          : { backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }
+          ? { backgroundColor: 'color-mix(in srgb, var(--accent-green) 12%, transparent)', color: 'var(--accent-green)' }
+          : { backgroundColor: 'color-mix(in srgb, var(--text-negative) 12%, transparent)', color: 'var(--text-negative)' }
         }>
         <span>{isOut ? '▲' : '▼'}</span>
         <span>

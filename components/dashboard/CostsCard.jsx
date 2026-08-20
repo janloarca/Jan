@@ -33,9 +33,14 @@ export default function CostsCard({ transactions, items, convert, baseCurrency =
     { label: t('Costos de cuenta', 'Account costs'), value: costs.assetCosts },
   ].filter((p) => p.value > 0)
 
+  // card-interactive: esta card SI es un enlace, asi que gana el hover opt-in.
+  // Pierde `transition-all hover:-translate-y-0.5`, que hoy estan MUERTOS: con
+  // `.card-glass` en el root, `.card-glass:hover` (misma especificidad, definido
+  // despues en globals.css) ganaba por orden de fuente y el translate del JSX
+  // nunca se renderizo.
   return (
-    <Link href="/costs" data-card-id="COST-01"
-      className="card-glass rounded-2xl p-5 block transition-all hover:-translate-y-0.5">
+    <Link href="/costs"
+      className="card card-interactive p-5 block">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Receipt size={15} style={{ color: 'var(--accent-blue)' }} />
@@ -43,7 +48,7 @@ export default function CostsCard({ transactions, items, convert, baseCurrency =
         </div>
         <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
       </div>
-      <p className="text-2xl font-bold text-white tracking-tight">{fmt(costs.totalCost)}</p>
+      <p className="text-h1 tracking-tight">{fmt(costs.totalCost)}</p>
       <p className="text-[11px] text-slate-500 mt-0.5">{t('Lo que pagaste por invertir', 'What you paid to invest')}</p>
       {parts.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">

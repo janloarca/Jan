@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
+import { detectCardStatement, parseCardStatement } from '@/lib/parsers/guateCardStatements'
+import { fingerprintStatement, describeFingerprint } from '@/lib/parsers/statementFingerprint'
 import { detectCoinbase, parseCoinbase } from '@/lib/parsers/coinbaseParser'
 import { detectKraken, parseKraken } from '@/lib/parsers/krakenParser'
 import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
@@ -11,10 +13,15 @@ import { parseAmount, parseImportDate } from '@/lib/numberParse'
 import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
+import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
+import { flowSign, flowMagnitude } from '@/lib/financeAmount'
+import { formatFinanceDate } from '@/lib/financeMonth'
+import { walletCoverage } from '@/lib/walletCoverage'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
 // Default institution stamped on imported items when the import was opened for a
 // specific broker (brokerHint) and the file itself has no institution column —
@@ -73,7 +80,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -89,6 +96,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [aiCopied, setAiCopied] = useState(false)
   const [histCopied, setHistCopied] = useState(false)
   const [pdfReading, setPdfReading] = useState(false)
+  // Qué era el PDF que no reconocimos. Null cuando sí lo reconocimos o cuando ni
+  // siquiera parecía un estado de cuenta.
+  const [stmtFingerprint, setStmtFingerprint] = useState(null)
+  const [fpCopied, setFpCopied] = useState(false)
   const [pdfNotice, setPdfNotice] = useState('')
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
@@ -101,6 +112,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // Statement reconciliation: buckets from lib/statementMatcher + which rows the
   // user checked for import (new rows pre-checked, likely-duplicates unchecked).
   const [biMatch, setBiMatch] = useState(null)
+  const [walletStats, setWalletStats] = useState(null)
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
 
@@ -160,6 +172,70 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   }, [lang])
 
   const handlePdf = useCallback(async (file) => {
+    // FIRST: the deterministic path. A Guatemalan credit-card statement
+    // (Contecnica/BI, G&T Continental, BAC Credomatic) is parsed locally with
+    // pdf.js + format-specific parsers that reconcile against the statement's
+    // own totals: exact, free, and offline, so the AI never sees it. Anything
+    // unrecognized (or an image-only scan) falls through to the AI path that
+    // handled every PDF before this existed.
+    setPdfReading(true)
+    setError('')
+    try {
+      const { extractPdfLayoutText } = await import('@/lib/pdfExtract')
+      const text = await extractPdfLayoutText(file)
+      // Si NO lo reconocemos, dejar constancia de qué era antes de caer a la
+      // IA. Un estado de un banco que todavía no soportamos se veía igual que un
+      // archivo malo: el usuario no sabía cuál de las dos cosas pasó, y sin
+      // saber cómo imprime ese banco no hay forma de escribirle un parser. Es
+      // observación pura, jamás montos.
+      if (text && !detectCardStatement(text)) {
+        const fp = fingerprintStatement(text)
+        setStmtFingerprint(fp.looksLikeStatement ? fp : null)
+      } else {
+        setStmtFingerprint(null)
+      }
+      if (text && detectCardStatement(text)) {
+        // Las reglas que el usuario ya enseñó corrigiendo categorías. Sin
+        // ellas, el mismo comercio volvía a "Otros Gastos" en cada import por
+        // más veces que se lo hubiera corregido.
+        const parsed = parseCardStatement(text, { rules: ingestRules })
+        if (parsed && parsed.transactions.length > 0) {
+          // Card statements go through reconcileStatement, NOT matchStatement:
+          // the statement arrives a month after the Shortcut and the email
+          // already captured these same purchases, and that cross-method case
+          // needs multiplicity, currency and settled-vs-authorized amounts
+          // handled. See lib/statementReconcile.js for why each one matters.
+          const match = reconcileStatement(parsed.transactions, existingFinanceTransactions)
+          // La moneda sale de las filas, no de una constante: un estado que
+          // no sea guatemalteco se etiquetaba GTQ pase lo que pase. Gana la más
+          // frecuente, que es la del cuerpo del estado (BAC imprime dos).
+          const freq = {}
+          for (const tx of parsed.transactions) freq[tx.currency || 'GTQ'] = (freq[tx.currency || 'GTQ'] || 0) + 1
+          const mainCurrency = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || 'GTQ'
+          setBiData({ transactions: parsed.transactions, finalBalance: 0, currency: mainCurrency, card: parsed })
+          setBiMatch(match)
+          // Cuánto de este estado ya lo había capturado sola la app. Se calcula
+          // acá, con el emparejamiento recién hecho, en vez de re-emparejar.
+          setWalletStats(walletCoverage(match))
+          // New rows import by default. A review row is checked only when the
+          // evidence says it is a SEPARATE charge; left unchecked it means
+          // "same charge" and the statement's amount is applied to the row
+          // already recorded.
+          setBiSelected(new Set([
+            ...match.newTxs.map((_, i) => `n${i}`),
+            ...match.review.map((x, i) => (x.defaultSame ? null : `r${i}`)).filter(Boolean),
+          ]))
+          if (parsed.cardLast4) setStmtAccount(`${parsed.bankLabel} •${parsed.cardLast4}`)
+          setStep('bi-preview')
+          setPdfReading(false)
+          return
+        }
+      }
+    } catch (err) {
+      // The deterministic path must never block the AI path that always existed.
+      console.warn('[import] deterministic card path failed:', err?.message)
+    }
+
     // Vercel caps serverless request bodies around 4.5MB and base64 inflates
     // ~33%, so AI reading caps at 3MB. Bigger statements fall back to the
     // manual prompt flow.
@@ -169,10 +245,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         ? 'PDF demasiado grande para la lectura con IA (máx 3MB). Usa el prompt manual de abajo con tu propia IA.'
         : 'PDF too large for AI reading (max 3MB). Use the manual prompt below with your own AI.')
       setAiOpen(true)
+      setPdfReading(false)
       return
     }
-    setPdfReading(true)
-    setError('')
     try {
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader()
@@ -209,7 +284,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } finally {
       setPdfReading(false)
     }
-  }, [lang, hydrateFromPdf])
+  }, [lang, hydrateFromPdf, existingFinanceTransactions])
 
   const handleFile = useCallback(async (file) => {
     setError('')
@@ -582,13 +657,49 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setError('')
     let success = 0
     let failed = 0
+    let updated = 0
 
-    // Only the rows the user left checked: new rows (pre-checked) plus any
-    // likely-duplicates they explicitly confirmed. Exact matches never import.
-    const toImport = [
-      ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
-      ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
-    ]
+    // Two shapes reach this handler. A card statement is reconciled with
+    // reconcileStatement (confirmed / review / orphans), because the Shortcut
+    // and the email have usually captured the same purchases already; a bank
+    // CSV still uses matchStatement (exact / likely).
+    const isCard = Array.isArray(biMatch.confirmed)
+
+    // Only the rows the user left checked. For a card statement a checked
+    // REVIEW row means "this is a separate charge, import it"; leaving it
+    // unchecked means "same charge", and the statement's settled amount is
+    // applied to the row already recorded instead.
+    const toImport = isCard
+      ? [
+        ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
+        ...biMatch.review.filter((_, i) => biSelected.has(`r${i}`)).map((x) => x.row),
+      ]
+      : [
+        ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
+        ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
+      ]
+
+    // The statement is the bank's own record, so a row it confirms gets
+    // enriched (settled amount, posting date, card, installment) rather than
+    // skipped. Anything only the earlier capture has (GPS from the Shortcut,
+    // a category the user fixed) is preserved by enrichmentFor.
+    if (isCard && onUpdateFinanceTransaction) {
+      const toUpdate = [
+        ...biMatch.confirmed,
+        ...biMatch.review
+          .filter((_, i) => !biSelected.has(`r${i}`))
+          .map((x) => ({ match: x.match, updates: enrichmentFor(x.row, x.match).updates })),
+      ]
+      for (const u of toUpdate) {
+        if (!u.match?.id || !u.updates || Object.keys(u.updates).length === 0) continue
+        try {
+          await onUpdateFinanceTransaction(u.match.id, u.updates)
+          updated++
+        } catch {
+          failed++
+        }
+      }
+    }
 
     for (const tx of toImport) {
       try {
@@ -624,10 +735,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
-    setResult({ success, failed, total: biData.transactions.length, skipped: biMatch.exact.length, isBI: true })
+    setResult({
+      success, failed, updated,
+      total: biData.transactions.length,
+      skipped: isCard ? biMatch.confirmed.length : biMatch.exact.length,
+      isBI: true,
+    })
     setStep('done')
     setImporting(false)
-  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
+  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
 
   const doIBKRImport = useCallback(async () => {
     // History-only files are valid: a Flex XML for a closed year can carry just
@@ -807,7 +923,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             ].map((tab) => (
               <button key={tab.key} onClick={() => { setMode(tab.key); setError('') }}
                 className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
-                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: '#94a3b8' }}>
+                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: 'var(--text-muted)' }}>
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -818,6 +934,37 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
             <div className="mb-4 p-3 bg-[#f87171]/10 border border-[#f87171]/20 text-[#f87171] rounded-lg text-sm">{error}</div>
+          )}
+
+          {/* Un estado de cuenta de un banco que todavía no leemos de forma
+              exacta. Se muestra en TODOS los pasos a propósito: lo que sigue es
+              la lectura con IA, y quien la está mirando merece saber por qué no
+              fue la exacta. La huella describe la FORMA del documento (páginas,
+              filas, convención de números, moneda), nunca un monto ni un
+              comercio: eso es de quien recibió el estado. */}
+          {stmtFingerprint && (
+            <div className="mb-4 p-3 rounded-lg text-xs"
+              style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--text-secondary)' }}>
+              <p className="font-medium mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                {stmtFingerprint.issuers.length
+                  ? t(`Todavía no leemos ${stmtFingerprint.issuers[0]} de forma exacta`, `We don't read ${stmtFingerprint.issuers[0]} exactly yet`)
+                  : t('Todavía no reconocemos este banco', "We don't recognize this bank yet")}
+              </p>
+              <p className="mb-2">{t(
+                'Lo vamos a leer con IA, que funciona pero no reconcilia contra los totales que el estado imprime. Si querés lectura exacta, mandá esta línea (no lleva montos ni comercios):',
+                'We will read it with AI, which works but does not reconcile against the totals the statement prints. For exact reading, send this line (it carries no amounts or merchants):'
+              )}</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 min-w-0 font-mono break-words px-2 py-1 rounded bg-theme-base" style={{ color: 'var(--text-muted)' }}>
+                  {describeFingerprint(stmtFingerprint, lang)}
+                </code>
+                <button onClick={() => { navigator.clipboard.writeText(describeFingerprint(stmtFingerprint, lang)); setFpCopied(true); setTimeout(() => setFpCopied(false), 2000) }}
+                  className="shrink-0 px-2 py-1 rounded-md font-medium"
+                  style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                  {fpCopied ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Upload step */}
@@ -839,7 +986,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               >
                 {pdfReading ? (
                   <div className="py-4">
-                    <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                    <div className="flex justify-center mb-3"><ChispudoLoader mode="inline" size={24} state="section-loading" lang={lang} /></div>
                     <p className="text-white font-medium mb-1">{t('Chispu está leyendo tu PDF con IA...', 'Chispu is reading your PDF with AI...')}</p>
                     <p className="text-slate-500 text-sm">{t('Un estado grande puede tardar hasta medio minuto', 'A large statement can take up to half a minute')}</p>
                   </div>
@@ -864,7 +1011,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   await generateTemplate()
                 }}
                 className="mt-4 w-full py-3 border rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                style={{ backgroundColor: 'rgba(8,145,178,0.2)', borderColor: 'rgba(6,182,212,0.3)', color: '#22d3ee' }}>
+                style={{ backgroundColor: 'rgba(8,145,178,0.2)', borderColor: 'rgba(6,182,212,0.3)', color: 'var(--accent-cyan)' }}>
                 <span>📥</span> {t('Descargar plantilla de ejemplo', 'Download example template')}
               </button>
               <p className="mt-2 text-xs text-slate-500 text-center">
@@ -1146,12 +1293,66 @@ When done, give me the .xlsx file ready to download.`
             <div>
               <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[#34d399]/10 border border-[#34d399]/20 rounded-lg">
                 <span className="text-[#34d399] text-xs font-medium">
-                  {t('Formato detectado: Banco Industrial', 'Format detected: Banco Industrial')}
+                  {biData.card
+                    ? `${t('Formato detectado', 'Format detected')}: ${biData.card.bankLabel}${biData.card.cardLast4 ? ` •${biData.card.cardLast4}` : ''}${biData.card.cutDate ? ` · ${t('corte', 'cut')} ${biData.card.cutDate}` : ''}`
+                    : t('Formato detectado: Banco Industrial', 'Format detected: Banco Industrial')}
                 </span>
               </div>
+              {/* The parse re-adds every row and compares against the statement's
+                  own printed totals, per currency and per side. Saying so (or
+                  saying it does NOT add up) is the whole point: a statement
+                  imported wrong silently is how a month's numbers stop being
+                  trustworthy. */}
+              {biData.card && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={biData.card.reconciled
+                    ? { borderColor: 'var(--alert-success-border)', backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)' }
+                    : { borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  {biData.card.reconciled
+                    ? t('✓ Cuadra al centavo contra los totales impresos del estado de cuenta.', '✓ Adds up to the cent against the statement\'s own printed totals.')
+                    : t('⚠ La lectura NO cuadra contra los totales del estado. Revisa las filas antes de importar.', '⚠ The parse does NOT add up against the statement totals. Review the rows before importing.')}
+                  {!biData.card.reconciled && biData.card.reconciliation.filter((x) => !x.ok).map((x) => (
+                    <span key={`${x.currency}${x.side}`} className="block mt-0.5">
+                      {x.currency} {x.side === 'debit' ? t('cargos', 'debits') : t('créditos', 'credits')}: {t('esperado', 'expected')} {x.expected.toLocaleString()} · {t('leído', 'parsed')} {x.computed.toLocaleString()}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Cobertura de la captura automática, medida contra los
+                  marcadores APPLEPAY que el propio estado imprime. Es la única
+                  forma de saber si la automatización del teléfono está
+                  disparando sin tener que deducirlo de los síntomas: el
+                  resultado final se ve igual capturara quien capturara. */}
+              {walletStats && walletStats.total > 0 && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={walletStats.missing === 0
+                    ? { borderColor: 'var(--alert-success-border)', backgroundColor: 'var(--alert-success-bg)', color: 'var(--alert-success-icon)' }
+                    : { borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  <span className="block font-medium">
+                    {t(`Captura automática: ${walletStats.captured} de ${walletStats.total} compras con billetera (${Math.round(walletStats.pct)}%)`,
+                       `Automatic capture: ${walletStats.captured} of ${walletStats.total} wallet purchases (${Math.round(walletStats.pct)}%)`)}
+                  </span>
+                  {Object.keys(walletStats.byTransport).length > 0 && (
+                    <span className="block mt-0.5 opacity-80">
+                      {Object.entries(walletStats.byTransport)
+                        .map(([via, n]) => `${via === 'shortcut' ? t('atajo', 'shortcut') : via === 'email' ? t('correo', 'email') : via} ${n}`)
+                        .join(' · ')}
+                      {walletStats.byHand > 0 && ` · ${t('a mano', 'by hand')} ${walletStats.byHand}`}
+                    </span>
+                  )}
+                  {walletStats.missing > 0 && (
+                    <span className="block mt-0.5 opacity-80">
+                      {t(`${walletStats.missing} no las capturó nada: la automatización no disparó en esas.`,
+                         `${walletStats.missing} were captured by nothing: the automation did not fire on those.`)}
+                    </span>
+                  )}
+                </div>
+              )}
               <p className="text-slate-400 text-sm mb-3">
                 {t(`${biData.transactions.length} transacciones en el estado`, `${biData.transactions.length} transactions in the statement`)}
-                {biMatch && `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`}
+                {biMatch && (Array.isArray(biMatch.confirmed)
+                  ? `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.confirmed.length} ${t('ya capturadas', 'already captured')}${biMatch.review.length > 0 ? ` · ${biMatch.review.length} ${t('a revisar', 'to review')}` : ''}`
+                  : `: ${biMatch.newTxs.length} ${t('nuevas', 'new')} · ${biMatch.exact.length} ${t('ya registradas', 'already recorded')}${biMatch.likely.length > 0 ? ` · ${biMatch.likely.length} ${t('a revisar', 'to review')}` : ''}`)}
                 {biData.finalBalance > 0 && `: ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
               </p>
 
@@ -1167,6 +1368,52 @@ When done, give me the .xlsx file ready to download.`
 
               {biMatch && (
                 <div className="space-y-3 mb-4">
+                  {/* REVIEW — the cross-method judgement call: the statement's
+                      settled amount differs from what was captured live (a tip,
+                      a fuel pre-authorization), or the merchant text is too
+                      weak to decide. Checked = separate charge, import it.
+                      Unchecked = same charge, correct the recorded one. */}
+                  {biMatch.review?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                        ⚠ {t(`¿El mismo cobro? (${biMatch.review.length}): marca solo los que sean cobros APARTE`,
+                             `Same charge? (${biMatch.review.length}): check only the ones that are SEPARATE charges`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-44 overflow-y-auto border rounded-lg" style={{ borderColor: 'var(--alert-warn-border)' }}>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.review.map(({ row, match, relation }, i) => (
+                              <tr key={`r${i}`} className="border-b border-glass-border/50">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`r${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`r${i}`) : next.delete(`r${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(row.date)}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{row.description}</td>
+                                <td className="py-1.5 px-2 text-right whitespace-nowrap" style={{ color: 'var(--text-negative)' }}>
+                                  {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-500 max-w-[170px] truncate">
+                                  {relation === 'adjusted'
+                                    ? t(`ya tienes ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} el ${formatFinanceDate(match.date)}`,
+                                        `you have ${match.currency === 'USD' ? '$' : 'Q'}${match.amount.toLocaleString()} on ${formatFinanceDate(match.date)}`)
+                                    : `≈ ${formatFinanceDate(match.date)} · ${match.description}`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {t('Sin marcar, se corrige el movimiento que ya tenías con el monto final del banco.',
+                           'Left unchecked, the movement you already had is corrected with the bank\'s final amount.')}
+                      </p>
+                    </div>
+                  )}
+
                   {/* NEW — pre-checked, will import */}
                   {biMatch.newTxs.length > 0 && (
                     <div>
@@ -1185,7 +1432,7 @@ When done, give me the .xlsx file ready to download.`
                                     setBiSelected(next)
                                   }} />
                                 </td>
-                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{tx.date}</td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(tx.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[160px] truncate">{tx.description}</td>
                                 <td className="py-1.5 px-2">
                                   <select value={tx.category}
@@ -1201,7 +1448,7 @@ When done, give me the .xlsx file ready to download.`
                                   </select>
                                 </td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                  {tx.type === 'INCOME' ? '+' : '-'}Q{tx.amount.toLocaleString()}
+                                  {flowSign(tx)}{tx.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(tx).toLocaleString()}
                                 </td>
                               </tr>
                             ))}
@@ -1212,7 +1459,7 @@ When done, give me the .xlsx file ready to download.`
                   )}
 
                   {/* LIKELY DUPLICATES — default unchecked, user decides */}
-                  {biMatch.likely.length > 0 && (
+                  {biMatch.likely?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
                         ⚠ {t(`Posibles duplicados (${biMatch.likely.length}): marca solo las que SÍ falten`, `Possible duplicates (${biMatch.likely.length}): check only the truly missing ones`)}
@@ -1229,13 +1476,13 @@ When done, give me the .xlsx file ready to download.`
                                     setBiSelected(next)
                                   }} />
                                 </td>
-                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{parsed.date}</td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(parsed.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
                                 <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                  {parsed.type === 'INCOME' ? '+' : '-'}Q{parsed.amount.toLocaleString()}
+                                  {flowSign(parsed)}{parsed.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(parsed).toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
-                                  ≈ {match.date} · {match.description}
+                                  ≈ {formatFinanceDate(match.date)} · {match.description}
                                 </td>
                               </tr>
                             ))}
@@ -1245,15 +1492,79 @@ When done, give me the .xlsx file ready to download.`
                     </div>
                   )}
 
+                  {/* CONFIRMED — captured live by the Shortcut/email (or typed
+                      by hand) and now confirmed by the bank. Not re-imported;
+                      enriched with what only the statement knows. */}
+                  {biMatch.confirmed?.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--accent-green)' }}>
+                        ✓ {t(`Ya capturadas (${biMatch.confirmed.length}): el banco las confirma, no se duplican`,
+                             `Already captured (${biMatch.confirmed.length}): the bank confirms them, no duplicates`)}
+                      </summary>
+                      <div className="mt-1 max-h-40 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        {biMatch.confirmed.map(({ row, changes }, i) => (
+                          <p key={i} className="text-slate-500 truncate">
+                            {formatFinanceDate(row.date)} · {row.description} · {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                            {changes.length > 0 && (
+                              <span style={{ color: 'var(--alert-warn-icon)' }}>
+                                {' → '}{changes.map((c) => `${c.field}: ${c.field === 'date' ? formatFinanceDate(c.from) : c.from} → ${c.field === 'date' ? formatFinanceDate(c.to) : c.to}`).join(', ')}
+                              </span>
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  {/* ORPHANS — recorded inside the statement's own window but
+                      absent from it. Informational: the usual cause is another
+                      card, but it is also how a double-capture shows up. */}
+                  {biMatch.orphans?.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                        ? {t(`Tienes ${biMatch.orphans.length} movimiento(s) de estas fechas que el estado no trae`,
+                             `You have ${biMatch.orphans.length} movement(s) from these dates the statement does not include`)}
+                      </summary>
+                      <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        <p className="text-slate-600 mb-1">
+                          {t('Normal si son de otra tarjeta. Si no, revisa que no sea el mismo cobro capturado dos veces.',
+                             'Normal if they are from another card. If not, check they are not the same charge captured twice.')}
+                        </p>
+                        {biMatch.orphans.map((o, i) => (
+                          <p key={i} className="text-slate-500 truncate">
+                            {formatFinanceDate(o.date)} · {o.description} · {o.currency === 'USD' ? '$' : 'Q'}{(o.amount || 0).toLocaleString()}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
                   {/* EXACT — skipped, collapsed */}
-                  {biMatch.exact.length > 0 && (
+                  {biMatch.exact?.length > 0 && (
                     <details className="text-xs">
                       <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                         ⏭ {t(`Ya registradas (${biMatch.exact.length}): se omiten`, `Already recorded (${biMatch.exact.length}): skipped`)}
                       </summary>
                       <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biMatch.exact.map(({ parsed }, i) => (
-                          <p key={i} className="text-slate-500 truncate">{parsed.date} · {parsed.description} · Q{parsed.amount.toLocaleString()}</p>
+                          <p key={i} className="text-slate-500 truncate">{formatFinanceDate(parsed.date)} · {parsed.description} · {parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}</p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  {/* Payments TO the card are transfers between the user's own
+                      accounts: importing them as income or expense would
+                      distort the month, so they never import, but hiding them
+                      entirely would make the statement look misread. */}
+                  {biData.card?.excluded?.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
+                        ⏭ {t(`Pagos a la tarjeta (${biData.card.excluded.length}): no se importan, son transferencias`, `Card payments (${biData.card.excluded.length}): not imported, they are transfers`)}
+                      </summary>
+                      <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        {biData.card.excluded.map((e, i) => (
+                          <p key={i} className="text-slate-500 truncate">{formatFinanceDate(e.date)} · {e.description} · {e.currency === 'USD' ? '$' : 'Q'}{e.amount.toLocaleString()}</p>
                         ))}
                       </div>
                     </details>
@@ -1330,7 +1641,7 @@ When done, give me the .xlsx file ready to download.`
                           <td className="py-1.5 px-1.5 text-right text-slate-300">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-white font-medium">${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
-                          <td className="py-1.5 px-1.5 text-right font-medium" style={{ color: gain > 0 ? '#34d399' : gain < 0 ? '#f87171' : '#64748b' }}>
+                          <td className="py-1.5 px-1.5 text-right font-medium" style={{ color: gain > 0 ? 'var(--accent-green)' : gain < 0 ? 'var(--accent-red)' : 'var(--text-muted)' }}>
                             {cost > 0 ? `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}%` : '-'}
                           </td>
                         </tr>
@@ -1346,7 +1657,7 @@ When done, give me the .xlsx file ready to download.`
                   ("Activity Statement", "Trades section") stays out of the way. */}
               {ibkrMissingHistory && (
                 <div className="mt-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                  <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                     {ibkrData._period?.singleDay
                       ? t(`Este archivo cubre un solo día: ${ibkrData._period.raw}.`, `This file covers a single day: ${ibkrData._period.raw}.`)
                       : t('Este archivo tiene lo que tienes hoy, pero no cómo llegaste ahí.', 'This file has what you hold today, but not how you got there.')}
@@ -1371,7 +1682,7 @@ When done, give me the .xlsx file ready to download.`
                   far back as IBKR keeps statements. */}
               {!ibkrMissingHistory && ibkrOlderThanFile > 0 && (
                 <div className="mt-3 px-3 py-2.5 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                  <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                     {t(`${ibkrOlderThanFile} de estas posiciones ya las tenías antes de que empiece este archivo.`,
                        `${ibkrOlderThanFile} of these positions were already yours before this file starts.`)}
                   </p>
@@ -1422,7 +1733,7 @@ When done, give me the .xlsx file ready to download.`
                       },
                       {
                         key: 'replace',
-                        accent: '#fb923c',
+                        accent: 'var(--accent-orange)',
                         title: t('Borrar y empezar de nuevo', 'Delete and start over'),
                         desc: ibkrCount > 0
                           ? t(`Elimina tus ${ibkrCount} posiciones de IBKR y las vuelve a crear desde este archivo.`,
@@ -1522,6 +1833,20 @@ When done, give me the .xlsx file ready to download.`
                           : <>{result.success} {result.isBI ? t('transacciones importadas', 'transactions imported') : t('activos importados', 'assets imported')}</>}
                       {result.failed > 0 && <>, {result.failed} {t('fallidos', 'failed')}</>}
                     </p>
+                    {/* The cross-method outcome: what the statement confirmed
+                        instead of duplicating, and what it corrected. */}
+                    {result.skipped > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
+                        {t(`${result.skipped} ya las tenías capturadas: el banco las confirmó, no se duplicaron.`,
+                           `${result.skipped} were already captured: the bank confirmed them, nothing was duplicated.`)}
+                      </p>
+                    )}
+                    {result.updated > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                        {t(`${result.updated} se corrigieron con el monto y los datos finales del banco.`,
+                           `${result.updated} were corrected with the bank's final amount and data.`)}
+                      </p>
+                    )}
                   </>
                 )
               })()}
@@ -1533,20 +1858,20 @@ When done, give me the .xlsx file ready to download.`
                 </p>
               )}
               {result.replaced > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#fb923c' }}>{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-orange)' }}>{t(`${result.replaced} posiciones anteriores reemplazadas`, `${result.replaced} previous positions replaced`)}</p>
               )}
               {result.snapCount > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-cyan)' }}>📊 {result.snapCount} {t('periodos de historial', 'history periods')}</p>
               )}
               {result.isIBKR && result.navDays > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#22d3ee' }}>📊 {result.navDays} {t('días de historial de valor importados', 'days of value history imported')}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-cyan)' }}>📊 {result.navDays} {t('días de historial de valor importados', 'days of value history imported')}</p>
               )}
               {/* IBKR import with ZERO NAV days: the file lacked the daily-value
                   section, so history and returns stay empty even though the
                   import "succeeded". Say so here, where it is still actionable. */}
               {result.isIBKR && result.navDays === 0 && (
                 <div className="mt-3 mx-auto max-w-sm px-3 py-2.5 rounded-lg text-left text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <p className="font-medium" style={{ color: '#fcd34d' }}>
+                  <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                     {t('El archivo no trae el valor diario de tu cuenta (sección "Net Asset Value (NAV) in Base").',
                        'The file has no daily account value (the "Net Asset Value (NAV) in Base" section).')}
                   </p>

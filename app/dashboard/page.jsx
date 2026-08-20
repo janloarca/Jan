@@ -8,7 +8,12 @@ import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } fr
 import { computeLoadStages } from '@/lib/loadStages'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
+import PullToRefresh from '@/components/ui/PullToRefresh'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { InfoTip } from '@/components/ui/Tooltip'
+import { useEdgeFade } from '@/hooks/useEdgeFade'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
+import PageBanner from '@/components/ui/PageBanner'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
@@ -67,6 +72,7 @@ const LiquidYieldModal = dynamic(() => import('@/components/dashboard/LiquidYiel
 const CashFlowModal = dynamic(() => import('@/components/CashFlowModal'), { loading: () => <ModalSkeleton /> })
 const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary'))
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
+const GuidedSetup = dynamic(() => import('@/components/dashboard/GuidedSetup'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
@@ -78,9 +84,23 @@ const ConcentrationRisk = dynamic(() => import('@/components/dashboard/Concentra
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
-const InstitutionPerformance = dynamic(() => import('@/components/dashboard/InstitutionPerformance'), { loading: () => <SkeletonCard /> })
+// These three were already built and registered in cardRegistry.js but had
+// never been mounted anywhere in the app. They are Analysis tabs now.
+const BenchmarkComparison = dynamic(() => import('@/components/dashboard/BenchmarkComparison'), { loading: () => <SkeletonCard /> })
+const CurrencyImpact = dynamic(() => import('@/components/dashboard/CurrencyImpact'), { loading: () => <SkeletonCard /> })
+const FeeAnalysis = dynamic(() => import('@/components/dashboard/FeeAnalysis'), { loading: () => <SkeletonCard /> })
+const PortfolioMap = dynamic(() => import('@/components/dashboard/PortfolioMap'), { loading: () => <SkeletonCard /> })
+const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonCard /> })
+// InstitutionPerformance sigue EN DISCO y sin un solo cambio: sus seis filas
+// duplicaban número por número la vista "Inst." de Asignación de Activos, así
+// que el tablero dejó de renderizarla (ver la grilla de composición más abajo).
+// El `dynamic()` que estaba acá sí se quitó: un import dinámico sin punto de
+// montaje igual emite su chunk, o sea todo el mundo pagaba la descarga de una
+// card que nadie pide. Remontarla sigue siendo una línea, ahora dos.
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
+const WealthProjectionCard = dynamic(() => import('@/components/dashboard/WealthProjectionCard'), { loading: () => <SkeletonCard /> })
+const InvestmentComparator = dynamic(() => import('@/components/dashboard/InvestmentComparator'), { loading: () => <SkeletonCard /> })
 
 // How long a finished IBKR-journey step stays on screen before it carries the
 // user to the next one (FASE GQ4). Long enough to read the one-line "Listo:
@@ -110,46 +130,148 @@ import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName, beginnerMode }) {
-  const [tab, setTab] = useState('health')
+// Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
+// wears the same card: same shell, same header shape, same segmented control.
+// It used to be a bare tab strip in a collapsed section at the very bottom of
+// the page. Its five original tabs are unchanged; Benchmark, Currency and Fees
+// were already built as components and had simply never been mounted anywhere,
+// and Data quality moved up from "Recent activity".
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, volatility, goalValue, beginnerMode, onConnect, onImportBroker }) {
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
-  // Beginner mode hides the most jargon-heavy tabs (Risk metrics, Attribution)
-  const tabs = [
-    { key: 'health', label: t('Salud', 'Health') },
-    ...(beginnerMode ? [] : [{ key: 'risk', label: t('Riesgo', 'Risk') }]),
-    { key: 'concentration', label: t('Concentración', 'Concentration') },
-    ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
-    ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
-  ]
+
+  // Once vistas en UNA fila plana no son pestañas, son una lista que se sale de
+  // la pantalla: en el iPad del usuario la última quedaba cortada, y la guía de
+  // NN/g es explícita en que las pestañas sirven para "unas pocas secciones".
+  //
+  // Se agrupan en cuatro familias, y ninguna vista desaparece. El criterio es la
+  // PREGUNTA que contesta cada una, no de dónde salió el componente:
+  //   Rendimiento  -> cómo me fue y qué lo movió
+  //   Riesgo       -> qué tan expuesto estoy a que salga mal
+  //   Exposición   -> a qué estoy expuesto, y qué me cuesta
+  //   Proyección   -> lo que viene, y qué tan confiable es lo que estoy viendo
+  //
+  // Cuatro chips entran completos hasta en un teléfono, y dentro de cada familia
+  // quedan dos o tres vistas: los dos niveles son cortos.
+  const families = [
+    {
+      key: 'performance', label: t('Rendimiento', 'Performance'),
+      views: [
+        { key: 'benchmark', label: t('Benchmark', 'Benchmark') },
+        ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
+        ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
+      ],
+    },
+    {
+      key: 'risk', label: t('Riesgo', 'Risk'),
+      views: [
+        { key: 'health', label: t('Salud', 'Health') },
+        ...(beginnerMode ? [] : [{ key: 'risk', label: t('Métricas', 'Metrics') }]),
+        { key: 'concentration', label: t('Concentración', 'Concentration') },
+      ],
+    },
+    {
+      key: 'exposure', label: t('Exposición', 'Exposure'),
+      views: [
+        { key: 'map', label: t('Mapa', 'Map') },
+        { key: 'currency', label: t('Moneda', 'Currency') },
+        { key: 'fees', label: t('Comisiones', 'Fees') },
+      ],
+    },
+    {
+      key: 'outlook', label: t('Proyección', 'Outlook'),
+      views: [
+        { key: 'projection', label: t('Proyección', 'Projection') },
+        { key: 'quality', label: t('Calidad de datos', 'Data quality') },
+      ],
+    },
+  ].filter((f) => f.views.length > 0)
+
+  const [family, setFamily] = useState('risk')
+  const activeFamily = families.find((f) => f.key === family) || families[0]
+  // La vista arranca en la primera de su familia y se re-ancla al cambiar de
+  // familia, así que nunca queda una vista activa que no esté en la fila de
+  // abajo (por ejemplo al entrar o salir de modo principiante).
+  const [tab, setTab] = useState(activeFamily.views[0].key)
+  const activeTab = activeFamily.views.some((v) => v.key === tab) ? tab : activeFamily.views[0].key
+
   return (
-    <div className="space-y-4">
-      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        {tabs.map(tb => (
-          <button key={tb.key} onClick={() => setTab(tb.key)}
-            className="px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap"
-            style={tab === tb.key
-              ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
-              : { color: 'var(--text-muted)' }}>
-            {tb.label}
-          </button>
-        ))}
+    <div className="card p-4 sm:p-5">
+      {/* Header — mirrors AssetAllocation's so the two read as one pair */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="card-title">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
+          {t('ANÁLISIS', 'ANALYSIS')}
+          <InfoTip text={t(
+            'Distintas lecturas del mismo portafolio, agrupadas por la pregunta que contestan. Ninguna pestaña cambia tus datos.',
+            'Different readings of the same portfolio, grouped by the question each one answers. No tab changes your data.'
+          )} />
+        </h3>
       </div>
-      {tab === 'health' && (
+
+      <SegmentedTabs
+        tabs={families.map((f) => ({ key: f.key, label: f.label }))}
+        value={activeFamily.key}
+        onChange={(k) => {
+          setFamily(k)
+          const next = families.find((f) => f.key === k)
+          if (next) setTab(next.views[0].key)
+        }}
+        deps={[lang, beginnerMode, hasLots]}
+        ariaLabel={t('Familias de análisis', 'Analysis families')}
+        className="mb-2"
+      />
+      {/* El segundo nivel solo aparece cuando de verdad hay algo que elegir. */}
+      {activeFamily.views.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1 mb-4">
+          {activeFamily.views.map((v) => {
+            const on = v.key === activeTab
+            return (
+              <button key={v.key} onClick={() => setTab(v.key)}
+                aria-pressed={on}
+                className="px-2.5 min-h-[28px] text-caption rounded-md transition-colors"
+                style={on
+                  ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', fontWeight: 600 }
+                  : { color: 'var(--text-muted)' }}>
+                {v.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {activeTab === 'health' && (
         // Concentration lives in its own dedicated tab; don't duplicate it here.
         <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
       )}
-      {tab === 'risk' && !beginnerMode && (
+      {activeTab === 'risk' && !beginnerMode && (
         <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
       )}
-      {tab === 'concentration' && (
+      {activeTab === 'concentration' && (
         <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
       )}
-      {tab === 'gains' && hasLots && (
+      {activeTab === 'gains' && hasLots && (
         <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
-      {tab === 'attribution' && !beginnerMode && (
+      {activeTab === 'attribution' && !beginnerMode && (
         <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+      {activeTab === 'benchmark' && (
+        <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
+      )}
+      {activeTab === 'currency' && (
+        <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
+      )}
+      {activeTab === 'fees' && (
+        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} /></CardBoundary>
+      )}
+      {activeTab === 'quality' && (
+        <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
+      )}
+      {activeTab === 'map' && (
+        <CardBoundary id="OR-06"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
+      )}
+      {activeTab === 'projection' && (
+        <CardBoundary id="IG-11"><ProjectionSimulator netWorth={netWorth} lang={lang} volatility={volatility} goalValue={goalValue} /></CardBoundary>
       )}
     </div>
   )
@@ -169,6 +291,10 @@ export default function DashboardPage() {
   const [lang, setLang] = useState('es')
   const [beginnerMode, setBeginnerMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // Primeros pasos guiados: le preguntamos al usuario qué tiene y lo
+  // acompañamos activo por activo. Es lo que ve un usuario nuevo en vez de
+  // caer directo en el formulario largo.
+  const [showGuided, setShowGuided] = useState(false)
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -308,9 +434,10 @@ export default function DashboardPage() {
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio,
-    addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    deleteFinanceTransactionsByIds,
     bulkImport,
-    saveGoals, saveSettings, saveProfile,
+    saveGoals, saveSettings, saveProfile, incomePlan, saveIncomePlan,
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
     marketPrices,
     pricesLoading, pricesError, pricesUpdate,
@@ -318,9 +445,9 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
+    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
     annualDividends, estimatedAnnualIncome,
-    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
@@ -342,6 +469,7 @@ export default function DashboardPage() {
     setModal('import')
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
+  const handleOpenGuided = useCallback(() => { setModal(null); setShowGuided(true) }, [])
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
   const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
@@ -1058,6 +1186,19 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
+      {/* Jalar hacia abajo para actualizar. Solo acá: el gesto reemplaza al
+          refresco NATIVO de Safari (la app no es PWA), y en el resto de las
+          pantallas conviene conservarlo como salida de emergencia.
+          Recibe EXACTAMENTE los mismos valores que el anillo del header de
+          abajo, así los dos nunca pueden contar historias distintas. */}
+      <PullToRefresh
+        onRefresh={handleRefresh}
+        loading={pricesLoading || ratesLoading || benchmarkLoading}
+        error={!!(pricesError || ratesError)}
+        stagesDone={loadStages.done}
+        stagesTotal={loadStages.total}
+        lang={lang}
+      />
       <Header
         user={user} lang={lang}
         setLang={() => handleSetLang('toggle')}
@@ -1097,168 +1238,78 @@ export default function DashboardPage() {
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
-      {topBanner && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
-          {topBanner === 'stale' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--accent-blue)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
-                  {lang === 'es' ? 'Hay una nueva versión disponible' : 'A new version is available'}
-                </p>
-              </div>
-              <button onClick={() => { if (typeof caches !== 'undefined') caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))); window.location.reload() }}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {lang === 'es' ? 'Actualizar' : 'Update'}
-              </button>
-            </div>
-          )}
-          {topBanner === 'ibkr-expired' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                  {lang === 'es' ? 'Actualizar' : 'Update'}
-                </button>
-              </div>
-            </div>
-          )}
-          {topBanner === 'ibkr-query' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                  {lang === 'es' ? 'Configurar' : 'Configure'}
-                </button>
-              </div>
-            </div>
-          )}
-          {/* FASE GQ: a first connect never made it past 5 business days (FASE HX)
-              without a single successful sync. "La última sincronización falló"
-              (ibkr-failed below) implies at least ONE sync happened; this case
-              never did, so the copy points straight at the credentials instead. */}
-          {/* FASE HX: era rojo (rgba(239,68,68)) con botón rojo sólido, o sea el
-              tratamiento de una falla mortal, para lo que es un aviso de datos
-              posiblemente desactualizados que el auto-sync sigue reintentando
-              solo. Ahora usa los tokens --alert-warn-* (mismos que el resto de
-              avisos no fatales, y con variante clara/oscura de verdad: los hex
-              fijos #fca5a5 eran ilegibles en tema claro). */}
-          {topBanner === 'ibkr-never-connected' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID"}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                  {lang === 'es' ? 'Revisar credenciales' : 'Check credentials'}
-                </button>
-              </div>
-            </div>
-          )}
-          {/* FASE HX: mismo suavizado que ibkr-never-connected. LOCKED se
-              levanta solo (EZ3: reintento cada 12h), así que rojo-mortal era
-              el tono equivocado incluso cruzada la barra de 5 días. */}
-          {topBanner === 'ibkr-locked' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={handleIbkrDisconnect} className="text-xs transition-colors" style={{ color: 'var(--alert-warn-icon)', opacity: 0.7 }}>
-                  {lang === 'es' ? 'Desconectar' : 'Disconnect'}
-                </button>
-                <button onClick={() => setModal('ibkr')}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                  {lang === 'es' ? 'Resolver' : 'Resolve'}
-                </button>
-              </div>
-            </div>
-          )}
-          {topBanner === 'ibkr-failed' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {lang === 'es' ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated'}
-                </p>
-              </div>
-              <button onClick={() => setModal('ibkr')}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                {lang === 'es' ? 'Reintentar' : 'Retry'}
-              </button>
-            </div>
-          )}
-          {topBanner === 'prices' && (
-            <div className="px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-y-2" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--alert-warn-icon)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {pricesError && ratesError
-                    ? (lang === 'es' ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
-                    : pricesError
-                      ? (lang === 'es' ? 'Precios desactualizados: no se pudo conectar' : 'Prices outdated: could not connect')
-                      : (lang === 'es' ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated')}
-                </p>
-              </div>
-              <button onClick={handleRefresh}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                style={{ backgroundColor: '#d97706', color: '#fff' }}>
-                {lang === 'es' ? 'Reintentar' : 'Retry'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Eran SIETE bloques de ~20 líneas escritos a mano, seis de ellos copias
+          casi exactas que solo diferían en el texto, el rótulo del botón y si
+          llevaban o no el link de "Desconectar". Ahora son datos: `PageBanner`
+          pone la forma y esta tabla dice qué cambia en cada caso. El aviso de
+          versión nueva además tenía su azul como rgba fijo en vez del token. */}
+      {topBanner && (() => {
+        const es = lang === 'es'
+        const ibkrFix = { secondaryLabel: es ? 'Desconectar' : 'Disconnect', onSecondary: handleIbkrDisconnect, onAction: () => setModal('ibkr') }
+        const BANNERS = {
+          stale: {
+            tone: 'brand', icon: 'refresh',
+            message: es ? 'Hay una nueva versión disponible' : 'A new version is available',
+            actionLabel: es ? 'Actualizar' : 'Update',
+            onAction: () => {
+              if (typeof caches !== 'undefined') caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k))))
+              window.location.reload()
+            },
+          },
+          'ibkr-expired': {
+            ...ibkrFix,
+            message: es ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated',
+            actionLabel: es ? 'Actualizar' : 'Update',
+          },
+          'ibkr-query': {
+            ...ibkrFix,
+            message: es ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR',
+            actionLabel: es ? 'Configurar' : 'Configure',
+          },
+          // FASE GQ: una primera conexión que nunca llegó a sincronizar ni una
+          // vez. "La última sincronización falló" (ibkr-failed) da por hecho que
+          // hubo AL MENOS una, así que esta copia apunta a las credenciales.
+          // FASE HX: era rojo con botón rojo sólido, el tratamiento de una falla
+          // mortal, para algo que el auto-sync sigue reintentando solo.
+          'ibkr-never-connected': {
+            ...ibkrFix,
+            message: es ? 'No pudimos conectar con IBKR en los últimos días: revisa tu Token y Query ID' : "We couldn't connect to IBKR in the last few days: check your Token and Query ID",
+            actionLabel: es ? 'Revisar credenciales' : 'Check credentials',
+          },
+          // FASE HX: mismo suavizado. LOCKED se levanta solo (EZ3: reintento
+          // cada 12h), así que rojo-mortal era el tono equivocado incluso
+          // cruzada la barra de 5 días.
+          'ibkr-locked': {
+            ...ibkrFix,
+            message: es ? 'IBKR bloqueó tu token: genera uno NUEVO en IBKR o importa un CSV mientras tanto' : 'IBKR locked your token: generate a NEW one in IBKR or import a CSV in the meantime',
+            actionLabel: es ? 'Resolver' : 'Resolve',
+          },
+          'ibkr-failed': {
+            message: es ? 'La última sincronización con IBKR falló: tus datos pueden estar desactualizados' : 'The last IBKR sync failed: your data may be outdated',
+            actionLabel: es ? 'Reintentar' : 'Retry',
+            onAction: () => setModal('ibkr'),
+          },
+          prices: {
+            message: pricesError && ratesError
+              ? (es ? 'Precios y tasas desactualizados: error de conexión' : 'Prices and rates outdated: connection error')
+              : pricesError
+                ? (es ? 'Precios desactualizados: no se pudo conectar' : 'Prices outdated: could not connect')
+                : (es ? 'Tasas de cambio desactualizadas' : 'Exchange rates outdated'),
+            actionLabel: es ? 'Reintentar' : 'Retry',
+            onAction: handleRefresh,
+          },
+        }
+        const b = BANNERS[topBanner]
+        if (!b) return null
+        const { message, ...rest } = b
+        return (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+            <PageBanner {...rest}>{message}</PageBanner>
+          </div>
+        )
+      })()}
 
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-3 sm:space-y-4">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Demo mode: the exit must always be obvious, even after the tour ends */}
         {isDemoMode && (
           <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
@@ -1291,11 +1342,11 @@ export default function DashboardPage() {
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           ) : dataAge != null && dataAge >= 14 ? (
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#fbbf24' }} />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--alert-warn-icon)' }} />
           ) : (
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
           )}
-          <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? '#fbbf24' : 'var(--text-muted)' }}>
+          <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>
             {dataAge === 0
               ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
               : dataAge != null
@@ -1327,7 +1378,9 @@ export default function DashboardPage() {
         {/* One onboarding surface at a time — don't stack this under the tour modal */}
         {portfolioItems.length === 0 && !dataLoading && !showOnboarding && (
           <EmptyState
-            onAdd={handleOpenAccount}
+            // Con cero activos, "agregar" significa el recorrido guiado: el
+            // formulario largo sigue disponible desde el botón "Nuevo".
+            onAdd={handleOpenGuided}
             onImport={handleOpenImport}
             onTemplate={async () => {
               const { generateTemplate } = await import('@/lib/generateTemplate')
@@ -1347,7 +1400,7 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-stretch">
+        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-stretch">
           <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
             <CardBoundary id="OL-01" className="h-full">
             <NetWorthCard
@@ -1355,13 +1408,14 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail} ytdBreakdownTerms={ytdBreakdownTerms}
+              ytdDegradedAccounts={ytdDegradedAccounts}
             />
             </CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
@@ -1421,13 +1475,31 @@ export default function DashboardPage() {
                   última card de cada una toma el sobrante (flex-1 + h-full
                   adentro), así el bloque cierra en una línea pareja en vez de
                   un borde inferior disparejo. */}
-              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
-                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
+              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
+                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
                   <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
-                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
-                  <CardBoundary id="INST-01"><InstitutionPerformance items={portfolioItems} lang={lang} baseCurrency={baseCurrency} transactions={transactions} convert={convert} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
+                  {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
+                      montar porque sus seis filas repetían, número por número,
+                      lo que ya muestra la vista "Inst." de Asignación de
+                      Activos; el conteo de posiciones y el badge de historial
+                      de IBKR, que solo estaban ahí, se movieron a esa vista.
+                      El componente y su fórmula no se tocaron y siguen en
+                      disco: volver a montarlo es una línea. */}
+                  <CardBoundary id="AN-00">
+                    <AnalysisTabs
+                      lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
+                      snapshots={augmentedSnapshots} lots={lots} transactions={transactions}
+                      convert={convert} baseCurrency={baseCurrency} rates={rates}
+                      benchmarkData={benchmarkData} benchmarkName={benchmarkName}
+                      benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
+                      volatility={riskMetrics?.volatility} goalValue={goals?.portfolioGoal}
+                      beginnerMode={beginnerMode}
+                      onConnect={handleOpenConnections} onImportBroker={handleOpenImport}
+                    />
+                  </CardBoundary>
                   {/* Las acciones viven DENTRO del marco, a la altura de
                       "Invertido por año", en vez de una barra de botones
                       sueltos debajo de las tarjetas. Las alertas de precio
@@ -1468,7 +1540,7 @@ export default function DashboardPage() {
             {/* Gross money in vs out — one compact strip (three separate airy cards
                 wasted a whole row of vertical space on tablets) */}
             {(contributionsSummary.totalContributed > 0 || contributionsSummary.totalWithdrawn > 0) && (
-              <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
+              <div className="card px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
                 <div className="flex items-baseline gap-2 min-w-0">
                   <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Aportado' : 'Deposited'}</span>
                   <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>
@@ -1484,7 +1556,9 @@ export default function DashboardPage() {
               </div>
             )}
             <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
-            <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={handleOpenConnections} onImportBroker={handleOpenImport} /></CardBoundary>
+            {/* DataQualityCard (HO-03) se movió a la pestaña "Calidad" de la
+                card de Análisis: mide qué tan confiable es tu historia, que es
+                análisis, no actividad reciente. */}
           </ErrorBoundary>
         </SectionCollapse></div>
 
@@ -1496,12 +1570,41 @@ export default function DashboardPage() {
               <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ ...settings, hideRebalanceSuggestions: true })} /></CardBoundary>
             )}
           </ErrorBoundary>
-        </SectionCollapse>
+        {/* La sección "Análisis" que vivía aquí abajo se movió arriba, a la
+            grilla de composición, como card hermana de Asignación de Activos.
+            Estaba repetida al dejarla en los dos lugares. */}
+        </SectionCollapse></div>
 
-        {/* ═══ ANALISIS ═══ */}
-        <SectionCollapse title={lang === 'es' ? 'Análisis' : 'Analysis'} id="analysis" defaultOpen={!beginnerMode && !!(lots && lots.length > 0)}>
+        {/* ═══ PROYECCIONES ═══ — lo único de esta página que mira hacia
+            ADELANTE. Va al final a propósito: todo lo de arriba mide lo que
+            pasó, y esto es un supuesto. El comparador de inversiones se suma
+            acá arriba. */}
+        <div className="stagger-6"><SectionCollapse title={lang === 'es' ? 'Proyecciones' : 'Projections'} id="projections" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
-            <AnalysisTabs lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={augmentedSnapshots} lots={lots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkData={benchmarkData} benchmarkName={benchmarkName} beginnerMode={beginnerMode} />
+            <CardBoundary id="PROJ-01">
+              <InvestmentComparator
+                scenarios={settings?.investmentScenarios}
+                onSave={(list) => saveSettings({ ...settings, investmentScenarios: list })}
+                netWorth={netWorth}
+                baseCurrency={baseCurrency}
+                lang={lang}
+              />
+            </CardBoundary>
+            <CardBoundary id="PROJ-02">
+              <WealthProjectionCard
+                netWorth={netWorth}
+                plan={incomePlan}
+                onSavePlan={saveIncomePlan}
+                financeTransactions={entityFinanceTransactions}
+                profile={profile}
+                convert={convert}
+                baseCurrency={baseCurrency}
+                returnSinceStart={returnSinceStart}
+                sinceStartDate={sinceStartDate}
+                onOpenFlow={() => router.push('/finances')}
+                lang={lang}
+              />
+            </CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 
@@ -1511,7 +1614,7 @@ export default function DashboardPage() {
           {/* Una sola entrada (FASE HT): el modal trae período, vista previa,
               Imprimir y Descargar PDF, todos sobre los mismos datos. */}
           <button onClick={handleOpenPrint}
-            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[#475569] transition-all inline-flex items-center gap-2">
+            className="px-5 py-2.5 text-sm font-medium text-slate-400 bg-theme-surface border border-glass-border/60 rounded-xl hover:bg-theme-elevated hover:text-white hover:border-[var(--text-muted)] transition-all inline-flex items-center gap-2">
             {lang === 'es' ? 'Generar reporte' : 'Generate report'}
           </button>
         </div>
@@ -1523,7 +1626,7 @@ export default function DashboardPage() {
         <FileImportModal
           onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
-          onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction}
+          onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction} onUpdateFinanceTransaction={updateFinanceTransaction}
           existingFinanceTransactions={financeTransactions}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
@@ -1757,6 +1860,8 @@ export default function DashboardPage() {
           onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
           onDeleteAllFinanceTransactions={deleteAllFinanceTransactions}
+          onDeleteFinanceTransactionsByIds={deleteFinanceTransactionsByIds}
+          financeTransactions={financeTransactions}
           onDeleteItemGroup={handleDeleteItemGroup}
           onSetLang={() => handleSetLang('toggle')}
           entities={entities}
@@ -2087,13 +2192,35 @@ export default function DashboardPage() {
       {showOnboarding && (
         <OnboardingTour lang={lang}
           onAction={(action) => {
-            if (action === 'add') setModal('account')
+            // Un usuario nuevo que dice "agregar mi primer activo" no puede
+            // aterrizar en el formulario largo: ese es el momento exacto en que
+            // más ayuda necesita. Va al recorrido guiado.
+            if (action === 'add') handleOpenGuided()
             else if (action === 'settings') setModal('settings')
           }}
           onComplete={() => setShowOnboarding(false)}
           onSeedDemo={handleSeedDemo}
           onClearDemo={handleClearDemo}
           demoActive={isDemoMode}
+        />
+      )}
+
+      {showGuided && (
+        <GuidedSetup
+          onClose={() => setShowGuided(false)}
+          onAdd={async (item) => {
+            // Mismo wrapper que el alta manual: DEBE devolver el id o el
+            // depósito de apertura nace huérfano (⛔ lógica congelada G).
+            const id = await addItem(item)
+            showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
+            return id
+          }}
+          onAddTransaction={addTransaction} onAddLot={addLot}
+          onCreateDestination={addItem}
+          existingItems={items} activePortfolio={activePortfolio}
+          activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
+          onConnectBroker={handleOpenConnections}
+          lang={lang}
         />
       )}
 

@@ -42,6 +42,11 @@
   --glass-border: 1px solid rgba(255, 255, 255, 0.08);
   --glass-border-color: rgba(255, 255, 255, 0.08);
   --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* Bloque gris de los skeletons. Token propio y no --bg-card-hover, que en tema
+     claro es #FFFFFF: sobre una card blanca eso hacía que TODO placeholder de
+     carga fuera literalmente invisible. Este valor reproduce exacto lo que el
+     tema oscuro ya renderizaba (rgb(35,35,55) al 0.7 por opacidad 0.5 = 0.35). */
+  --skeleton-base: rgba(35, 35, 55, 0.35);
 }
 
 [data-theme="light"] {
@@ -62,8 +67,19 @@
   --text-muted: #4B5563;
   --accent-blue: #2563EB;
   --accent-blue-strong: #1D4ED8;
-  --accent-blue-soft: #3B82F6;
-  --accent-green: #059669;
+  /* Los dos siguientes se oscurecieron un escalón porque sobre BLANCO se usan
+     como TEXTO, y ahí sus valores previos (#3B82F6 = 3.68:1, #059669 = 3.77:1)
+     no llegaban al mínimo de 4.5 para texto chico: la cifra de ahorro de Flujo,
+     los porcentajes de las tarjetas y el "actual" del Spreadsheet quedaban
+     lavados sobre la card. Ahora 5.17 y 5.48, medidos con lib/colorMath.js y
+     fijados en lib/__tests__/palette.test.js.
+     En tema claro esto deja a --accent-blue-soft igual que --accent-blue: es a
+     propósito, no un descuido. Sobre blanco no existe un azul MÁS claro que ese
+     que siga siendo legible como texto, así que la distinción "suave" solo
+     puede vivir en el tema oscuro, donde el fondo la permite. Los usos
+     decorativos (puntos de 2px) no notan la diferencia. */
+  --accent-blue-soft: #2563EB;
+  --accent-green: #047857;
   --accent-red: #DC2626;
   --text-negative: #DC2626;
   --accent-orange: #D97706;
@@ -85,6 +101,7 @@
   --glass-border: 1px solid #E5E7EB;
   --glass-border-color: #E5E7EB;
   --glass-shine: none;
+  --skeleton-base: #E8EAEE;
 }
 
 /* Semantic alert tints (info / warning / error / success) — theme-aware so the
@@ -99,9 +116,19 @@
 }
 [data-theme="light"] {
   --alert-info-bg: #EFF4FF;    --alert-info-border: #BFD3FF;    --alert-info-icon: #2563EB;
-  --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #D97706;
-  --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #DC2626;
-  --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #059669;
+  /* warn-icon un escalón más oscuro por la misma razón: no siempre vive sobre
+     su propio fondo ámbar. El "?" de "revisá esta categoría" se pinta sobre la
+     card blanca, donde #D97706 medía 3.19:1. #B45309 da 5.02 ahí y sigue
+     pasando sobre el ámbar pálido de los banners. */
+  --alert-warn-bg: #FFFBEB;    --alert-warn-border: #FDE68A;    --alert-warn-icon: #B45309;
+  /* red-700, no red-600: sobre blanco #DC2626 pasa (4.83) pero sobre su propio
+     fondo teñido cae a 4.41, y un banner de error es justo donde el texto vive
+     sobre ese fondo. Lo destapó el guardián de abajo, no la vista. */
+  --alert-error-bg: #FEF2F2;   --alert-error-border: #FECACA;   --alert-error-icon: #B91C1C;
+  /* Mismo verde que --accent-green por la misma razón y para que no vuelvan a
+     divergir: era el único de los cuatro iconos de alerta que no llegaba a 4.5
+     sobre blanco (3.77 contra 4.83 de error y 5.17 de info). */
+  --alert-success-bg: #ECFDF5; --alert-success-border: #A7F3D0; --alert-success-icon: #047857;
 }
 
 /* Glass opacity variants — needed because Tailwind can't apply /NN to CSS-var colors */
@@ -228,9 +255,24 @@ textarea:focus-visible {
 
 /* Dark mode — lift Tailwind slate grays that fall under AA contrast on the dark
    base (slate-500 #64748B ≈ 3.9:1, slate-600 #475569 ≈ 2.4:1 for small text).
-   Mirrors the light-theme override block below; hierarchy is kept by the delta. */
-:root:not([data-theme="light"]) .text-slate-500 { color: #8A94A6; }
+   Mirrors the light-theme override block below; hierarchy is kept by the delta.
+
+   LOS TRES NIVELES CANÓNICOS de texto, y qué clase es alias de cuál:
+     1. --text-primary    · .text-white       · 21.0 oscuro / 17.1 claro
+     2. --text-secondary  · .text-slate-400   ·  8.8 oscuro /  9.8 claro
+     3. --text-muted      · .text-slate-500   ·  6.7 oscuro /  7.2 claro
+   Los dos últimos NO se fusionan: son una jerarquía deliberada y los
+   comentarios de :root y [data-theme="light"] explican que ya se subieron una
+   vez a propósito. Código nuevo debería usar la variable directo; estas clases
+   quedan como alias exactos para lo que ya existe (~1000 usos, barrerlos en
+   JSX sería un diff que nadie puede revisar y cero cambio visual). */
+:root:not([data-theme="light"]) .text-slate-500 { color: var(--text-muted); }
 :root:not([data-theme="light"]) .text-slate-600 { color: #707A8A; }
+/* .text-slate-400 NO tenía regla en oscuro: se quedaba en el gris crudo de
+   Tailwind (#94a3b8) mientras en claro sí resolvía a --text-secondary. O sea el
+   MISMO JSX daba un nivel de jerarquía distinto según el tema. Ahora es
+   simétrico, y de paso sube el contraste de 7.69 a 8.75. */
+:root:not([data-theme="light"]) .text-slate-400 { color: var(--text-secondary); }
 
 /* ONE brand blue. Tailwind's blue-500 family (#3b82f6) drifted in as a second
    accent competing with the brand indigo (--accent-blue). Collapse every blue
@@ -256,7 +298,10 @@ textarea:focus-visible {
 [data-theme="light"] .text-slate-300 { color: rgba(30, 30, 50, 0.8) !important; }
 [data-theme="light"] .text-slate-400 { color: var(--text-secondary) !important; }
 [data-theme="light"] .text-slate-500 { color: var(--text-muted) !important; }
-[data-theme="light"] .text-slate-600 { color: rgba(30, 30, 50, 0.4) !important; }
+/* Era rgba(30,30,50,0.4), que compone a #A1A1AB: 2.43:1 sobre el fondo y
+   2.45:1 sobre una card blanca. Eso NO llega ni al piso de texto grande (3.0),
+   mucho menos al de texto normal (4.5), en 84 usos. #6B7280 da 4.59 y 4.83. */
+[data-theme="light"] .text-slate-600 { color: #6B7280 !important; }
 [data-theme="light"] .bg-slate-700\/20 { background-color: rgba(30, 30, 50, 0.06) !important; }
 [data-theme="light"] .bg-slate-700\/30 { background-color: rgba(30, 30, 50, 0.08) !important; }
 [data-theme="light"] .bg-slate-700\/50 { background-color: rgba(30, 30, 50, 0.12) !important; }
@@ -489,38 +534,147 @@ html.theme-transitioning *::after {
   background-size: 200% 100%;
 }
 
-/* Card depth system — glassmorphism with shadows + blur */
-.card-hero {
-  box-shadow: var(--shadow-elevated);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--glass-border);
-}
-.card-primary {
-  box-shadow: var(--shadow-card);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--glass-border);
+/* ─── JALAR PARA ACTUALIZAR ────────────────────────────────────────────────
+   Solo mientras `components/ui/PullToRefresh.jsx` está montado, o sea solo en
+   el tablero. El componente pone y quita `data-ptr` en <html> (mismo patrón
+   que `data-journey` más abajo), así que en Finanzas, Hoja, Amigos y Costos
+   esta regla no existe y el gesto NATIVO de Safari sigue recargando la página,
+   que es la salida de emergencia cuando la app se queda pegada a un build
+   viejo (FASES HK/HM).
+
+   `contain` y no `none` a propósito: corta el encadenamiento del scroll y el
+   refresco nativo, pero conserva el rebote elástico dentro del elemento, que
+   es parte de cómo se siente la página en iOS. */
+html[data-ptr="on"],
+html[data-ptr="on"] body {
+  overscroll-behavior-y: contain;
 }
 
-/* Glass utility class for components */
-.card-glass {
-  background: var(--bg-card);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+/* ─── EL BARRIDO DE LA MARCA ───────────────────────────────────────────────
+   Una sola definición del arco que gira, compartida por los tres lugares que
+   dicen "Chispudo está trabajando": el anillo del header
+   (ChispudoRefreshButton), el splash (ChispudoLoader) y el anillo de botón
+   (BusyLabel). Antes eran tres @keyframes idénticos en tres <style jsx>
+   distintos, que es como uno se queda atrás.
+
+   Va acá y no en un <style jsx> por una razón concreta: los tres lo aplican
+   desde un `style` INLINE, y un estilo inline no puede ver un nombre de
+   keyframe con el scope de styled-jsx. La geometría del anillo (radio,
+   circunferencia, la fracción 22/78 del arco) vive aparte, en
+   `lib/brandRing.js`.
+
+   Con movimiento reducido NO se detiene, se hace lento: un indicador de
+   ocupado congelado se lee como una pantalla trabada, que es peor que el
+   movimiento que se quería evitar. */
+@keyframes chispuSweep {
+  0%   { transform: rotate(-90deg); }
+  100% { transform: rotate(270deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .busy-ring-arc { animation-duration: 2.6s !important; }
+}
+
+/* ─── EL SISTEMA DE CARDS ──────────────────────────────────────────────────
+   `.card` es el tratamiento canónico. Antes convivían CUATRO: .card-glass,
+   .card-primary, .card-hero, y un patrón escrito a mano sin ninguna clase
+   (`bg-theme-card/80 rounded-xl border border-glass-border/50`) que NO tenía
+   ni sombra ni radio de 16. Dos cards lado a lado en la misma grilla usaban
+   fondos, radios y hover distintos.
+
+   Por qué importaba de verdad, medido y no a ojo: en tema claro una card
+   blanca sobre el fondo #F8F9FB da 1.053:1 de contraste, y el borde al 50% de
+   ese patrón compone a #EFF0F3, o sea 1.082:1. Prácticamente no tenían borde.
+   Con el borde completo (#E5E7EB, 1.175:1) más la sombra, por fin se ven.
+
+   Tres niveles, y solo tres:
+     · .card            → toda card del tablero
+     · .card card-hero  → una sola (NetWorthCard), sombra más profunda
+     · rounded-lg ...   → paneles ANIDADOS dentro de una card. No son cards y
+                          no llevan esta clase.
+
+   No necesita bloque de tema claro: --bg-card ya es #FFFFFF ahí, --glass-border
+   ya es 1px solid #E5E7EB y --shadow-card ya es la sombra suave. La capa de
+   tokens siempre estuvo bien; eran las clases de card las que la contradecían.
+
+   `background-color` y no `background`: NetWorthCard trae un gradiente por
+   utilidades de Tailwind y el atajo lo borraría.
+
+   SIN backdrop-filter, a propósito. Sobre las cards del tablero es un no-op
+   VISUAL: el body es un color plano, y desenfocar un fondo uniforme no cambia
+   un píxel. Pero cuesta una capa de composición por card en el iPad. El blur
+   se queda donde sí hay algo detrás: modales, tooltips, header, nav, y la card
+   de la landing (que sí está sobre los degradados de ambiente). */
+.card {
+  background-color: var(--bg-card);
   border: var(--glass-border);
-  transition: background-color 0.2s, box-shadow 0.2s;
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
 }
-.card-glass {
-  transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+
+/* El título de una card. UNA definición, como .card y .btn-primary.
+ *
+ * Antes había CINCO tratamientos para lo mismo en la misma pantalla: trece
+ * cards con `text-sm font-medium text-slate-400`, dos con `text-base
+ * font-semibold text-white`, dos con un style inline, una con emoji y sin
+ * punto, y una en oración mientras sus hermanas iban en mayúsculas.
+ *
+ * Importa más de lo que parece: el patrón de escaneo más eficiente que
+ * documenta NN/g (layer-cake) salta de encabezado en encabezado, y solo
+ * funciona cuando los encabezados son visualmente distintos ENTRE SÍ pero
+ * iguales en su nivel. Cinco tratamientos rompen las capas.
+ *
+ * El tamaño sale de la escala (text-caption, 13px) y el color de un token, no
+ * de una clase de Tailwind: `.text-slate-400` solo se ve bien en tema claro
+ * porque globals lo remapea con !important más abajo, que es una indirección
+ * que no hace falta pagar acá. */
+.card-title {
+  font-size: 0.8125rem;
+  line-height: 1.38;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
-.card-glass:hover {
-  background: var(--bg-card-hover);
+
+/* Opt-in, y SOLO para cards que de verdad son un enlace o un botón. Safari en
+   iPadOS aplica :hover al primer toque y lo deja pegado hasta que tocás en otro
+   lado, así que una card no clickeable que se levanta al tocarla es una
+   promesa falsa. Sin scale(): remuestrea el texto a mitad de transición, y los
+   numerales tabulares son lo único que esta app no puede comprometer; además
+   un hijo escalado se solapa con sus vecinos. El blanket de
+   prefers-reduced-motion de más abajo ya cubre esta transición. */
+@media (hover: hover) and (pointer: fine) {
+  .card-interactive {
+    transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+  }
+  .card-interactive:hover {
+    box-shadow: var(--shadow-elevated);
+    transform: translateY(-1px);
+  }
+}
+
+/* Modificador PURO de `.card`, no una card alternativa: lo único que aporta es
+   la sombra más profunda. El fondo, el borde y el radio los pone `.card`, así
+   que solo hay UN lugar que define cómo se ve el borde de una card.
+   Ya no lleva backdrop-filter, por la misma razón que `.card`: la NetWorthCard
+   está sobre el body plano, así que el blur no cambiaba un píxel y sí costaba
+   una capa de composición. De paso eso vuelve innecesario el
+   `backdrop-filter: none` que el tema claro tenía que ponerle encima. */
+.card-hero {
   box-shadow: var(--shadow-elevated);
-  transform: translateY(-1px);
 }
-[data-theme="light"] .card-glass:hover { transform: translateY(-1px); }
+
+/* `.card-glass` se retiró en FASE JJ, por la misma razón que `.card-primary`
+   antes: cero consumidores. Su único usuario era la card del hero de la
+   landing, y esa página pasó a ser de PALETA FIJA (se ve blanca sin importar
+   el tema del visitante, porque la app arranca en oscuro y el selector de tema
+   vive detrás del login). Una clase construida sobre tokens de tema no le
+   servía: dibuja su card con hex explícito. Cualquier card del TABLERO va con
+   `.card`. */
 
 /* Glass modal overlay + container */
 .modal-backdrop {
@@ -644,8 +798,10 @@ html.theme-transitioning *::after {
   box-shadow: 0 0 12px rgba(37, 99, 235, 0.2), var(--shadow-card);
 }
 
-/* WCAG AA: Tailwind text-slate-500 (#64748b) = 3.8:1 on dark bg — boost to ~5.6:1 */
-.text-slate-500 { color: #7c8a9c; }
+/* Aquí vivía `.text-slate-500 { color: #7c8a9c }`, una regla MUERTA: perdía por
+   especificidad contra la de oscuro (:root:not([data-theme="light"]), 0-3-0) y
+   por !important contra la de claro. Nunca pintó nada. El nivel real lo fijan
+   esas dos reglas, ambas apuntando ya a var(--text-muted). */
 
 /* WCAG 2.5.5: minimum 44x44px touch targets for close buttons */
 button[aria-label="Close"] {
@@ -718,22 +874,6 @@ button[aria-label="Close"] {
    Cards become opaque white with hairline borders + soft shadow;
    the primary CTA becomes near-black; pills use a soft indigo wash.
    ============================================================ */
-[data-theme="light"] .card-glass,
-[data-theme="light"] .card-primary,
-[data-theme="light"] .card-hero {
-  background: #FFFFFF;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid #E5E7EB;
-  box-shadow: var(--shadow-card);
-}
-[data-theme="light"] .card-glass:hover,
-[data-theme="light"] .card-hero:hover {
-  background: #FFFFFF;
-  border-color: #D1D5DB;
-  box-shadow: var(--shadow-elevated);
-}
-
 [data-theme="light"] .btn-primary {
   background: #111827;
   color: #FFFFFF;

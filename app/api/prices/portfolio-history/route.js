@@ -99,14 +99,27 @@ function validAcqTs(raw) {
   return t
 }
 
+// FASE IV. CoinGecko se consume por su API PÚBLICA (sin key, ver
+// fetchCryptoHistory), y ese plan limita el histórico a los ÚLTIMOS 365 DÍAS:
+// pedir exactamente 365, o 'max', cae fuera del rango permitido y la respuesta
+// vuelve vacía. Ahí el activo cae al camino estático y se dibuja PLANO en su
+// valor de hoy, con "+0.00%" sobre una cripto que se movió 40% en el año.
+//
+// El patrón de qué períodos fallaban lo delata sin ambigüedad: DAY/1W/1M/3M y
+// YTD (todos por debajo del límite) funcionaban, y 1Y y ALL (los dos únicos
+// que lo tocan) no. Acotar por debajo del borde devuelve el histórico completo
+// que ese plan sí entrega. Para ALL significa un año hacia atrás en vez de
+// "todo", que es lo máximo disponible sin key: un dato real y acotado, no una
+// línea plana que afirma que no pasó nada.
+const CRYPTO_MAX_DAYS = 364
 function getCryptoDays(period) {
-  const map = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, ALL: 'max' }
+  const map = { DAY: 1, '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, ALL: CRYPTO_MAX_DAYS }
   if (period === 'YTD') {
     const now = new Date()
     const jan1 = new Date(now.getFullYear(), 0, 1)
-    return Math.ceil((now - jan1) / 86400000)
+    return Math.min(CRYPTO_MAX_DAYS, Math.ceil((now - jan1) / 86400000))
   }
-  return map[period] || 365
+  return Math.min(CRYPTO_MAX_DAYS, map[period] || 365)
 }
 
 // Transaction-rewind inputs (lib/portfolioRewind): per-item share deltas and
@@ -273,12 +286,10 @@ export async function POST(request) {
         if (Date.now() > fetchDeadline) return
         const sym = it.symbol.toUpperCase()
         const history = await fetchYahooHistory(sym, range, interval)
-        if (history.length > 0) {
-          allTimeSeries[sym] = {
-            history,
-            ...reconstructionFor(it, sym, hasLots ? lotsBySymbol[sym] : null),
-          }
-        }
+        // Solo el HISTORIAL se guarda por símbolo (es lo único que de verdad
+        // depende del símbolo). La reconstrucción es POR ACTIVO y se arma
+        // abajo: ver el comentario de `marketSeries`.
+        if (history.length > 0 && !allTimeSeries[sym]) allTimeSeries[sym] = { history }
       }))
     }
 
@@ -289,12 +300,7 @@ export async function POST(request) {
       if (!id) return
       const days = getCryptoDays(per)
       const history = await fetchCryptoHistory(id, days)
-      if (history.length > 0) {
-        allTimeSeries[sym] = {
-          history,
-          ...reconstructionFor(it, sym, hasLots ? lotsBySymbol[sym] : null),
-        }
-      }
+      if (history.length > 0 && !allTimeSeries[sym]) allTimeSeries[sym] = { history }
     }))
 
     // FASE HJ. Un ítem de mercado cuyo fetch de historial FALLÓ cae al camino
@@ -307,11 +313,24 @@ export async function POST(request) {
     // 'backfill' quedaban a un nivel distinto por pasada, el churn exacto del
     // diente de sierra de la vista "Todas". Un crypto sin id en CRYPTO_MAP no
     // cuenta: ese es estático por diseño (determinista), no por fallo.
+    //
+    // FASE IN: `failedSymbols` responde "¿debe el backfill abstenerse de
+    // escribir?" y por eso deja fuera al crypto sin id en CRYPTO_MAP (estático
+    // determinista, no un fallo transitorio). Pero hay una segunda pregunta,
+    // distinta y hasta ahora sin respuesta: "¿este activo se MIDIÓ o se
+    // mantuvo plano?". Para quien lee un retorno, las dos rutas producen el
+    // mismo defecto: un activo plano en su valor de HOY aporta CERO al cambio
+    // del período, así que su pérdida (o ganancia) desaparece sin dejar rastro.
+    // Eso es exactamente la degradación muda que el invariante 5 prohíbe, una
+    // capa más abajo. `staticFallbackSymbols` las junta a las dos: TODO activo
+    // de mercado que terminó reconstruido como estático, por la razón que sea.
     const failedSymbols = []
+    const staticFallbackSymbols = []
     marketItems.forEach((it) => {
       const sym = (it.symbol || '').toUpperCase()
       if (!allTimeSeries[sym]) {
         failedSymbols.push(sym)
+        staticFallbackSymbols.push(sym)
         staticItems.push(it)
       }
     })
@@ -319,13 +338,36 @@ export async function POST(request) {
       const sym = (it.symbol || '').toUpperCase()
       if (!allTimeSeries[sym]) {
         if (CRYPTO_MAP[sym]) failedSymbols.push(sym)
+        staticFallbackSymbols.push(sym)
         staticItems.push(it)
       }
     })
     const degraded = failedSymbols.length > 0
 
+    // FASE IO. UNA entrada POR ACTIVO, no por símbolo. `allTimeSeries` se
+    // indexa por símbolo porque el historial de precios sí depende solo del
+    // símbolo; la reconstrucción (cantidad, lots, ledger) depende del ACTIVO.
+    // Mientras las dos cosas vivieron en el mismo mapa, dos posiciones del
+    // mismo símbolo en cuentas distintas colapsaban: la segunda sobrescribía a
+    // la primera y su cantidad NO se contaba en ningún punto de la serie.
+    // El defecto solo aparece en una petición que abarca las dos cuentas (la
+    // del panel del YTD), nunca en una escopada a una sola (la de su gráfica),
+    // así que se manifiesta como "el panel mide menos que la gráfica sobre los
+    // mismos activos", con un desvío que es el valor ENTERO de la posición
+    // perdida y por eso constante sesión tras sesión.
+    const marketSeries = []
+    ;[...marketItems, ...cryptoItems].forEach((it) => {
+      const sym = (it.symbol || '').toUpperCase()
+      const entry = allTimeSeries[sym]
+      if (!entry) return
+      marketSeries.push({
+        it, sym, history: entry.history,
+        ...reconstructionFor(it, sym, hasLots ? lotsBySymbol[sym] : null),
+      })
+    })
+
     if (Object.keys(allTimeSeries).length === 0 && staticItems.length === 0) {
-      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [], degraded, failedSymbols })
+      return NextResponse.json({ dataPoints: [], staticTotal: 0, staticPoints: [], degraded, failedSymbols, staticFallbackSymbols })
     }
 
     const allTs = new Set()
@@ -507,7 +549,8 @@ export async function POST(request) {
       })
       staticPoints.push({ ts, value: Math.round(staticSubtotal * 100) / 100 })
 
-      Object.entries(allTimeSeries).forEach(([sym, data]) => {
+      marketSeries.forEach((data) => {
+        const sym = data.sym
         let price = null
         for (let i = data.history.length - 1; i >= 0; i--) {
           if (data.history[i].ts <= ts) { price = data.history[i].close; break }
@@ -544,10 +587,13 @@ export async function POST(request) {
           contribution = (data.qty || 0) * (price || 0)
         }
         total += contribution
-        // Keyed by SYMBOL (allTimeSeries is reconstructed per symbol, not per
-        // item): the same key an item without its own id falls back to on the
-        // consumer side (ytdBreakdown matches `it.id === k || it.symbol === k`).
-        if (byKey) byKey[sym] = (byKey[sym] || 0) + contribution
+        // Por ID DE ACTIVO cuando lo hay, igual que la rama estática, y con el
+        // símbolo como respaldo para un ítem sin id. Antes iba SIEMPRE por
+        // símbolo, así que dos posiciones del mismo símbolo compartían llave y
+        // el consumidor le entregaba la suma entera a la primera que encontrara:
+        // una cuenta se quedaba con el valor de la otra. El consumidor ya
+        // resuelve las dos formas (`it.id === k || it.symbol === k`).
+        if (byKey) { const k = data.it?.id || sym; byKey[k] = (byKey[k] || 0) + contribution }
       })
 
       const point = { ts, total: Math.round(total * 100) / 100 }
@@ -563,7 +609,7 @@ export async function POST(request) {
       return s + (it.quantity || 1) * (it.currentPrice || it.purchasePrice || 0)
     }, 0)
 
-    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols, cache: kvBackend() })
+    return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols, staticFallbackSymbols, cache: kvBackend() })
   } catch (err) {
     console.error('portfolio-history error:', err)
     return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })

@@ -13,6 +13,7 @@ import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistr
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerConnectModal from '@/components/BrokerConnectModal'
 import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 // Not a lib/brokerRegistry.js entry: IBKR's /api/brokers/ibkr endpoint takes
 // {token, queryId}, not the generic {fields: [...]} shape every registry
@@ -294,7 +295,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     disconnected: { dot: 'var(--text-negative)', text: 'var(--text-negative)' },
     never: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
     stale: { dot: 'var(--accent-orange)', text: 'var(--accent-orange)' },
-    ok: { dot: '#34d399', text: '#34d399' },
+    ok: { dot: 'var(--accent-green)', text: 'var(--accent-green)' },
   }[syncStatus]
   const statusLabel = {
     disconnected: t('No vinculado', 'Not linked'),
@@ -334,7 +335,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               <>
                 <button onClick={() => handleBrokerSync(broker)} disabled={isSyncing}
                   className="px-2.5 py-1 text-xs font-medium rounded-md hover:bg-blue-500 disabled:opacity-50 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                  {isSyncing ? '...' : 'Sync'}
+                  {<BusyLabel busy={isSyncing} lang={lang}>{'Sync'}</BusyLabel>}
                 </button>
                 <button onClick={() => handleBrokerDisconnect(broker)} disabled={isSyncing}
                   className="px-2 py-1 text-xs hover:opacity-100 transition-colors" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
@@ -378,7 +379,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
 
         {saveStatus && (
-          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? '#34d399' : '#f87171', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
+          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
             {saveStatus.msg}
           </div>
         )}
@@ -488,7 +489,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   <div className="flex gap-2">
                     <button onClick={async () => { await handleIbkrDisconnect(); setConfirmUnlink(false) }} disabled={ibkrSaving}
                       className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-red-500 transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--text-negative)' }}>
-                      {ibkrSaving ? '...' : t('Sí', 'Yes')}
+                      {<BusyLabel busy={ibkrSaving} lang={lang}>{t('Sí', 'Yes')}</BusyLabel>}
                     </button>
                     <button onClick={() => setConfirmUnlink(false)}
                       className="px-3 py-1.5 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>

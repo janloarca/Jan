@@ -111,6 +111,41 @@ describe('portfolio-history degradacion explicita (FASE HJ)', () => {
     expect(data.degraded).toBe(false)
   })
 
+  // FASE IN. `failedSymbols` responde "¿debe el backfill abstenerse de
+  // escribir?" y por eso deja fuera al crypto sin id en CRYPTO_MAP. Pero para
+  // QUIEN LEE UN RETORNO las dos rutas son el mismo defecto: un activo plano en
+  // su valor de HOY aporta CERO al cambio del periodo, o sea su perdida
+  // desaparece. `staticFallbackSymbols` las junta, sin cambiar failedSymbols.
+  test('staticFallbackSymbols junta las dos rutas al camino plano', async () => {
+    const req = mockRequest({
+      items: [
+        { id: 'stk1', symbol: 'AAPL', type: 'Stock', quantity: 10, currentPrice: 200, purchasePrice: 150, acquisitionDate: '2025-01-01' },
+        { id: 'c1', symbol: 'MICOIN', type: 'Crypto', quantity: 5, currentPrice: 10, purchasePrice: 8, acquisitionDate: '2025-01-01' },
+      ],
+      period: 'YTD',
+    })
+    const res = await POST(req)
+    const data = await res.json()
+    // El fallo transitorio se sigue reportando como tal...
+    expect(data.failedSymbols).toContain('AAPL')
+    // ...y el estatico-por-diseno NO, para no bloquear al backfill.
+    expect(data.failedSymbols).not.toContain('MICOIN')
+    // Pero los dos quedan declarados como "no medido".
+    expect(data.staticFallbackSymbols).toEqual(expect.arrayContaining(['AAPL', 'MICOIN']))
+  })
+
+  test('un portafolio 100% estatico no reporta ningun fallback de precios', async () => {
+    const req = mockRequest({
+      items: [
+        { id: 'bond1', symbol: 'IDCBOND', type: 'Bond', quantity: 1, currentPrice: 6000, purchasePrice: 6000, acquisitionDate: '2020-01-01' },
+      ],
+      period: 'YTD',
+    })
+    const res = await POST(req)
+    const data = await res.json()
+    expect(data.staticFallbackSymbols).toEqual([])
+  })
+
   test('maxDuration exportado: sin el, el default de 10s de Vercel mataba la peticion pesada', () => {
     expect(maxDuration).toBe(60)
   })
@@ -200,5 +235,56 @@ describe('fecha de adquisicion no confiable: la posicion de broker no se borra d
     const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 3, 1))
     expect(early.length).toBeGreaterThan(0)
     for (const p of early) expect(p.total).toBe(0)
+  })
+})
+
+// FASE IO. La garantia que el panel del YTD necesita y que nadie estaba
+// fijando: el desglose por activo (byKey) es una PARTICION del total del mismo
+// punto. Si alguna rama suma a `total` sin escribir en byKey (o escribe bajo
+// una llave que el consumidor no puede resolver), el panel mide un portafolio
+// mas chico que la grafica sobre los mismos datos, que es exactamente la forma
+// del mismatch de LEGDER: misma cuenta, mismos activos, dos arranques.
+describe('byKey es una particion exacta del total (FASE IO)', () => {
+  test('con activos estaticos y de mercado mezclados, la suma de byKey reconstruye el total', async () => {
+    const req = mockRequest({
+      items: [
+        // Estatico con flujos propios (bono con deposito de apertura).
+        { id: 'bond1', symbol: 'IDCBOND', type: 'Bond', quantity: 1, currentPrice: 6000, purchasePrice: 6000, acquisitionDate: '2020-01-01',
+          cashFlows: [{ ts: Date.UTC(2020, 0, 1), amount: 6098 }], _flowClampZero: true },
+        // Estatico sin flujos.
+        { id: 'bank1', symbol: 'BANKGT', type: 'Bank', quantity: 1, currentPrice: 602, purchasePrice: 602, acquisitionDate: '2019-01-01' },
+        // De mercado: en este arnes su fetch SIEMPRE falla, asi que cae al
+        // camino estatico. Es justo el caso donde byKey cambia de llave
+        // (simbolo -> id) y donde el consumidor puede perderlo.
+        { id: 'btc1', symbol: 'BTC', type: 'Crypto', quantity: 0.00463473, currentPrice: 63000, purchasePrice: 42000, acquisitionDate: '2022-01-06' },
+        { id: 'eth1', symbol: 'ETH', type: 'Crypto', quantity: 0.38, currentPrice: 1881, purchasePrice: 1800, acquisitionDate: '2022-06-06' },
+      ],
+      period: 'YTD',
+      breakdown: true,
+    })
+    const res = await POST(req)
+    const data = await res.json()
+    expect(data.dataPoints.length).toBeGreaterThan(0)
+    for (const p of data.dataPoints) {
+      const sum = Object.values(p.byKey || {}).reduce((s, v) => s + v, 0)
+      // Un centavo de tolerancia: byKey se redondea por llave y el total una vez.
+      expect(Math.abs(sum - p.total)).toBeLessThan(0.05)
+    }
+  })
+
+  test('toda llave de byKey es resoluble: id de item o simbolo de un item enviado', async () => {
+    const items = [
+      { id: 'bond1', symbol: 'IDCBOND', type: 'Bond', quantity: 1, currentPrice: 6000, purchasePrice: 6000, acquisitionDate: '2020-01-01' },
+      { id: 'btc1', symbol: 'BTC', type: 'Crypto', quantity: 0.00463473, currentPrice: 63000, purchasePrice: 42000, acquisitionDate: '2022-01-06' },
+    ]
+    const res = await POST(mockRequest({ items, period: 'YTD', breakdown: true }))
+    const data = await res.json()
+    const ids = new Set(items.map((it) => it.id))
+    const syms = new Set(items.map((it) => (it.symbol || '').toUpperCase()))
+    for (const p of data.dataPoints) {
+      for (const k of Object.keys(p.byKey || {})) {
+        expect(ids.has(k) || syms.has(k)).toBe(true)
+      }
+    }
   })
 })

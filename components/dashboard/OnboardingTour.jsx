@@ -108,8 +108,13 @@ const DEMO_STEPS = (t) => [
   {
     anchor: '[data-card-id="OR-02"]',
     title: t('En qué está tu dinero', 'Where your money is'),
-    body: t('La distribución por tipo de activo: bancos, bolsa, cripto, inmuebles, bonos…',
-            'The breakdown by asset type: banks, stocks, crypto, real estate, bonds…'),
+    // Este paso absorbió al de "Rendimiento por institución", que apuntaba a
+    // `[data-card-id="INST-01"]`: esa card dejó de montarse cuando sus filas
+    // pasaron a ser la pestaña "Inst." de ESTA, así que el paso quedó anclado a
+    // un elemento que no existe. Un ancla colgada no falla ruidosamente, deja el
+    // foco del tour en la nada. La información no se pierde, se dice acá.
+    body: t('La distribución de tu dinero, con una pestaña por pregunta: por tipo de activo, por institución (qué banco o broker te está generando más), por moneda, por país y por vencimiento.',
+            'How your money is split, with one tab per question: by asset type, by institution (which bank or broker is earning you more), by currency, by country and by maturity.'),
   },
   {
     anchor: '[data-tour="actions"]',
@@ -124,12 +129,6 @@ const DEMO_STEPS = (t) => [
             'If an account is missing history, a date, or a currency, the suggestion shows up here with a one-tap fix.'),
   },
   {
-    anchor: '[data-card-id="INST-01"]',
-    title: t('Rendimiento por institución', 'Performance by institution'),
-    body: t('Compara cómo le va a cada banco o broker donde tienes dinero: quién te está generando más.',
-            'Compare how each bank or broker you hold money with is doing: who is earning you more.'),
-  },
-  {
     // One step, because "Nuevo" is now the single door for adding data: manual,
     // broker connection and file import all live in its menu.
     anchor: '[data-tour="header-new"]',
@@ -140,8 +139,8 @@ const DEMO_STEPS = (t) => [
   {
     anchor: '[data-tour="nav"]',
     title: t('Hay más páginas', 'There’s more'),
-    body: t('Finanzas: tus gastos e ingresos del mes. Hoja de Cálculo: la matriz mensual de todo tu patrimonio. Amigos: compara tu % de retorno sin revelar montos.',
-            'Finances: your monthly spending and income. Spreadsheet: the month-by-month matrix of your net worth. Friends: compare return % without revealing amounts.'),
+    body: t('Flujo: tus gastos e ingresos del mes. Hoja de Cálculo: la matriz mensual de todo tu patrimonio. Amigos: compara tu % de retorno sin revelar montos.',
+            'Flow: your monthly spending and income. Spreadsheet: the month-by-month matrix of your net worth. Friends: compare return % without revealing amounts.'),
   },
   {
     anchor: '[data-tour="header-settings"]',
@@ -435,11 +434,19 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
               {current.action && (
                 <button onClick={() => { handleFinish(); setTimeout(() => onAction?.(current.action), 250) }}
                   className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-glass-border hover:opacity-80"
-                  style={{ color: '#22d3ee' }}>
+                  style={{ color: 'var(--accent-blue)' }}>
                   {current.action === 'add' ? t('Agregar ahora', 'Add now') : t('Ir a ajustes', 'Go to settings')}
                 </button>
               )}
-              <button onClick={() => { if (step < classicSteps.length - 1) setStep(step + 1); else handleFinish() }}
+              {/* "Empezar" tiene que EMPEZAR algo. Antes solo cerraba el tour y
+                  dejaba al usuario en la nada después de cinco pantallas de
+                  texto; ahora abre el recorrido guiado, igual que el botón del
+                  intro. */}
+              <button onClick={() => {
+                if (step < classicSteps.length - 1) { setStep(step + 1); return }
+                handleFinish()
+                setTimeout(() => onAction?.('add'), 300)
+              }}
                 className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-glass-border hover:opacity-80"
                 style={{ color: 'var(--accent-blue)' }}>
                 {step < classicSteps.length - 1 ? t('Siguiente', 'Next') : t('Empezar', 'Start')}

@@ -36,6 +36,8 @@ export const CARD_REGISTRY = {
   'IG-09': { component: 'FeeAnalysis', section: 'income-goals', label: 'Fee Analysis' },
   'IG-10': { component: 'RebalanceSuggestions', section: 'income-goals', label: 'Rebalance Suggestions' },
   'IG-11': { component: 'ProjectionSimulator', section: 'income-goals', label: 'Projection Simulator' },
+  'PROJ-01': { component: 'InvestmentComparator', section: 'income-goals', label: 'Investment Comparator' },
+  'PROJ-02': { component: 'WealthProjectionCard', section: 'income-goals', label: 'Wealth Projection' },
 
   'HO-01': { component: 'AccountsTable', section: 'holdings', label: 'Holdings Table' },
   'HO-02': { component: 'RecentTransactions', section: 'holdings', label: 'Recent Transactions' },

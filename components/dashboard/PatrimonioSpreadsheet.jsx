@@ -242,7 +242,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           {cost > 0 ? (
-                            <span className="font-mono text-sm" style={{ color: gain >= 0 ? '#34d399' : '#ef4444' }}>
+                            <span className="font-mono text-sm" style={{ color: gain >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                               {gain >= 0 ? '+' : ''}{gainPct.toFixed(1)}%
                             </span>
                           ) : (

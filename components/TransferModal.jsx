@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], lang = 'es' }) {
   const trapRef = useFocusTrap()
@@ -147,7 +148,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             </button>
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
-              {saving ? '...' : t('Transferir', 'Transfer')}
+              {<BusyLabel busy={saving} lang={lang}>{t('Transferir', 'Transfer')}</BusyLabel>}
             </button>
           </div>
         </form>

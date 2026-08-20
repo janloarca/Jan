@@ -151,9 +151,9 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
   }
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-base font-semibold text-white">
+        <h3 className="card-title">
           {lang === 'es' ? 'Transacciones' : 'Transactions'}
         </h3>
         {onExportCSV && transactions && transactions.length > 0 && (
@@ -256,6 +256,15 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                   </div>
                 </div>
                 <div className="text-right flex items-center gap-2">
+                  {/* La × de borrar era `opacity-0 group-hover:opacity-60`. En un
+                      iPad eso no es "discreto", es inalcanzable: Safari táctil o
+                      no dispara `:hover` o lo deja pegado tras el primer toque,
+                      así que la × suelta de la captura del usuario quedaba
+                      visible sobre UNA fila al azar y ausente en las demás.
+                      Ahora se ve siempre, apagada, y solo se realza al pasar el
+                      mouse; el objetivo mide 24x24 (WCAG 2.2 SC 2.5.8). El
+                      borrado sigue pidiendo confirmación, así que verla no la
+                      vuelve peligrosa. */}
                   {onDeleteTransaction && tx.id && (
                     confirmId === tx.id ? (
                       <span className="flex items-center gap-1">
@@ -272,7 +281,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                     ) : (
                       <button onClick={() => setConfirmId(tx.id)}
                         aria-label={lang === 'es' ? 'Borrar movimiento' : 'Delete movement'}
-                        className="text-xs opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                        className="text-xs px-1 min-w-[24px] min-h-[24px] rounded transition-opacity opacity-40 hover:opacity-100"
                         style={{ color: 'var(--text-muted)' }}>
                         &times;
                       </button>

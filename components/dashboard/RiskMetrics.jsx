@@ -86,9 +86,12 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
     return null
   }, [hasData, metrics, lang])
 
+  // No card chrome of its own: this renders inside the Analysis card (see
+  // AnalysisTabs in app/dashboard/page.jsx), and a card within a card would
+  // double the border and the padding.
   return (
-    <div className="bg-theme-surface/80 rounded-xl border border-glass-border/50 p-4">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-4">
+    <div>
+      <h3 className="card-title mb-4">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
         {t('MÉTRICAS DE RIESGO', 'RISK METRICS')}
       </h3>
@@ -102,7 +105,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">Sharpe<InfoTip text={t('Retorno ajustado al riesgo. Mayor = mejor recompensa por unidad de riesgo. Arriba de 1 es bueno, arriba de 2 es excelente.', 'Risk-adjusted return. Higher = better reward per unit of risk. Above 1 is good, above 2 is excellent.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: sharpeColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: sharpeColor }}>
                 {metrics.sharpe != null ? metrics.sharpe.toFixed(2) : '---'}
               </span>
               <span className="text-xs text-slate-600">
@@ -112,7 +115,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">{t('Volatilidad', 'Volatility')}<InfoTip text={t('Cuánto fluctúa el valor de tu portafolio. Menor = más estable. Desviación estándar anualizada de retornos.', 'How much your portfolio value fluctuates. Lower = more stable. Annualized standard deviation of returns.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: volColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: volColor }}>
                 {metrics.vol != null ? `${metrics.vol.toFixed(1)}%` : '---'}
               </span>
               <span className="text-xs text-slate-600">{t('Anualizada', 'Annualized')}</span>
@@ -120,7 +123,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">Max Drawdown<InfoTip text={t('Mayor caída de pico a valle. Muestra el peor escenario de pérdida desde el punto más alto.', 'Largest peak-to-trough decline. Shows worst-case loss scenario from highest point.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: ddColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: ddColor }}>
                 {metrics.drawdown.maxDrawdownPct > 0 ? `-${metrics.drawdown.maxDrawdownPct.toFixed(1)}%` : '0%'}
               </span>
               {metrics.drawdown.peakDate && (
@@ -132,7 +135,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">Beta<InfoTip text={t('Sensibilidad a los movimientos del mercado. 1.0 = se mueve igual que el mercado, mayor a 1 = más volátil, menor a 1 = más estable.', 'Sensitivity to market movements. 1.0 = moves with the market, above 1 = more volatile, below 1 = more stable.')} /></span>
-              <span className="text-base sm:text-lg font-bold text-slate-300 block">
+              <span className="text-base sm:text-h1 text-slate-300 block">
                 {metrics.beta != null ? metrics.beta.toFixed(2) : 'N/A'}
               </span>
               <span className="text-xs text-slate-600">vs {benchmarkName || 'S&P 500'}</span>
@@ -142,7 +145,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-2 sm:mt-3">
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">Sortino<InfoTip text={t('Como Sharpe, pero solo penaliza riesgo a la baja. Mayor = mejor. Ignora la volatilidad al alza.', 'Like Sharpe, but only penalizes downside risk. Higher = better. Ignores upside volatility.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: sortinoColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: sortinoColor }}>
                 {metrics.sortino !== 0 ? metrics.sortino.toFixed(2) : '---'}
               </span>
               <span className="text-xs text-slate-600">
@@ -152,7 +155,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">Treynor<InfoTip text={t('Retorno por unidad de riesgo de mercado (beta). Mayor = mejor compensación por riesgo sistemático.', 'Return earned per unit of market risk (beta). Higher = better compensation for systematic risk.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: treynorColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: treynorColor }}>
                 {metrics.treynor !== 0 ? metrics.treynor.toFixed(2) : '---'}
               </span>
               <span className="text-xs text-slate-600">{t('Exceso/Beta', 'Excess/Beta')}</span>
@@ -160,7 +163,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">{t('Alfa de Jensen', "Jensen's Alpha")}<InfoTip text={t('Retorno en exceso vs. el benchmark de mercado. Positivo = superando al mercado. Negativo = por debajo.', 'Excess return vs. the market benchmark. Positive = outperforming. Negative = underperforming.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: alphaColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: alphaColor }}>
                 {metrics.alpha !== 0 ? `${(metrics.alpha * 100).toFixed(2)}%` : '---'}
               </span>
               <span className="text-xs text-slate-600">vs {benchmarkName || 'S&P 500'}</span>
@@ -168,7 +171,7 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">{t('Ratio Información', 'Information Ratio')}<InfoTip text={t('Consistencia de retornos en exceso vs. benchmark. Mayor = superación más consistente.', 'Consistency of excess returns vs. benchmark. Higher = more consistent outperformance.')} /></span>
-              <span className="text-base sm:text-lg font-bold block" style={{ color: irColor }}>
+              <span className="text-base sm:text-h1 block" style={{ color: irColor }}>
                 {metrics.ir !== 0 ? metrics.ir.toFixed(2) : '---'}
               </span>
               <span className="text-xs text-slate-600">{t('Activo/TE', 'Active/TE')}</span>

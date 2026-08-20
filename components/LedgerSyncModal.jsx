@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { normalizeWalletName, buildWalletOptions, addSavedWallet } from '@/lib/customWallets'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const CHAINS = [
   { key: 'BTC', label: 'Bitcoin', placeholder: 'bc1q... or 1... or 3...' },
@@ -326,12 +327,9 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
 
             <button onClick={handleSync} disabled={syncing}
               className="w-full py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2" style={{ color: '#ffffff' }}>
-              {syncing ? (
-                <>
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  {t('Leyendo blockchain...', 'Reading blockchain...')}
-                </>
-              ) : t('Leer blockchain', 'Read blockchain')}
+              <BusyLabel busy={syncing} lang={lang} busyLabel={t('Leyendo blockchain...', 'Reading blockchain...')}>
+                {t('Leer blockchain', 'Read blockchain')}
+              </BusyLabel>
             </button>
           </div>
         )}
@@ -356,7 +354,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                   </div>
                   <div className="flex flex-wrap gap-x-3 mt-1">
                     {r.balance === 0 && (
-                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                      <span className="text-[11px]" style={{ color: 'var(--accent-orange)' }}>
                         {t('balance 0: dirección vacía o con movimientos sin confirmar', '0 balance: empty address or unconfirmed moves')}
                       </span>
                     )}
@@ -369,7 +367,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
                       </span>
                     )}
                     {r.historyTruncated && (
-                      <span className="text-[11px]" style={{ color: '#f59e0b' }}>
+                      <span className="text-[11px]" style={{ color: 'var(--accent-orange)' }}>
                         {t('historial parcial (dirección muy activa)', 'partial history (very active address)')}
                       </span>
                     )}

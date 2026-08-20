@@ -20,6 +20,9 @@ const MAX_MEMBERS = 30
 const MAX_MOVERS = 5
 const GLOBAL_SCAN_CAP = 500
 const GLOBAL_TOP = 20
+// Umbral de la insignia "sincronizado". Tiene que coincidir con el que calcula
+// el cliente (app/friends/page.jsx), que es de donde sale syncedPct.
+const VERIFIED_MIN_SYNCED = 0.6
 
 // Human-friendly invite codes: no 0/O/1/I/L to avoid transcription errors.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -99,7 +102,14 @@ export async function POST(request) {
         avatar: String(body.avatar || '').slice(0, 8),
         stats: ibkr ? { all, ibkr } : { all },
         // Soft trust signal: portfolio is mostly broker-synced (not hand-typed).
-        verified: !!body.verified,
+        // DERIVED from syncedPct, not read from body.verified. For an honest
+        // client the result is identical (it computes the same `pct >= 0.6`),
+        // but there is no longer a second, independent input to believe: a
+        // client could previously claim verified:true while reporting a
+        // syncedPct that contradicts it. This does NOT close the hole —
+        // syncedPct is still self-reported, so the badge can be self-awarded.
+        // Verifying it for real is a separate feature.
+        verified: syncedPct >= VERIFIED_MIN_SYNCED,
         syncedPct,
         updatedAt: new Date().toISOString(),
       }
@@ -114,7 +124,15 @@ export async function POST(request) {
       for (const gd of snap.docs) {
         const g = { id: gd.id, ...gd.data() }
         const memberUids = Array.isArray(g.memberUids) ? g.memberUids.slice(0, MAX_MEMBERS) : []
-        const profs = await Promise.all(memberUids.map((m) => db.collection('friendProfiles').doc(m).get()))
+        // getAll en vez de N .get() sueltos: con 20 grupos de 30 miembros esto
+        // pasaba de 600 lecturas por llamada, y desde que la pantalla tiene
+        // jalar-para-refrescar se puede pedir muchas veces seguidas. Esta app ya
+        // tocó el techo de cuota de Firestore en producción (FASE IE9).
+        // ⚠️ getAll() SIN argumentos lanza (validateMinNumberOfArguments), así
+        // que un grupo sin miembros tiene que cortocircuitar.
+        const profs = memberUids.length === 0
+          ? []
+          : await db.getAll(...memberUids.map((m) => db.collection('friendProfiles').doc(m)))
         const rows = profs.filter((p) => p.exists).map((p) => {
           const prof = p.data()
           const st = statsForScope(prof, g.scope) || {}
@@ -231,15 +249,41 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, pseudonym: patch.pseudonym })
     }
     if (action === 'global') {
-      // Anonymity: return ONLY pseudonym + ytd — never uid, movers, or symbols.
+      // Qué métrica se rankea. El orden y el corte del top TIENEN que ocurrir
+      // acá: la respuesta se recorta a GLOBAL_TOP, así que reordenar del lado
+      // del cliente reordenaría una lista ya truncada por la otra métrica (los
+      // primeros 20 del año no son los primeros 20 del mes). Sale UNA sola
+      // métrica por respuesta, nunca las dos: menos de lo que ya se publicaba.
+      const metric = body.metric === 'mtd' ? 'mtd' : 'ytd'
+      // Anonymity: return ONLY pseudonym + the ranked % — never uid, movers, or symbols.
       const snap = await db.collection('friendProfiles').where('globalOptIn', '==', true).limit(GLOBAL_SCAN_CAP).get()
       const all = snap.docs.map((d) => {
         const p = d.data()
-        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, ytd: statsForScope(p, 'all')?.ytd ?? null }
-      }).filter((r) => r.ytd != null).sort((a, b) => b.ytd - a.ytd)
+        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, value: statsForScope(p, 'all')?.[metric] ?? null }
+      }).filter((r) => r.value != null).sort((a, b) => b.value - a.value)
       const yourRank = all.findIndex((r) => r.uid === uid)
-      const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, ytd: r.ytd, isYou: r.uid === uid }))
-      return NextResponse.json({ top, yourRank: yourRank >= 0 ? yourRank + 1 : null, total: all.length })
+      const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, value: r.value, isYou: r.uid === uid }))
+      // `optedIn` sale del PROPIO documento, no se deduce del ranking. El
+      // cliente lo deducía de `yourRank != null`, y `yourRank` se calcula sobre
+      // una lista ya filtrada por `ytd != null`: alguien que SÍ está apuntado
+      // pero todavía no tiene YTD quedaba fuera, y el botón le decía
+      // "Participar" cuando ya participaba. Es un booleano sobre uno mismo, así
+      // que no abre ninguna ventana a los datos de nadie más.
+      const mine = await profileRef.get()
+      return NextResponse.json({
+        top,
+        metric,
+        yourRank: yourRank >= 0 ? yourRank + 1 : null,
+        total: all.length,
+        optedIn: mine.exists ? !!mine.data().globalOptIn : false,
+        // Cuándo publicaste por última vez. Viaja acá porque esta acción YA lee
+        // tu propio documento para `optedIn`, así que cuesta CERO lecturas
+        // extra, y esta app ya tocó el techo de cuota de Firestore en
+        // producción (FASE IE9). Antes la pantalla lo sacaba de tu fila dentro
+        // de un grupo, así que sin grupos nunca se veía: se leía un porcentaje
+        // sin nada que dijera que es una foto quieta hasta que la republiques.
+        yourUpdatedAt: mine.exists ? (mine.data().updatedAt || null) : null,
+      })
     }
 
     // ---- disable: purge my public presence -----------------------------------

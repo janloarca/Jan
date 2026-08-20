@@ -115,6 +115,7 @@ export function useFirestoreItems() {
   const [goals, setGoals] = useState(initCache?.goals || null)
   const [settings, setSettings] = useState(initCache?.settings || null)
   const [profile, setProfile] = useState(initCache?.profile || null)
+  const [incomePlan, setIncomePlan] = useState(initCache?.incomePlan || null)
   const [loading, setLoading] = useState(!initCache)
   const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
 
@@ -170,14 +171,16 @@ export function useFirestoreItems() {
 
       try {
         // Independent docs — fetch in parallel instead of three round-trips in series.
-        const [goalsDoc, prefsDoc, profileDoc] = await Promise.all([
+        const [goalsDoc, prefsDoc, profileDoc, planDoc] = await Promise.all([
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'incomePlan')),
         ])
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
         if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
+        if (!cancelled && planDoc.exists()) setIncomePlan(sanitizeDoc(planDoc.data()))
       } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
 
       if (!cancelled) setLoading(false)
@@ -214,9 +217,9 @@ export function useFirestoreItems() {
   // no se escribe nada, así una navegación rápida nunca cachea arrays vacíos.
   useEffect(() => {
     if (uid && !loading) {
-      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile }
+      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan }
     }
-  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile])
+  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan])
 
   const addItem = useCallback(async (item) => {
     if (!uid) { console.error('[addItem] No uid — write skipped'); return }
@@ -554,6 +557,21 @@ export function useFirestoreItems() {
     setProfile((prev) => ({ ...prev, ...profileData }))
   }, [uid])
 
+  // El plan de ingresos (el tablero de salarios de Flujo). A diferencia de los
+  // otros docs de settings se escribe SIN merge, a propósito: siempre se manda
+  // el plan completo ya serializado, y así borrar un cuadrito lo borra de
+  // verdad. Con merge, un mapa anidado se fusiona campo a campo y lo eliminado
+  // sobrevive a la escritura (lección FASE FT).
+  const saveIncomePlan = useCallback(async (planDoc) => {
+    if (!uid) return
+    const { db, fs } = await getFirebase()
+    const clean = Object.fromEntries(
+      Object.entries({ ...planDoc, updatedAt: new Date().toISOString() }).filter(([, v]) => v !== undefined)
+    )
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'incomePlan'), clean)
+    setIncomePlan(clean)
+  }, [uid])
+
   const addAlert = useCallback(async (alert) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -827,6 +845,20 @@ export function useFirestoreItems() {
     }
   }, [uid])
 
+  const updateFinanceTransaction = useCallback(async (txId, fields) => {
+    if (!uid || !txId) return false
+    try {
+      const { db, fs } = await getFirebase()
+      const clean = Object.fromEntries(Object.entries(fields || {}).filter(([, v]) => v !== undefined))
+      if (!Object.keys(clean).length) return false
+      await fs.setDoc(fs.doc(db, `users/${uid}/financeTransactions`, txId), clean, { merge: true })
+      return true
+    } catch (err) {
+      console.error('[finance] update failed', err)
+      return false
+    }
+  }, [uid])
+
   const deleteFinanceTransaction = useCallback(async (txId) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
@@ -837,6 +869,30 @@ export function useFirestoreItems() {
     if (!uid) return
     const { db, fs } = await getFirebase()
     await deleteAllDocsIn(db, fs, `users/${uid}/financeTransactions`)
+  }, [uid])
+
+  // Borrado selectivo de Flujo: por mes, por método de captura, o ambos.
+  //
+  // Los ids llegan ya resueltos por lib/financeWipe.js sobre la lista que este
+  // hook ya tiene en memoria, así que decidir QUÉ borrar no cuesta una sola
+  // lectura de Firestore (importa: esta app ya tocó el techo de cuota diario).
+  // Acá solo queda escribir.
+  //
+  // Mismos lotes de DELETE_CHUNK que deleteAllDocsIn. Cuando el filtro abarca
+  // todo, el caller usa deleteAllFinanceTransactions en vez de esto: es una
+  // operación de colección en lugar de cientos de deletes.
+  const deleteFinanceTransactionsByIds = useCallback(async (ids) => {
+    if (!uid || !Array.isArray(ids) || ids.length === 0) return 0
+    const { db, fs } = await getFirebase()
+    const clean = ids.filter((id) => typeof id === 'string' && id)
+    for (let i = 0; i < clean.length; i += DELETE_CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const id of clean.slice(i, i + DELETE_CHUNK)) {
+        batch.delete(fs.doc(db, `users/${uid}/financeTransactions`, id))
+      }
+      await batch.commit()
+    }
+    return clean.length
   }, [uid])
 
   const addPortfolio = useCallback(async (portfolio) => {
@@ -907,6 +963,15 @@ export function useFirestoreItems() {
   // entre cuentas del usuario. Todo mes ya cacheado se calculó sin esos eventos
   // (la cuenta que recibe, plana hacia atrás en su saldo alto de hoy; la que
   // envía, en su saldo bajo) y el caché nunca se autocorrige por merge.
+  // 26 (FASE IX4): /api/prices/chart pedía `days=max` a CoinGecko para cualquier
+  // tabla que abarcara más de un año, y la API pública lo RECHAZA (solo sirve
+  // 365 días), así que devolvía vacío y toda la cripto caía a "~ estimado"
+  // plano en su valor de HOY. Los meses ya cacheados guardaron ese plano (el
+  // caso real: LEGDER en ~$1,008 durante oct/nov/dic 2025, cuando la gráfica de
+  // esa misma cuenta dice ~$2,000), y el caché no se autocorrige por merge.
+  // 27 (FASE IX6): el rendimiento reinvertido se indexaba por SÍMBOLO, así que
+  // dos cuentas homónimas sin ticker propio (DOS "ClubCashIn") se acreditaban
+  // el rendimiento de ambas. Todo mes cacheado tiene esa mezcla horneada.
   //
   // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
   // del correo mensual lee estos mismos docs del lado del servidor y tiene que
@@ -1089,17 +1154,18 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
-    addFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
+    deleteFinanceTransactionsByIds,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, executeSaleAtomic, executeContribution,
     bulkImport, bulkWriting, deletionEpoch,
     addPortfolio, deletePortfolio,
-    saveGoals, saveSettings, saveProfile,
+    saveGoals, saveSettings, saveProfile, saveIncomePlan,
     saveItemSnapshots, loadItemSnapshots,
   }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCredentials, lang = 'es', uid }) {
   const trapRef = useFocusTrap()
@@ -103,12 +104,9 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
             <button onClick={handleSync} disabled={syncing || !apiKey.trim()}
               className="w-full py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
-              {syncing ? (
-                <>
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  {t('Sincronizando...', 'Syncing...')}
-                </>
-              ) : t('Conectar y sincronizar', 'Connect & sync')}
+              <BusyLabel busy={syncing} lang={lang} busyLabel={t('Sincronizando...', 'Syncing...')}>
+                {t('Conectar y sincronizar', 'Connect & sync')}
+              </BusyLabel>
             </button>
           </div>
         )}
@@ -154,7 +152,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
                 </button>
                 <button onClick={() => setSyncMode('replace')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: 'var(--alert-warn-icon)', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Reemplazar', 'Replace')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>

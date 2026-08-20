@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency, computeModifiedDietz } from './utils'
 import { computeTWRSeries } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { BusyRing } from '@/components/ui/BusyLabel'
 
 const DAY_MS = 86400000
 
@@ -134,7 +135,7 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
@@ -151,7 +152,7 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
       </div>
       {loading ? (
         <div className="flex items-center justify-center py-6">
-          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent-purple)', borderTopColor: 'transparent' }} />
+          <BusyRing size="16px" style={{ color: 'var(--accent-purple)' }} />
         </div>
       ) : (
         <>

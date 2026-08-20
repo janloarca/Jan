@@ -78,10 +78,10 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
   if (recurring.length === 0 && !growthFromSavings) return null
 
   const ringPct = Math.min(rates.savingsRate, 100)
-  const ringColor = rates.savingsRate >= 30 ? '#34d399' : rates.savingsRate >= 15 ? '#f59e0b' : '#ef4444'
+  const ringColor = rates.savingsRate >= 30 ? 'var(--accent-green)' : rates.savingsRate >= 15 ? 'var(--alert-warn-icon)' : 'var(--text-negative)'
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
+    <div className="card p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
         🎯 {t('Tasa de Ahorro', 'Savings Rate')}
       </h3>
@@ -90,7 +90,8 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
         <div className="flex items-center gap-4 mb-4">
           <div className="relative w-16 h-16 shrink-0">
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-              <circle cx="18" cy="18" r="15" fill="none" stroke="#38383A" strokeWidth="3" />
+              {/* Pista del anillo: token de tema (ver ValueBreakdown, mismo defecto). */}
+              <circle cx="18" cy="18" r="15" fill="none" stroke="var(--card-border)" strokeWidth="3" />
               <circle cx="18" cy="18" r="15" fill="none" stroke={ringColor} strokeWidth="3"
                 strokeDasharray={`${ringPct * 0.94} 100`} strokeLinecap="round" />
             </svg>
@@ -120,13 +121,13 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
           <div className="text-xs text-slate-500 mb-2">{t('Crecimiento del portafolio', 'Portfolio growth breakdown')}</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center">
-              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromFlows >= 0 ? 'var(--accent-blue-soft)' : '#f87171' }}>
+              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromFlows >= 0 ? 'var(--accent-blue-soft)' : 'var(--text-negative)' }}>
                 {formatCurrency(growthFromSavings.fromFlows)}
               </div>
               <div className="text-xs text-slate-500">{t('De aportes netos', 'From net deposits')}</div>
             </div>
             <div className="text-center">
-              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromInvestment >= 0 ? '#34d399' : '#f87171' }}>
+              <div className="text-sm font-bold" style={{ color: growthFromSavings.fromInvestment >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {formatCurrency(growthFromSavings.fromInvestment)}
               </div>
               <div className="text-xs text-slate-500">{t('De inversiones', 'From investments')}</div>

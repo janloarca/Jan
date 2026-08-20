@@ -21,18 +21,35 @@ const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 const VALID_RANGES = ['1d', '5d', '1mo', '3mo', '6mo', '1y', 'ytd', 'max']
 const VALID_INTERVALS = ['1m', '5m', '15m', '30m', '1h', '1d', '1wk', '1mo']
 
-// Map a Yahoo-style range to a CoinGecko market_chart `days` window.
+// ⛔ FASE IX4. La API PÚBLICA de CoinGecko (sin llave) solo sirve historial de
+// los últimos 365 días: `days=max` (y cualquier ventana mayor) la RECHAZA, así
+// que la respuesta vuelve vacía y el caller cae a mantener la posición plana en
+// su valor de HOY. Eso es justo lo que hacía el Spreadsheet con TODA la cripto:
+// `rangeForMonths` (lib/historicalValues.js) pide 'max' en cuanto la tabla
+// abarca más de un año, o sea siempre en un portafolio con historia, y las
+// columnas de cripto quedaban en "~ valor estimado" plano hacia atrás. En el
+// caso real: LEGDER dibujaba ~$1,008 en oct/nov/dic 2025 (su valor de hoy)
+// cuando la gráfica de esa misma cuenta muestra ~$2,000 en esas fechas. Dos
+// pantallas contándose historias distintas sobre el mismo activo.
+//
+// Mismo defecto y mismo arreglo que FASE IV en portfolio-history/route.js: se
+// pide la ventana más larga que la API de verdad sirve. Más allá de esos ~364
+// días no hay dato disponible y el hold-flat se queda, que es honesto; lo que
+// no se vale es perder el año que SÍ se puede traer.
+const CRYPTO_MAX_DAYS = 364
+
 function rangeToDays(range) {
+  const cap = (d) => Math.min(CRYPTO_MAX_DAYS, d)
   switch (range) {
     case '1d': return 1
     case '5d': return 5
     case '1mo': return 31
     case '3mo': return 90
     case '6mo': return 180
-    case 'ytd': return Math.max(1, Math.ceil((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 1)) / 86400000))
-    case '1y': return 365
-    case 'max': return 'max'
-    default: return 365
+    case 'ytd': return cap(Math.max(1, Math.ceil((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 1)) / 86400000)))
+    case '1y': return CRYPTO_MAX_DAYS
+    case 'max': return CRYPTO_MAX_DAYS
+    default: return CRYPTO_MAX_DAYS
   }
 }
 

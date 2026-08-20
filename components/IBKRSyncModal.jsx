@@ -8,6 +8,8 @@ import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { authFetch } from '@/lib/authFetch'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
+import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
+import ChispudoLoader from '@/components/ui/ChispudoLoader'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -798,7 +800,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'connected' && syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+              <ChispudoLoader mode="inline" size={32} state="section-loading" lang={lang} />
               <p className="text-sm text-slate-400">
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
@@ -811,7 +813,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'config' && !showConfig && syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+              <ChispudoLoader mode="inline" size={32} state="section-loading" lang={lang} />
               <p className="text-sm text-slate-400">
                 {statusMessages[syncStatus] || t('Sincronizando con IBKR...', 'Syncing with IBKR...')}
               </p>
@@ -829,7 +831,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
           {step === 'config' && !showConfig && decrypting && !syncing && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+              <ChispudoLoader mode="inline" size={32} state="section-loading" lang={lang} />
               <p className="text-sm text-slate-400">
                 {t('Desencriptando credenciales...', 'Decrypting credentials...')}
               </p>
@@ -1023,12 +1025,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   is worth the wait it no longer needs to survive a weekend. */}
               <button onClick={isConnected ? handleSync : handleQuickConnect} disabled={syncing || !token || !queryId || decrypting}
                 className="w-full py-3 rounded-xl disabled:opacity-50 hover:opacity-90 transition-all text-sm font-medium flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {syncing ? (
-                  <>
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {isConnected ? t('Conectando con IBKR...', 'Connecting to IBKR...') : t('Guardando...', 'Saving...')}
-                  </>
-                ) : (isConnected ? t('Sincronizar', 'Sync') : t('Conectar', 'Connect'))}
+                <BusyLabel busy={syncing} lang={lang}
+                  busyLabel={isConnected ? t('Conectando con IBKR...', 'Connecting to IBKR...') : t('Guardando...', 'Saving...')}>
+                  {isConnected ? t('Sincronizar', 'Sync') : t('Conectar', 'Connect')}
+                </BusyLabel>
               </button>
 
               <p className="flex items-center justify-center gap-1.5 text-xs text-slate-600">
@@ -1101,7 +1101,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     }>
                     {syncing ? (
                       <div className="flex flex-col items-center gap-3">
-                        <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                        <ChispudoLoader mode="inline" size={24} state="section-loading" lang={lang} />
                         <p className="text-sm text-slate-400">{t('Procesando archivo...', 'Processing file...')}</p>
                       </div>
                     ) : (
@@ -1339,7 +1339,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? (
                       <CheckCircle size={16} className="text-[var(--accent-green)]" />
                     ) : (
-                      <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                      <BusyRing size="16px" style={{ color: 'var(--accent-blue)' }} />
                     )}
                     <p className="text-sm text-slate-400">
                       {importProgress && importProgress.total > 0

@@ -7,6 +7,9 @@ import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, 
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
+// El formato del .xlsx, compartido con el adjunto del correo mensual. El
+// módulo no arrastra ExcelJS hasta que se llama (import dinámico adentro).
+import { renderStyledSheet } from '@/lib/xlsxSheet'
 
 // Must match lib/historicalValues.js's IBKR_UNKNOWN_KEY_PREFIX exactly — not
 // imported statically because that file pulls in authFetch → Firebase Auth,
@@ -32,15 +35,15 @@ const CATEGORY_LABELS = {
 }
 
 const CATEGORY_ACCENT = {
-  banks: '#94a3b8',
+  banks: 'var(--text-muted)',
   funds: '#818cf8',
   stocks: 'var(--accent-blue)',
   crypto: '#f97316',
   alternatives: '#a78bfa',
-  bonds: '#f59e0b',
-  realestate: '#34d399',
+  bonds: 'var(--alert-warn-icon)',
+  realestate: 'var(--accent-green)',
   receivables: '#06b6d4',
-  debts: '#ef4444',
+  debts: 'var(--text-negative)',
   other: '#64748b',
 }
 
@@ -836,52 +839,111 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     URL.revokeObjectURL(url)
   }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang, viewMode])
 
-  // Same data walk as the CSV, as a real workbook: month labels as headers,
-  // numbers as numbers (not strings), fallback-month totals flagged with * and
-  // a footnote. xlsx is already a dependency (dashboard export uses it).
+  // El MISMO recorrido de datos que el CSV (mismas fuentes, mismos números),
+  // escrito con el formato compartido de lib/xlsxSheet.js: el archivo que se
+  // descarga aquí y el que viaja adjunto en el correo mensual salen idénticos.
+  //
+  // FASE IE5: antes usaba la librería `xlsx`, cuya edición community IGNORA
+  // los estilos de celda al escribir, así que el archivo era una rejilla de
+  // números crudos por más formato que se le pidiera. Nada de la TABLA en
+  // pantalla cambia: solo cómo se escribe el archivo.
   const handleExportXlsx = useCallback(async () => {
-    const XLSX = await import('xlsx')
-    const header = [t('Categoría', 'Category'), t('Activo', 'Asset'), ...months.map((mk) => getColumnLabel(mk, lang, viewMode))]
-    const rows = [header]
+    const rows = []
     categories.forEach(cat => {
+      // Subtotal por categoría, sumando exactamente las filas que se imprimen
+      // debajo: un subtotal que no cuadra con lo que se ve es peor que no
+      // tenerlo. La deuda entra NEGATIVA (getItemValue ya la firma; el caché
+      // histórico guarda magnitudes, así que ahí se firma al leer).
+      const catAcc = months.map(() => null)
+      const catRows = []
+      const bump = (i, v) => { catAcc[i] = (catAcc[i] || 0) + v }
+
       cat.institutions.forEach(inst => {
         inst.items.forEach(it => {
-          const cells = months.map(mk => {
-            if (mk === currentMonthKey) return Math.round(getItemValue(it) * 100) / 100
-            const v = historicalItems[mk]?.[it.id]?.value
-            return v != null ? Math.round(v * 100) / 100 : null
+          const sign = it.isDebt ? -1 : 1
+          const cells = months.map((mk, i) => {
+            if (mk === currentMonthKey) {
+              const v = Math.round(getItemValue(it) * 100) / 100
+              bump(i, v)
+              return v
+            }
+            const raw = historicalItems[mk]?.[it.id]?.value
+            if (raw == null) return null
+            const v = Math.round(sign * raw * 100) / 100
+            bump(i, v)
+            return v
           })
-          rows.push([cat.label, it.symbol || it.name || '', ...cells])
+          const label = inst.name && inst.name !== t('Sin institucion', 'No institution')
+            ? `${it.symbol || it.name || ''}  ·  ${inst.name}`
+            : (it.symbol || it.name || '')
+          catRows.push({ kind: 'item', label, values: cells })
         })
+
         const ibkrUnknownKey = `${IBKR_UNKNOWN_KEY_PREFIX}${inst.name}__${cat.key}`
-        const unknownCells = months.map(mk => {
+        const unknownCells = months.map((mk, i) => {
           if (mk === currentMonthKey) return null
           const v = historicalItems[mk]?.[ibkrUnknownKey]?.value
-          return v != null ? Math.round(v * 100) / 100 : null
+          if (v == null) return null
+          const r = Math.round(v * 100) / 100
+          bump(i, r)
+          return r
         })
         if (unknownCells.some(c => c != null)) {
-          rows.push([cat.label, t('Posiciones no identificadas', 'Unidentified positions'), ...unknownCells])
+          catRows.push({
+            kind: 'item', muted: true,
+            label: `${t('Posiciones no identificadas', 'Unidentified positions')}  ·  ${inst.name}`,
+            values: unknownCells,
+          })
         }
       })
+
+      if (catRows.length > 0) {
+        rows.push({ kind: 'category', label: cat.label, values: catAcc.map(v => (v == null ? null : Math.round(v * 100) / 100)) })
+        rows.push(...catRows)
+      }
     })
-    rows.push(['TOTAL', '', ...months.map(mk => {
-      const v = mk === currentMonthKey ? grandTotal : monthlyTotals[mk]
-      if (v == null) return null
-      const rounded = Math.round(v * 100) / 100
-      // Fallback months carry the snapshot NAV without per-item breakdown —
-      // keep the asterisk convention from the on-screen table.
-      return fallbackMonths.has(mk) ? `${rounded}*` : rounded
-    })])
-    if ([...fallbackMonths].some((mk) => months.includes(mk))) {
-      rows.push([])
-      rows.push([t('* Total del snapshot: sin desglose por categoría', '* Snapshot total: no per-category breakdown')])
-    }
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{ wch: 18 }, { wch: 22 }, ...months.map(() => ({ wch: 12 }))]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, viewMode === 'yoy' ? t('Año a año', 'Year over year') : `${t('Matriz', 'Matrix')} ${selectedYear}`)
-    XLSX.writeFile(wb, viewMode === 'yoy' ? 'chispudo-spreadsheet-anual.xlsx' : `chispudo-spreadsheet-${selectedYear}.xlsx`)
-  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang, viewMode])
+
+    rows.push({
+      kind: 'total', label: 'TOTAL',
+      values: months.map(mk => {
+        const v = mk === currentMonthKey ? grandTotal : monthlyTotals[mk]
+        return v == null ? null : Math.round(v * 100) / 100
+      }),
+    })
+
+    // La convención del asterisco de la tabla se conserva, pero en el RÓTULO
+    // de la columna, no pegado al número: un "19350.98*" es texto y perdería
+    // el formato numérico (y con él poder sumar u ordenar esa columna).
+    const hasFallback = [...fallbackMonths].some((mk) => months.includes(mk))
+    const columns = months.map((mk) => {
+      const label = getColumnLabel(mk, lang, viewMode)
+      const star = fallbackMonths.has(mk) ? ' *' : ''
+      const current = mk === currentMonthKey ? ` (${t('actual', 'current')})` : ''
+      return `${label}${current}${star}`
+    })
+    const notes = hasFallback
+      ? [t('* Total del snapshot: sin desglose por categoría', '* Snapshot total: no per-category breakdown')]
+      : []
+
+    const isYoy = viewMode === 'yoy'
+    const ab = await renderStyledSheet({
+      title: t('Hoja de cartera', 'Portfolio Spreadsheet'),
+      subtitle: `${isYoy ? t('Año a año', 'Year over year') : selectedYear}  ·  ${t('Valores en', 'Values in')} ${baseCurrency || 'USD'}`,
+      sheetName: isYoy ? t('Año a año', 'Year over year') : `${t('Matriz', 'Matrix')} ${selectedYear}`,
+      labels: [t('Categoría', 'Category'), t('Activo', 'Asset')],
+      columns,
+      rows,
+      notes,
+    })
+
+    const blob = new Blob([ab], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = isYoy ? 'chispudo-spreadsheet-anual.xlsx' : `chispudo-spreadsheet-${selectedYear}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang, viewMode, baseCurrency])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
@@ -1459,7 +1521,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 const val = isCurrent ? grandTotal : (monthlyTotals[mk] || null)
                 const isFallback = !isCurrent && val != null && fallbackMonths.has(mk)
                 return (
-                  <td key={mk} className="text-right py-3.5 px-2 font-black tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--text-primary)' } : { color: val ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+                  <td key={mk} className="text-right py-3.5 px-2 font-bold tabular-nums font-mono text-base" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--text-primary)' } : { color: val ? 'var(--text-secondary)' : 'var(--text-muted)' }}
                     title={isFallback ? t('Valor total del snapshot (sin desglose por categoría para este mes)', 'Snapshot total (no per-category breakdown for this month)') : undefined}>
                     {val ? formatCurrency(val) : '-'}{isFallback ? <span style={{ color: 'var(--text-muted)' }}>*</span> : null}
                   </td>

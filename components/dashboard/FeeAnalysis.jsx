@@ -72,22 +72,25 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
   const feeColorHex = analysis.avgPct < 0.3 ? 'var(--accent-green)' : analysis.avgPct < 1.0 ? 'var(--accent-orange)' : 'var(--text-negative)'
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
-      <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-        💸 {t('Análisis de Comisiones', 'Fee Analysis')}
+    <div>
+      {/* Era el único encabezado con emoji y sin punto de color, en una card
+          que vive al lado de otras diez que sí lo llevan. */}
+      <h3 className="card-title mb-4">
+        <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-orange)' }} />
+        {t('ANÁLISIS DE COMISIONES', 'FEE ANALYSIS')}
       </h3>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="text-center">
-          <div className="text-lg font-bold" style={{ color: feeColorHex }}>{formatCurrency(analysis.totalFees)}</div>
+          <div className="text-h1" style={{ color: feeColorHex }}>{formatCurrency(analysis.totalFees)}</div>
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Comisiones/año', 'Fees/year')}</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold" style={{ color: feeColorHex }}>{analysis.avgPct.toFixed(2)}%</div>
+          <div className="text-h1" style={{ color: feeColorHex }}>{analysis.avgPct.toFixed(2)}%</div>
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Tasa promedio', 'Avg rate')}</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold" style={{ color: 'var(--text-negative)' }}>{formatCurrency(analysis.tenYearImpact)}</div>
+          <div className="text-h1" style={{ color: 'var(--text-negative)' }}>{formatCurrency(analysis.tenYearImpact)}</div>
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Impacto 10 años', '10yr impact')}</div>
         </div>
       </div>

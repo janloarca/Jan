@@ -6,45 +6,22 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
 import { getItemValue } from '@/components/dashboard/utils'
+import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
 import PageShell, { PageTitle } from '@/components/PageShell'
+import PullToRefresh from '@/components/ui/PullToRefresh'
+import BusyLabel from '@/components/ui/BusyLabel'
+import InlineNotice from '@/components/ui/InlineNotice'
 import { Users, UserPlus, KeyRound } from 'lucide-react'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
-import { CHART_PALETTE } from '@/lib/colors'
+import YourCard from '@/components/friends/YourCard'
+import GroupCard from '@/components/friends/GroupCard'
+import GlobalBoard from '@/components/friends/GlobalBoard'
 
-// A distinct color per person, stable across renders/reloads (hashed from
-// their uid, never random) — the SAME validated palette the rest of the app
-// uses for chart series (OKLCH-checked, ΔE ≥ 18 between adjacent entries),
-// not a new one invented for this page. Every avatar was flat gray before;
-// this is what actually reads as "more colorful" without adding noise, since
-// it's carrying real information (which person is which) instead of decoration.
-function avatarColor(seed) {
-  const s = String(seed || '?')
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return CHART_PALETTE[h % CHART_PALETTE.length]
-}
-
-// Tokens, not literals: these used to be the DARK-theme hex values hardcoded, so in
-// light theme every percentage on this page rendered as pale pastel on white while
-// the other tabs shifted correctly.
-function pctColor(v) { return v == null ? 'var(--text-secondary)' : v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }
-function fmtPct(v, decimals = 2) {
-  if (v == null || !isFinite(v)) return '-'
-  return `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`
-}
-function timeAgo(iso, lang) {
-  if (!iso) return ''
-  const diff = Date.now() - new Date(iso).getTime()
-  if (!isFinite(diff) || diff < 0) return ''
-  const min = Math.floor(diff / 60000)
-  if (min < 1) return lang === 'es' ? 'ahora' : 'now'
-  if (min < 60) return `${min}m`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h`
-  const d = Math.floor(h / 24)
-  return lang === 'es' ? `${d}d` : `${d}d`
-}
+// El umbral de la insignia "sincronizado". El servidor la DERIVA de syncedPct
+// con este mismo número (app/api/friends/route.js), así que los dos tienen que
+// coincidir o la insignia diría una cosa distinta de la que se calculó acá.
+const VERIFIED_MIN_SYNCED = 0.6
 
 export default function FriendsPage() {
   const router = useRouter()
@@ -82,8 +59,16 @@ export default function FriendsPage() {
 
   const {
     enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
-    dailyChange, totalAssets, baseCurrency, profile, settings, dataLoading,
+    dailyChange, totalAssets, profile, settings, dataLoading, saveProfile,
+    ytdResolved, pricesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  // Las tres cifras de tu tarjeta cuelgan de dos piezas asíncronas que asientan
+  // DESPUÉS de que `dataLoading` se apaga: los precios del día y la
+  // reconstrucción del ancla del año. Sin esta señal, ese hueco se pintaba con
+  // el mismo "-" que significa "no hay nada que medir".
+  const statsReady = !!ytdResolved && !pricesLoading
+  const hasPortfolio = (enrichedItems || []).length > 0
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
 
@@ -92,7 +77,6 @@ export default function FriendsPage() {
     [profile, user]
   )
   const avatar = useMemo(() => (displayName || '?').trim().charAt(0).toUpperCase(), [displayName])
-  const myColor = useMemo(() => avatarColor(user?.uid || displayName), [user, displayName])
 
   const hasIbkr = useMemo(() => (enrichedItems || []).some((it) => it._source === 'ibkr'), [enrichedItems])
 
@@ -107,7 +91,7 @@ export default function FriendsPage() {
       if (v > 0 && it._source && !EXCLUDE.has(it._source)) synced += v
     }
     const pct = totalAssets > 0 ? synced / totalAssets : 0
-    return { verified: pct >= 0.6, syncedPct: pct }
+    return { verified: pct >= VERIFIED_MIN_SYNCED, syncedPct: pct }
   }, [enrichedItems, totalAssets])
 
   const myStats = useMemo(() => {
@@ -121,7 +105,25 @@ export default function FriendsPage() {
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)
+  // El ranking global tiene su propio error: si fallan tus grupos, la culpa no
+  // es de esta tarjeta y no tiene por qué acusarse a sí misma.
+  const [globalError, setGlobalError] = useState(null)
+  const [globalLoading, setGlobalLoading] = useState(true)
+  // Se sube para pedir el ranking de nuevo sin que su efecto dependa de nada
+  // cuya identidad cambie sola (al publicar, al refrescar a mano, al entrar o
+  // salir del ranking).
+  const [globalEpoch, setGlobalEpoch] = useState(0)
+  const reloadGlobal = useCallback(() => setGlobalEpoch((n) => n + 1), [])
+  // Un error de carga es un ESTADO, no algo que se traga un catch vacío. Sin
+  // esto, `groups` se quedaba en null para siempre y la pantalla mostraba un
+  // "…" suelto sin decir nunca que la llamada había fallado, ni ofrecer
+  // reintentar. El botón de refrescar del header y el gesto de jalar corren por
+  // esta misma función, o sea que se podía jalar, ver el anillo girar entero y
+  // no enterarse de nada.
+  const [loadError, setLoadError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [savingName, setSavingName] = useState(false)
+  const [pending, setPending] = useState(null)
   const [toast, setToast] = useState(null)
   const [expanded, setExpanded] = useState({})
   const [creating, setCreating] = useState(false)
@@ -131,8 +133,18 @@ export default function FriendsPage() {
   const [joinCode, setJoinCode] = useState('')
   const [metric, setMetric] = useState('ytd') // 'ytd' | 'mtd' (Este mes)
   const syncedRef = useRef(false)
+  const toastTimer = useRef(null)
 
-  const flash = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2500) }, [])
+  // Con tono: antes todo salía en el mismo azul, así que un error se veía
+  // idéntico a "Código copiado". Los estilos salen de lib/toastStyle.js, donde
+  // vive además la regla de producto de que el ROJO queda para algo grave: algo
+  // que se reintenta es 'warn'.
+  const flash = useCallback((msg, type = 'success') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ msg, type })
+    toastTimer.current = setTimeout(() => setToast(null), 3000)
+  }, [])
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
   const api = useCallback(async (payload) => {
     const res = await authFetch('/api/friends', {
@@ -145,39 +157,111 @@ export default function FriendsPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [g, gl] = await Promise.all([api({ action: 'list' }), api({ action: 'global' })])
+      const g = await api({ action: 'list' })
       setGroups(g.groups || [])
-      setGlobal(gl)
-    } catch { /* leave prior state */ }
+      setLoadError(null)
+    } catch (e) {
+      // Se conserva lo que ya estaba en pantalla (un dato viejo vale más que una
+      // pantalla vacía), pero el fallo SE DICE y se puede reintentar.
+      setLoadError(e.message || 'Error')
+    }
   }, [api])
 
-  // Publish my stats once data is ready, then load groups + global.
+  // El ranking global vive en su propio efecto, keyeado por la MÉTRICA elegida.
+  //
+  // El orden y el corte del top ocurren en el servidor (la respuesta se recorta
+  // a los primeros N), así que cambiar de "Año" a "Este mes" no se puede
+  // resolver reordenando en el cliente: hay que volver a pedir la lista. Antes
+  // el selector no tocaba esta tarjeta en absoluto, así que fuera de un grupo
+  // era un control que no hacía nada.
+  //
+  // Separarlo de `refresh` además evita re-escanear el ranking entero en cada
+  // publicación: ese escaneo lee hasta GLOBAL_SCAN_CAP documentos y esta app ya
+  // tocó el techo de cuota de Firestore en producción (FASE IE9).
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    setGlobalLoading(true)
+    api({ action: 'global', metric })
+      .then((gl) => { if (!cancelled) { setGlobal(gl); setGlobalError(null) } })
+      .catch((e) => { if (!cancelled) setGlobalError(e.message || 'Error') })
+      .finally(() => { if (!cancelled) setGlobalLoading(false) })
+    return () => { cancelled = true }
+  }, [api, metric, user, globalEpoch])
+
+  // Publica mis números y relee. Es lo que corre en TODO refresco de esta
+  // pantalla: el botón del header, el gesto de jalar y el botón "Publicar" de
+  // tu tarjeta hacen exactamente lo mismo.
+  //
+  // Antes no: "Actualizar" publicaba + releía, mientras el header y el gesto
+  // solo releían, así que jalar en Amigos actualizaba los números de todos los
+  // demás menos el tuyo. Un solo significado para una sola palabra.
   const doSync = useCallback(async () => {
-    if (!myStats.all) return
+    if (!myStats.all) { await refresh(); return true }
     try {
       await api({ action: 'sync', displayName, avatar, stats: myStats, verified, syncedPct })
       await refresh()
-    } catch (e) { flash(e.message) }
+      return true
+    } catch (e) {
+      flash(e.message, 'warn')
+      return false
+    }
   }, [api, myStats, displayName, avatar, verified, syncedPct, refresh, flash])
+
+  const [refreshing, setRefreshing] = useState(false)
+  const handleManualRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try { await doSync(); reloadGlobal() } finally { setRefreshing(false) }
+  }, [doSync, reloadGlobal])
 
   useEffect(() => {
     if (syncedRef.current) return
     if (!user || dataLoading) return
-    if (!myStats.all || myStats.all.ytd == null && myStats.all.day == null && myStats.all.movers.length === 0 && (enrichedItems || []).length === 0) {
-      // Nothing to publish yet (no items). Still load groups so the UI isn't blank.
+    const nothingToPublish = !myStats.all
+      || (myStats.all.ytd == null && myStats.all.day == null && myStats.all.movers.length === 0 && (enrichedItems || []).length === 0)
+    if (nothingToPublish) {
+      // Sin nada que publicar (cartera vacía). Se cargan los grupos igual para
+      // que la pantalla no quede en blanco, pero NO se marca el ref: si más
+      // adelante hay datos, esto tiene que volver a intentarlo.
       refresh()
       return
     }
-    syncedRef.current = true
-    doSync()
+    // El ref se marca DESPUÉS de que la publicación salga bien. Antes se
+    // marcaba antes del await y `doSync` se tragaba su propio error, así que
+    // una primera publicación fallida quedaba trabada el resto de la sesión sin
+    // ningún reintento.
+    doSync().then((ok) => { if (ok) syncedRef.current = true })
   }, [user, dataLoading, myStats, enrichedItems, doSync, refresh])
 
   const handleUpdate = useCallback(async () => {
     setBusy(true)
-    await doSync()
+    const ok = await doSync()
     setBusy(false)
-    flash(t('Actualizado', 'Updated'))
+    // Solo se avisa "listo" si de verdad salió bien. Antes se avisaba siempre,
+    // tapando el toast de error que doSync acababa de mostrar.
+    if (ok) flash(t('Tus números están publicados', 'Your numbers are published'), 'success')
   }, [doSync, flash, t])
+
+  const handleSaveName = useCallback(async (name) => {
+    setSavingName(true)
+    try {
+      await saveProfile({ name })
+    } catch (e) {
+      setSavingName(false)
+      flash(e.message || t('No se pudo guardar el nombre', 'Could not save the name'), 'warn')
+      return false
+    }
+    // El nombre YA quedó guardado. Si la republicación falla, se dice tal cual
+    // en vez de un error genérico que haría pensar que hay que escribirlo otra
+    // vez.
+    const published = await doSync()
+    setSavingName(false)
+    flash(published
+      ? t('Nombre actualizado', 'Name updated')
+      : t('Nombre guardado, pero no se pudo publicar todavía', 'Name saved, but could not publish it yet'),
+      published ? 'success' : 'warn')
+    return true
+  }, [saveProfile, doSync, flash, t])
 
   const handleCreate = useCallback(async () => {
     if (!createName.trim()) return
@@ -186,8 +270,8 @@ export default function FriendsPage() {
       await api({ action: 'create-group', name: createName.trim(), scope: createScope })
       setCreating(false); setCreateName(''); setCreateScope('all')
       await doSync()
-      flash(t('Grupo creado', 'Group created'))
-    } catch (e) { flash(e.message) }
+      flash(t('Grupo creado', 'Group created'), 'success')
+    } catch (e) { flash(e.message, 'warn') }
     setBusy(false)
   }, [api, createName, createScope, doSync, flash, t])
 
@@ -199,25 +283,70 @@ export default function FriendsPage() {
       await api({ action: 'join', code })
       setJoining(false); setJoinCode('')
       await doSync()
-      flash(t('Te uniste al grupo', 'Joined the group'))
-    } catch (e) { flash(e.message) }
+      flash(t('Te uniste al grupo', 'Joined the group'), 'success')
+    } catch (e) { flash(e.message, 'warn') }
     setBusy(false)
   }, [api, joinCode, doSync, flash, t])
 
-  const handleLeave = useCallback(async (groupId, isOwner) => {
-    const msg = isOwner
-      ? t('¿Salir? Si eres el único, el grupo se elimina; si no, pasa al miembro más antiguo.', 'Leave? If you\'re the last one the group is deleted; otherwise ownership passes to the oldest member.')
-      : t('¿Salir del grupo?', 'Leave this group?')
-    if (!window.confirm(msg)) return
-    setBusy(true)
-    try { await api({ action: 'leave', groupId }); await refresh() }
-    catch (e) { flash(e.message) }
-    setBusy(false)
+  // Las cuatro acciones sobre un grupo comparten forma: marcar cuál está en
+  // vuelo (para que solo ESE botón muestre el anillo), llamar, releer y avisar.
+  const runGroupAction = useCallback(async (kind, id, payload, okMsg) => {
+    setPending({ kind, id })
+    try {
+      await api(payload)
+      await refresh()
+      flash(okMsg, 'success')
+    } catch (e) { flash(e.message, 'warn') }
+    setPending(null)
+  }, [api, refresh, flash])
+
+  const handleLeave = useCallback((groupId) => runGroupAction(
+    'leave', groupId, { action: 'leave', groupId }, t('Saliste del grupo', 'Left the group')
+  ), [runGroupAction, t])
+
+  const handleRename = useCallback(async (groupId, name) => {
+    setPending({ kind: 'rename', id: groupId })
+    try {
+      await api({ action: 'rename', groupId, name })
+      await refresh()
+      flash(t('Grupo renombrado', 'Group renamed'), 'success')
+      setPending(null)
+      return true
+    } catch (e) {
+      flash(e.message, 'warn')
+      setPending(null)
+      return false
+    }
   }, [api, refresh, flash, t])
 
-  const copyCode = useCallback((code) => {
-    navigator.clipboard?.writeText(code)
-    flash(t('Código copiado', 'Code copied'))
+  const handleDeleteGroup = useCallback((groupId) => runGroupAction(
+    'delete', groupId, { action: 'delete-group', groupId }, t('Grupo eliminado', 'Group deleted')
+  ), [runGroupAction, t])
+
+  const handleKick = useCallback((groupId, uid) => runGroupAction(
+    'kick', uid, { action: 'kick', groupId, uid }, t('Miembro quitado', 'Member removed')
+  ), [runGroupAction, t])
+
+  // Compartir de verdad, y decir lo que DE VERDAD pasó. Antes hacía
+  // `navigator.clipboard?.writeText(code)` sin esperar ni atrapar la promesa y
+  // avisaba "Código copiado" pasara lo que pasara: en un contexto sin
+  // portapapeles mentía. Mismo patrón que el botón de compartir del tablero.
+  const copyCode = useCallback(async (code) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Chispudo', text: code })
+        return
+      } catch (e) {
+        // Cancelar el menú nativo no es un fallo, no hay nada que avisar.
+        if (e?.name === 'AbortError') return
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(code)
+      flash(t('Código copiado', 'Code copied'), 'success')
+    } catch {
+      flash(t('No se pudo copiar. El código es: ', 'Could not copy. The code is: ') + code, 'warn')
+    }
   }, [flash, t])
 
   const handleSignOut = useCallback(async () => {
@@ -232,7 +361,7 @@ export default function FriendsPage() {
   if (authLoading || (user && dataLoading)) {
     return (
       <div className="min-h-screen bg-theme-base">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
           <SkeletonCard /><SkeletonCard />
         </div>
       </div>
@@ -240,12 +369,46 @@ export default function FriendsPage() {
   }
   if (!user) return null
 
-  const my = myStats.all || { ytd: null, day: null }
   const createDisabled = busy || !createName.trim()
   const joinDisabled = busy || !joinCode.trim()
+  // Los botones de empezar salen en UN solo lugar por estado. Existen en dos
+  // sitios a propósito (arriba, y dentro de la tarjeta de "aún no estás en
+  // ningún grupo", donde son la acción que se está pidiendo), pero sin grupos
+  // se renderizaban LOS DOS a la vez: el mismo par de botones dos veces en la
+  // misma pantalla.
+  const loadingGroups = groups === null && !loadError
+  const showStartOnTop = !loadingGroups && !(groups !== null && groups.length === 0)
+  const startButtons = (
+    <div className="flex gap-2">
+      <button onClick={() => { setCreating((v) => !v); setJoining(false) }}
+        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
+        style={creating
+          ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+          : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+        <UserPlus size={14} /> {t('Crear grupo', 'Create group')}
+      </button>
+      <button onClick={() => { setJoining((v) => !v); setCreating(false) }}
+        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
+        style={joining
+          ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+          : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+        <KeyRound size={14} /> {t('Unirme con código', 'Join with code')}
+      </button>
+    </div>
+  )
 
   return (
-    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow"
+      // Sin esto el botón de refrescar del header es un control MUERTO en esta
+      // pantalla: PageShell le pasa `onRefresh={() => {}}` por default, y el
+      // spread de headerProps es lo último, así que lo pisa.
+      // Sin etapas a propósito: acá el refresco es UN viaje de red, no hay
+      // sub-etapas independientes que reportar, así que el anillo barre
+      // indeterminado en vez de inventar un porcentaje.
+      headerProps={{ onRefresh: handleManualRefresh, pricesLoading: refreshing }}>
+      {/* Jalar para actualizar (FASE JH). Mismo `onRefresh` y misma señal de
+          carga que el botón de arriba, para que los dos no puedan discrepar. */}
+      <PullToRefresh onRefresh={handleManualRefresh} loading={refreshing} lang={lang} />
       <PageTour pageKey="friends" nextRoute="/dashboard" nextFlag={null} lang={lang} steps={[
         {
           tab: t('Amigos', 'Friends'),
@@ -271,323 +434,133 @@ export default function FriendsPage() {
         title={t('Amigos', 'Friends')}
         subtitle={t('Compara tu retorno con tus amigos: sin revelar montos.', 'Compare your return with friends: without revealing amounts.')} />
 
-        {/* Your card — a hero treatment (bigger avatar, ring in your own
-            color, soft gradient wash), so this reads as the anchor of the
-            page instead of just another row like everyone else's. */}
-        <div className="rounded-2xl p-4 sm:p-5 border relative overflow-hidden" style={{
-          borderColor: 'var(--card-border)',
-          background: `linear-gradient(135deg, color-mix(in srgb, ${myColor} 14%, var(--bg-card)) 0%, var(--bg-card) 65%)`,
-        }}>
-          <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 ring-2"
-              style={{ backgroundColor: `color-mix(in srgb, ${myColor} 22%, transparent)`, color: myColor, boxShadow: `0 0 0 1px ${myColor}` }}>
-              {avatar}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-base font-bold text-white truncate flex items-center gap-1.5">
-                <span className="truncate">{displayName}</span>
-                {verified && <VerifiedBadge lang={lang} />}
-              </div>
-              <div className="text-xs text-slate-500">{t('Tú', 'You')}</div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="flex items-end gap-2.5 justify-end">
-                <div className="px-2 py-1 rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${pctColor(my.ytd)} 14%, transparent)` }}>
-                  <div className="text-lg font-bold font-mono tabular-nums leading-tight" style={{ color: pctColor(my.ytd) }}>{fmtPct(my.ytd)}</div>
-                  <div className="text-[9px] text-slate-500 uppercase tracking-wide text-center">YTD</div>
-                </div>
-                <div className="px-2 py-1 rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${pctColor(my.mtd)} 14%, transparent)` }}>
-                  <div className="text-lg font-bold font-mono tabular-nums leading-tight" style={{ color: pctColor(my.mtd) }}>{fmtPct(my.mtd)}</div>
-                  <div className="text-[9px] text-slate-500 uppercase tracking-wide text-center">{t('mes', 'month')}</div>
-                </div>
-              </div>
-              <div className="text-[10px] text-slate-500 mt-1">{t('hoy', 'today')} <span className="font-semibold" style={{ color: pctColor(my.day) }}>{fmtPct(my.day)}</span></div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between mt-3.5 pt-3 border-t" style={{ borderColor: 'var(--card-border)' }}>
-            <p className="text-[10px] text-slate-600">🔒 {t('Solo se comparte tu % y tus símbolos: nunca montos.', 'Only your % and symbols are shared: never amounts.')}</p>
-            <button onClick={handleUpdate} disabled={busy}
-              className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50" style={{ color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
-              {busy ? '…' : t('Actualizar', 'Update')}
-            </button>
-          </div>
-        </div>
+      <YourCard
+        displayName={displayName}
+        verified={verified}
+        stats={myStats.all}
+        // Tu propia hora de publicación viene del servidor y no de tu fila
+        // dentro de un grupo: derivada de los grupos, quien no está en ninguno
+        // no la veía nunca, o sea leía un porcentaje sin nada que dijera que es
+        // una foto quieta hasta que la vuelva a publicar.
+        updatedAt={global?.yourUpdatedAt || groups?.flatMap((g) => g.rows || []).find((r) => r.isYou)?.updatedAt}
+        ready={statsReady} hasPortfolio={hasPortfolio}
+        lang={lang} t={t}
+        busy={busy} savingName={savingName}
+        onUpdate={handleUpdate} onSaveName={handleSaveName} />
 
-        {/* Create / join */}
-        <div className="flex gap-2">
-          <button onClick={() => { setCreating((v) => !v); setJoining(false) }}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
-            style={creating
-              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
-              : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-            <UserPlus size={14} /> {t('Crear grupo', 'Create group')}
-          </button>
-          <button onClick={() => { setJoining((v) => !v); setCreating(false) }}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
-            style={joining
-              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
-              : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-            <KeyRound size={14} /> {t('Unirme con código', 'Join with code')}
+      {showStartOnTop && startButtons}
+
+      {creating && (
+        <div className="card p-3 space-y-3">
+          <input value={createName} onChange={(e) => setCreateName(e.target.value)} maxLength={40}
+            placeholder={t('Nombre del grupo (ej. Los Inversionistas)', 'Group name (e.g. The Investors)')}
+            className="w-full px-3 py-2 rounded-lg text-xs bg-theme-surface border border-glass-border/60 focus:outline-none"
+            style={{ color: 'var(--text-primary)' }} />
+          <div>
+            <label className="text-[11px] mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('¿Qué se compara en este grupo?', 'What does this group compare?')}</label>
+            <div className="flex gap-1.5">
+              {[{ k: 'all', l: t('Todo el portafolio', 'Whole portfolio') }, ...(hasIbkr ? [{ k: 'ibkr', l: t('Solo IBKR', 'IBKR only') }] : [])].map((o) => (
+                <button key={o.k} onClick={() => setCreateScope(o.k)}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border"
+                  style={createScope === o.k
+                    ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                    : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={handleCreate} disabled={createDisabled}
+            className="w-full py-2 rounded-lg text-xs font-medium transition-colors"
+            style={createDisabled
+              ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }
+              : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
+            <BusyLabel busy={busy} lang={lang}>{t('Crear y obtener código', 'Create & get code')}</BusyLabel>
           </button>
         </div>
+      )}
 
-        {creating && (
-          <div className="rounded-xl p-3 space-y-3 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-            <input value={createName} onChange={(e) => setCreateName(e.target.value)} maxLength={40}
-              placeholder={t('Nombre del grupo (ej. Los Inversionistas)', 'Group name (e.g. The Investors)')}
-              className="w-full px-3 py-2 rounded-lg text-xs text-white bg-theme-surface border border-glass-border/60 focus:outline-none" />
-            <div>
-              <label className="text-[11px] text-slate-500 mb-1 block">{t('¿Qué se compara en este grupo?', 'What does this group compare?')}</label>
-              <div className="flex gap-1.5">
-                {[{ k: 'all', l: t('Todo el portafolio', 'Whole portfolio') }, ...(hasIbkr ? [{ k: 'ibkr', l: t('Solo IBKR', 'IBKR only') }] : [])].map((o) => (
-                  <button key={o.k} onClick={() => setCreateScope(o.k)}
-                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg border"
-                    style={createScope === o.k
-                      ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
-                      : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-                    {o.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button onClick={handleCreate} disabled={createDisabled}
-              className="w-full py-2 rounded-lg text-xs font-medium transition-colors"
-              style={createDisabled
-                ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }
-                : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-              {t('Crear y obtener código', 'Create & get code')}
-            </button>
-          </div>
-        )}
+      {joining && (
+        <div className="card p-3 space-y-3">
+          <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={12}
+            placeholder={t('Pega el código del grupo', 'Paste the group code')}
+            className="w-full px-3 py-2 rounded-lg text-sm font-mono tracking-widest bg-theme-surface border border-glass-border/60 focus:outline-none"
+            style={{ color: 'var(--text-primary)' }} />
+          <button onClick={handleJoin} disabled={joinDisabled}
+            className="w-full py-2 rounded-lg text-xs font-medium transition-colors"
+            style={joinDisabled
+              ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }
+              : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
+            <BusyLabel busy={busy} lang={lang}>{t('Unirme', 'Join')}</BusyLabel>
+          </button>
+        </div>
+      )}
 
-        {joining && (
-          <div className="rounded-xl p-3 space-y-3 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-            <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={12}
-              placeholder={t('Pega el código del grupo', 'Paste the group code')}
-              className="w-full px-3 py-2 rounded-lg text-sm text-white font-mono tracking-widest bg-theme-surface border border-glass-border/60 focus:outline-none" />
-            <button onClick={handleJoin} disabled={joinDisabled}
-              className="w-full py-2 rounded-lg text-xs font-medium transition-colors"
-              style={joinDisabled
-                ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }
-                : { backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-              {t('Unirme', 'Join')}
-            </button>
-          </div>
-        )}
+      {/* Métrica del ranking: el año o el mes en curso. Ya no se esconde cuando
+          no tienes grupos: escondido, nadie nuevo se enteraba de que existe. */}
+      <div className="flex items-center gap-1.5 justify-center">
+        {[{ k: 'ytd', l: t('Año (YTD)', 'Year (YTD)') }, { k: 'mtd', l: t('Este mes', 'This month') }].map((o) => (
+          <button key={o.k} onClick={() => setMetric(o.k)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+            style={metric === o.k
+              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+              : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+            {o.k === 'mtd' && '🏁 '}{o.l}
+          </button>
+        ))}
+      </div>
 
-        {/* Metric toggle: rank by the year (YTD) or the current month (competencia) */}
-        {groups && groups.length > 0 && (
-          <div className="flex items-center gap-1.5 justify-center">
-            {[{ k: 'ytd', l: t('YTD (año)', 'YTD (year)') }, { k: 'mtd', l: t('Este mes', 'This month') }].map((o) => (
-              <button key={o.k} onClick={() => setMetric(o.k)}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-                style={metric === o.k
-                  ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
-                  : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-                {o.k === 'mtd' && '🏁 '}{o.l}
-              </button>
-            ))}
-          </div>
-        )}
+      {/* Cuatro situaciones, cuatro respuestas. Antes las cuatro compartían un
+          "…" suelto o no decían nada. */}
+      {loadError && !groups ? (
+        <InlineNotice tone="warn" actionLabel={t('Reintentar', 'Retry')} onAction={handleManualRefresh} busy={refreshing}>
+          {t('No se pudieron cargar tus grupos.', 'Could not load your groups.')}
+        </InlineNotice>
+      ) : groups === null ? (
+        <SkeletonCard />
+      ) : groups.length === 0 ? (
+        <div className="card p-6 text-center"
+          style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 6%, var(--bg-card)) 0%, var(--bg-card) 70%)' }}>
+          <div className="text-4xl mb-2">🏆</div>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{t('Aún no estás en ningún grupo', 'You are not in any group yet')}</p>
+          <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
+            {t('Crea uno y comparte el código con tus amigos, o únete con el código de alguien.', 'Create one and share the code with friends, or join with someone\'s code.')}
+          </p>
+          {/* La acción, acá mismo. Antes los botones quedaban arriba, fuera de
+              pantalla al llegar leyendo hasta este punto. */}
+          {startButtons}
+        </div>
+      ) : (
+        groups.map((g) => (
+          <GroupCard key={g.id} group={g} lang={lang} t={t} metric={metric} expanded={expanded} setExpanded={setExpanded}
+            pending={pending}
+            onCopy={copyCode} onLeave={handleLeave} onRename={handleRename}
+            onDelete={handleDeleteGroup} onKick={handleKick} />
+        ))
+      )}
 
-        {/* Groups */}
-        {groups === null ? (
-          <p className="text-xs text-slate-500">…</p>
-        ) : groups.length === 0 ? (
-          <div className="rounded-2xl p-6 text-center border" style={{ borderColor: 'var(--card-border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 6%, var(--bg-card)) 0%, var(--bg-card) 70%)' }}>
-            <div className="text-4xl mb-2">🏆</div>
-            <p className="text-sm text-white font-medium">{t('Aún no estás en ningún grupo', 'You\'re not in any group yet')}</p>
-            <p className="text-xs text-slate-500 mt-1">{t('Crea uno y comparte el código con tus amigos, o únete con el código de alguien.', 'Create one and share the code with friends, or join with someone\'s code.')}</p>
-          </div>
-        ) : (
-          groups.map((g) => (
-            <GroupCard key={g.id} group={g} lang={lang} t={t} metric={metric} expanded={expanded} setExpanded={setExpanded}
-              onCopy={copyCode} onLeave={handleLeave} />
-          ))
-        )}
+      {/* Si los grupos SÍ cargaron pero la llamada falló después, el aviso va
+          acá abajo en vez de reemplazar la lista que ya se ve. */}
+      {loadError && groups && (
+        <InlineNotice tone="warn" actionLabel={t('Reintentar', 'Retry')} onAction={handleManualRefresh} busy={refreshing}>
+          {t('Lo que ves puede estar desactualizado: la última actualización falló.', 'What you see may be out of date: the last refresh failed.')}
+        </InlineNotice>
+      )}
 
-        {/* Global anonymous leaderboard */}
-        <GlobalBoard global={global} lang={lang} t={t} api={api} flash={flash} onChanged={refresh} />
+      <GlobalBoard global={global} loading={globalLoading} error={!!globalError && !global} lang={lang} t={t}
+        metric={metric}
+        api={api} flash={flash} onChanged={reloadGlobal} onRetry={reloadGlobal} />
 
-        <div className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>Chispudo · chispu.xyz</div>
+      <div className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>Chispudo · chispu.xyz</div>
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-xs text-white shadow-lg" style={{ backgroundColor: 'var(--accent-blue)' }}>
-          {toast}
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium shadow-xl border"
+          role="status" aria-live="polite"
+          style={toastStyleFor(toast.type)}>
+          <span>{toastIconFor(toast.type)}</span>
+          {toast.msg}
         </div>
       )}
     </PageShell>
-  )
-}
-
-const MEDALS = ['🥇', '🥈', '🥉']
-
-// Soft trust signal — portfolio is mostly broker-synced, not hand-typed.
-function VerifiedBadge({ lang }) {
-  return (
-    <span title={lang === 'es' ? 'Portafolio sincronizado con un broker' : 'Portfolio synced with a broker'}
-      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold shrink-0"
-      style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 22%, transparent)', color: 'var(--accent-green)' }}>
-      ✓
-    </span>
-  )
-}
-
-function GroupCard({ group, lang, t, metric = 'ytd', expanded, setExpanded, onCopy, onLeave }) {
-  // Server sends rows sorted by YTD; re-sort locally by the active metric so the
-  // "Este mes" toggle instantly re-ranks (nulls sink to the bottom).
-  const rows = [...(group.rows || [])].sort((a, b) => (b[metric] ?? -Infinity) - (a[metric] ?? -Infinity))
-  return (
-    <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-white truncate flex items-center gap-2">
-            {group.name}
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-              {group.scope === 'ibkr' ? t('Solo IBKR', 'IBKR only') : t('Todo', 'All')}
-            </span>
-          </div>
-          <div className="text-[10px] text-slate-500">{group.memberCount} {t('miembros', 'members')}</div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => onCopy(group.inviteCode)}
-            className="px-2 py-1 text-xs font-mono rounded-md" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-blue)' }}>
-            {group.inviteCode}
-          </button>
-          <button onClick={() => onLeave(group.id, group.isOwner)} aria-label={t('Salir', 'Leave')}
-            className="px-1.5 py-1 text-xs" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>✕</button>
-        </div>
-      </div>
-
-      <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
-        {rows.length === 0 && (
-          <p className="px-4 py-3 text-xs text-slate-500">{t('Sin datos aún.', 'No data yet.')}</p>
-        )}
-        {rows.map((r, i) => {
-          const key = `${group.id}:${r.uid}`
-          const isOpen = !!expanded[key]
-          const hasDetail = (r.movers && r.movers.length > 0) || r.day != null
-          const isPodium = i < 3
-          const color = avatarColor(r.uid || r.displayName)
-          return (
-            <div key={r.uid}>
-              <button onClick={() => hasDetail && setExpanded((p) => ({ ...p, [key]: !p[key] }))}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--bg-card-hover)]"
-                style={r.isYou
-                  ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' }
-                  : isPodium ? { backgroundColor: 'color-mix(in srgb, var(--text-primary) 3%, transparent)' } : undefined}>
-                <span className="w-6 text-center text-base shrink-0">{metric === 'mtd' && i === 0 ? '👑' : isPodium ? MEDALS[i] : <span className="text-xs text-slate-500">{i + 1}</span>}</span>
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                  style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`, color }}>
-                  {(r.avatar || r.displayName || '?').charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white truncate flex items-center gap-1">
-                    <span className="truncate">{r.displayName}</span>
-                    {r.verified && <VerifiedBadge lang={lang} />}
-                    {r.isYou && <span className="text-[10px] text-slate-500">({t('tú', 'you')})</span>}
-                  </div>
-                  <div className="text-[10px] text-slate-600">{t('act.', 'upd.')} {timeAgo(r.updatedAt, lang)}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-bold font-mono tabular-nums" style={{ color: pctColor(r[metric]) }}>{fmtPct(r[metric])}</div>
-                  <div className="text-[10px] text-slate-500">
-                    {metric === 'mtd'
-                      ? <>YTD <span style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd, 1)}</span></>
-                      : <>{t('mes', 'month')} <span style={{ color: pctColor(r.mtd) }}>{fmtPct(r.mtd, 1)}</span></>}
-                    {' · '}{t('hoy', 'today')} <span style={{ color: pctColor(r.day) }}>{fmtPct(r.day, 1)}</span>
-                  </div>
-                </div>
-                {hasDetail && <span className="text-slate-600 text-xs shrink-0">{isOpen ? '▾' : '▸'}</span>}
-              </button>
-              {isOpen && (
-                <div className="px-4 pb-3 pt-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                  <div className="text-[10px] text-slate-500 mb-1.5">{t('Posiciones de mayor impacto hoy', 'Biggest impact on today')}</div>
-                  {(r.movers || []).length === 0 ? (
-                    <p className="text-[11px] text-slate-600">{t('Sin movimientos de mercado hoy.', 'No market moves today.')}</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {r.movers.map((m, mi) => (
-                        <div key={mi} className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-300 font-mono">{m.symbol}</span>
-                          <div className="flex items-center gap-3">
-                            <span style={{ color: pctColor(m.changePct) }}>{fmtPct(m.changePct, 1)}</span>
-                            <span className="text-slate-500 w-16 text-right">{t('impacto', 'impact')} {fmtPct(m.impactPct, 2)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function GlobalBoard({ global, lang, t, api, flash, onChanged }) {
-  const [busy, setBusy] = useState(false)
-  const optedIn = global?.yourRank != null
-  const toggle = useCallback(async () => {
-    setBusy(true)
-    try {
-      await api({ action: 'global-optin', on: !optedIn })
-      await onChanged()
-      flash(optedIn ? t('Saliste del ranking global', 'Left the global ranking') : t('Estás en el ranking global', 'You\'re in the global ranking'))
-    } catch (e) { flash(e.message) }
-    setBusy(false)
-  }, [api, optedIn, onChanged, flash, t])
-
-  const top = global?.top || []
-  return (
-    <div className="rounded-xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--card-border)' }}>
-        <div>
-          <div className="text-sm font-semibold text-white">🌎 {t('Ranking global', 'Global ranking')}</div>
-          <div className="text-[10px] text-slate-500">{t('Anónimo: solo un seudónimo y tu % YTD.', 'Anonymous: just a pseudonym and your YTD %.')}</div>
-        </div>
-        <button onClick={toggle} disabled={busy}
-          className="px-2.5 py-1 text-xs font-medium rounded-md disabled:opacity-50 border"
-          style={optedIn
-            ? { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }
-            : { borderColor: 'var(--accent-blue)', color: '#fff', backgroundColor: 'var(--accent-blue)' }}>
-          {optedIn ? t('Salir', 'Leave') : t('Participar', 'Join')}
-        </button>
-      </div>
-      {top.length === 0 ? (
-        <p className="px-4 py-3 text-xs text-slate-500">{t('Participa para ver el ranking global.', 'Join to see the global ranking.')}</p>
-      ) : (
-        <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
-          {top.map((r) => {
-            const isPodium = r.rank <= 3
-            const color = avatarColor(r.pseudonym)
-            return (
-              <div key={r.rank} className="flex items-center gap-3 px-4 py-2"
-                style={r.isYou
-                  ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 8%, transparent)' }
-                  : isPodium ? { backgroundColor: 'color-mix(in srgb, var(--text-primary) 3%, transparent)' } : undefined}>
-                <span className="w-6 text-center text-base shrink-0">{isPodium ? MEDALS[r.rank - 1] : <span className="text-xs text-slate-500">{r.rank}</span>}</span>
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                  style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`, color }}>
-                  {(r.pseudonym || '?').charAt(0).toUpperCase()}
-                </div>
-                <span className="flex-1 min-w-0 text-sm text-white truncate flex items-center gap-1">
-                  <span className="truncate">{r.pseudonym}</span>
-                  {r.verified && <VerifiedBadge lang={lang} />}
-                  {r.isYou && <span className="text-[10px] text-slate-500">({t('tú', 'you')})</span>}
-                </span>
-                <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd)}</span>
-              </div>
-            )
-          })}
-          {global?.yourRank != null && global.yourRank > top.length && (
-            <div className="px-4 py-2 text-xs text-slate-500">{t('Tu posición', 'Your rank')}: #{global.yourRank} {t('de', 'of')} {global.total}</div>
-          )}
-        </div>
-      )}
-    </div>
   )
 }

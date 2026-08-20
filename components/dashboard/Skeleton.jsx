@@ -4,13 +4,17 @@
 // page.jsx's ModalSkeleton() can build their own shapes out of the same atom
 // instead of hand-rolling hardcoded-hex placeholders that don't move or
 // color the same way as every other loading moment in the app.
+// El color va por `--skeleton-base` y no por `--bg-card-hover` + opacity 0.5:
+// en tema claro ese token es #FFFFFF, así que sobre una card blanca el
+// placeholder era invisible y una carga en frío se veía como una card vacía.
+// El token deja el tema oscuro pixel a pixel igual que antes.
 export function Shimmer({ className }) {
-  return <div className={`rounded shimmer ${className}`} style={{ backgroundColor: 'var(--bg-card-hover)', opacity: 0.5 }} />
+  return <div className={`rounded shimmer ${className}`} style={{ backgroundColor: 'var(--skeleton-base)' }} />
 }
 
 export function SkeletonCard() {
   return (
-    <div className="card-glass rounded-2xl p-5">
+    <div className="card p-4 sm:p-5">
       <Shimmer className="h-4 w-24 mb-4" />
       <Shimmer className="h-8 w-40 mb-2" />
       <Shimmer className="h-3 w-32" />
@@ -20,7 +24,7 @@ export function SkeletonCard() {
 
 export function SkeletonChart() {
   return (
-    <div className="card-glass rounded-2xl p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <Shimmer className="h-4 w-32" />
         <div className="flex gap-2">
@@ -36,7 +40,7 @@ export function SkeletonChart() {
 
 export function SkeletonTable() {
   return (
-    <div className="card-glass rounded-2xl p-5">
+    <div className="card p-4 sm:p-5">
       <Shimmer className="h-4 w-40 mb-4" />
       {[...Array(5)].map((_, i) => (
         <div key={i} className="flex items-center gap-3 mb-3">

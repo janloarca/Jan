@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
-import { formatCurrency, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
+import { formatCurrency, formatDate, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
 
@@ -19,6 +19,124 @@ const CATEGORY_LABELS = {
   other: { es: 'Otros', en: 'Other' },
 }
 
+// Los tres términos por cuenta (arranque / hoy / movimientos) más el ancla del
+// portafolio. Un solo componente para los dos estados del panel (rechazo y
+// éxito): dos copias del mismo render es como una se queda atrás.
+// De dónde salió el arranque de cada cuenta. El arranque es el ÚNICO término
+// estimado del reparto, así que es el único lugar por donde entra error: sin
+// esto, una fila que no coincide con la gráfica de su cuenta obliga a deducir
+// la fuente de los síntomas, que es lo que consume una ronda entera.
+const START_SRC_LABEL = {
+  api: { es: 'medido', en: 'measured' },
+  sheet: { es: 'hoja', en: 'sheet' },
+  flat: { es: 'estimado', en: 'estimated' },
+  // Vino del API, pero el server no consiguió su historial de precios y lo
+  // reconstruyó PLANO en el valor de hoy: el activo aporta cero al retorno del
+  // período. Decir "medido" acá sería la afirmación más engañosa posible.
+  flatprice: { es: 'sin precios: plano', en: 'no prices: flat' },
+  new: { es: 'abrió este año', en: 'opened this year' },
+  nav: { es: 'NAV broker', en: 'broker NAV' },
+  derived: { es: 'despejado', en: 'derived' },
+  mixed: { es: 'mixto', en: 'mixed' },
+  none: { es: 'sin fuente', en: 'no source' },
+}
+
+// De qué DOC salió el ancla del año. Importa porque las dos formas se
+// comportan distinto ante la reparación diaria: un doc derivado se re-deriva
+// solo, una observación en vivo solo se reescribe si contradice a la
+// composición por un margen ancho. Sin esto, un descuadre chico contra el
+// ancla no se puede diagnosticar: no se sabe si va a corregirse o no.
+const ANCHOR_SRC_LABEL = {
+  daily: { es: 'observado', en: 'observed' },
+  manual: { es: 'transcrito', en: 'transcribed' },
+  backfill: { es: 'derivado', en: 'derived' },
+  ibkr: { es: 'NAV broker', en: 'broker NAV' },
+  ibkr_quarterly: { es: 'trimestre transcrito', en: 'transcribed quarter' },
+}
+
+function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, unmappedStart = 0, unmappedCount = 0, lang, cv, displayCur }) {
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Cuenta' : 'Account'}</span>
+        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque' : 'Start'}</span>
+        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Hoy' : 'Now'}</span>
+        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
+        {accounts.map((a) => (
+          <Fragment key={a.name}>
+            {/* Sin truncar: la etiqueta de fuente es el dato que hace útil a
+                esta tabla, y en un teléfono un nombre largo la cortaba justo a
+                ella ("Interactive Brokers (des..."). */}
+            <span className="text-[11px] leading-tight" style={{ color: 'var(--text-secondary)' }}>
+              {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
+              {START_SRC_LABEL[a.src] && (
+                <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  ({START_SRC_LABEL[a.src][lang === 'es' ? 'es' : 'en']}
+                  {/* FASE IX7. De qué día salió ese NAV. El arranque del broker
+                      se resuelve con arrastre, así que "el 1 de enero" puede ser
+                      en realidad el cierre del 31 de diciembre (feriado de
+                      mercado). Sin la fecha, la única forma de saber qué día se
+                      está usando era deducirlo de que el número no cambiaba. */}
+                  {a.srcDate ? ` · ${formatDate(`${a.srcDate}T00:00:00Z`)}` : ''})
+                </span>
+              )}
+            </span>
+            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
+            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
+            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.flow ?? 0), displayCur)}</span>
+          </Fragment>
+        ))}
+      </div>
+      <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}
+          {anchorTs ? <span className="ml-1 text-[10px]">({formatDate(new Date(anchorTs))})</span> : null}
+          {ANCHOR_SRC_LABEL[anchorSrc] ? (
+            <span className="ml-1 text-[10px]">· {ANCHOR_SRC_LABEL[anchorSrc][lang === 'es' ? 'es' : 'en']}</span>
+          ) : null}
+        </span>
+        <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(anchor ?? 0), displayCur)}</span>
+      </div>
+      {/* FASE IX8. Arranque que el motor SÍ midió y el panel no pudo colgar de
+          ninguna cuenta. Separa las dos causas posibles de "Sin atribuir", que
+          desde afuera se ven idénticas: si esta línea aparece, parte del residuo
+          se está perdiendo ACÁ, al agrupar por cuenta; si no aparece, viene de
+          que el ancla archivada y el motor reconstruyen distinto. Solo se
+          muestra cuando hay algo que nombrar. */}
+      {unmappedStart ? (
+        <div className="flex items-baseline justify-between gap-2 mt-1">
+          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            {lang === 'es'
+              ? `Arranque sin cuenta (${unmappedCount})`
+              : `Start with no account (${unmappedCount})`}
+          </span>
+          <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(unmappedStart), displayCur)}</span>
+        </div>
+      ) : null}
+      {/* FASE IU: el panel mide los arranques en el punto donde el API entrega
+          el desglose, que NO tiene por que caer en la fecha del ancla. Cuando
+          se separan, cada fila mide su cuenta en otro dia, y en una cuenta
+          volatil eso aparece como un desvio que no cuadra con nada. Solo se
+          nombra cuando de verdad difieren: si coinciden, decirlo seria ruido. */}
+      {measuredTs && anchorTs && new Date(measuredTs).toISOString().slice(0, 10) !== new Date(anchorTs).toISOString().slice(0, 10) && (
+        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es'
+            ? `Los arranques por cuenta se midieron el ${formatDate(new Date(measuredTs))}, no en la fecha del ancla.`
+            : `Per-account starts were measured on ${formatDate(new Date(measuredTs))}, not on the anchor's date.`}
+        </p>
+      )}
+      {accounts.some((a) => a.real) && (
+        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+          <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
+          {lang === 'es'
+            ? 'arranque real del broker: nunca se ajusta.'
+            : 'real broker year-start: never adjusted.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function getGreeting(lang) {
   const hour = new Date().getHours()
   if (hour < 12) return lang === 'es' ? 'Buenos días' : 'Good morning'
@@ -26,7 +144,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -170,9 +288,22 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     if (dx > 0 && movers.gainers.length > 0) setMoversTab('gainers')
   }
 
+  // El contenedor ya no lleva `style` inline: duplicaba EXACTAMENTE lo que
+  // .card-hero pone (sombra, borde, blur). Y no era inocuo: el tema claro apaga
+  // el glassmorphism a propósito con `[data-theme="light"] .card-hero {
+  // backdrop-filter: none }`, pero una regla CSS no puede vencer a un estilo
+  // inline, así que esta card seguía creando una capa de composición en tema
+  // claro contra la regla que el propio globals.css declara.
+  // `card card-hero`: el fondo/borde/radio salen de .card como cualquier otra
+  // card, y .card-hero solo aporta la sombra más profunda. Se va `rounded-2xl`
+  // porque es exactamente el mismo 16px que .card ya pone.
+  // El gradiente se queda: pinta encima del background-color de .card (es
+  // background-IMAGE). En tema claro los dos extremos son #FFFFFF, así que ahí
+  // no cambia un píxel; en oscuro el fondo queda un punto más opaco
+  // (rgb(19,19,31) → rgb(23,23,36)), que para la card hero es la dirección
+  // correcta.
   return (
-    <div className="bg-gradient-to-br from-theme-card to-theme-surface rounded-2xl p-5 card-hero h-full flex flex-col"
-      style={{ backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', boxShadow: 'var(--shadow-elevated)', border: 'var(--glass-border)' }}>
+    <div className="card card-hero bg-gradient-to-br from-theme-card to-theme-surface p-5 h-full flex flex-col">
       {/* Greeting + currency picker — the milestone pill (a second colored
           badge next to the picker) is gone: the combined today/YTD line below
           already says whether things are up or down, so a second label
@@ -204,7 +335,15 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           view. No sparkline beside it: at 60x24px it had no axis, no label
           and no legend, so it read as decoration nobody could interpret —
           the real chart is one tap away in the Valor/Rendimiento card. */}
-      <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none text-white tracking-tight font-bold font-mono tabular-nums drop-shadow-sm mb-1.5">{formatCurrency(displayValue, displayCur)}</p>
+      {/* Sin `drop-shadow-sm`: una sombra sobre un numeral de 48px es lo que
+          hacía que la negrita sintetizada se viera sucia, y con el peso 700 ya
+          cargado de verdad (app/layout.jsx) no aporta nada.
+          `text-white` a var(--text-primary): no-op demostrable en ambos temas
+          (en oscuro los dos son #FFFFFF, y en claro globals.css ya remapea
+          .text-white a esa misma variable), pero quita una dependencia
+          implícita de un remapeo que vive en otro archivo. */}
+      <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none tracking-tight font-bold font-mono tabular-nums mb-1.5"
+        style={{ color: 'var(--text-primary)' }}>{formatCurrency(displayValue, displayCur)}</p>
 
       {/* Today + YTD, one line. Direction lives ONLY in the small arrow —
           the numbers themselves stay in plain text color, so the line reads
@@ -307,14 +446,18 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 </div>
               )}
 
-              {/* FASE HY: la regeneración pasiva depende de una docena de gates
-                  (la lección de FASE HP), así que el rechazo por ancla vieja
-                  nombra la acción que la fuerza en vez de solo pedir paciencia. */}
+              {/* Sin pedirle al usuario que apriete nada: Chispu regenera el
+                  historial solo, una vez por día. La versión anterior mandaba a
+                  "Agregar datos históricos" → "Reparar ahora"; el usuario lo
+                  hizo, se reescribieron 219 días y el descuadre se movió $40,
+                  o sea el consejo era trabajo manual que además no resolvía
+                  nada. Un mensaje que manda a apretar un botón que la app ya
+                  aprieta sola es peor que no decir nada. */}
               {ytdBreakdownReason === 'unexplained-too-large' && (
                 <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                   {lang === 'es'
-                    ? 'Se corrige solo cuando el historial termina de regenerarse. Para forzarlo: "Agregar datos históricos" → "Reparar ahora".'
-                    : 'It self-corrects once history finishes regenerating. To force it: "Add historical data" → "Repair now".'}
+                    ? 'Chispu regenera el historial solo, sin que tengas que hacer nada. Si el desglose sigue sin aparecer, el detalle de abajo dice qué cuenta no cuadra.'
+                    : 'Chispu regenerates history on its own, with nothing for you to do. If the breakdown still does not appear, the detail below says which account does not add up.'}
                 </p>
               )}
 
@@ -335,36 +478,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
                   </button>
                   {showRefusalDetail && (
-                    <div className="mt-2">
-                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
-                        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Cuenta' : 'Account'}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque' : 'Start'}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Hoy' : 'Now'}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
-                        {ytdBreakdownDetail.accounts.map((a) => (
-                          <Fragment key={a.name}>
-                            <span className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>
-                              {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
-                            </span>
-                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
-                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
-                            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.flow ?? 0), displayCur)}</span>
-                          </Fragment>
-                        ))}
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
-                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque del portafolio' : 'Portfolio year-start'}</span>
-                        <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(ytdBreakdownDetail.anchor ?? 0), displayCur)}</span>
-                      </div>
-                      {ytdBreakdownDetail.accounts.some((a) => a.real) && (
-                        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                          <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
-                          {lang === 'es'
-                            ? 'arranque real del broker: nunca se ajusta.'
-                            : 'real broker year-start: never adjusted.'}
-                        </p>
-                      )}
-                    </div>
+                    <AccountTermsTable accounts={ytdBreakdownDetail.accounts} anchor={ytdBreakdownDetail.anchor} anchorTs={ytdBreakdownDetail.anchorTs} anchorSrc={ytdBreakdownDetail.anchorSrc} measuredTs={ytdBreakdownDetail.measuredTs} unmappedStart={ytdBreakdownDetail.unmappedStart} unmappedCount={ytdBreakdownDetail.unmappedCount}
+                      lang={lang} cv={cv} displayCur={displayCur} />
                   )}
                 </div>
               )}
@@ -396,6 +511,58 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               </div>
             ))}
           </div>
+          {/* FASE IH: una cuenta cuyo arranque salió de un precio que no se
+              pudo traer no está medida (quedó plana al valor de hoy). Decirlo
+              en una línea es la diferencia entre una cifra que el usuario puede
+              descartar y una que lo hace dudar de todo el panel. */}
+          {/* FASE IJ: por qué una fila puede no coincidir con la gráfica de su
+              propia cuenta. La gráfica escopada netea solo depósitos y retiros,
+              así que un traspaso entre cuentas propias lo lee como rendimiento
+              (pérdida en la que envía, ganancia en la que recibe); el panel sí
+              lo netea, porque si no las filas no sumarían el encabezado. Nombrar
+              el monto convierte una contradicción aparente en un hecho. */}
+          {hasBreakdown && ytdBreakdown.groups.some((g) => Math.abs(g.internal || 0) >= 1) && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es' ? 'Movido entre tus propias cuentas: ' : 'Moved between your own accounts: '}
+              {ytdBreakdown.groups
+                .filter((g) => Math.abs(g.internal || 0) >= 1)
+                .map((g) => `${g.name} ${g.internal >= 0 ? '+' : '−'}${formatCurrency(cv(Math.abs(g.internal)), displayCur)}`)
+                .join(' · ')}
+              {lang === 'es'
+                ? '. Eso no es rendimiento y por eso se descuenta acá; la gráfica de esa cuenta no lo descuenta, así que va a mostrar otro número.'
+                : '. That is not performance, so it is netted out here; that account\'s chart does not net it, so it will show a different figure.'}
+            </p>
+          )}
+          {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es'
+                ? `Arranque de año ESTIMADO en ${ytdDegradedAccounts.join(', ')}: su fila puede no coincidir con su propia gráfica.`
+                : `Year-start is ESTIMATED for ${ytdDegradedAccounts.join(', ')}: their row may not match their own chart.`}
+            </p>
+          )}
+          {/* FASE IK: los tres términos de cada fila, también cuando el panel SÍ
+              muestra. Una fila que no coincide con la gráfica de su cuenta se
+              podía ver pero no diagnosticar: había que deducir de los síntomas
+              si el desvío venía del arranque o de los movimientos, y eso es lo
+              que consume una ronda entera de capturas (lección FASE HP).
+              Colapsado por default: es diagnóstico, no algo que el usuario
+              venga a leer. */}
+          {hasBreakdown && Array.isArray(ytdBreakdownTerms?.accounts) && ytdBreakdownTerms.accounts.length > 0 && (
+            <div className="mt-2">
+              <button type="button" onClick={() => setShowRefusalDetail((v) => !v)}
+                aria-expanded={showRefusalDetail}
+                className="text-[11px] underline decoration-dotted underline-offset-2 cursor-pointer"
+                style={{ color: 'var(--text-muted)' }}>
+                {showRefusalDetail
+                  ? (lang === 'es' ? 'Ocultar detalle por cuenta' : 'Hide per-account detail')
+                  : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
+              </button>
+              {showRefusalDetail && (
+                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc} measuredTs={ytdBreakdownTerms.measuredTs} unmappedStart={ytdBreakdownTerms.unmappedStart} unmappedCount={ytdBreakdownTerms.unmappedCount}
+                  lang={lang} cv={cv} displayCur={displayCur} />
+              )}
+            </div>
+          )}
           {hasBreakdown && ytdBreakdown.groups.some((g) => g.isUnexplained) && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'

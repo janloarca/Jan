@@ -5,8 +5,9 @@ import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
-import { buildMonthlyBriefForUser } from '@/lib/monthlyBriefBuilder'
+import { buildMonthlyBriefForUser, buildAnnualBriefForUser } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
+import { findSubscribers } from '@/app/api/cron/notifications/route'
 
 // Qué se prueba por cadencia: el MISMO builder y la MISMA ventana de mercado
 // (MARKET_WINDOWS, compartida con el cron) que usa la corrida real. Una lista
@@ -14,6 +15,7 @@ import { makeBriefFetcher } from '@/lib/briefFetcher'
 const TESTABLE = {
   weekly: { build: buildWeeklyBriefForUser, marketOpts: MARKET_WINDOWS.weekly },
   monthly: { build: buildMonthlyBriefForUser, marketOpts: MARKET_WINDOWS.monthly },
+  annual: { build: buildAnnualBriefForUser, marketOpts: MARKET_WINDOWS.annual },
 }
 
 export const dynamic = 'force-dynamic'
@@ -95,7 +97,40 @@ export async function POST(request) {
     })
     mailer.transport.close()
 
-    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0 })
+    // FASE IF. El botón de prueba probaba TODO menos la única pieza que el
+    // envío automático no comparte con él: cómo el cron encuentra a los
+    // suscriptores (una consulta de grupo de colecciones que exige un índice
+    // y que nunca había corrido en producción). Ahora la ejercita también y
+    // reporta el resultado, así "la prueba llega pero el automático no" deja
+    // de ser un misterio que solo los logs de la plataforma pueden resolver.
+    let cronLookup = null
+    try {
+      const flag = cadence === 'weekly' ? 'notifyWeekly' : cadence === 'monthly' ? 'notifyMonthly' : 'notifyAnnual'
+      const found = await findSubscribers(db, flag)
+      cronLookup = {
+        flag,
+        found: found.docs.length,
+        via: found.via,
+        includesYou: found.docs.some((d) => d.ref.parent.parent?.id === uid),
+        ...(found.error ? { error: found.error } : {}),
+      }
+    } catch (e) {
+      cronLookup = { error: e?.message || String(e) }
+    }
+
+    // FASE IF2. La constancia de la última corrida del cron: responde "¿llegó
+    // a ejecutarse?" sin abrir los logs de la plataforma, que es la pregunta
+    // que quedó sin respuesta cuando el primer envío automático no llegó.
+    let lastCronRun = null
+    try {
+      const doc = await db.doc('system/notificationsCron').get()
+      if (doc.exists) {
+        const d = doc.data()
+        lastCronRun = { at: d.lastRunAt || null, result: d.lastResult || null, report: d.report || null }
+      }
+    } catch { /* sin constancia, la UI simplemente no la muestra */ }
+
+    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0, cronLookup, lastCronRun })
   } catch (err) {
     // El mensaje del servidor SMTP viaja de vuelta a propósito: si Zoho
     // rechaza la autenticación, saberlo aquí ahorra una ronda de logs.

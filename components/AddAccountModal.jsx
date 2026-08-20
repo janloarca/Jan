@@ -11,6 +11,8 @@ import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule
 import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
+import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
+import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
 
 const TYPES = [
@@ -80,11 +82,29 @@ const ACCOUNT_TYPES = [
   { key: 'tax-free', es: 'Libre', en: 'Tax-free' },
 ]
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es' }) {
+// Subtipo por defecto del modo guiado. El formulario largo deja el subtipo
+// vacío a propósito (el usuario lo elige); el guiado no pregunta, así que
+// necesita uno razonable. Ninguno cambia una fórmula: para Stock se elige
+// 'common' EXPRESAMENTE porque los private_* son los únicos que cambian de
+// naturaleza (dejan de ser activo de mercado, ver isPrivateStock).
+const GUIDED_SUBTYPE = {
+  Stock: 'common', Crypto: 'holding', Fund: 'etf', Bond: 'corporate',
+  Bank: 'savings', RealEstate: 'property', Alternative: 'other', Debt: 'other',
+}
+
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
+  // ---- Modo guiado (onboarding de usuario nuevo) ----
+  // guidedType fija el tipo y cambia SOLO el render: una pregunta por pantalla
+  // en vez del formulario de 2 pasos. El estado, la búsqueda de símbolo y
+  // handleSubmit son exactamente los mismos, así que el depósito de apertura
+  // (⛔ superficie G de lib/assetLogic/corporateBondWithEntryFee.js) se sigue
+  // escribiendo en un solo lugar.
+  guidedType = null, guidedProgress = null, onSaved = null, onExitGuided = null }) {
   const trapRef = useFocusTrap()
   const [step, setStep] = useState(1)
-  const [type, setType] = useState('Stock')
-  const [subtype, setSubtype] = useState('')
+  const [type, setType] = useState(guidedType || 'Stock')
+  const [subtype, setSubtype] = useState(guidedType ? (GUIDED_SUBTYPE[guidedType] || '') : '')
+  const [guidedIndex, setGuidedIndex] = useState(0)
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD', acquisitionDate: new Date().toISOString().split('T')[0],
@@ -200,6 +220,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
+
+  // En modo guiado el tipo puede cambiar solo: elegir un resultado de la
+  // búsqueda lo re-clasifica (handleSelectSymbol). El subtipo por defecto tiene
+  // que seguirlo, o una acción quedaría guardada con el subtipo de cripto.
+  useEffect(() => {
+    if (!guidedType) return
+    setSubtype(GUIDED_SUBTYPE[type] || '')
+  }, [type, guidedType])
 
   const usedInstitutions = useMemo(() => {
     const insts = new Set()
@@ -697,13 +725,49 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           await onAdd({ ...source, currentPrice: Math.max(0, srcBal), purchasePrice: Math.max(0, srcBal) })
         }
       }
-      onClose()
+      // En modo guiado el orquestador (GuidedSetup) decide qué sigue: avanzar al
+      // activo siguiente o mostrar el cierre. Cerrar aquí lo sacaría del flujo.
+      if (onSaved) onSaved(item)
+      else onClose()
     } catch (err) { setError(err.message) }
     setSaving(false)
   }
 
   const inputCls = 'w-full min-w-0 px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
+
+  // ---- MODO GUIADO ----
+  // Va DESPUÉS de todos los hooks a propósito: un return temprano entre hooks
+  // cambia el conteo entre renders y tumba el árbol (regla dura de CLAUDE.md).
+  if (guidedType) {
+    const guidedFields = guidedFieldsFor({ type, isMarketAsset })
+    const idx = Math.min(guidedIndex, guidedFields.length - 1)
+    const exit = onExitGuided || onClose
+    const goNext = () => {
+      if (idx < guidedFields.length - 1) { setError(''); setGuidedIndex(idx + 1); return }
+      handleSubmit({ preventDefault: () => {} })
+    }
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true"
+        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+        <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <GuidedAssetSteps ctx={{
+            t, form, set, type,
+            typeLabel: currentTypeInfo ? t(currentTypeInfo.es, currentTypeInfo.en) : type,
+            typeIcon: currentTypeInfo?.icon || '',
+            isMarketAsset, isBank, isDebt, isProperty,
+            fieldIndex: idx, fields: guidedFields, goNext,
+            goBack: () => { setError(''); setGuidedIndex(Math.max(0, idx - 1)) },
+            onExit: exit,
+            searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote,
+            handleSelectSymbol, inputRef, dropdownRef,
+            filteredInstitutions, showInstSuggestions, setShowInstSuggestions,
+            saving, error, progress: guidedProgress,
+          }} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"
@@ -787,7 +851,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       autoComplete="off" className={inputCls + ' pr-8'} />
                     {(searchLoading || fetchingQuote) && (
                       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        <BusyRing size="14px" style={{ color: 'var(--accent-blue)' }} />
                       </div>
                     )}
                   </div>
@@ -815,7 +879,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="flex items-center gap-2">
                       {form.sector && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{form.sector}</span>}
                       {fetchingQuote ? (
-                        <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        <BusyRing size="12px" style={{ color: 'var(--accent-blue)' }} />
                       ) : form.purchasePrice ? (
                         <span className="text-xs text-emerald-400 font-medium">{form.currency} {parseFloat(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       ) : null}
@@ -1154,7 +1218,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Dividend info for market assets */}
             {isMarketAsset && divLoading && (
               <div className="flex items-center gap-2 text-xs text-[var(--text-muted,#475569)] py-1">
-                <div className="w-3 h-3 border-2 border-[var(--text-muted,#475569)] border-t-transparent rounded-full animate-spin" />
+                <BusyRing size="12px" />
                 {t('Buscando dividendos...', 'Looking up dividends...')}
               </div>
             )}
@@ -1175,7 +1239,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[var(--text-muted,#475569)]">{t('Próximo pago', 'Next payment')}</p>
+                    {/* FASE II: la etiqueta dice qué fecha ES. Cuando Yahoo da
+                        la fecha de PAGO real (calendarEvents), se muestra como
+                        "Próximo pago". Cuando solo hay la proyección desde el
+                        historial, esa fecha es el EX-DIVIDENDO (el dinero
+                        llega de 0 días a ~3 meses después, según el mercado:
+                        verificado en 5 bolsas) y rotularla "pago" mentía. */}
+                    <p className="text-xs text-[var(--text-muted,#475569)]">
+                      {divInfo.paymentDateIsReal ? t('Próximo pago', 'Next payment') : t('Próx. ex-dividendo', 'Next ex-dividend')}
+                    </p>
                     <p className="text-sm font-semibold text-[var(--text-primary,white)]">{divInfo.nextPaymentDate?.slice(5)}</p>
                   </div>
                 </div>
@@ -1239,7 +1311,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="flex gap-2">
                     <button type="button" onClick={() => set('dividendAction', 'cash')}
                       className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'cash' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                      style={form.dividendAction === 'cash' ? { color: '#22d3ee', backgroundColor: 'rgba(6,182,212,0.2)', borderColor: 'rgba(6,182,212,0.4)' } : undefined}>
+                      style={form.dividendAction === 'cash' ? { color: 'var(--accent-cyan)', backgroundColor: 'rgba(6,182,212,0.2)', borderColor: 'rgba(6,182,212,0.4)' } : undefined}>
                       💵 {t('Efectivo', 'Cash')}
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
@@ -1674,7 +1746,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
                       <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
                         className="w-8 h-4 rounded-full transition-colors relative shrink-0"
-                        style={{ backgroundColor: form.isIlliquid ? '#f59e0b' : 'var(--card-border, #38383A)' }}>
+                        style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
                         <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
                       </button>
                       <div>
@@ -1990,7 +2062,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </button>
               <button type="submit" disabled={saving}
                 className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
-                {saving ? '...' : t('Registrar', 'Register')}
+                {<BusyLabel busy={saving} lang={lang}>{t('Registrar', 'Register')}</BusyLabel>}
               </button>
             </div>
           </>)}

@@ -22,6 +22,15 @@ import { BOLT_PATH, BOLT_VIEWBOX, boltStrokeWidth } from '@/lib/brandBolt'
 // when the mark sits ON a solid brand-blue tile (e.g. InstallPrompt's icon
 // badge) rather than on the page background — a real second color, not a
 // theme fork, so it's opt-in per call site instead of automatic.
+//
+// `tone="ink"` is the mirror of that exception, and exists for the same kind
+// of reason: a surface that is ALWAYS light no matter the visitor's theme.
+// The landing page (app/page.jsx) is the case — it commits to white because
+// the app defaults to dark and its theme switch lives behind the login, so a
+// logged-out visitor could never make it light. With the default tone the
+// wordmark resolves to --text-primary, which under the dark theme is white:
+// white text on a white page, i.e. the mark simply disappears. Fixed ink
+// instead, opt-in per call site, never automatic.
 export default function Logo({
   variant = 'full',
   size = 20,
@@ -41,7 +50,11 @@ export default function Logo({
   const [hovered, setHovered] = useState(false)
   const strokeWidth = boltStrokeWidth(size)
   const boltColor = disabled ? 'var(--text-muted)' : tone === 'inverted' ? '#ffffff' : 'var(--accent-blue)'
-  const wordmarkColor = disabled ? 'var(--text-muted)' : tone === 'inverted' ? '#ffffff' : 'var(--text-primary)'
+  const wordmarkColor = disabled
+    ? 'var(--text-muted)'
+    : tone === 'inverted' ? '#ffffff'
+    : tone === 'ink' ? '#111827'
+    : 'var(--text-primary)'
   const fade = !disabled && interactive && hovered ? 0.75 : 1
 
   const bolt = (
@@ -107,7 +120,10 @@ export default function Logo({
       {bolt}
       <WordmarkTag
         style={{
-          fontWeight: 800,
+          // 900, no 800: era el ÚNICO consumidor del 800 de Inter en toda la
+          // app, y ese peso se quitó de la carga para pagar el 700 de
+          // JetBrains Mono (ver app/layout.jsx). El 900 ya venía cargado.
+          fontWeight: 900,
           fontSize: Math.round(size * 0.9),
           lineHeight: 1,
           letterSpacing: '-0.02em',

@@ -1,17 +1,21 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
-import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs } from './utils'
-import { buildTxEvents, buildCashFlows } from '@/lib/portfolioRewind'
+import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs, accountKeyOfItem } from './utils'
+import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTransactions } from '@/lib/portfolioRewind'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates } from '@/lib/snapshotBackfill'
+import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
+import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
+import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -21,6 +25,58 @@ function polyline(pts) {
 // stray spaces in user data never split one custodian into two.
 function normInst(s) {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+// Marcas de eje en valores REDONDOS (Heckbert, "Nice Numbers for Graph Labels",
+// Graphics Gems 1990).
+//
+// Partir el rango crudo en cuatro pasos iguales pone las marcas donde caigan: en
+// la gráfica del usuario salían $11.0K, $15.3K, $19.6K, $23.8K y $28.1K, cinco
+// cifras que nadie compara de un vistazo. Con esto salen $10K, $15K, $20K, $25K,
+// $30K, que es lo que hace un eje legible: no que la línea suba más o menos,
+// sino que las referencias contra las que se lee sean números que uno ya tiene
+// en la cabeza.
+//
+// Cambia QUÉ líneas se dibujan y hasta dónde llega el eje, NUNCA cuánto vale un
+// punto: los valores de la serie no se tocan, solo el marco contra el que se
+// dibujan.
+function niceNum(x, round) {
+  if (!isFinite(x) || x <= 0) return 1
+  const exp = Math.floor(Math.log10(x))
+  const f = x / Math.pow(10, exp)
+  const nf = round
+    ? (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10)
+    : (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10)
+  return nf * Math.pow(10, exp)
+}
+
+// El eje se ensancha a lo sumo UN paso por lado, así que el rango crece como
+// mucho a ~1.7x: el piso anti-ruido de una serie plana (el `paddingVal` de abajo)
+// sobrevive intacto, y una gráfica que hoy se lee bien no se aplasta.
+//
+// Devuelve null cuando el reparto redondo no sirve (rango cero, o un paso que
+// deja el eje con una sola marca o con once). En ese caso se conserva el
+// reparto de siempre, que es el comportamiento previo exacto.
+function niceScale(lo, hi, count) {
+  const span = hi - lo
+  if (!isFinite(span) || span <= 0) return null
+  const step = niceNum(span / Math.max(count - 1, 1), true)
+  if (!isFinite(step) || step <= 0) return null
+  const min = Math.floor(lo / step) * step
+  const max = Math.ceil(hi / step) * step
+  const n = Math.round((max - min) / step) + 1
+  if (!isFinite(n) || n < 2 || n > 11) return null
+  // toPrecision mata el polvo de coma flotante (0.1+0.2 sobre un paso de 0.05
+  // imprime "0.15000000000000002" en el rótulo si no se limpia).
+  const clean = (v) => parseFloat(v.toPrecision(12))
+  return { min: clean(min), max: clean(max), step: clean(step), count: n }
+}
+
+// Decimales que un porcentaje necesita para que dos marcas vecinas no impriman
+// lo mismo. Con pasos redondos (5, 2, 1) da 0 y el eje sale "+5%", no "+5.00%".
+function pctDecimals(step) {
+  if (!isFinite(step) || step <= 0) return 2
+  return Math.min(2, Math.max(0, Math.ceil(-Math.log10(step))))
 }
 
 function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps) {
@@ -49,8 +105,20 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
     const level = Math.max(Math.abs(max), Math.abs(min), 1)
     paddingVal = Math.max(paddingVal, level * 0.0075)
   }
-  const adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
-  const adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
+  let adjustedMin = mode === 'performance' ? Math.min(min, 0) - Math.abs(min || 1) * 0.1 : min - paddingVal
+  let adjustedMax = mode === 'performance' ? Math.max(max, 0) + Math.abs(max || 1) * 0.1 : max + paddingVal
+
+  // Los extremos se llevan al múltiplo redondo más cercano hacia afuera, así que
+  // toda marca cae en un número entero de pasos. En modo rendimiento eso además
+  // garantiza que el 0% caiga EXACTO sobre una línea de la cuadrícula (0 es
+  // múltiplo de cualquier paso), y el 0% ya está adentro del rango por
+  // construcción, así que ensanchar no lo puede dejar fuera.
+  const tickCount = 5
+  const nice = niceScale(adjustedMin, adjustedMax, tickCount)
+  if (nice) {
+    adjustedMin = nice.min
+    adjustedMax = nice.max
+  }
   const range = adjustedMax - adjustedMin || 1
 
   // X positions proportional to TIME when timestamps are supplied — index-based
@@ -73,18 +141,30 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
     ? pad.top + ch - ((0 - adjustedMin) / range) * ch
     : pad.top + ch
 
-  const tickCount = 5
-  const tickStep = range / (tickCount - 1)
-  const yTicks = Array.from({ length: tickCount }, (_, i) => ({
-    val: adjustedMin + (range * i) / (tickCount - 1),
-    y: pad.top + ch - (i / (tickCount - 1)) * ch,
-    step: tickStep,
-  }))
+  const tickStep = nice ? nice.step : range / (tickCount - 1)
+  const yTicks = nice
+    ? Array.from({ length: nice.count }, (_, i) => {
+        const val = parseFloat((nice.min + nice.step * i).toPrecision(12))
+        return { val, y: pad.top + ch - ((val - adjustedMin) / range) * ch, step: nice.step, nice: true }
+      })
+    : Array.from({ length: tickCount }, (_, i) => ({
+        val: adjustedMin + (range * i) / (tickCount - 1),
+        y: pad.top + ch - (i / (tickCount - 1)) * ch,
+        step: tickStep,
+        nice: false,
+      }))
 
   return { points, baselineY, yTicks, cw, ch, adjustedMin, range }
 }
 
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null }) {
+// repairItems / repairSnapshots (FASE JU): "Reparar ahora" escribe los MISMOS
+// docs que el backfill automático, así que tiene que mirar los MISMOS datos.
+// `items` viene escopado por portafolio/entidad (correcto para la gráfica,
+// incorrecto para archivar el patrimonio) y `snapshots` trae además los docs
+// sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
+// dato real se lean como cubiertas. Sin estos props el comportamiento es el de
+// antes.
+export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null }) {
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -173,7 +253,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // FASE GP: fade the scroll edge only where the row actually hides content —
   // scrollbarWidth:'none' hides the native bar on these rows, so without this
   // the last pill just clips at the phone's edge with no sign there's more.
-  const periodFade = useEdgeFade([periods.length])
+  // La fila de períodos ya no la necesita: `SegmentedTabs` trae su propio
+  // difuminado adentro, así que declararla acá sería medir dos veces la misma
+  // fila. El filtro de institución sigue siendo una fila propia.
   const instFade = useEdgeFade([institutions.length])
 
   const scopedItems = useMemo(() => {
@@ -185,10 +267,30 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // Transactions belonging to the selected institution. TWR/MWR/markers must use
   // this scoped list: with the full list, a deposit into Interactive Brokers would
   // count as a cash flow against an IDC-only value series and distort its return.
+  // Los ids de TODOS los activos, keyeados por CONTENIDO y no por la identidad
+  // de `items`: esa identidad se rehace en cada tick de precio, y meterla a las
+  // dependencias de abajo recalcularía el scope (y con él la línea de capital y
+  // los marcadores) cada pocos segundos. Es la enfermedad que documentan las
+  // FASES DW/DY.
+  const allItemIdsSig = (items || []).map((it) => it.id).filter(Boolean).sort().join('|')
+  const allItemIds = useMemo(
+    () => new Set(allItemIdsSig ? allItemIdsSig.split('|') : []),
+    [allItemIdsSig]
+  )
   const scopedTransactions = useMemo(() => {
     if (!transactions || shownInst === 'ALL') return transactions
     const scopedIds = new Set(scopedItems.map((it) => it.id).filter(Boolean))
     const scopedSyms = new Set(scopedItems.map((it) => (it.symbol || '').toUpperCase()).filter(Boolean))
+    // FASE IT (extensión de la superficie congelada D, confirmada por el
+    // usuario; spec actualizada en el mismo commit). Un movimiento que trae un
+    // `_linkedItemId` VÁLIDO ya dijo a qué activo pertenece, y si ese activo no
+    // está en este scope, el movimiento tampoco. Sin esto caía hasta la regla
+    // del símbolo de abajo y se colaba igual cuando el mismo símbolo existe en
+    // dos cuentas: un depósito ajeno aparecía como marcador de "Entró dinero" y
+    // se restaba como capital nuevo de una cuenta que no lo recibió, así que su
+    // gráfica y su fila del desglose (que sí respeta el vínculo) divergían por
+    // un monto FIJO. Un vínculo MUERTO (el activo ya no existe) sigue cayendo a
+    // la regla del símbolo, igual que antes: ahí el vínculo no dice nada.
     // IBKR deposit/withdrawal flows carry symbol 'CASH', but the cash HOLDING is
     // 'CASH-USD' etc — a plain symbol match drops every flow in the scoped view. If
     // this scope holds a cash/bank position, include the bare-CASH flows too.
@@ -209,11 +311,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     return transactions.filter((tx) => {
       const sym = (tx.symbol || '').toUpperCase()
       if (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) return true
+      if (tx._linkedItemId && allItemIds.has(tx._linkedItemId)) return false
       if ((tx._source === 'ibkr' || tx._source === 'inferred_flow') && sym.startsWith('CASH')) return scopedHasIbkr
       return (tx.symbol && scopedSyms.has(sym)) ||
         (scopedHasCash && sym.startsWith('CASH'))
     })
-  }, [transactions, scopedItems, shownInst])
+  }, [transactions, scopedItems, shownInst, allItemIds])
 
   // When the manually-added (non-IBKR) assets were first created. Daily snapshots
   // from before this date are broker-only and need the manual-asset overlay; later
@@ -366,12 +469,24 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       // (deposits step in, buys move cash into shares) like the broker's own chart,
       // instead of holding today's positions flat backwards.
       const txEventsBySym = buildTxEvents(scopedTransactions)
-      const accountCashFlows = buildCashFlows(scopedTransactions,
-        (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt)
+      // FASE IX. La caja del broker solo lleva movimientos de ESA cuenta, y solo
+      // se deshacen los trades cuyas acciones el server también rebobina. Sin lo
+      // primero, cada depósito de apertura de una cuenta MANUAL se deshace dos
+      // veces (en su propio ítem y otra vez acá) y el efectivo del broker en el
+      // pasado se hunde por la suma de todos ellos; sin lo segundo, la venta de
+      // una posición que hoy ya no existe le resta sus ingresos sin devolver las
+      // acciones que los produjeron. Las dos formas hacen que el portafolio
+      // reconstruido pueda terminar en NEGATIVO, que es lo que dibujaba la vista
+      // "Todas" arrancando en -$6.3K. Ver lib/portfolioRewind.js.
+      const brokerItemsInScope = chartItems.filter((it) => it?._source === 'ibkr')
+      const brokerTx = brokerAccountTransactions(scopedTransactions, brokerItemsInScope)
+      const accountCashFlows = buildCashFlows(brokerTx,
+        (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt,
+        { rewindableSymbols: rewindableTradeSymbols(chartItems, txEventsBySym) })
       // The whole account ledger attaches to ONE cash item (the broker's cash line).
       // Only rewind cash when there's a REAL external flow (deposit/withdrawal): with
       // hold-flat stocks, rewinding by BUY/SELL double-counts and wrecks the baseline.
-      const hasExternalFlow = (scopedTransactions || []).some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
+      const hasExternalFlow = brokerTx.some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
       // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item so
       // the flows still rebuild the cash line when the symbol isn't exactly CASH-*.
       const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
@@ -1216,9 +1331,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const push = (s) => { lines.push(s); setRepairState({ running: true, lines: [...lines] }) }
     setRepairState({ running: true, lines: [] })
     try {
-      const all = (items || []).filter((it) => !isExcludedFromNetWorth(it))
+      const srcItems = repairItems || items
+      const srcSnapshots = repairSnapshots || snapshots
+      const all = (srcItems || []).filter((it) => !isExcludedFromNetWorth(it))
       const hasBroker = all.some((it) => it && it._source === 'ibkr')
-      const navByDate = buildNavByDate(snapshots)
+      const navByDate = buildNavByDate(srcSnapshots)
       const composing = hasBroker && navByDate.size > 0
       push(`${t('NAV real del broker', 'Real broker NAV')}: ${navByDate.size} ${t('días', 'days')}`)
       if (hasBroker && navByDate.size === 0) {
@@ -1233,33 +1350,51 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
       }, 0)
 
-      const { balanceEventsById } = indexBalanceEvents(transactions, all, convert, 'USD')
-      const txBySym = buildTxEvents(transactions)
+      // ⛔ FASE JU. El MISMO cuerpo que el backfill automático, armado en
+      // lib/historyPayload.js. Este bloque tenía su propia copia y le faltaban
+      // DOS campos: `lots` (la cantidad reconstruida de cada posición de
+      // mercado) e `income` (el rendimiento REINVERTIDO, que nunca entra a
+      // balanceEventsById y por lo tanto solo viaja por ese canal). Sin
+      // `income`, cada cuenta que compone se archivaba pegada a su valor de
+      // HOY: el ancla del 1 de enero quedaba arriba y la diferencia salía en la
+      // fila "Sin atribuir" del panel del YTD. No falla ruidosamente, se ve
+      // como una reconstrucción plana que parece funcionar.
+      //
+      // breakdown (FASE IX9): el desglose por ítem del MISMO punto que se
+      // archiva, para poder imprimir la mitad manual del ancla cuenta por
+      // cuenta. Sin él, comparar el ancla contra el panel obliga a deducir de
+      // la resta.
       const res = await authFetch('/api/prices/portfolio-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: assets.map((it) => {
-            const cur = it._originalCurrency || it.currency || 'USD'
-            const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-            return {
-              id: it.id, symbol: it.symbol, type: it.type, quantity: it.quantity,
-              currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-              purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-              currency: 'USD',
-              acquisitionDate: it.acquisitionDate,
-              _holdFlat: shouldHoldFlat(it, transactions, lots),
-              _dateUnreliable: hasUnreliableAcqDate(it),
-              txEvents: txBySym[(it.symbol || '').toUpperCase()] || undefined,
-              ...(balanceEventsById[it.id]?.length ? { cashFlows: balanceEventsById[it.id], _flowClampZero: true } : {}),
-            }
-          }),
-          period: 'YTD',
-        }),
+        body: JSON.stringify(buildHistoryRequestBody({
+          items: assets, transactions, lots, convert,
+          period: 'YTD', breakdown: true,
+        })),
       })
       if (!res.ok) { push(`${t('El servidor de historial falló', 'History server failed')} (${res.status}).`); setRepairState({ running: false, lines }); return }
       const data = await safeJson(res)
-      if (data.degraded) push(`${t('Aviso: faltaron precios de', 'Note: missing prices for')} ${(data.failedSymbols || []).join(', ')}`)
+      // ⛔ FASE JU. El backfill automático REHÚSA persistir desde una respuesta
+      // degradada (FASE HJ): cada sesión puede fallar un subconjunto distinto
+      // de símbolos, así que escribir estos totales deja docs 'backfill' a un
+      // nivel distinto por pasada, el churn exacto del diente de sierra. Este
+      // botón escribe los MISMOS docs, así que se rige por la MISMA regla, con
+      // el mismo tope por PESO (un símbolo muerto o dust que falla siempre no
+      // debe congelar la reparación para siempre). Antes solo lo avisaba.
+      if (data.degraded) {
+        const failed = (data.failedSymbols || []).map((s) => String(s).toUpperCase())
+        const failedSet = new Set(failed)
+        const val = (it) => Math.abs(getItemValue(it))
+        const failedVal = assets.reduce((s, it) => failedSet.has((it.symbol || '').toUpperCase()) ? s + val(it) : s, 0)
+        const totalVal = assets.reduce((s, it) => s + val(it), 0)
+        push(`${t('Aviso: faltaron precios de', 'Note: missing prices for')} ${failed.join(', ')}`)
+        if (totalVal > 0 && failedVal > totalVal * 0.02) {
+          push(t('No se escribe nada: eso es demasiado del portafolio como para archivarlo. Reintentá en un rato.',
+            'Nothing written: that is too much of the portfolio to archive. Try again in a while.'))
+          setRepairState({ running: false, lines })
+          return
+        }
+      }
       // FASE HS: si el respaldo de precios (Upstash/KV) está activo, un hipo
       // del proveedor deja de degradar la reconstrucción. Se muestra para que
       // "¿está configurado?" se pueda VER en vez de deducirlo de los síntomas.
@@ -1274,8 +1409,59 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       const composed = composeDailyTotals({
         gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
       })
-      const gaps = staleBackfillDates(snapshots, { windowDays: 366, treatDailyAsStale: !hasBroker })
-      const divergent = divergentDailyDates(snapshots, composed)
+      // ⛔ FASE IX9. El ancla del YTD es EL doc de esta misma composición para el
+      // 1 de enero, y el panel la descompone por cuenta. Cuando las dos no
+      // cuadran, la resta sola no dice de qué lado está la diferencia, y eso ha
+      // costado varias rondas de capturas. Acá se imprime la composición TAL
+      // COMO se archiva: sus dos mitades, y la manual cuenta por cuenta, con el
+      // MISMO criterio de agrupación que usa el panel (accountKeyOfItem). La
+      // fila que no coincida con la del panel es la respuesta.
+      const anchorDate = `${new Date().getUTCFullYear()}-01-01`
+      const anchorEntry = composed.find((c) => c.date === anchorDate)
+      if (anchorEntry) {
+        const navHalf = navAsOf(navByDate, anchorDate)
+        const manualHalf = navHalf == null ? anchorEntry.total : anchorEntry.total - navHalf
+        push(`${formatDate(`${anchorDate}T00:00:00Z`)}: ${t('manual', 'manual')} ${manualHalf.toFixed(2)}`
+          + (navHalf == null ? '' : ` + NAV ${navHalf.toFixed(2)}`)
+          + ` = ${anchorEntry.total.toFixed(2)}`)
+        // resolveGapFills se queda con el ÚLTIMO punto del día, así que el
+        // desglose se lee del mismo para describir lo que de verdad se archivó.
+        const dayPts = pts.filter((p) => p && p.byKey
+          && new Date(p.ts).toISOString().split('T')[0] === anchorDate)
+        const dayPt = dayPts.length > 0 ? dayPts[dayPts.length - 1] : null
+        if (dayPt) {
+          const byAccount = new Map()
+          const nameByKey = new Map()
+          assets.forEach((it) => {
+            const k = accountKeyOfItem(it) || (it.institution || it.name || '?')
+            nameByKey.set(k, it.institution || it.name || k)
+            const v = dayPt.byKey[it.id] ?? dayPt.byKey[(it.symbol || '').toUpperCase()]
+            if (Number.isFinite(v)) byAccount.set(k, (byAccount.get(k) || 0) + v)
+          })
+          const parts = [...byAccount.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([k, v]) => `${nameByKey.get(k) || k} ${v.toFixed(2)}`)
+          if (parts.length > 0) push(`  ${parts.join(' · ')}`)
+        } else {
+          push(`  ${t('sin punto propio de esa fecha (se arrastró)', 'no point on that date (carried)')}`)
+        }
+      } else {
+        // Que el ancla NO esté en la composición es tan informativo como sus
+        // números: significa que la reparación no la reescribe, y entonces el
+        // doc archivado es de otra época y no de esta corrida.
+        push(`${formatDate(`${anchorDate}T00:00:00Z`)}: ${t('fuera de la composición (no se reescribe)', 'not in the composition (never rewritten)')}`)
+      }
+      // FASE JU: `brokerConnectedTs`, la MISMA señal (y el mismo helper) que el
+      // backfill automático. Un doc 'daily' escrito ANTES de conectar el broker
+      // suma solo las cuentas manuales y es intocable sin esto (FASE HG): la
+      // reparación lo dejaba congelado mientras el backfill sí lo rellenaba, o
+      // sea las dos escribían historias distintas.
+      const gaps = staleBackfillDates(srcSnapshots, {
+        windowDays: 366,
+        treatDailyAsStale: !hasBroker,
+        brokerConnectedTs: brokerConnectedTsOf(srcItems),
+      })
+      const divergent = divergentDailyDates(srcSnapshots, composed)
       const targets = new Set([...gaps, ...divergent])
       const fills = composed.filter((f) => targets.has(f.date))
       push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}`)
@@ -1293,7 +1479,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           totalActivosUSD: f.total,
           totalDebtUSD: debtUSD,
           _source: 'backfill',
-          _transactional: !!f.composed,
+          // FASE JU: mismo criterio que el backfill automático. Un doc
+          // compuesto es flow-aware por construcción (su mitad de broker ES la
+          // medición del broker); si no, manda lo que el server reportó. Antes
+          // se ignoraba `data.transactional`, así que una serie rebobinada a
+          // través del ledger real se archivaba marcada como si no lo fuera.
+          _transactional: f.composed ? true : !!data.transactional,
         })
         written++
         if (written % 25 === 0) push(`${t('Escribiendo', 'Writing')}... ${written}/${fills.length}`)
@@ -1304,7 +1495,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       lines.push(`Error: ${err?.message || err}`)
       setRepairState({ running: false, lines })
     }
-  }, [items, snapshots, transactions, lots, convert, onSaveSnapshot, t])
+  }, [items, snapshots, repairItems, repairSnapshots, transactions, lots, convert, onSaveSnapshot, t])
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
@@ -1376,8 +1567,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const width = chartWidth
   // 200px on phones — the card stacks header+banner+legend+pills and 260 made it
   // very tall on small screens; buildGeometry takes height as a param.
-  const chartHeight = width < 480 ? 200 : 260
-  const pad = { top: 16, right: 16, bottom: 32, left: 52 }
+  // Sube 18px respecto de los 200/260 de antes, exactamente lo que crecieron
+  // `pad.top` (rótulo de unidad del eje) y `pad.bottom` (carril propio para los
+  // marcadores de dinero que entra y sale). El ÁREA DE TRAZO queda idéntica a la
+  // de siempre: la línea se dibuja igual, la card es un poco más alta.
+  const chartHeight = width < 480 ? 218 : 278
+  // `top` sube de 16 a 26 para que quepa el rótulo de unidad del eje. Repetir el
+  // símbolo de moneda en las cinco marcas es tinta que no informa: la unidad se
+  // dice UNA vez arriba del eje (la convención de cualquier factsheet) y las
+  // marcas quedan siendo solo el número.
+  const pad = { top: 26, right: 16, bottom: 40, left: 52 }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
@@ -1422,9 +1621,26 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     }))
   }, [geo, contributionLine, shownMode, showContributions, chartHeight, pad])
 
+  // FASE IX3. Las etiquetas se eligen por ÍNDICE (cada `step` puntos) pero se
+  // dibujan en X proporcional al TIEMPO, y las dos cosas no coinciden cuando la
+  // serie tiene densidad despareja: en ALL, los años viejos son puntos semanales
+  // sintetizados y los meses recientes son diarios, así que índices repartidos
+  // parejo caen amontonados en el tramo denso. El resultado es el eje ilegible
+  // de la captura del usuario ("ago0ct25ene26feb26mar26abr26jun26ago 26", todo
+  // encimado). Se filtra por SEPARACIÓN REAL en píxeles, que es la unidad en la
+  // que de verdad chocan; un eje que ya venía separado no cambia.
   const resolvedXLabels = useMemo(() => {
     if (!geo) return []
-    return xLabels.map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x })).filter((xl) => xl.x != null)
+    const placed = xLabels
+      .map((xl) => ({ ...xl, x: geo.points[xl.idx]?.x }))
+      .filter((xl) => xl.x != null)
+      .sort((a, b) => a.x - b.x)
+    const MIN_GAP_PX = 46
+    const out = []
+    for (const xl of placed) {
+      if (out.length === 0 || xl.x - out[out.length - 1].x >= MIN_GAP_PX) out.push(xl)
+    }
+    return out
   }, [xLabels, geo])
 
 
@@ -1490,13 +1706,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   // The actual math lives in computeWindowGrowth (utils.js), pinned by a test
   // that recalculates the XOCHI+VITALI regression case above with the real
   // function.
-  const { growthPct, displayAbs } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
+  const { growthPct, displayAbs, newCapitalPrincipal } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
   const lastReturn = activeReturnData.length > 0 ? activeReturnData[activeReturnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
   const spanYears = chartData.length > 1 ? (chartData[chartData.length - 1].ts - chartData[0].ts) / (365.25 * 86400000) : 0
-  const cagrPct = spanYears > 1.5 && firstVal > 0 && lastVal > 0
-    ? (Math.pow(lastVal / firstVal, 1 / spanYears) - 1) * 100
+  // FASE IX3. Anualiza LA MISMA cantidad que el encabezado, no el crecimiento
+  // bruto del saldo. Con `lastVal / firstVal` el acompañante medía la razón
+  // cruda entre el primer y el último punto, que en un portafolio que recibió
+  // aportes es sobre todo el dinero que metiste: al lado de un encabezado que
+  // dice "+14.82% ALL · sin contar $19,063.81 de aportes" imprimía
+  // "≈ +76.0%/año", o sea el mismo período anualizado a cinco veces su propio
+  // encabezado. Es la misma contradicción de FASE IX2 (un acompañante que no
+  // netea lo que su número sí netea), una línea más abajo. Ahora es el espejo
+  // exacto de annualizedReturn, que ya hacía lo correcto para las pestañas de
+  // rendimiento. Guard de la base (1 + r) > 0: un -100% no tiene raíz real.
+  const cagrPct = spanYears > 1.5 && growthPct != null && (1 + growthPct / 100) > 0
+    ? (Math.pow(1 + growthPct / 100, 1 / spanYears) - 1) * 100
     : null
   // Same annualized companion for the performance modes: a cumulative "+180%
   // TWR" over 6 years reads as a yearly figure without it. Guard the base
@@ -1549,25 +1775,25 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const periodSelector = (
     // Single row with horizontal scroll on mobile (9 pills used to wrap to 2 rows
     // and fatten the card); desktop unaffected because everything fits.
-    <div ref={periodFade.ref} className="flex flex-nowrap sm:flex-wrap overflow-x-auto max-w-full gap-0.5 bg-theme-base rounded-lg p-0.5 border border-glass-border/50" style={{ scrollbarWidth: 'none', ...periodFade.maskStyle }}>
-      {periods.map((p) => (
-        <button key={p} onClick={() => {
-          setPeriod(p)
-          if (p === 'CUSTOM') setShowCustomRange(true)
-          else setShowCustomRange(false)
-        }}
-          className={`px-3 py-2 text-xs font-semibold rounded-md transition-all border ${period === p ? 'pill-active' : 'border-transparent'}`}
-          style={period === p ? { color: 'var(--text-primary)' } : { color: 'var(--text-muted)' }}>{p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p}</button>
-      ))}
-    </div>
+    <SegmentedTabs
+      variant="range"
+      tabs={periods.map((p) => ({ key: p, label: p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p }))}
+      value={period}
+      onChange={(p) => {
+        setPeriod(p)
+        setShowCustomRange(p === 'CUSTOM')
+      }}
+      deps={[lang, periods.length]}
+      ariaLabel={t('Período', 'Period')}
+    />
   )
 
   if (loading && chartData.length < 2) {
     return (
-      <div className="card-glass rounded-2xl p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex items-center justify-center min-h-[260px]">
           <div className="flex items-center gap-2 text-slate-500 text-sm">
-            <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+            <BusyRing size="16px" />
             {t('Cargando datos...', 'Loading data...')}
           </div>
         </div>
@@ -1577,7 +1803,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (fetchError && chartData.length < 2) {
     return (
-      <div className="card-glass rounded-2xl p-5">
+      <div className="card p-4 sm:p-5">
         <ErrorState
           title={t('Error cargando gráfico', 'Error loading chart')}
           message={fetchError}
@@ -1590,7 +1816,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
   if (chartData.length < 2) {
     return (
-      <div className="card-glass rounded-2xl p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex flex-col items-center justify-center min-h-[200px] gap-2 text-slate-500 text-sm">
           {period === 'DAY' ? (
             <>
@@ -1612,7 +1838,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const hd = hoverIdx != null ? chartData[hoverIdx] : null
 
   return (
-    <div ref={containerRef} className="card-glass rounded-2xl p-5">
+    <div ref={containerRef} className="card p-4 sm:p-5">
       {/* Tab bar: Value | Performance TWR | Performance MWR (FASE FP).
           Value is untouched. TWR is the frozen anchored series and the
           default return view (the strategy's return, IBKR's headline
@@ -1620,29 +1846,22 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           of the user's own deposits counts. Both run over whatever
           institution scope is selected below. */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
-        <button onClick={() => setViewMode('value')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'value'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}>
-          {t('Valor', 'Value')}
-        </button>
-        <button onClick={() => setViewMode('performance')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'performance'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
-          title={t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions')}>
-          {t('Rendimiento TWR', 'Performance TWR')}
-        </button>
-        <button onClick={() => setViewMode('performance-mwr')}
-          className="text-sm font-medium pb-1 transition-all border-b-2"
-          style={viewMode === 'performance-mwr'
-            ? { color: 'var(--text-primary)', borderColor: 'var(--text-primary)' }
-            : { color: 'var(--text-muted)', borderColor: 'transparent' }}
-          title={t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts')}>
-          {t('Rendimiento MWR', 'Performance MWR')}
-        </button>
+        {/* Era el TERCER lenguaje de pestaña de la pantalla (subrayado), al lado
+            de las pastillas de Análisis y de Asignación. Mismo primitivo; qué
+            hace cada modo no cambia. */}
+        <SegmentedTabs
+          tabs={[
+            { key: 'value', label: t('Valor', 'Value') },
+            { key: 'performance', label: t('Rendimiento TWR', 'Performance TWR'),
+              title: t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions') },
+            { key: 'performance-mwr', label: t('Rendimiento MWR', 'Performance MWR'),
+              title: t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts') },
+          ]}
+          value={viewMode}
+          onChange={setViewMode}
+          deps={[lang]}
+          ariaLabel={t('Qué muestra la gráfica', 'What the chart shows')}
+        />
         <div className="ml-auto flex items-center gap-2">
           {shownMode === 'value' && contributionLine && (
             <button onClick={() => setShowContributions(!showContributions)}
@@ -1700,9 +1919,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 ? `${t('desde', 'since')} ${formatDate(new Date(valueRebasedFrom).toISOString())}`
                 : period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}
             </span>
-            {/* Raw NAV delta — deposits count as "growth" here. The deposit-adjusted
-                return lives in the YTD badge (Dietz) and the Performance tab. */}
-            <span className="text-xs text-slate-600 ml-1.5">{t('· incluye depósitos', '· includes deposits')}</span>
+            {/* FASE IX2. Este rótulo decía "incluye depósitos" y el comentario que
+                tenía encima decía "raw NAV delta - deposits count as growth here",
+                pero el número que está a su lado es `displayAbs`, y desde FASE EC
+                computeWindowGrowth le RESTA el capital nuevo (growthAbs -
+                newCapitalPrincipal). O sea el rótulo afirmaba lo contrario de lo
+                que imprime: una vista de 1 año cuya línea va de ~$12.5K a ~$27.2K
+                encabezaba "-$1,257.95 · incluye depósitos", que solo se puede leer
+                como que algo está roto. Lo que de verdad pasó es que la ventana
+                trajo ~$15K de aportes y el portafolio, sin contarlos, perdió eso.
+                Ahora el rótulo dice qué se descontó, y solo aparece cuando de
+                verdad se descontó algo (sin aportes en la ventana no hay nada que
+                aclarar). Cero contacto con el número: la fórmula no se tocó. */}
+            {newCapitalPrincipal > 0.005 && (
+              <span className="text-xs text-slate-600 ml-1.5">
+                {t('· sin contar', '· net of')} {formatCurrency(newCapitalPrincipal)} {t('de aportes', 'in contributions')}
+              </span>
+            )}
             {cagrPct != null && (
               <span className="text-xs text-slate-500 ml-1.5 font-mono tabular-nums">≈ {cagrPct >= 0 ? '+' : ''}{cagrPct.toFixed(1)}%/{t('año', 'yr')}</span>
             )}
@@ -1750,27 +1983,46 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           desde snapshots. Antes esto era 100% silencioso (el EmptyState de
           error solo aparece con la gráfica vacía) y el usuario no tenía forma
           de saber que la serie estaba incompleta. */}
+      {/* Este es literalmente la firma de `InlineNotice`: aviso ámbar compacto
+          dentro de una card, con una salida para reintentar. El comentario de
+          cabecera de ese componente ya nombraba a este archivo como uno de los
+          dos originales duplicados a mano. */}
       {fetchError && chartData.length >= 2 && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
-          <span>⚠</span>
-          <span>{t('Historial de mercado incompleto esta sesión: la línea puede tener huecos.', 'Market history incomplete this session: the line may have gaps.')}</span>
-          <button onClick={fetchHistory} className="underline" style={{ color: 'inherit' }}>{t('Reintentar', 'Retry')}</button>
-        </div>
+        <InlineNotice
+          tone="warn"
+          actionLabel={t('Reintentar', 'Retry')}
+          onAction={fetchHistory}
+          className="mb-3"
+        >
+          {t('Historial de mercado incompleto esta sesión: la línea puede tener huecos.', 'Market history incomplete this session: the line may have gaps.')}
+        </InlineNotice>
       )}
 
-      {/* Drawdown indicator */}
+      {/* La caída máxima es un HECHO del período, no una alarma: toda gráfica de
+          patrimonio con historia suficiente tiene una, y venía envuelta en la
+          misma caja roja con borde que la app usa para un error que hay que
+          atender. Dos razones para sacarla de ahí. La de producto: en esta app
+          el rojo está reservado para algo grave (`lib/toastStyle.js`), y esto es
+          una estadística descriptiva. La dura: Chartability (POUR-CAF, EuroVis
+          2022) pide limitar las áreas rojas prominentes por riesgo de
+          fotosensibilidad, no por gusto.
+
+          Pasa a ser una línea de anotación bajo el encabezado. El porcentaje y
+          las dos fechas se conservan íntegros: no se quita información, cambia
+          dónde y con qué peso se dice. */}
       {shownMode === 'value' && drawdown && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs mb-3"
-          style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', color: 'var(--text-negative)' }}>
-          <span>↓</span>
+        <p className="text-caption mb-3 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+          <span aria-hidden="true">↓</span>
           <span>
-            Max drawdown: -{drawdown.pct.toFixed(1)}%
-            <span className="text-slate-500 ml-1">
+            {t('Mayor caída del período', 'Largest drop in the period')}{' '}
+            <span className="font-medium tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+              -{drawdown.pct.toFixed(1)}%
+            </span>
+            <span className="ml-1">
               ({chartData[drawdown.start] && formatDate(chartData[drawdown.start].date.toISOString())} → {chartData[drawdown.end] && formatDate(chartData[drawdown.end].date.toISOString())})
             </span>
           </span>
-        </div>
+        </p>
       )}
 
       {/* Short-history notice: real broker NAV starts well after Jan 1. The Value
@@ -1898,14 +2150,23 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
             {/* Y-axis grid lines and labels. In performance mode a tick can land a
                 few px from the dedicated "0%" baseline label — skip its text (keep
                 the gridline) so the two never collide ("-1.20%" over "0%"). */}
+            {/* Rótulo de unidad: la moneda (o el "%") se dice una vez, arriba del
+                eje, en vez de repetirse en cada marca. */}
+            <text x={0} y={11} textAnchor="start" fill="var(--text-muted)" fontSize="10" fontWeight="600">
+              {isPerf ? '%' : (baseCurrency || 'USD')}
+            </text>
+
             {geo.yTicks.map((tk, i) => {
               const collidesWithBaseline = isPerf && Math.abs(tk.y - geo.baselineY) < 12
               return (
                 <g key={i}>
                   <line x1={pad.left} y1={tk.y} x2={width - pad.right} y2={tk.y} stroke="var(--card-border)" strokeDasharray="4 4" strokeOpacity="0.8" />
                   {!collidesWithBaseline && (
-                    <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">
-                      {isPerf ? `${tk.val >= 0 ? '+' : ''}${tk.val.toFixed(tk.val === 0 ? 0 : 2)}%` : formatAxisTick(tk.val, tk.step, baseCurrency)}
+                    <text x={pad.left - 8} y={tk.y + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10"
+                      style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {isPerf
+                        ? `${tk.val > 0 ? '+' : ''}${tk.val.toFixed(pctDecimals(tk.step))}`
+                        : formatAxisTick(tk.val, tk.step, baseCurrency, { symbol: false, exactSteps: tk.nice })}
                     </text>
                   )}
                 </g>
@@ -1931,14 +2192,16 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   )}
                 </defs>
 
-                {/* Drawdown shaded zone */}
+                {/* Drawdown shaded zone. En neutro, no en rojo: la banda marca
+                    DÓNDE ocurrió la mayor caída, que es orientación, y pintarla
+                    del color de error decía que ese tramo está mal. */}
                 {drawdown && geo.points[drawdown.start] && geo.points[drawdown.end] && (
                   <rect
                     x={geo.points[drawdown.start].x}
                     y={pad.top}
                     width={geo.points[drawdown.end].x - geo.points[drawdown.start].x}
                     height={chartHeight - pad.top - pad.bottom}
-                    fill="var(--text-negative)" opacity="0.06" rx="2" />
+                    fill="var(--text-muted)" opacity="0.07" rx="2" />
                 )}
 
                 {/* Main value area + line. When part of the curve is a reconstruction
@@ -1967,7 +2230,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                       <path d={areaPath} fill="var(--text-muted)" opacity="0.1" clipPath="url(#clip-estimate-value)" />
                       <path d={areaPath} fill="url(#grad-value)" clipPath="url(#clip-real-value)" />
                       <line x1={splitX} y1={pad.top} x2={splitX} y2={chartHeight - pad.bottom} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.6" />
-                      <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9" fontFamily="system-ui">
+                      <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9">
                         {t('datos reales →', 'real data →')}
                       </text>
                       <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
@@ -1984,6 +2247,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                 )}
 
                 {/* Transaction markers (aggregated: one triangle per point+direction) */}
+                {/* Carril propio, separado del piso del eje. Antes los triángulos
+                    colgaban pegados a la última línea de la cuadrícula, así que se
+                    leían como parte de la serie; ahora viven en la banda que
+                    `pad.bottom` reserva para ellos, con aire arriba y abajo.
+                    El `×N` sube de 8px a 12px: 8px queda por debajo del piso de
+                    legibilidad de Chartability, y ese contador es la única pista
+                    de que un punto agrupa varios movimientos. */}
                 {txMarkers.map((m, i) => {
                   const pt = geo.points[m.chartIdx]
                   if (!pt) return null
@@ -1993,11 +2263,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                     <g key={i}>
                       <polygon
                         points={m.isBuy
-                          ? `${pt.x},${markerY + 2} ${pt.x - 4},${markerY + 10} ${pt.x + 4},${markerY + 10}`
-                          : `${pt.x},${markerY + 10} ${pt.x - 4},${markerY + 2} ${pt.x + 4},${markerY + 2}`}
+                          ? `${pt.x},${markerY + 6} ${pt.x - 4},${markerY + 14} ${pt.x + 4},${markerY + 14}`
+                          : `${pt.x},${markerY + 14} ${pt.x - 4},${markerY + 6} ${pt.x + 4},${markerY + 6}`}
                         fill={color} opacity="0.6" />
                       {m.count > 1 && (
-                        <text x={pt.x + 6} y={markerY + 9} fill={color} fontSize="8" fontFamily="system-ui" opacity="0.8">×{m.count}</text>
+                        <text x={pt.x + 6} y={markerY + 15} fill={color} fontSize="12" opacity="0.9"
+                          style={{ fontVariantNumeric: 'tabular-nums' }}>×{m.count}</text>
                       )}
                     </g>
                   )
@@ -2026,7 +2297,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
                 <line x1={pad.left} y1={geo.baselineY} x2={width - pad.right} y2={geo.baselineY}
                   stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="6 4" />
-                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui" fontWeight="600">0%</text>
+                {/* Sin "%": la unidad la dice el rótulo del eje, igual que las
+                    demás marcas. Con eje redondo el cero cae EXACTO sobre esta
+                    línea, así que la marca de 0 se suprime por colisión y esta
+                    etiqueta es la única que lo nombra. */}
+                <text x={pad.left - 8} y={geo.baselineY + 4} textAnchor="end" fill="var(--text-muted)" fontSize="10" fontWeight="600"
+                  style={{ fontVariantNumeric: 'tabular-nums' }}>0</text>
 
                 <path
                   d={`${polyline(geo.points)} L ${geo.points[geo.points.length - 1].x} ${geo.baselineY} L ${geo.points[0].x} ${geo.baselineY} Z`}
@@ -2046,7 +2322,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
 
             {/* X-axis labels */}
             {resolvedXLabels.map((xl, i) => (
-              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="10" fontFamily="system-ui">{xl.label}</text>
+              <text key={i} x={xl.x} y={chartHeight - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="10">{xl.label}</text>
             ))}
 
             {/* Hover crosshair */}
@@ -2166,12 +2442,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
             max={customRange.to || new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
             max={new Date().toISOString().split('T')[0]}
-            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+            className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
         </div>
       )}
 
@@ -2220,12 +2496,12 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <div key={i} className="flex gap-2 items-center">
                 <input type="date" value={row.date}
                   onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, date: e.target.value } : r))}
-                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6] w-36" />
+                  className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
                   <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
-                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[#3b82f6]" />
+                    className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
                 </div>
                 {snapshotRows.length > 1 && (
                   <button onClick={() => setSnapshotRows(prev => prev.filter((_, idx) => idx !== i))}
@@ -2247,7 +2523,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
               <button onClick={handleSaveSnapshots} disabled={snapshotSaving || !snapshotRows.some(r => r.date && r.value)}
                 className="px-3 py-1 text-xs rounded disabled:opacity-40 transition-colors"
                 style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                {snapshotSaving ? '...' : t('Guardar', 'Save')}
+                {<BusyLabel busy={snapshotSaving} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>}
               </button>
             </div>
           </div>

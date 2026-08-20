@@ -37,8 +37,8 @@ export default function ContinuousYieldDisplay({ items, lang }) {
   const totalDaily = yields.reduce((s, y) => s + y.dailyRate, 0)
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
-      <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2 mb-3">
+    <div className="card p-4 sm:p-5">
+      <h3 className="card-title mb-3">
         <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
         {t('RENDIMIENTO CONTINUO', 'CONTINUOUS YIELD')}
       </h3>
@@ -46,11 +46,11 @@ export default function ContinuousYieldDisplay({ items, lang }) {
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <span className="text-xs text-slate-500 block">{t('Acumulado total', 'Total accrued')}</span>
-          <span className="text-lg font-bold text-cyan-400">{formatCurrency(totalAccrued)}</span>
+          <span className="text-h1 text-cyan-400">{formatCurrency(totalAccrued)}</span>
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-500 block">{t('Tasa diaria', 'Daily rate')}</span>
-          <span className="text-lg font-bold text-emerald-400">{formatCurrency(totalDaily)}/d</span>
+          <span className="text-h1 text-emerald-400">{formatCurrency(totalDaily)}/d</span>
         </div>
       </div>
 

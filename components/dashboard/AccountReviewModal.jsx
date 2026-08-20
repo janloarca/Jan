@@ -143,10 +143,10 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
 
           <div className="mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg text-xs"
             style={dataQuality.pct === 100
-              ? { backgroundColor: '#ecfdf5', color: '#059669' }
+              ? { backgroundColor: 'var(--alert-success-bg)', color: 'var(--alert-success-icon)' }
               : dataQuality.pct >= 60
-                ? { backgroundColor: '#fffbeb', color: '#d97706' }
-                : { backgroundColor: '#fef2f2', color: '#dc2626' }
+                ? { backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }
+                : { backgroundColor: 'var(--alert-error-bg)', color: 'var(--alert-error-icon)' }
             }>
             <span>{dataQuality.complete}/{dataQuality.total} {t('completos', 'complete')}</span>
             <span className="font-semibold">{dataQuality.pct}% {t('completos', 'complete')}</span>
@@ -165,7 +165,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-black font-mono tabular-nums" style={{ color: val < 0 ? '#dc2626' : '#0f172a' }}>
+              <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: val < 0 ? 'var(--text-negative)' : 'var(--text-primary)' }}>
                 {formatCurrency(val)}
               </p>
               <p className="text-xs text-slate-400">{item.currency || 'USD'}</p>
@@ -209,7 +209,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs text-slate-400">{t('Retorno total', 'Total return')}</p>
-                        <p className="text-lg font-bold" style={{ color: totalReturn >= 0 ? '#059669' : '#dc2626' }}>
+                        <p className="text-lg font-bold" style={{ color: totalReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                           {totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)} ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(1)}%)
                         </p>
                       </div>
@@ -241,17 +241,17 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
 
           {/* Data-gap findings for this item (shared engine) */}
           {itemFindings.length > 0 && (
-            <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: '#fffbeb', borderWidth: '1px', borderStyle: 'solid', borderColor: '#fde68a' }}>
-              <p className="text-xs font-medium" style={{ color: '#b45309' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
+            <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: 'var(--alert-warn-bg)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--alert-warn-border)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--alert-warn-icon)' }}>{t('Chispu detectó:', 'Chispu detected:')}</p>
               <ul className="mt-1.5 space-y-1.5">
                 {itemFindings.map(f => (
-                  <li key={f.id} className="text-xs" style={{ color: '#d97706' }}>
+                  <li key={f.id} className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
                     <div className="flex items-start justify-between gap-2">
                       <span>· {lang === 'es' ? f.textEs : f.textEn}</span>
                       <span className="shrink-0 flex items-center gap-2">
                         {f.suggestion && onApplySuggestion && !applied.has(f.id) && (
                           <button type="button" onClick={() => applySuggestion(f)}
-                            className="underline font-semibold" style={{ color: '#b45309' }}>
+                            className="underline font-semibold" style={{ color: 'var(--alert-warn-icon)' }}>
                             {t('Usar esto', 'Use this')}
                           </button>
                         )}
@@ -260,7 +260,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                         )}
                         {f.action?.kind === 'cashflow' && !applied.has(f.id) && (
                           <button type="button" onClick={() => handleResolve(f)}
-                            className="underline font-medium" style={{ color: '#b45309' }}>
+                            className="underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                             {t('Resolver', 'Resolve')}
                           </button>
                         )}
@@ -269,7 +269,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                             stops asking anywhere, not just in this modal. */}
                         {f.code === 'dup-suspect' && f.action?.itemIds?.length > 1 && onConfirmDistinct && !applied.has(f.id) && (
                           <button type="button" onClick={() => onConfirmDistinct(f)}
-                            className="underline font-medium" style={{ color: '#b45309' }}>
+                            className="underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                             {t('No son iguales', 'Not the same')}
                           </button>
                         )}
@@ -277,7 +277,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                     </div>
                     {/* Grounded in real data already on file — never invented. */}
                     {f.suggestion && !applied.has(f.id) && (
-                      <p className="mt-0.5" style={{ color: '#b45309' }}>
+                      <p className="mt-0.5" style={{ color: 'var(--alert-warn-icon)' }}>
                         💡 {lang === 'es' ? f.suggestion.textEs : f.suggestion.textEn}
                       </p>
                     )}
@@ -304,12 +304,12 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
           </button>
           <button onClick={handleEdit}
             className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-colors"
-            style={{ color: 'var(--accent-blue-strong)', borderWidth: '1px', borderStyle: 'solid', borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }}>
+            style={{ color: 'var(--accent-blue-strong)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--alert-info-border)', backgroundColor: 'var(--alert-info-bg)' }}>
             {t('Editar', 'Edit')}
           </button>
           <button onClick={markReviewed}
             className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-colors"
-            style={{ color: '#ffffff', backgroundColor: '#059669' }}>
+            style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
             {index < sorted.length - 1 ? t('OK, siguiente', 'OK, next') : t('Listo', 'Done')} &#8594;
           </button>
           {index === sorted.length - 1 && reviewedCount >= totalCount - 1 && (

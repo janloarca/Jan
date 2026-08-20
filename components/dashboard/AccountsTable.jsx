@@ -85,7 +85,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
   const t = (es, en) => lang === 'es' ? es : en
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-white">
           {t('Cuentas e Instrumentos', 'Accounts & Instruments')}
@@ -96,7 +96,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
       {/* Warning banner */}
       {missingDate > 0 && !dismissWarning && (
         <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(245,158,11,0.2)' }}>
-          <span className="text-xs" style={{ color: '#fbbf24' }}>
+          <span className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
             ⚠ {missingDate} {t('activo(s) sin fecha de adquisición', 'asset(s) missing acquisition date')}
           </span>
           <button onClick={() => setDismissWarning(true)} className="text-sm ml-2 hover:opacity-80" style={{ color: 'rgba(245,158,11,0.6)' }}>×</button>
@@ -314,7 +314,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           </div>
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {item.isIlliquid && (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--alert-warn-icon)' }}>
                                 {lang === 'es' ? 'Ilíquido' : 'Illiquid'}
                               </span>
                             )}
@@ -329,7 +329,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                               const matStyle = mat.color === 'red'
                                 ? { backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }
                                 : mat.color === 'amber'
-                                  ? { backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }
+                                  ? { backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--alert-warn-icon)' }
                                   : { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
                               return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
@@ -369,7 +369,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                         <div>
                           <span className="text-white text-sm font-medium font-mono tabular-nums">{formatCurrency(getItemPrice(item), item.currency)}</span>
                           {item.change7d != null && (
-                            <div className="text-xs font-mono tabular-nums" style={{ color: item.change7d >= 0 ? '#34d399' : '#f87171' }}>
+                            <div className="text-xs font-mono tabular-nums" style={{ color: item.change7d >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                               {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
                             </div>
                           )}
@@ -388,7 +388,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                     <td className="text-center py-3 hidden sm:table-cell">
                       {retPct != null ? (
                         <div>
-                          <span className="text-xs font-medium font-mono tabular-nums" style={{ color: retPct >= 0 ? '#34d399' : '#f87171' }}>
+                          <span className="text-xs font-medium font-mono tabular-nums" style={{ color: retPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                             {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
                           </span>
                           <div className="text-xs font-mono tabular-nums" style={{ color: retPct >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
@@ -401,7 +401,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                     </td>
                     <td className="text-right py-3">
                       <span className="font-medium font-mono tabular-nums cursor-pointer hover:underline"
-                        style={{ color: value < 0 ? '#f87171' : '#34d399' }}
+                        style={{ color: value < 0 ? 'var(--text-negative)' : 'var(--accent-green)' }}
                         onClick={() => onViewItem && onViewItem(item)}>
                         {formatCurrency(Math.abs(value))}{value < 0 && <span className="ml-1 text-xs px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }}>{t('Deuda','Debt')}</span>}
                       </span>

@@ -13,6 +13,9 @@ import { isNotificationSupported, getNotificationPermission, requestNotification
 import { BENCHMARKS } from '@/hooks/useBenchmark'
 import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
+import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
+import BusyLabel from '@/components/ui/BusyLabel'
+import FinanceWipePanel from '@/components/settings/FinanceWipePanel'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -74,7 +77,7 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
   )
 }
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -124,15 +127,41 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEn: 'Your month and your year, with the YTD report and the January-to-date spreadsheet. On the 1st.',
       ready: true },
     { key: 'notifyAnnual', es: 'Resumen anual', en: 'Annual brief',
-      descEs: 'El cierre del año completo con su reporte.',
-      descEn: 'The full year close with its report.',
-      ready: false },
+      descEs: 'El cierre del año, con su reporte y el spreadsheet completo. 1 de enero.',
+      descEn: 'The year close, with its report and the full-year spreadsheet. January 1st.',
+      ready: true },
   ]
   const [emailPrefs, setEmailPrefs] = useState(() =>
     Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
   )
+  // FASE IE9. El estado inicial se calcula UNA vez, así que si `settings`
+  // todavía no había llegado cuando el modal se montó (o si la lectura de
+  // Firestore falló, p.ej. con la cuota diaria agotada), los interruptores se
+  // quedaban en apagado para siempre mostrando lo contrario de lo que hay
+  // guardado: el usuario cree que no está suscrito cuando sí lo está
+  // (reporte real con captura). La firma de las banderas es la única
+  // dependencia: cuando el valor guardado cambia, el interruptor lo refleja.
+  const emailSig = EMAIL_CADENCES.map((c) => (settings?.[c.key] === true ? '1' : '0')).join('')
+  useEffect(() => {
+    setEmailPrefs(Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true])))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailSig])
   const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
   const [testResult, setTestResult] = useState(null)
+  // El error crudo del servidor se muestra tal cual (es lo que ahorra rondas
+  // de diagnóstico), salvo cuando es un límite de la base de datos: ahí el
+  // texto es un código gRPC que no le dice nada a nadie y encima se resuelve
+  // solo, así que se traduce a qué pasó y qué hacer.
+  const humanizeSendError = (raw) => {
+    const s = String(raw || '')
+    if (isFirestoreQuotaError(s)) {
+      return t(
+        'Se alcanzó el límite diario de la base de datos (cada prueba lee todo tu portafolio). Se reinicia solo en unas horas; el envío automático no depende de este botón.',
+        'The database hit its daily limit (each test reads your whole portfolio). It resets on its own within hours; the scheduled email does not depend on this button.',
+      )
+    }
+    return s || t('No se pudo enviar', 'Could not send')
+  }
   const handleTestEmail = async (cadence = 'weekly') => {
     setTestingEmail(cadence)
     setTestResult(null)
@@ -144,14 +173,44 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       })
       const data = await safeJson(res)
       if (res.ok) {
-        setTestResult({ ok: true, msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) })
+        // El diagnóstico del envío AUTOMÁTICO: la prueba y el cron comparten
+        // todo menos cómo se encuentra a los suscriptores, y esa pieza es
+        // justamente la que puede fallar sola (FASE IF).
+        const cl = data?.cronLookup
+        // El fallback (userScan) funciona, pero significa que la consulta
+        // rápida está fallando: el motivo suele traer el enlace exacto para
+        // crear el índice que falta, y esconderlo sería dejar el problema de
+        // raíz sin arreglar detrás de un mensaje en verde (FASE IF3).
+        const slow = cl?.via === 'userScan'
+          ? t(` Está usando el camino lento porque la consulta rápida falla: ${cl.error || 'sin detalle'}`, ` It is using the slow path because the fast query fails: ${cl.error || 'no detail'}`)
+          : ''
+        const auto = cl
+          ? (cl.includesYou
+            ? t(` El envío automático te encuentra correctamente (vía ${cl.via}).`, ` The scheduled send finds you correctly (via ${cl.via}).`) + slow
+            : t(` OJO: el envío automático NO te encuentra (${cl.error || 'revisa que el interruptor esté encendido'}).`, ` HEADS UP: the scheduled send does NOT find you (${cl.error || 'check the toggle is on'}).`))
+          : ''
+        // Cuándo corrió el cron por última vez: sin este dato, "no me llegó"
+        // no distingue entre un cron que nunca se ejecutó y uno que sí corrió
+        // pero no envió (FASE IF2).
+        const lr = data?.lastCronRun
+        const runMsg = lr?.at
+          ? t(` Última corrida automática: ${new Date(lr.at).toLocaleString()} (${lr.result || 'sin detalle'}).`,
+              ` Last scheduled run: ${new Date(lr.at).toLocaleString()} (${lr.result || 'no detail'}).`)
+          : t(' El envío automático NUNCA ha corrido todavía.', ' The scheduled send has NEVER run yet.')
+        setTestResult({
+          ok: !cl || cl.includesYou,
+          msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) + auto + runMsg,
+        })
       } else {
         // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
-        // autenticación, verlo aquí ahorra una ronda de logs.
-        setTestResult({ ok: false, msg: data?.error || t('No se pudo enviar', 'Could not send') })
+        // autenticación, verlo aquí ahorra una ronda de logs. La excepción es
+        // la cuota de la base de datos, que llega como "8 RESOURCE_EXHAUSTED:
+        // Quota exceeded" (código gRPC): nadie puede accionar sobre eso sin
+        // saber que es un límite DIARIO que se reinicia solo.
+        setTestResult({ ok: false, msg: humanizeSendError(data?.error) })
       }
     } catch (e) {
-      setTestResult({ ok: false, msg: e.message || t('No se pudo enviar', 'Could not send') })
+      setTestResult({ ok: false, msg: humanizeSendError(e.message) })
     } finally {
       setTestingEmail(null)
     }
@@ -233,7 +292,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       if (type === 'items') await onDeleteAllItems({ cascade: true })
       if (type === 'snapshots') await onDeleteAllSnapshots()
       if (type === 'transactions') await onDeleteAllTransactions()
-      if (type === 'financeTransactions' && onDeleteAllFinanceTransactions) await onDeleteAllFinanceTransactions()
+      // 'financeTransactions' ya no llega acá: Flujo tiene su propio panel
+      // (FinanceWipePanel), que borra por mes y por método. "Eliminar todo"
+      // sigue llamando a onDeleteAllFinanceTransactions más abajo.
       if (type === 'all') {
         await onDeleteAllItems({ cascade: true })
         await onDeleteAllSnapshots()
@@ -335,7 +396,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     } catch (e) { flash('err', e.message) }
     setShareLoading(false)
   }
-
 
   const tabs = [
     { key: 'general', label: t('General', 'General'), icon: SlidersHorizontal },
@@ -594,6 +654,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
                         {testingEmail === 'monthly' ? t('Enviando...', 'Sending...') : t('Probar mensual', 'Test monthly')}
                       </button>
+                      <button type="button" onClick={() => handleTestEmail('annual')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'annual' ? t('Enviando...', 'Sending...') : t('Probar anual', 'Test annual')}
+                      </button>
                     </div>
                     <div>
                       {testResult && (
@@ -608,7 +673,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </SectionCard>
 
               <button onClick={handleSave} disabled={saving} className="btn-primary w-full">
-                {saving ? '...' : t('Guardar configuracion', 'Save settings')}
+                {<BusyLabel busy={saving} lang={lang}>{t('Guardar configuracion', 'Save settings')}</BusyLabel>}
               </button>
             </div>
           )}
@@ -771,7 +836,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   <div className="flex gap-2">
                     <button onClick={handleCreateShare} disabled={shareLoading || !canCreate}
                       className="flex-1 py-2 rounded-lg hover:bg-emerald-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
-                      {shareLoading ? '...' : t('Crear y copiar link', 'Create & copy link')}
+                      {<BusyLabel busy={shareLoading} lang={lang}>{t('Crear y copiar link', 'Create & copy link')}</BusyLabel>}
                     </button>
                     <button onClick={() => setShareCreating(false)}
                       className="px-3 py-2 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
@@ -835,8 +900,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         style={armed
                           ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
                           : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
-                        {busy && <span className="inline-block w-3 h-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
-                        {busy ? t('Borrando…', 'Deleting…') : armed ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                        <BusyLabel busy={busy} lang={lang} busyLabel={t('Borrando…', 'Deleting…')}>
+                          {armed ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
+                        </BusyLabel>
                       </button>
                     </div>
                     <div className="overflow-hidden transition-all duration-200 ease-out"
@@ -865,9 +931,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         {[
                           { key: 'items', label: t('Eliminar todas las cuentas', 'Delete all accounts'), desc: t('Instrumentos y posiciones (con sus lots y transacciones).', 'Instruments and positions (with their lots and transactions).'), warn: t('Se borrarán cuentas, lots y transacciones asociadas.', 'This will delete accounts, lots, and associated transactions.') },
                           { key: 'transactions', label: t('Eliminar transacciones', 'Delete transactions'), desc: t('Solo el historial de movimientos del portafolio.', 'Only the portfolio movement history.'), warn: t('Los retornos YTD y Modified Dietz serán menos precisos.', 'YTD returns and Modified Dietz will be less accurate.') },
-                          { key: 'financeTransactions', label: t('Eliminar finanzas', 'Delete finance data'), desc: t('Solo los ingresos y gastos personales.', 'Only personal income and expense data.'), warn: t('Se perderá el historial de ingresos y gastos.', 'Income and expense history will be lost.') },
                           { key: 'snapshots', label: t('Eliminar snapshots', 'Delete snapshots'), desc: t('Solo el historial del gráfico de crecimiento.', 'Only the growth chart history.'), warn: t('El gráfico de crecimiento perderá datos históricos.', 'The growth chart will lose historical data.') },
                         ].map(renderAction)}
+
+                        {/* Finanzas tiene su propio panel: es la única de estas
+                            colecciones donde acotar por mes y por método de
+                            captura tiene sentido, y donde un borrado puede ser
+                            irrecuperable (lo del atajo y el correo no vuelve
+                            solo), así que ofrece el respaldo antes. */}
+                        {onDeleteFinanceTransactionsByIds && (
+                          <FinanceWipePanel
+                            transactions={financeTransactions}
+                            onDeleteByIds={onDeleteFinanceTransactionsByIds}
+                            onDeleteAll={onDeleteAllFinanceTransactions}
+                            lang={lang}
+                            onDone={(n) => flash('ok', n === 1 ? t('1 movimiento eliminado', '1 movement deleted') : t(`${n} movimientos eliminados`, `${n} movements deleted`))}
+                          />
+                        )}
 
                         {/* Per-account delete: wipe one origin (e.g. IBKR API) without
                             touching another (manual IDC). Only when >1 account exists. */}

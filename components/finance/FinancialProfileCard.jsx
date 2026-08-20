@@ -5,6 +5,7 @@
 // and stamped with its age — the world changes and this data must keep up.
 
 import { useState } from 'react'
+import BusyLabel from '@/components/ui/BusyLabel'
 
 const fmtQ = (n) => `Q${Math.round(n || 0).toLocaleString()}`
 
@@ -80,10 +81,10 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
   ]
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-4">
+    <div className="card p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             👤 {t('Mi perfil financiero', 'My financial profile')}
             {savedFlash && <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>✓ {t('Guardado', 'Saved')}</span>}
           </h3>
@@ -157,7 +158,7 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
 
           <button onClick={handleSave} disabled={saving}
             className="w-full py-2.5 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-            {saving ? '...' : t('Guardar perfil', 'Save profile')}
+            {<BusyLabel busy={saving} lang={lang}>{t('Guardar perfil', 'Save profile')}</BusyLabel>}
           </button>
         </div>
       )}

@@ -77,9 +77,9 @@ export default function Watchlist({ lang }) {
 
   if (items.length === 0 && !adding) {
     return (
-      <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+      <div className="card p-4 sm:p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+          <h3 className="card-title">
             <span className="w-2 h-2 rounded-full bg-slate-500" />
             {t('WATCHLIST', 'WATCHLIST')}
           </h3>
@@ -94,9 +94,9 @@ export default function Watchlist({ lang }) {
   }
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+        <h3 className="card-title">
           <span className="w-2 h-2 rounded-full bg-slate-500" />
           {t('WATCHLIST', 'WATCHLIST')}
         </h3>
@@ -143,7 +143,7 @@ export default function Watchlist({ lang }) {
                   <>
                     <span className="text-xs text-white font-medium">{formatCurrency(pd.price)}</span>
                     {pd.change7d != null && isFinite(pd.change7d) && (
-                      <span className="text-xs font-medium" style={{ color: pd.change7d >= 0 ? '#34d399' : '#f87171' }}>
+                      <span className="text-xs font-medium" style={{ color: pd.change7d >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                         {pd.change7d >= 0 ? '+' : ''}{pd.change7d.toFixed(1)}%
                       </span>
                     )}

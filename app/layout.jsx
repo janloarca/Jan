@@ -5,7 +5,7 @@ import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
   title: 'Chispudo: Portfolio Tracker for Latin America',
-  description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for LatAm. Free forever.',
+  description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for Latin America.',
   keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
   openGraph: {
     title: 'Chispudo: Track Your Entire Portfolio',
@@ -17,7 +17,7 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Chispudo: Portfolio Tracker for Latin America',
-    description: 'Track every asset type. Built for LatAm. Free forever.',
+    description: 'Track every asset type. Built for Latin America.',
   },
   metadataBase: new URL('https://chispu.xyz'),
   // manifest: '/manifest.json',  // disabled — SW causes stale cache issues
@@ -107,7 +107,15 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+        {/* JetBrains Mono NECESITA el 700: la app usa `font-mono font-bold` en
+            23 sitios, incluido el número grande de patrimonio, y sin ese peso
+            cargado el navegador lo SINTETIZA (engorda los trazos por su
+            cuenta), que es lo que hace ver el número emborronado.
+            El 800 de Inter se quita en el mismo cambio para que el costo sea
+            neutro: `font-extrabold` tiene CERO usos, `text-display` (que lo
+            especifica) tiene CERO usos, y su único consumidor era Logo.jsx,
+            que pasa a 900, ya cargado. Mismo número de archivos de fuente. */}
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* AdSense loader + site-verification snippet. Site-wide so Google's crawler
             can verify on public pages (the dashboard is behind auth). With Auto Ads

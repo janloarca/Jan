@@ -43,6 +43,10 @@ export default function PageShell({
   // Mobile nav handlers default to sending the user home, which is what the
   // secondary pages did individually before.
   onAdd, onImport, onExport, onShare, onSettings, onSearch,
+  // `onAuto` no cae al default de "mandar al tablero": MobileNav solo dibuja esa
+  // entrada cuando la recibe, así que una página sin captura automática no debe
+  // ofrecerla. Solo Flujo la pasa.
+  onAuto,
   headerProps = {},
 }) {
   const router = useRouter()
@@ -73,7 +77,7 @@ export default function PageShell({
         {...headerProps}
       />
       <main id="main-content"
-        className={`${WIDTHS[width] || WIDTHS.narrow} mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5 ${mainClassName}`}>
+        className={`${WIDTHS[width] || WIDTHS.narrow} mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 ${mainClassName}`}>
         {children}
       </main>
       {/* MobileNav already renders its own bottom spacer, so pages must NOT add
@@ -82,6 +86,7 @@ export default function PageShell({
       <MobileNav
         onAdd={onAdd || go} onImport={onImport || go} onExport={onExport || go}
         onShare={onShare || go} onSettings={onSettings || go} onSearch={onSearch}
+        onAuto={onAuto}
         lang={lang} friendsEnabled={friendsEnabled}
       />
     </div>

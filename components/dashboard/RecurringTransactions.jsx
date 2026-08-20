@@ -80,7 +80,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
   }
 
   return (
-    <div className="bg-theme-card/80 rounded-xl border border-glass-border/50 p-4 sm:p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           🔄 {t('Transacciones Recurrentes', 'Recurring Transactions')}

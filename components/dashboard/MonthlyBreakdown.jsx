@@ -9,10 +9,19 @@ function getLiquidityScore(item) {
   return LIQUIDITY_ORDER[getTypeCategory(item.type)] ?? 7
 }
 
+// FASE JU. Esto parseaba con `new Date('2026-01-01')` (que JS lee como
+// medianoche UTC) y después leía el mes con getMonth(), que es LOCAL: al oeste
+// de UTC eso retrocede un día, así que el snapshot del 1 de enero se archivaba
+// bajo '2025-12'. En Guatemala (UTC-6) el primer día de CADA mes caía en el mes
+// anterior. La fecha de un snapshot es un día calendario, no un instante, así
+// que se lee del propio texto 'YYYY-MM-DD' y solo se parsea (en UTC) lo que no
+// tenga esa forma.
 function getMonthKey(dateStr) {
+  const m = /^(\d{4})-(\d{2})/.exec(String(dateStr || ''))
+  if (m) return `${m[1]}-${m[2]}`
   const d = new Date(dateStr)
   if (isNaN(d)) return null
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 function formatMonthLabel(key, lang) {
@@ -142,7 +151,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
   }
 
   return (
-    <div className="bg-theme-card rounded-2xl border border-glass-border p-5 card-primary">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
