@@ -4,7 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import { loadUserPortfolioContext } from '@/lib/briefContext'
 import { buildReportData } from '@/lib/reportData'
-import { buildSharePayload, sanitizeDisplay } from '@/lib/sharePayload'
+import { buildSharePayload, sanitizeDisplay, sanitizeLang } from '@/lib/sharePayload'
 import { itemAnnualIncomeInBase } from '@/lib/serverPortfolio'
 import { projectItemAnnualIncome } from '@/components/dashboard/utils'
 import crypto from 'crypto'
@@ -193,6 +193,9 @@ export async function GET(request) {
     // Legacy tokens carry no scope — they always meant "everything".
     const scope = sanitizeScope(tokenData.scope) || { type: 'all' }
     const display = sanitizeDisplay(tokenData.display)
+    // El idioma lo eligió el dueño al crear el link (default español); los
+    // tokens anteriores a este campo no lo llevan y caen a 'es'.
+    const lang = sanitizeLang(tokenData.lang)
 
     // FASE KK. El payload sale del MISMO pipeline que el reporte PDF, en vez
     // de mandar los documentos crudos para que el navegador los sume a mano.
@@ -213,7 +216,7 @@ export async function GET(request) {
       // es una respuesta legitima, y decirlo asi deja que la pagina lo explique
       // en vez de mostrar una pantalla de link roto.
       return NextResponse.json({
-        empty: true, display, label: tokenData.label || null, scopeLabel,
+        empty: true, display, lang, label: tokenData.label || null, scopeLabel,
         baseCurrency: 'USD', owner: '', asOf: Date.now(),
       })
     }
@@ -236,6 +239,8 @@ export async function GET(request) {
 
     const payload = buildSharePayload(report, {
       display,
+      lang,
+      advisor: ctx.advisor,
       label: tokenData.label || null,
       scopeLabel,
       hasSeries: scope.type === 'all',
