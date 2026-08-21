@@ -77,7 +77,7 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
   )
 }
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '', profile = null, onSaveProfile, userDisplayName = '' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '', profile = null, onSaveProfile, userDisplayName = '', portfolios = [], activePortfolio = '__all__' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -89,7 +89,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [shareLoading, setShareLoading] = useState(false)
   const [shareCopied, setShareCopied] = useState(null) // token just copied
   const [shareCreating, setShareCreating] = useState(false)
-  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
+  // FASE KK. `portfolioId` arranca en el portafolio ACTIVO: compartir por
+  // default lo que uno tiene en pantalla es menos sorprendente que compartir
+  // toda la cuenta, que es lo que 'all' significa.
+  const defaultSharePortfolio = activePortfolio && activePortfolio !== '__all__' ? activePortfolio : ''
+  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both' })
   const [saveStatus, setSaveStatus] = useState(null)
   const [friendsEnabled, setFriendsEnabled] = useState(settings?.friendsEnabled !== false)
   // Per-category notification prefs. Absent = on, mirrors friendsEnabled's default.
@@ -397,13 +401,15 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     try {
       const scope = shareForm.scopeType === 'entity'
         ? { type: 'entity', entityId: shareForm.entityId, entityName: (entities || []).find((e) => e.id === shareForm.entityId)?.name || '' }
+        : shareForm.scopeType === 'portfolio'
+          ? { type: 'portfolio', portfolioId: shareForm.portfolioId, portfolioName: (portfolios || []).find((p) => p.id === shareForm.portfolioId)?.name || '' }
         : shareForm.scopeType === 'institutions'
           ? { type: 'institutions', institutions: shareForm.institutions }
           : { type: 'all' }
       const { link } = await shareApi({ action: 'create', label: shareForm.label, scope, display: shareForm.display })
       setShareLinks((prev) => [...(prev || []), link])
       setShareCreating(false)
-      setShareForm({ label: '', scopeType: 'all', entityId: '', institutions: [], display: 'both' })
+      setShareForm({ label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both' })
       copyShareLink(link.token)
       flash('ok', t('Link creado y copiado', 'Link created and copied'))
     } catch (e) { flash('err', e.message) }
@@ -792,6 +798,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             }))
             const canCreate = shareForm.scopeType === 'all'
               || (shareForm.scopeType === 'entity' && shareForm.entityId)
+              || (shareForm.scopeType === 'portfolio' && shareForm.portfolioId)
               || (shareForm.scopeType === 'institutions' && shareForm.institutions.length > 0)
 
             return (
@@ -853,6 +860,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       {[
                         { key: 'all', label: t('Todo', 'Everything') },
                         ...(entities && entities.length > 1 ? [{ key: 'entity', label: t('Una entidad', 'One entity') }] : []),
+                        ...(portfolios && portfolios.length > 1 ? [{ key: 'portfolio', label: t('Un portafolio', 'One portfolio') }] : []),
                         ...(institutionOptions.length > 0 ? [{ key: 'institutions', label: t('Cuentas específicas', 'Specific accounts') }] : []),
                       ].map((opt) => (
                         <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, scopeType: opt.key }))}
@@ -864,6 +872,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </button>
                       ))}
                     </div>
+                    {shareForm.scopeType !== 'all' && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('La gráfica de crecimiento no se incluye: el historial guardado es del patrimonio completo, no de una parte.', 'The growth chart is left out: the saved history is of the whole net worth, not of one slice.')}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -887,6 +900,16 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       <p className="text-xs text-slate-600 mt-1">{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
                     )}
                   </div>
+
+                  {shareForm.scopeType === 'portfolio' && (
+                    <select value={shareForm.portfolioId} onChange={(e) => setShareForm((p) => ({ ...p, portfolioId: e.target.value }))}
+                      className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
+                      <option value="">{t('- Elige el portafolio -', '- Pick the portfolio -')}</option>
+                      {(portfolios || []).map((pf) => (
+                        <option key={pf.id} value={pf.id}>{pf.icon || '\u{1F4C8}'} {pf.name}</option>
+                      ))}
+                    </select>
+                  )}
 
                   {shareForm.scopeType === 'entity' && (
                     <select value={shareForm.entityId} onChange={(e) => setShareForm((p) => ({ ...p, entityId: e.target.value }))}

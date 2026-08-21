@@ -1888,6 +1888,7 @@ export default function DashboardPage() {
           userEmail={user?.email || ''}
           profile={profile} onSaveProfile={saveProfile}
           userDisplayName={user?.displayName || ''}
+          portfolios={portfolios} activePortfolio={activePortfolio}
           onSaveSettings={saveSettings}
           onDeleteAllItems={handleDeleteAllItems} onDeleteAllSnapshots={deleteAllSnapshots}
           onDeleteAllTransactions={deleteAllTransactions}
