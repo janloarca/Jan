@@ -11,6 +11,7 @@ import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
+import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
 import { ibkrSyncIntervalMs, nextFailCount } from '@/lib/ibkrRetryPolicy'
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
@@ -943,7 +944,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       transactions: data.transactions || [],
       snapshots: newSnaps,
       updateItems: updateOps,
-      deleteIds,
+      // ⛔ FASE KF: un id no puede estar en las dos listas. bulkImport encola los
+      // borrados PRIMERO, así que un update sobre un doc ya borrado revienta el
+      // commit entero. Ver lib/ibkrMergePlan.js para el caso que lo produce
+      // (una posición vendida a cero que se vuelve a comprar).
+      deleteIds: dropDeletesThatAreUpdated(deleteIds, updateOps),
     }, onProgress)
 
     // Persist a forensic summary of THIS sync (any path: modal, header pill, auto).
@@ -982,6 +987,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // the server vault (_ibkrVaultMigrated), as long as a query id exists.
     if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) return
     if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) return
+    // ⛔ FASE KF. No arrancar mientras HAY una escritura masiva en curso. El
+    // caso real es el paso 1→2 del viaje: el usuario acaba de guardar
+    // credenciales (lo que destraba este efecto) y de inmediato sube su
+    // archivo. Sin esta compuerta, el auto-sync corre encima del import y las
+    // dos pasadas reconcilian contra la MISMA foto de `items`, así que la
+    // segunda no encuentra lo que la primera acaba de crear y lo vuelve a
+    // crear con id nuevo: posiciones duplicadas. Es la misma compuerta que los
+    // cuatro escritores de snapshots ya usan (FASE GB).
+    //
+    // ALCANCE, dicho de frente: cubre la ventana de ESCRITURA, no la de
+    // descarga. Un import cuyo Flex tarda un minuto en bajar todavía puede
+    // solaparse con un auto-sync que arrancó en el medio, porque `bulkWriting`
+    // solo se prende cuando empieza a escribir. Cerrar eso pide exclusión mutua
+    // de verdad entre las dos rutas (el lock de useTabCoordination es un Set
+    // sin dueño, así que no alcanza) y leer `items` de una ref en vez del
+    // closure; queda anotado, no hecho a medias.
+    if (bulkWriting) return
     // After a LOCKED error, back off to a long cadence so we let IBKR's temporary
     // lock expire (retrying too soon can refresh it) — but still retry, so a working
     // token self-heals and the banner clears without manual action.
@@ -1068,7 +1090,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (shouldSync) doAutoSync()
     const interval = setInterval(doAutoSync, SYNC_INTERVAL)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [dataLoading, settings, user, handleIBKRSync, saveSettings])
+  }, [dataLoading, settings, user, handleIBKRSync, saveSettings, bulkWriting])
 
   // Manual, on-demand IBKR sync that runs in the BACKGROUND (no blocking modal). Same
   // path as the auto-sync above (syncIBKR '__stored__' → handleIBKRSync('merge')) but
