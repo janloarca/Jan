@@ -126,6 +126,7 @@ function Centered({ children }) {
 }
 
 function SharedDashboard({ data, lang, t, toggleLang }) {
+  const { token } = useParams()
   const {
     display, owner, advisor, asOf, baseCurrency, label, scopeLabel, hasSeries,
     kpis = {}, allocation = [], holdings = [], series = [], income = {}, maturities = [],
@@ -226,6 +227,17 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
               style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
               {lang === 'es' ? 'EN' : 'ES'}
             </button>
+            {/* El PDF solo existe en un link 'both' de alcance completo: en los
+                otros modos la plantilla contradiría lo que el link esconde, y
+                el servidor lo exige igual (el botón no es la frontera). */}
+            {!empty && display === 'both' && hasSeries && (
+              <a href={`/api/share?token=${token}&format=pdf`}
+                aria-label={t('Descargar PDF', 'Download PDF')} title={t('Descargar PDF', 'Download PDF')}
+                className="h-8 px-2.5 grid place-items-center rounded-lg border transition-colors text-xs font-medium"
+                style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                PDF
+              </a>
+            )}
             {!empty && (
               <button onClick={exportCsv} aria-label={t('Descargar CSV', 'Download CSV')} title={t('Descargar CSV', 'Download CSV')}
                 className="h-8 w-8 grid place-items-center rounded-lg border transition-colors"

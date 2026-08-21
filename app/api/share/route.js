@@ -242,6 +242,7 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
+  const wantPdf = searchParams.get('format') === 'pdf'
 
   if (!token || !/^[a-f0-9]{32}$/.test(token)) {
     return NextResponse.json({ error: 'Token required' }, { status: 400 })
@@ -281,8 +282,23 @@ export async function GET(request) {
     // identidad del asesor (una lectura de doc, por la misma frontera
     // sanitizeAdvisor que el camino sin caché).
     const instrumentIds = sanitizeInstrumentIds(tokenData.instrumentIds)
+
+    // FASE KP. El PDF descargable del CLIENTE. Dos compuertas del lado del
+    // SERVIDOR (el botón oculto en la página no es una frontera): solo un link
+    // 'both' (en 'amounts'/'percent' un PDF con la plantilla completa
+    // contradiría lo que el link decidió esconder) y solo alcance completo
+    // (la sección de flujos del reporte suma TODAS las transacciones del
+    // dueño, así que en un link escopado imprimiría depósitos fuera del
+    // alcance: la misma razón por la que el payload gatea `flows`).
+    if (wantPdf && (display !== 'both' || scope.type !== 'all')) {
+      return NextResponse.json({ error: 'PDF is only available for full-scope links that share amounts and returns' }, { status: 403 })
+    }
+
     const cacheKey = `share:${token}`
-    const cached = await kvGetJSON(cacheKey)
+    // El PDF no usa el caché del payload: necesita el contexto completo para
+    // re-armar el documento, y es una descarga ocasional, no una carga de
+    // página.
+    const cached = wantPdf ? null : await kvGetJSON(cacheKey)
     if (cached && cached.empty !== true) {
       const [profile, instruments] = await Promise.all([
         loadOwnerProfile(db, uid),
@@ -326,6 +342,36 @@ export async function GET(request) {
         empty: true, display, lang, label: tokenData.label || null, scopeLabel,
         baseCurrency: 'USD', owner: profile.name || '', advisor: sanitizeAdvisor(profile.advisor),
         asOf: Date.now(), instruments,
+      })
+    }
+
+    if (wantPdf) {
+      // El generador comparte motor con el reporte del dueño (buildReportData
+      // corre adentro); `audience: 'share'` aplica la allowlist en el papel.
+      const { renderReportPdf } = await import('@/lib/generateReport')
+      const { buffer, filename } = await renderReportPdf({
+        items: ctx.items,
+        snapshots: ctx.augmented,
+        transactions: ctx.transactions,
+        netWorth: ctx.netWorth,
+        totalAssets: ctx.totalAssets,
+        annualDividends: ctx.annualDividends,
+        estimatedAnnualIncome: ctx.estimatedAnnualIncome,
+        baseCurrency: ctx.baseCurrency,
+        convert: ctx.convert,
+        profileName: ctx.profileName,
+        lang,
+        period: 'ytd',
+        audience: 'share',
+        clientLabel: tokenData.label || null,
+        advisor: ctx.advisor,
+      })
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
       })
     }
 
