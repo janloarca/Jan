@@ -2,8 +2,17 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
-import { getItemValue } from '@/components/dashboard/utils'
+import { loadUserPortfolioContext } from '@/lib/briefContext'
+import { buildReportData } from '@/lib/reportData'
+import { buildSharePayload, sanitizeDisplay } from '@/lib/sharePayload'
+import { itemAnnualIncomeInBase } from '@/lib/serverPortfolio'
+import { projectItemAnnualIncome } from '@/components/dashboard/utils'
 import crypto from 'crypto'
+
+// El GET cotiza posiciones de mercado, así que es más pesado que una lectura
+// suelta de Firestore. Lección de FASE HJ/HK: declarar el presupuesto y
+// preferir una respuesta parcial que LLEGA sobre una completa que nadie recibe.
+export const maxDuration = 30
 
 // Scoped share links: each link carries what it exposes — the whole portfolio,
 // one entity, or a set of institutions (e.g. "just my IBKR"). Multiple links
@@ -24,6 +33,16 @@ function sanitizeScope(raw) {
     if (!entityId) return null
     return { type: 'entity', entityId, entityName: String(raw.entityName || '').slice(0, 60) }
   }
+  // FASE KK. El tablero escopa por portafolio activo
+  // (`useDashboardData.js`: `(it.portfolioId || '__default__') === activePortfolio`)
+  // y el link no tenía forma de hacer lo mismo: 'all' publicaba TODOS los items
+  // de la cuenta, así que quien tiene más de un portafolio compartía algo que
+  // él mismo no ve junto en ninguna pantalla.
+  if (raw.type === 'portfolio') {
+    const portfolioId = String(raw.portfolioId || '').slice(0, 60)
+    if (!portfolioId) return null
+    return { type: 'portfolio', portfolioId, portfolioName: String(raw.portfolioName || '').slice(0, 60) }
+  }
   if (raw.type === 'institutions') {
     const institutions = Array.isArray(raw.institutions)
       ? raw.institutions.map((i) => String(i).slice(0, 60)).filter(Boolean).slice(0, 20)
@@ -35,43 +54,42 @@ function sanitizeScope(raw) {
   return null
 }
 
-// What the visitor sees: both numbers, only amounts, or only percentages.
-// 'percent' is a real privacy mode — GET masks absolute amounts server-side.
-function sanitizeDisplay(raw) {
-  return ['both', 'amounts', 'percent'].includes(raw) ? raw : 'both'
+// El predicado del alcance, con la MISMA regla de default que el tablero.
+function scopeFilter(scope) {
+  if (scope.type === 'entity') return (it) => (it.entityId || 'default') === scope.entityId
+  if (scope.type === 'portfolio') return (it) => (it.portfolioId || '__default__') === scope.portfolioId
+  if (scope.type === 'institutions') return (it) => scope.institutions.includes((it.institution || '').trim())
+  return null
 }
 
-// Percent-only links must not leak amounts through the JSON (network tab).
-// Scaling quantity AND every price-ish field by √k multiplies each item's value
-// by k while leaving every ratio intact: gain% (price ratio), allocation %,
-// % of total. Scaling only one side would leak — real qty × public market price
-// reveals the value, and bank items carry the balance in the price field.
-const PRICE_FIELDS = ['currentPrice', 'purchasePrice', 'price', 'cost', 'averagePrice', 'lastManualValuation']
-function maskAmounts(items, snapshots) {
-  const totalAssets = items.reduce((s, it) => {
-    const v = getItemValue(it)
-    return v > 0 ? s + v : s
-  }, 0)
-  if (!(totalAssets > 0)) return { items, snapshots }
-  const k = 10000 / totalAssets
-  const sqrtK = Math.sqrt(k)
-  const maskedItems = items.map((it) => {
-    const m = { ...it }
-    if (isFinite(m.quantity)) m.quantity = m.quantity * sqrtK
-    for (const f of PRICE_FIELDS) {
-      if (isFinite(m[f])) m[f] = m[f] * sqrtK
-    }
-    if (isFinite(m.incomeAmount)) m.incomeAmount = m.incomeAmount * k
-    return m
-  })
-  const maskedSnapshots = snapshots.map((s) => {
-    const m = { ...s }
-    if (isFinite(m.netWorthUSD)) m.netWorthUSD = m.netWorthUSD * k
-    if (isFinite(m.totalActivosUSD)) m.totalActivosUSD = m.totalActivosUSD * k
-    return m
-  })
-  return { items: maskedItems, snapshots: maskedSnapshots }
+function scopeLabelOf(scope) {
+  if (scope.type === 'entity') return scope.entityName || null
+  if (scope.type === 'portfolio') return scope.portfolioName || null
+  if (scope.type === 'institutions') return scope.institutions.join(' · ')
+  return null
 }
+
+// La tarjeta de ingresos lista la TASA de cada fuente, que no es una cifra que
+// el motor del reporte produzca (él da el total proyectado). Se arma de los
+// items ya enriquecidos, con el mismo helper que usa el tablero para el monto.
+function incomeSourcesOf(items, convert, baseCurrency) {
+  return (items || [])
+    .filter((it) => !it.isDebt && (it.incomeRate > 0 || it.dividendYield > 0 || (it.rateType === 'variable' && it.rateMin > 0)))
+    .map((it) => ({
+      name: it.name || it.symbol || '',
+      rateLabel: it.rateType === 'variable' ? `${it.rateMin}-${it.rateMax}%` : `${it.incomeRate || it.dividendYield}%`,
+      annual: itemAnnualIncomeInBase(it, { convert, baseCurrency, projectItemAnnualIncome }),
+    }))
+    .sort((a, b) => (b.annual || 0) - (a.annual || 0))
+    .slice(0, 8)
+}
+
+// `maskAmounts` vivía acá: escalaba `quantity` y seis campos de precio por √k
+// para que un link 'percent' conservara sus razones sin publicar los montos.
+// Con el payload calculado (FASE KK) el enmascarado dejó de hacer falta: los
+// montos no se emiten, punto. Menos código y una garantía más fuerte, porque
+// ya no depende de que una transformación preserve exactamente los ratios
+// correctos sobre CADA campo que alguien agregue después.
 
 async function readLinks(shareRef, db, uid) {
   const doc = await shareRef.get()
@@ -176,47 +194,57 @@ export async function GET(request) {
     const scope = sanitizeScope(tokenData.scope) || { type: 'all' }
     const display = sanitizeDisplay(tokenData.display)
 
-    const [itemsSnap, snapshotsSnap] = await Promise.all([
-      db.collection('users').doc(uid).collection('items').get(),
-      // Snapshots are GLOBAL net worth; on a scoped link they'd expose (and
-      // mislabel) the whole portfolio's history, so only 'all' includes them.
-      scope.type === 'all'
-        ? db.collection('users').doc(uid).collection('snapshots').orderBy('date').get()
-        : Promise.resolve({ docs: [] }),
-    ])
+    // FASE KK. El payload sale del MISMO pipeline que el reporte PDF, en vez
+    // de mandar los documentos crudos para que el navegador los sume a mano.
+    // Sin caché a propósito: se llavea por uid, y un contexto escopado no puede
+    // terminar sirviendole al correo de este usuario como si fuera todo.
+    const ctx = await loadUserPortfolioContext({
+      db, uid,
+      filterItem: scopeFilter(scope),
+      // Los snapshots son patrimonio GLOBAL: en un link escopado describirian
+      // (y etiquetarian mal) la historia del portafolio entero, no la de la
+      // rebanada compartida. Sin ellos no hay serie, y la pagina lo DICE.
+      includeSnapshots: scope.type === 'all',
+    })
 
-    const SHARE_FIELDS = new Set([
-      'name', 'symbol', 'type', 'isDebt', 'isReceivable', 'quantity', 'currentPrice',
-      'purchasePrice', 'averagePrice', 'price', 'cost', 'currency', 'incomeRate',
-      'dividendYield', 'rateType', 'rateMin', 'rateMax', 'maturityDate', 'incomeMonths',
-      'incomeAmount', 'subtype', 'isIlliquid', 'lastManualValuation',
-    ])
-    const inScope = (data) => {
-      if (scope.type === 'entity') return (data.entityId || 'default') === scope.entityId
-      if (scope.type === 'institutions') return scope.institutions.includes((data.institution || '').trim())
-      return true
-    }
-    let items = itemsSnap.docs
-      .map((d) => ({ id: d.id, data: d.data() }))
-      .filter(({ data }) => inScope(data))
-      .map(({ id, data }) => {
-        const safe = { id }
-        for (const key of SHARE_FIELDS) {
-          if (data[key] !== undefined) safe[key] = data[key]
-        }
-        return safe
+    const scopeLabel = scopeLabelOf(scope)
+    if (!ctx) {
+      // Portafolio vacio, o un alcance que hoy no matchea nada. No es un error:
+      // es una respuesta legitima, y decirlo asi deja que la pagina lo explique
+      // en vez de mostrar una pantalla de link roto.
+      return NextResponse.json({
+        empty: true, display, label: tokenData.label || null, scopeLabel,
+        baseCurrency: 'USD', owner: '', asOf: Date.now(),
       })
-
-    let snapshots = snapshotsSnap.docs.map((d) => ({ ...d.data(), id: d.id }))
-
-    if (display === 'percent') {
-      ;({ items, snapshots } = maskAmounts(items, snapshots))
     }
 
-    const prefsDoc = await db.collection('users').doc(uid).collection('settings').doc('preferences').get()
-    const baseCurrency = prefsDoc.exists ? prefsDoc.data().baseCurrency || 'USD' : 'USD'
+    const report = buildReportData({
+      items: ctx.items,
+      transactions: ctx.transactions,
+      snapshots: ctx.augmented,
+      netWorth: ctx.netWorth,
+      totalAssets: ctx.totalAssets,
+      annualDividends: ctx.annualDividends,
+      estimatedAnnualIncome: ctx.estimatedAnnualIncome,
+      baseCurrency: ctx.baseCurrency,
+      convert: ctx.convert,
+      profileName: ctx.profileName,
+      lang: 'en',
+      period: 'ytd',
+      topN: 12,
+    })
 
-    return NextResponse.json({ items, snapshots, baseCurrency, label: tokenData.label || null, display })
+    const payload = buildSharePayload(report, {
+      display,
+      label: tokenData.label || null,
+      scopeLabel,
+      hasSeries: scope.type === 'all',
+      incomeSources: incomeSourcesOf(ctx.items, ctx.convert, ctx.baseCurrency),
+      degraded: (ctx.failedSymbols || []).length > 0,
+      failedSymbols: ctx.failedSymbols || [],
+    })
+
+    return NextResponse.json(payload)
   } catch (err) {
     console.error('[api/share] GET error:', err.message)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
