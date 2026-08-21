@@ -33,6 +33,22 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   // que pidió: "un panel con los requisitos y un % del 1 al cien y que toque
   // el que quiere editar".
   ibkrProgress = null, onOpenIbkrStep = null,
+  // ⛔ FASE KI. Por qué falló el último sync, dicho.
+  //
+  // El servidor SIEMPRE nos dice la razón y la guardamos
+  // (`_ibkrAutoSyncError` / `_ibkrAutoSyncErrorCode`), pero hasta acá NADIE la
+  // renderizaba: `ibkrSyncError` salía del hook y no tenía un solo consumidor.
+  // O sea el dato existía y era inalcanzable, la misma clase de campo muerto
+  // que `prefs.profileName` (leído y nunca escrito) y `lastUsedAt` (escrito y
+  // nunca leído). El banner del tablero traduce el CÓDIGO a una frase, pero
+  // nunca muestra el mensaje del servidor, así que un código sin mapear cae a
+  // "la última sincronización falló": cero información accionable.
+  //
+  // Va acá y no en el banner porque esta es la pantalla a la que uno viene
+  // cuando algo anda mal, y porque en un teléfono no hay consola: sin esto,
+  // "no me funciona IBKR" obliga a una ronda de preguntas para saber si es un
+  // token vencido, un bloqueo temporal o la query mal configurada.
+  ibkrSyncError = null, ibkrSyncErrorCode = null, ibkrLastAttempt = null,
 }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
@@ -287,6 +303,25 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   // era la única discrepando (misma lección que FASE AF, que documenta cómo
   // juzgar por el vault solo hacía leer como desconectada toda conexión ya
   // migrada).
+  // ⛔ FASE KI. La hora del último intento se formatea DESPUÉS de montar, nunca
+  // durante el render. `toLocaleString` depende de la zona horaria, y el
+  // servidor renderiza en UTC mientras el navegador lo hace en la del usuario:
+  // "04:38 p. m." contra "10:38 a. m." es un desajuste de hidratación, y React
+  // descarta el árbol servido y vuelve a renderizar. Verificado con un A/B en
+  // el navegador: 0 pageerrors sin esta línea, 8 con ella formateando en el
+  // render. Es la MISMA trampa que FASE JT ya documenta para la pantalla de
+  // error; el estado arranca vacío, así que servidor y primer render del
+  // cliente coinciden y el efecto lo rellena después.
+  const [attemptLabel, setAttemptLabel] = useState('')
+  useEffect(() => {
+    if (!ibkrLastAttempt) { setAttemptLabel(''); return }
+    const d = new Date(ibkrLastAttempt)
+    if (isNaN(d.getTime())) { setAttemptLabel(''); return }
+    setAttemptLabel(d.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    }))
+  }, [ibkrLastAttempt, lang])
+
   const ibkrLinked = ibkrConfigured || !!ibkrProgress?.steps?.find((s) => s.id === 'connect')?.done
   const syncAge = lastSyncTime ? Date.now() - new Date(lastSyncTime).getTime() : null
   const syncDays = syncAge ? Math.floor(syncAge / 86400000) : null
@@ -436,6 +471,21 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   <p className="text-xs mt-2 pl-9" style={{ color: 'var(--accent-orange)' }}>
                     {t('Tus datos podrían estar desactualizados', 'Your data may be outdated')}
                   </p>
+                )}
+                {ibkrLinked && (ibkrSyncError || ibkrSyncErrorCode) && (
+                  <div className="text-xs mt-2 pl-9 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+                    <p>
+                      {t('Último intento: falló', 'Last attempt: failed')}
+                      {attemptLabel ? ` · ${attemptLabel}` : ''}
+                      {ibkrSyncErrorCode ? ` · ${ibkrSyncErrorCode}` : ''}
+                    </p>
+                    {/* El mensaje CRUDO del servidor. Un código que todavía no
+                        mapeamos deja de ser un callejón sin salida: lo que IBKR
+                        contestó se puede leer y reportar tal cual. */}
+                    {ibkrSyncError && (
+                      <p className="mt-0.5" style={{ opacity: 0.85, wordBreak: 'break-word' }}>{ibkrSyncError}</p>
+                    )}
+                  </div>
                 )}
                 {/* El 365-day Flex cap hace que "conectado" casi nunca sea
                     "completo". Antes eso era un link de texto ("Completar
