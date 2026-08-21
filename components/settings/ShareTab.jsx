@@ -19,6 +19,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link2 } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { formatDate } from '@/components/dashboard/utils'
 import BusyLabel from '@/components/ui/BusyLabel'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 
@@ -40,7 +41,13 @@ export default function ShareTab({
   // default lo que uno tiene en pantalla es menos sorprendente que compartir
   // toda la cuenta, que es lo que 'all' significa.
   const defaultSharePortfolio = activePortfolio && activePortfolio !== '__all__' ? activePortfolio : ''
-  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both' })
+  const EMPTY_FORM = { label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both', expiry: 'never', lang: 'es' }
+  const [shareForm, setShareForm] = useState(EMPTY_FORM)
+  // Edición por fila (FASE KP): corregir la etiqueta de un link que el cliente
+  // YA tiene, sin re-crearlo. Solo la etiqueta: alcance, números, idioma y
+  // vigencia son inmutables después de crear (el servidor también lo exige).
+  const [editingToken, setEditingToken] = useState(null)
+  const [editLabel, setEditLabel] = useState('')
 
   const shareApi = useCallback(async (payload) => {
     const res = await authFetch('/api/share', {
@@ -80,10 +87,13 @@ export default function ShareTab({
         : shareForm.scopeType === 'institutions'
           ? { type: 'institutions', institutions: shareForm.institutions }
           : { type: 'all' }
-      const { link } = await shareApi({ action: 'create', label: shareForm.label, scope, display: shareForm.display })
+      const { link } = await shareApi({
+        action: 'create', label: shareForm.label, scope, display: shareForm.display,
+        lang: shareForm.lang, expiry: shareForm.expiry,
+      })
       setShareLinks((prev) => [...(prev || []), link])
       setShareCreating(false)
-      setShareForm({ label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both' })
+      setShareForm(EMPTY_FORM)
       copyShareLink(link.token)
       flash('ok', t('Link creado y copiado', 'Link created and copied'))
     } catch (e) { flash('err', e.message) }
@@ -100,6 +110,19 @@ export default function ShareTab({
     setShareLoading(false)
   }
 
+  const handleUpdateShare = async (token) => {
+    const label = editLabel.trim()
+    if (!label) { setEditingToken(null); return }
+    setShareLoading(true)
+    try {
+      const { link } = await shareApi({ action: 'update', token, label })
+      setShareLinks((prev) => (prev || []).map((l) => (l.token === token ? link : l)))
+      setEditingToken(null)
+      flash('ok', t('Link actualizado', 'Link updated'))
+    } catch (e) { flash('err', e.message) }
+    setShareLoading(false)
+  }
+
   const institutionOptions = [...new Set(portfolioItems.map((it) => (it.institution || '').trim()).filter(Boolean))].sort()
   const scopeChip = (scope) => {
     if (scope?.type === 'entity') return `👥 ${scope.entityName || t('Entidad', 'Entity')}`
@@ -111,6 +134,18 @@ export default function ShareTab({
     if (display === 'percent') return ` · 👁 ${t('solo %', '% only')}`
     if (display === 'amounts') return ` · 👁 ${t('solo montos', 'amounts only')}`
     return ''
+  }
+  // El idioma solo se anota cuando NO es el default: una fila sin anotación es
+  // un link en español, que es lo que casi todos son.
+  const langChip = (l) => (l === 'en' ? ' · EN' : '')
+  const expiryLine = (link) => {
+    if (!link?.expiresAt) return null
+    const ts = Date.parse(link.expiresAt)
+    if (!isFinite(ts)) return null
+    const when = formatDate(link.expiresAt)
+    return ts < Date.now()
+      ? { text: t(`Venció el ${when}`, `Expired ${when}`), expired: true }
+      : { text: t(`Vence el ${when}`, `Expires ${when}`), expired: false }
   }
   const toggleInst = (inst) => setShareForm((p) => ({
     ...p,
@@ -131,6 +166,16 @@ export default function ShareTab({
     { key: 'both', label: t('Montos y %', 'Amounts & %') },
     { key: 'amounts', label: t('Solo montos', 'Amounts only') },
     { key: 'percent', label: t('Solo % (oculta montos)', '% only (hides amounts)') },
+  ]
+  const expiryTabs = [
+    { key: 'never', label: t('Indefinido', 'No expiry') },
+    { key: '30d', label: t('30 días', '30 days') },
+    { key: '90d', label: t('90 días', '90 days') },
+    { key: '1y', label: t('1 año', '1 year') },
+  ]
+  const langTabs = [
+    { key: 'es', label: 'Español' },
+    { key: 'en', label: 'English' },
   ]
 
   return (
@@ -155,24 +200,59 @@ export default function ShareTab({
         <p className="text-xs text-slate-600">{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
       ) : (
         <div className="space-y-1.5">
-          {shareLinks.map((link) => (
-            <div key={link.token} className="p-3 bg-theme-base border border-glass-border rounded-xl">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
-                  <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}</p>
+          {shareLinks.map((link) => {
+            const exp = expiryLine(link)
+            return (
+              <div key={link.token} className="p-3 bg-theme-base border border-glass-border rounded-xl">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    {editingToken === link.token ? (
+                      <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} maxLength={40} autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdateShare(link.token)
+                          if (e.key === 'Escape') setEditingToken(null)
+                        }}
+                        className="w-full px-2 py-1 bg-theme-surface border border-glass-border/60 rounded-md text-sm text-white focus:outline-none focus:border-blue-500/50" />
+                    ) : (
+                      <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
+                    )}
+                    <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}{langChip(link.lang)}</p>
+                    {exp && (
+                      <p className="text-xs truncate" style={{ color: exp.expired ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>{exp.text}</p>
+                    )}
+                  </div>
+                  {editingToken === link.token ? (
+                    <>
+                      <button onClick={() => handleUpdateShare(link.token)} disabled={shareLoading}
+                        className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                        <BusyLabel busy={shareLoading} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>
+                      </button>
+                      <button onClick={() => setEditingToken(null)}
+                        className="shrink-0 px-2 py-1 text-xs transition-colors" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Cancelar', 'Cancel')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => { setEditingToken(link.token); setEditLabel(link.label || '') }}
+                        aria-label={t('Renombrar', 'Rename')} title={t('Renombrar', 'Rename')}
+                        className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
+                        ✎
+                      </button>
+                      <button onClick={() => copyShareLink(link.token)}
+                        className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                        {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
+                      </button>
+                      <button onClick={() => handleRevokeShare(link.token)} disabled={shareLoading} aria-label={t('Revocar', 'Revoke')}
+                        className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
+                        ✕
+                      </button>
+                    </>
+                  )}
                 </div>
-                <button onClick={() => copyShareLink(link.token)}
-                  className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                  {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
-                </button>
-                <button onClick={() => handleRevokeShare(link.token)} disabled={shareLoading} aria-label={t('Revocar', 'Revoke')}
-                  className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
-                  ✕
-                </button>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -206,6 +286,26 @@ export default function ShareTab({
             {shareForm.display === 'percent' && (
               <p className="text-xs text-slate-600 mt-1">{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
             )}
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">{t('Vigencia', 'Expiry')}</label>
+            <SegmentedTabs tabs={expiryTabs} value={shareForm.expiry}
+              onChange={(key) => setShareForm((p) => ({ ...p, expiry: key }))}
+              deps={[lang]} ariaLabel={t('Vigencia del link', 'Link expiry')} />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              {t('Indefinido es lo normal: la página siempre muestra su fecha de corte, y puedes revocar cuando quieras.', 'No expiry is the norm: the page always shows its as-of date, and you can revoke anytime.')}
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">{t('Idioma de la página', 'Page language')}</label>
+            <SegmentedTabs tabs={langTabs} value={shareForm.lang}
+              onChange={(key) => setShareForm((p) => ({ ...p, lang: key }))}
+              deps={[lang]} ariaLabel={t('Idioma del link', 'Link language')} />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              {t('Quien lo abra puede cambiarlo desde la propia página.', 'Whoever opens it can switch it from the page itself.')}
+            </p>
           </div>
 
           {shareForm.scopeType === 'portfolio' && (
@@ -258,7 +358,10 @@ export default function ShareTab({
         </button>
       )}
 
-      <p className="text-xs text-slate-600">{t('Los links expiran a los 90 días.', 'Links expire after 90 days.')}</p>
+      <p className="text-xs text-slate-600">{t(
+        'Los links no vencen salvo que elijas una vigencia al crearlos; puedes revocarlos cuando quieras.',
+        "Links don't expire unless you pick a duration when creating them; you can revoke them anytime."
+      )}</p>
     </div>
   )
 }
