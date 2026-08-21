@@ -6,6 +6,7 @@ import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } fr
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { authFetch } from '@/lib/authFetch'
+import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
@@ -49,7 +50,7 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
   )
 }
 
-function DoneStep({ result, onClose, onComplementFile, t }) {
+function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
   // When there is no value history, don't auto-close: the user needs time to read
   // the warning and reach for the Activity Statement complement.
   const needsHistory = result.items > 0 && result.equityHistory <= 1
@@ -97,6 +98,18 @@ function DoneStep({ result, onClose, onComplementFile, t }) {
                'It is one time only: the history of positions you opened before your query needs the Excel. From then on, every new deposit, withdrawal, trade or cost is detected automatically on each sync.')}
           </p>
         </div>
+      )}
+      {/* FASE KC. El sync funcionó pero el vault no confirmó el guardado del
+          token. No es un fallo de la importación (los datos ya entraron), así
+          que va en ámbar y no en rojo; lo que importa es que el usuario sepa
+          que va a tener que teclearlo otra vez, en vez de descubrirlo cuando
+          el sync automático empiece a fallar solo. */}
+      {credWarning && (
+        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {t('Tus datos se importaron, pero no pudimos guardar tu token para la próxima vez: vas a tener que volver a pegarlo. ',
+             'Your data was imported, but we could not save your token for next time: you will have to paste it again. ')}
+          <span style={{ opacity: 0.8 }}>({credWarning})</span>
+        </p>
       )}
       {/* History present but SHORT: the query period truncates it, so YTD can't
           match the broker. Same actionable fix: widen the period, re-sync. */}
@@ -179,6 +192,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // True when the Flex token lives in the server-side vault (settings/ibkr), so a
   // sync can run with '__stored__' without the client ever handling the token.
   const [hasVaultCreds, setHasVaultCreds] = useState(false)
+  // FASE KC. El sync funcionó pero el vault no confirmó el guardado del token:
+  // no es un fallo de la importación (los datos ya entraron), así que se dice
+  // en ámbar en la pantalla final en vez de en rojo, y con la acción concreta.
+  const [credWarning, setCredWarning] = useState('')
   const [showConfig, setShowConfig] = useState(!isConnected)
   // First-time explainer: tells the user how the connection actually works
   // (IBKR only shares what their Flex Query is configured to share, and its
@@ -205,6 +222,24 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const abortRef = useRef(null)
   const fileInputRef = useRef(null)
   const autoStartedRef = useRef(false)
+  // ⛔ FASE KC. "El usuario esta tecleando ahora mismo".
+  //
+  // El efecto de auto-arranque de abajo dispara en cuanto token y queryId son
+  // los dos no vacios, y sus deps estan atadas a los inputs, o sea corre en
+  // CADA tecla. Con el token ya lleno, el PRIMER digito del Query ID lo
+  // disparaba: se guardaba `queryId` = "9" (un solo caracter) y la pantalla
+  // saltaba a "Credenciales guardadas" con el usuario a media palabra. Un Query
+  // ID truncado no puede funcionar nunca, y cada reintento es un intento
+  // fallido mas hacia el bloqueo de IBKR.
+  //
+  // Quedaba tapado porque un Flex token se PEGA (40+ caracteres), y pegar setea
+  // el valor entero de un golpe; solo muerde a quien teclea el segundo campo.
+  // FASE GQ2 verifico que se aterrizaba en la pantalla correcta, no CON QUE
+  // valor, que es justo el hueco.
+  //
+  // La regla correcta: el auto-arranque es para credenciales que ya venian
+  // GUARDADAS (props o vault), nunca para lo que se esta escribiendo.
+  const userTypedRef = useRef(false)
 
   const ibkrHistory = useMemo(() => {
     const items = existingItems.filter(it => it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers'))
@@ -281,6 +316,8 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // path here closes that gap for good.
   useEffect(() => {
     if (autoStartedRef.current) return
+    // FASE KC: nunca sobre lo que el usuario esta tecleando (ver userTypedRef).
+    if (userTypedRef.current) return
     // Gate on the LOCALLY-known queryId (prop OR the one loaded from the vault) so a
     // vault-only connection auto-syncs with the stored token instead of stranding the
     // user on the form. `hasVaultCreds` means the server holds the token → handleSync
@@ -349,13 +386,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       // reused an already-saved token, so nothing to persist.
       if (typed && uid) {
         try {
-          await authFetch('/api/brokers/ibkr', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'save-credentials', token: typed, queryId: queryId.trim() }),
-          })
+          // FASE KC: lanza si el servidor no confirmó, en vez de marcar
+          // `_ibkrVaultMigrated` sobre un vault vacío (que deja a la app
+          // diciendo "conectado" y sincronizando con '__stored__' para siempre).
+          await saveIbkrCredentials(typed, queryId.trim())
           setHasVaultCreds(true)
+          setCredWarning('')
           onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
-        } catch (e) { console.error('[ibkr] save-credentials failed (re-enter token to persist):', e?.message) }
+        } catch (e) {
+          // El sync SÍ funcionó y los datos ya entraron, así que esto no es un
+          // fallo de la importación: es que no pudimos recordar el token. Va en
+          // ámbar en la pantalla final, no en rojo, y dice qué hacer.
+          console.error('[ibkr] save-credentials failed (re-enter token to persist):', e?.message)
+          setCredWarning(e?.message || '')
+        }
       }
 
       // The flex API returned data → the token works right now. Clear any stale
@@ -440,10 +484,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     setErrorCode('')
     try {
       if (typed && uid) {
-        await authFetch('/api/brokers/ibkr', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'save-credentials', token: typed, queryId: queryId.trim() }),
-        })
+        // FASE KC: si esto lanza, el catch de abajo deja al usuario en el paso
+        // de configuración con el error. Antes se seguía derecho a la pantalla
+        // "Credenciales guardadas" después de no guardarlas.
+        await saveIbkrCredentials(typed, queryId.trim())
         setHasVaultCreds(true)
       }
       onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
@@ -930,7 +974,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               <div className="border-t border-glass-border/40 pt-5 space-y-4">
                 <div>
                   <label className="text-xs uppercase tracking-wider mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Token</label>
-                  <input type="password" value={token} onChange={e => setToken(e.target.value)}
+                  <input type="password" value={token} onChange={e => { userTypedRef.current = true; setToken(e.target.value) }}
                     placeholder={decrypting ? t('Desencriptando...', 'Decrypting...') : t('Flex Web Service Token', 'Flex Web Service Token')}
                     disabled={decrypting}
                     className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
@@ -942,7 +986,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
 
                 <div>
                   <label className="text-xs uppercase tracking-wider mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Query ID</label>
-                  <input type="text" value={queryId} onChange={e => setQueryId(e.target.value)}
+                  <input type="text" value={queryId} onChange={e => { userTypedRef.current = true; setQueryId(e.target.value) }}
                     placeholder={t('Ej: 123456', 'E.g.: 123456')}
                     className="w-full px-4 py-2.5 bg-theme-base border rounded-lg text-sm placeholder-slate-600 focus:outline-none focus:border-[var(--accent-blue)] font-mono"
                     style={{ color: 'var(--text-primary)', borderColor: errorCode === 'INVALID_QUERY' ? 'rgba(239,68,68,0.6)' : 'var(--card-border)' }} />
@@ -1395,7 +1439,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           )}
 
           {step === 'done' && result && (
-            <DoneStep result={result} onClose={onClose} t={t}
+            <DoneStep result={result} onClose={onClose} t={t} credWarning={credWarning}
               onComplementFile={() => { setResult(null); setImportMode('file'); setShowConfig(true); setStep('config'); setError(''); setErrorCode('') }} />
           )}
         </div>
