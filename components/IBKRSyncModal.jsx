@@ -82,8 +82,18 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
       {result.items > 0 && result.equityHistory <= 1 && (
         <div className="mt-3 mx-auto max-w-xs">
           <p className="text-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
-            {t('Importamos tus posiciones, pero no llegó el historial de valor (la sección "Net Asset Value (NAV) in Base"). Por eso tus retornos y la gráfica arrancan desde hoy. Agrega esa sección al Flex Query, o complétalo con tu Activity Statement (XLS): trae el historial de valor, tus operaciones con fecha, depósitos y comisiones.',
-               'We imported your positions, but the value history did not arrive (the "Net Asset Value (NAV) in Base" section). That is why your returns and chart start from today. Add that section to your Flex Query, or complete it with your Activity Statement (XLS): it carries the value history, dated trades, deposits and commissions.')}
+            {/* FASE KE. Antes esto ofrecía el Activity Statement diciendo que
+                "trae el historial de valor", y es falso por partida doble: las
+                instrucciones de esta misma app ya dicen "no uses Statements →
+                Activity: ese formato no trae el valor diario de la cuenta", y
+                el parser de statements necesita una tabla de NAV con columna de
+                fecha que ese reporte no tiene (Change in NAV es un resumen, no
+                una serie diaria). El usuario bajaba el Excel, lo importaba, y
+                el historial seguía vacío. El único arreglo real es agregar la
+                sección al Flex Query; el Activity Statement se sigue ofreciendo
+                por lo que SÍ trae. */}
+            {t('Importamos tus posiciones, pero no llegó el historial de valor (la sección "Net Asset Value (NAV) in Base"). Por eso tus retornos y la gráfica arrancan desde hoy. El arreglo es agregar esa sección al Flex Query y volver a sincronizar. Para historial más viejo que ~365 días, transcribí los trimestres desde Portfolio Analyst. El Activity Statement (XLS) no trae el valor diario, pero sí tus operaciones con fecha, depósitos y comisiones.',
+               'We imported your positions, but the value history did not arrive (the "Net Asset Value (NAV) in Base" section). That is why your returns and chart start from today. The fix is to add that section to your Flex Query and sync again. For history older than ~365 days, transcribe the quarters from Portfolio Analyst. The Activity Statement (XLS) does not carry the daily value, but it does carry your dated trades, deposits and commissions.')}
           </p>
           {onComplementFile && (
             <button onClick={onComplementFile}
@@ -116,8 +126,12 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
       {result.items > 0 && result.equityHistory > 1 && result.equityOldest
         && new Date(result.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000 && (
         <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
-          {t(`Tu historial de valor empieza el ${result.equityOldest}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Year to Date" (o "Last 365 Days") y vuelve a sincronizar.`,
-             `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Year to Date" (or "Last 365 Days") and sync again.`)}
+          {/* FASE KE: decía "Year to Date", igual que el consejo de
+              EMPTY_REPORT. Contradice la instrucción principal y, en enero, YTD
+              son días: seguir el consejo ACORTA el historial en vez de
+              alargarlo, que es justo lo contrario de lo que este aviso pide. */}
+          {t(`Tu historial de valor empieza el ${result.equityOldest}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Last 365 Calendar Days" y vuelve a sincronizar.`,
+             `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Last 365 Calendar Days" and sync again.`)}
         </p>
       )}
       {/* Positions arrived but ZERO deposits/withdrawals did. This failure is
@@ -679,8 +693,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         )
       case 'INVALID_QUERY':
         return t(
-          'Ve a IBKR → Performance & Reports → Flex Queries y verifica que tu Query esté activo.',
-          'Go to IBKR → Performance & Reports → Flex Queries and verify your Query is active.'
+          // FASE KE: el formato entra al consejo porque ahora es una de las dos
+          // causas de este código (una query guardada en CSV devuelve algo que
+          // el Flex Web Service entrega igual pero que no podemos leer).
+          'Ve a IBKR → Performance & Reports → Flex Queries y verifica que tu Query esté activo y que su formato sea XML.',
+          'Go to IBKR → Performance & Reports → Flex Queries and verify your Query is active and its format is XML.'
         )
       case 'RATE_LIMITED':
         return t(
@@ -694,8 +711,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         )
       case 'EMPTY_REPORT':
         return t(
-          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions", "Cash Report" y "Net Asset Value (NAV) in Base", y que el período sea "Year to Date".',
-          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Net Asset Value (NAV) in Base", and that the period is "Year to Date".'
+          // FASE KE: decía "Year to Date", que CONTRADICE la instrucción
+          // principal ("Last 365 Calendar Days") y encima estrecha la ventana:
+          // en enero, YTD son días. El usuario seguía el consejo y volvía a
+          // obtener un reporte vacío.
+          'Verifica que tu Flex Query incluya "Open Positions", "Trades", "Cash Transactions", "Cash Report" y "Net Asset Value (NAV) in Base", que en cada sección esté marcado "Select All" en los campos, y que el período sea "Last 365 Calendar Days".',
+          'Verify your Flex Query includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Net Asset Value (NAV) in Base", that each section has "Select All" ticked in its fields, and that the period is "Last 365 Calendar Days".'
         )
       case 'LOCKED':
         return t(

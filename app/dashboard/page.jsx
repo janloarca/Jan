@@ -509,8 +509,11 @@ export default function DashboardPage() {
           : `IBKR: ${res.count} positions but NO value history. Add "Equity Summary" to your Flex Query.`, 'warn', 6000)
       } else if (shortHistory) {
         showToast(lang === 'es'
-          ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Year to Date".`
-          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Year to Date".`, 'warn', 8000)
+          // FASE KE: mismo consejo contradictorio que en el modal. El período
+          // que las instrucciones piden es "Last 365 Calendar Days"; en enero,
+          // YTD son días y seguir el consejo acorta el historial.
+          ? `IBKR: ${res.count} posiciones · solo ${res.equityDays} días de historial (desde ${res.equityOldest}). El período del Flex Query sigue corto: ponlo en "Last 365 Calendar Days".`
+          : `IBKR: ${res.count} positions · only ${res.equityDays} days of history (since ${res.equityOldest}). Your Flex Query period is still short: set it to "Last 365 Calendar Days".`, 'warn', 8000)
       } else if ((res.trades || 0) + (res.flows || 0) === 0) {
         // History arrived but zero trades/deposits: the query is missing the
         // Trades / Cash Transactions sections, so the rewound value curve and
