@@ -169,7 +169,15 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
   const asOfLabel = useAsOfLabel(asOf, lang)
 
   const exportCsv = useCallback(() => {
-    const head = ['Name', 'Symbol', 'Type', ...(showAmounts ? ['Value'] : []), 'Weight %', ...(showPerf ? ['Return %'] : [])]
+    // El CSV también respeta el idioma del toggle: es el único artefacto que
+    // el cliente se lleva además del PDF, y un archivo con cabeceras en otro
+    // idioma se lee como de otra app.
+    const head = [
+      t('Nombre', 'Name'), t('Símbolo', 'Symbol'), t('Tipo', 'Type'),
+      ...(showAmounts ? [t('Valor', 'Value')] : []),
+      t('Peso %', 'Weight %'),
+      ...(showPerf ? [t('Retorno %', 'Return %')] : []),
+    ]
     const esc = (v) => {
       const s = String(v ?? '')
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -186,10 +194,10 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
     const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `portfolio-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `${t('portafolio', 'portfolio')}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
-  }, [holdings, showAmounts, showPerf])
+  }, [holdings, showAmounts, showPerf, t])
 
   const catColor = (cat) => (TYPE_COLORS[cat] || TYPE_COLORS.other).bg
   const pct2 = (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`

@@ -25,14 +25,17 @@ const EMPTY_FORM = {
   description: '', risks: '', disclaimer: '', externalUrl: '',
 }
 
-const TERM_PLACEHOLDERS = [
-  ['Monto mínimo', 'Q10,000.00'],
-  ['Tasa', '8% anual'],
-  ['Plazo', '10 años'],
-]
-
 export default function InstrumentSheetsManager({ lang = 'es', onClose, instruments = [], onSave, onDelete, flash = () => {} }) {
   const t = (es, en) => (lang === 'es' ? es : en)
+  // Placeholders de ejemplo, bilingües como todo lo demás: un asesor con la
+  // app en inglés no puede recibir el formulario sugerido en español.
+  const TERM_PLACEHOLDERS = [
+    [t('Monto mínimo', 'Minimum amount'), 'Q10,000.00'],
+    [t('Tasa', 'Rate'), t('8% anual', '8% per year')],
+    [t('Plazo', 'Term'), t('10 años', '10 years')],
+  ]
+  const HERO_LABEL_PH = [t('Tasa', 'Rate'), t('Plazo', 'Term'), t('Monto mínimo', 'Min. amount'), t('Periodicidad', 'Frequency')]
+  const HERO_VALUE_PH = [t('8% anual', '8% per year'), t('10 años', '10 years'), 'Q10,000', t('Semestral', 'Semiannual')]
   const trapRef = useFocusTrap()
   const [editing, setEditing] = useState(null) // null = lista; '' = nueva; id = editar
   const [form, setForm] = useState(EMPTY_FORM)
@@ -152,7 +155,7 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
               )}
             </p>
             {instruments.length === 0 ? (
-              <p className="text-xs text-slate-600">{t('Aún no has creado ninguna ficha.', 'You haven\'t created any sheets yet.')}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Aún no has creado ninguna ficha.', 'You haven\'t created any sheets yet.')}</p>
             ) : (
               <div className="space-y-1.5">
                 {instruments.map((ins) => (
@@ -214,9 +217,9 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
                 {form.heroFacts.map((row, i) => (
                   <div key={i} className="grid grid-cols-[1fr_1.4fr] gap-2">
                     <input value={row.label} onChange={(e) => setPair('heroFacts', i, 'label', e.target.value)} maxLength={40}
-                      placeholder={['Tasa', 'Plazo', 'Monto mínimo', 'Periodicidad'][i] || ''} className={inputCls} />
+                      placeholder={HERO_LABEL_PH[i] || ''} className={inputCls} />
                     <input value={row.value} onChange={(e) => setPair('heroFacts', i, 'value', e.target.value)} maxLength={60}
-                      placeholder={['8% anual', '10 años', 'Q10,000', 'Semestral'][i] || ''} className={inputCls} />
+                      placeholder={HERO_VALUE_PH[i] || ''} className={inputCls} />
                   </div>
                 ))}
               </div>

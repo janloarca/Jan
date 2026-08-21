@@ -228,7 +228,7 @@ export default function ShareTab({
       {shareLinks === null || (shareLoading && !shareLinks?.length && !shareCreating) ? (
         <p className="text-xs text-slate-500">…</p>
       ) : shareLinks.length === 0 && !shareCreating ? (
-        <p className="text-xs text-slate-600">{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
       ) : (
         <div className="space-y-1.5">
           {shareLinks.map((link) => {
@@ -318,7 +318,7 @@ export default function ShareTab({
               onChange={(key) => setShareForm((p) => ({ ...p, display: key }))}
               deps={[lang]} ariaLabel={t('Números visibles', 'Visible numbers')} />
             {shareForm.display === 'percent' && (
-              <p className="text-xs text-slate-600 mt-1">{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
             )}
           </div>
 
@@ -366,7 +366,7 @@ export default function ShareTab({
 
           {shareForm.scopeType === 'institutions' && (
             <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-              <p className="text-xs text-slate-600">{t('Solo se compartirán las posiciones de lo que marques:', 'Only positions from what you check will be shared:')}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Solo se compartirán las posiciones de lo que marques:', 'Only positions from what you check will be shared:')}</p>
               {institutionOptions.map((inst) => (
                 <label key={inst} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-theme-elevated cursor-pointer">
                   <input type="checkbox" checked={shareForm.institutions.includes(inst)} onChange={() => toggleInst(inst)} />
@@ -403,7 +403,7 @@ export default function ShareTab({
         {t('Fichas de instrumento', 'Instrument sheets')}{instruments.length > 0 ? ` (${instruments.length})` : ''}
       </button>
 
-      <p className="text-xs text-slate-600">{t(
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t(
         'Los links no vencen salvo que elijas una vigencia al crearlos; puedes revocarlos cuando quieras.',
         "Links don't expire unless you pick a duration when creating them; you can revoke them anytime."
       )}</p>
