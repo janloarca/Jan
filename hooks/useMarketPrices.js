@@ -125,6 +125,22 @@ export function useMarketPrices(items) {
         enriched.currentPrice = priceData.price
         enriched.change7d = priceData.change7d
         enriched.change1d = priceData.change1d
+        // FASE JX: qué VENTANA mide ese change1d y de cuándo es. Para una acción
+        // es la última sesión regular COMPLETADA, así que un fin de semana (o un
+        // martes antes de la apertura) sigue siendo la sesión anterior; para
+        // cripto es una ventana rodante de 24h, siempre fresca. Sin esto la
+        // tarjeta de movimientos titulaba "hoy" un dato del viernes.
+        enriched._change1dWindow = priceData.change1dWindow || null
+        enriched._change1dAsOf = priceData.change1dAsOf || null
+        // ⛔ FASE JX. `priceItems` cae a un respaldo last-known-good POR SÍMBOLO
+        // con expiración de SIETE DÍAS (lib/priceCache.js) y lo devuelve marcado
+        // `stale: true` + `asOf`. Esos dos campos existían, viajaban dentro de
+        // `prices[sym]`... y este enriquecimiento los tiraba: una cotización de
+        // la semana pasada se dibujaba en "movimientos de HOY" idéntica a una
+        // viva, sin ninguna marca. Es la degradación muda que el invariante 5
+        // prohíbe, en una superficie que no lo tenía cubierto.
+        enriched._priceStale = priceData.stale === true
+        enriched._priceAsOf = priceData.asOf || null
         enriched.marketCurrency = priceData.currency
       }
 

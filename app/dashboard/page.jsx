@@ -1440,6 +1440,7 @@ export default function DashboardPage() {
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail} ytdBreakdownTerms={ytdBreakdownTerms}
               ytdDegradedAccounts={ytdDegradedAccounts}
+              pricesUpdate={pricesUpdate}
             />
             </CardBoundary>
           </div>

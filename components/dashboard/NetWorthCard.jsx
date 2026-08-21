@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { formatCurrency, formatDate, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
+import { computeDayMovers } from '@/lib/dayMovers'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
@@ -180,7 +181,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, pricesUpdate = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -254,31 +255,16 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // nothing about how much it actually moved your net worth. Deduped by item
   // id (two holdings sharing a symbol must not shadow each other) and gated
   // by position weight: a $5 position's ±10% shouldn't headline the card.
-  const movers = useMemo(() => {
-    if (!items || items.length === 0) return { gainers: [], losers: [] }
-    const eligible = items.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
-    const total = eligible.reduce((s, it) => s + Math.abs(getItemValue(it)), 0)
-    const minValue = total * 0.005 // ≥0.5% of the portfolio
-    const seen = new Set()
-    const list = []
-    eligible.forEach((it) => {
-      if (it.change1d == null || !isFinite(it.change1d)) return
-      const value = getItemValue(it)
-      if (Math.abs(value) < minValue) return
-      const key = it.id || it.symbol || it.name
-      const label = it.symbol || it.name
-      if (!label || seen.has(key)) return
-      seen.add(key)
-      list.push({
-        label, pct: it.change1d,
-        dollarChange: value * (it.change1d / 100),
-        impactPct: total > 0 ? (value / total) * it.change1d : 0,
-      })
-    })
-    const gainers = list.filter((m) => m.pct >= 0).sort((a, b) => b.pct - a.pct).slice(0, 5)
-    const losers = list.filter((m) => m.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 5)
-    return { gainers, losers }
-  }, [items])
+  // ⛔ FASE JX: el motor vive en lib/dayMovers.js, agregado POR ACTIVO. Este
+  // bloque deduplicaba por ID DE ÍTEM, así que el mismo activo en dos cuentas
+  // producía DOS filas compitiendo entre sí, y como el render las llaveaba por
+  // etiqueta, esas dos filas homónimas dejaban un nodo rancio al cambiar de
+  // pestaña (la lista de perdedores abría con una fila verde de ganancia).
+  const movers = useMemo(() => computeDayMovers({
+    items,
+    getValue: getItemValue,
+    isEligible: (it) => !it.isDebt && !isExcludedFromNetWorth(it),
+  }), [items])
 
   // The YTD figure opens into its own parts: which institutions, and inside
   // them which holdings, actually produced the number. Closed by default so the
@@ -312,6 +298,61 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     if (moversTab === 'gainers' && movers.gainers.length === 0 && movers.losers.length > 0) setMoversTab('losers')
     if (moversTab === 'losers' && movers.losers.length === 0 && movers.gainers.length > 0) setMoversTab('gainers')
   }, [movers, moversTab])
+
+  // ⛔ FASE JX. BAJO QUÉ HORARIO corre esta lista. La respuesta honesta es que
+  // NO hay un solo horario, y ese era el problema: para una acción `change1d`
+  // mide la última SESIÓN BURSÁTIL completada (hora del exchange), y para cripto
+  // una ventana RODANTE de 24 horas. La misma lista mezclaba las dos sin
+  // decirlo, y un sábado titulaba "hoy" el movimiento del viernes.
+  //
+  // En vez de inventar un horario propio o de adivinar cuándo abre cada bolsa,
+  // se usa la fecha que trae la PROPIA cotización: si la sesión más rancia de la
+  // lista no es la de hoy, el título deja de decir "hoy" y nombra esa sesión.
+  // Eso cubre fines de semana, feriados, medias sesiones y bolsas extranjeras
+  // sin una sola hora escrita a mano.
+  const { moversTitle, staleSessionNote } = useMemo(() => {
+    const t = (es, en) => (lang === 'es' ? es : en)
+    const notes = []
+
+    const todayLocal = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD local
+    const closedSession = movers.asOf && movers.asOf < todayLocal ? movers.asOf : null
+    if (closedSession) {
+      const label = formatDate(`${closedSession}T12:00:00Z`)
+      notes.push(t(
+        `Mercado cerrado: las acciones muestran su sesión del ${label}. La cripto sí son las últimas 24 h.`,
+        `Market closed: stocks show their ${label} session. Crypto is the last 24h.`
+      ))
+    }
+
+    // De DÓNDE y de CUÁNDO salen estos montos. La cotización no es en vivo: se
+    // pide cada 5 minutos y el servidor la cachea otros 5, así que a media
+    // sesión puede ir varios minutos atrás de lo que muestra el broker. Decir la
+    // hora es lo único honesto: los montos no van a coincidir al centavo con una
+    // pantalla en tiempo real, y sin esto parece un error de cálculo.
+    if (pricesUpdate) {
+      const d = new Date(pricesUpdate)
+      if (!isNaN(d)) {
+        const hhmm = d.toLocaleTimeString(lang === 'es' ? 'es' : 'en', { hour: '2-digit', minute: '2-digit' })
+        notes.push(t(`Precios de las ${hhmm}, no en tiempo real.`, `Prices as of ${hhmm}, not real time.`))
+      }
+    }
+
+    // Una fila servida desde el respaldo de precios puede tener días.
+    const stalest = [...movers.gainers, ...movers.losers].filter((m) => m.stale).map((m) => m.label)
+    if (stalest.length > 0) {
+      notes.push(t(
+        `Sin cotización fresca de ${stalest.join(', ')}: se usó la última conocida.`,
+        `No fresh quote for ${stalest.join(', ')}: last known price used.`
+      ))
+    }
+
+    return {
+      moversTitle: closedSession
+        ? t('Movimientos del último cierre', 'Moves at the last close')
+        : t('Mayores movimientos hoy', "Today's biggest movers"),
+      staleSessionNote: notes.length > 0 ? notes.join(' ') : null,
+    }
+  }, [movers, lang, pricesUpdate])
 
   const touchStartX = useRef(null)
   const onMoversTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
@@ -636,11 +677,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           read as one calm list either way. */}
       {(movers.gainers.length > 0 || movers.losers.length > 0) && (() => {
         const activeList = moversTab === 'gainers' ? movers.gainers : movers.losers
-        const up = moversTab === 'gainers'
         return (
           <div className="mt-3 pt-3 border-t border-glass-border/50">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{lang === 'es' ? 'Mayores movimientos hoy' : "Today's biggest movers"}</span>
+              <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{moversTitle}</span>
               {movers.gainers.length > 0 && movers.losers.length > 0 && (
                 <div className="flex gap-0.5 rounded-md p-0.5" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                   {[
@@ -658,20 +698,44 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 </div>
               )}
             </div>
-            <div className="space-y-1" onTouchStart={onMoversTouchStart} onTouchEnd={onMoversTouchEnd}>
-              {activeList.map((m) => (
-                <div key={m.label} className="flex items-center justify-between">
-                  <span className="text-sm truncate pr-2" style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
-                  <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
-                    <span style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>{up ? '▲' : '▼'}</span>
-                    {' '}{up ? '+' : ''}{formatCurrency(cv(m.dollarChange), displayCur)} ({up ? '+' : ''}{m.impactPct.toFixed(2)}%)
-                  </span>
-                </div>
-              ))}
+            {/* key={moversTab}: cada pestaña es su propio subárbol, así que
+                cambiar de pestaña DESMONTA la lista vieja entera en vez de
+                reconciliar fila por fila. Defensa en profundidad contra la
+                clase de bug que dejó una fila verde de ganancia colgada arriba
+                de la lista de perdedores; las filas no tienen estado propio,
+                así que remontarlas no cuesta nada. */}
+            <div key={moversTab} className="space-y-1" onTouchStart={onMoversTouchStart} onTouchEnd={onMoversTouchEnd}>
+              {activeList.map((m) => {
+                // La dirección sale de la FILA, no de la pestaña: una flecha no
+                // puede contradecir el signo del monto que tiene al lado.
+                const up = m.dollarChange >= 0
+                return (
+                  <div key={m.key} className="flex items-center justify-between">
+                    <span className="text-sm truncate pr-2" style={{ color: 'var(--text-secondary)' }}>
+                      {m.label}
+                      {/* Cuántas posiciones se fusionaron acá. Sin esto, alguien
+                          con BTC en dos cuentas ve un monto que no cuadra con
+                          ninguna de las dos por separado. */}
+                      {m.count > 1 && (
+                        <span className="text-[10px] ml-1" style={{ color: 'var(--text-muted)' }}>
+                          {' '}{lang === 'es' ? `· ${m.count} cuentas` : `· ${m.count} accounts`}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-sm font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                      <span style={{ color: up ? 'var(--accent-green)' : 'var(--text-negative)' }}>{up ? '▲' : '▼'}</span>
+                      {' '}{up ? '+' : ''}{formatCurrency(cv(m.dollarChange), displayCur)} ({up ? '+' : ''}{m.impactPct.toFixed(2)}%)
+                    </span>
+                  </div>
+                )
+              })}
             </div>
             <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es' ? '% = impacto sobre tu portafolio total' : '% = impact on your total portfolio'}
             </p>
+            {staleSessionNote && (
+              <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{staleSessionNote}</p>
+            )}
           </div>
         )
       })()}
