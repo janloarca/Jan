@@ -156,7 +156,17 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   // es el único lugar que el servidor lee (el cron no tiene el registro de
   // Auth a mano), en vez de dejarlo como una segunda fuente que consultar.
   const savedName = typeof profile?.name === 'string' ? profile.name : ''
+  // FASE KP. La identidad de ASESOR (firma, teléfono, correo) vive en el MISMO
+  // doc `settings/profile` y se guarda con el MISMO `onSaveProfile` (merge):
+  // cero writers nuevos. Alimenta el "Preparado por" y el bloque de contacto
+  // de los links compartidos con clientes; vacío = no se muestra nada.
+  const savedFirm = typeof profile?.advisorFirm === 'string' ? profile.advisorFirm : ''
+  const savedPhone = typeof profile?.advisorPhone === 'string' ? profile.advisorPhone : ''
+  const savedEmail = typeof profile?.advisorEmail === 'string' ? profile.advisorEmail : ''
   const [nameDraft, setNameDraft] = useState(savedName || userDisplayName || '')
+  const [firmDraft, setFirmDraft] = useState(savedFirm)
+  const [phoneDraft, setPhoneDraft] = useState(savedPhone)
+  const [emailDraft, setEmailDraft] = useState(savedEmail)
   const [savingName, setSavingName] = useState(false)
   // Misma lección que los interruptores de correo de arriba: el estado inicial
   // se calcula UNA vez, así que si el perfil todavía no había llegado al montar
@@ -166,6 +176,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   useEffect(() => {
     setNameDraft(savedName || userDisplayName || '')
   }, [savedName, userDisplayName])
+  useEffect(() => { setFirmDraft(savedFirm) }, [savedFirm])
+  useEffect(() => { setPhoneDraft(savedPhone) }, [savedPhone])
+  useEffect(() => { setEmailDraft(savedEmail) }, [savedEmail])
   const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
   const [testResult, setTestResult] = useState(null)
   // El error crudo del servidor se muestra tal cual (es lo que ahorra rondas
@@ -283,13 +296,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
 
   const trimmedName = nameDraft.trim()
-  const nameDirty = !!onSaveProfile && trimmedName !== savedName
+  const trimmedFirm = firmDraft.trim()
+  const trimmedPhone = phoneDraft.trim()
+  const trimmedEmail = emailDraft.trim()
+  const nameDirty = !!onSaveProfile && (
+    trimmedName !== savedName || trimmedFirm !== savedFirm ||
+    trimmedPhone !== savedPhone || trimmedEmail !== savedEmail
+  )
   const handleSaveName = async () => {
     if (!nameDirty || savingName) return
     setSavingName(true)
     try {
-      await onSaveProfile({ name: trimmedName })
-      flash('ok', t('Nombre guardado', 'Name saved'))
+      // Los cuatro campos van juntos en cada guardado: el merge de saveProfile
+      // los escribe sobre el mismo doc sin tocar lo demás (financialUpdatedAt
+      // incluido, la lección de FASE KB).
+      await onSaveProfile({ name: trimmedName, advisorFirm: trimmedFirm, advisorPhone: trimmedPhone, advisorEmail: trimmedEmail })
+      flash('ok', t('Perfil guardado', 'Profile saved'))
     } catch (e) {
       flash('err', isFirestoreQuotaError(e)
         ? t('La base alcanzó su límite diario. Intenta más tarde.', 'The database hit its daily limit. Try again later.')
@@ -442,33 +464,78 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   de nombre sin motivo aparente en una app de finanzas se lee
                   como un dato que se pide porque sí. */}
               {onSaveProfile && (
-                <SectionCard icon={User} title={t('Tu nombre', 'Your name')}>
-                  <div>
-                    <label htmlFor="settings-name" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Nombre para mostrar', 'Display name')}
-                    </label>
-                    <div className="flex gap-2">
+                <SectionCard icon={User} title={t('Identidad y contacto', 'Identity & contact')}>
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="settings-name" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Nombre para mostrar', 'Display name')}
+                      </label>
                       <input
                         id="settings-name" type="text" value={nameDraft} maxLength={60}
                         onChange={(e) => setNameDraft(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
                         placeholder={t('Tu nombre', 'Your name')}
-                        className="flex-1 min-w-0 px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
                       />
+                      {/* `--text-muted` y no la clase `text-slate-600` que usan
+                          los captions vecinos: medido, esa resuelve a 4.00:1 en
+                          tema oscuro, o sea bajo el piso de texto. Igualar a un
+                          vecino que no llega seria propagar el defecto a codigo
+                          nuevo. El token esta en 6.7 oscuro / 7.2 claro. */}
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('Aparece en la portada de tu reporte PDF, en Amigos y como "Preparado por" en los links que compartes.', 'Appears on your PDF report cover, in Friends, and as "Prepared by" on links you share.')}
+                      </p>
+                    </div>
+                    {/* FASE KP: contacto de asesor para los links de cliente.
+                        Los tres son opcionales; vacio = no se muestra nada. */}
+                    <div>
+                      <label htmlFor="settings-advisor-firm" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Firma o empresa (opcional)', 'Firm or company (optional)')}
+                      </label>
+                      <input
+                        id="settings-advisor-firm" type="text" value={firmDraft} maxLength={80}
+                        onChange={(e) => setFirmDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                        placeholder={t('Ej. IDC Valores', 'E.g. IDC Valores')}
+                        className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label htmlFor="settings-advisor-phone" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                          {t('Teléfono (opcional)', 'Phone (optional)')}
+                        </label>
+                        <input
+                          id="settings-advisor-phone" type="tel" value={phoneDraft} maxLength={40}
+                          onChange={(e) => setPhoneDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                          placeholder="+502 5555 5555"
+                          className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="settings-advisor-email" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                          {t('Correo de contacto (opcional)', 'Contact email (optional)')}
+                        </label>
+                        <input
+                          id="settings-advisor-email" type="email" value={emailDraft} maxLength={120}
+                          onChange={(e) => setEmailDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                          placeholder={t('tu@firma.com', 'you@firm.com')}
+                          className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('Firma, teléfono y correo aparecen como contacto en los links que compartes con clientes.', 'Firm, phone and email appear as contact info on links you share with clients.')}
+                      </p>
                       <button type="button" onClick={handleSaveName} disabled={!nameDirty || savingName}
                         className="px-4 py-2.5 text-sm font-medium rounded-lg transition-colors shrink-0 border disabled:opacity-40 disabled:cursor-default"
                         style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                         <BusyLabel busy={savingName} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>
                       </button>
                     </div>
-                    {/* `--text-muted` y no la clase `text-slate-600` que usan
-                        los captions vecinos: medido, esa resuelve a 4.00:1 en
-                        tema oscuro, o sea bajo el piso de texto. Igualar a un
-                        vecino que no llega seria propagar el defecto a codigo
-                        nuevo. El token esta en 6.7 oscuro / 7.2 claro. */}
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                      {t('Aparece en la portada de tu reporte PDF y en Amigos.', 'Appears on your PDF report cover and in Friends.')}
-                    </p>
                   </div>
                 </SectionCard>
               )}
