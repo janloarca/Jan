@@ -12,6 +12,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { clearIbkrCredentials } from '@/lib/ibkrVault'
 import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
+import { syncSkipReasonText } from '@/lib/ibkrSchedule'
 import BrokerConnectModal from '@/components/BrokerConnectModal'
 import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
 import BusyLabel from '@/components/ui/BusyLabel'
@@ -49,6 +50,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   // "no me funciona IBKR" obliga a una ronda de preguntas para saber si es un
   // token vencido, un bloqueo temporal o la query mal configurada.
   ibkrSyncError = null, ibkrSyncErrorCode = null, ibkrLastAttempt = null,
+  ibkrUpstreamError = null, ibkrSkipReason = null,
 }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
@@ -312,6 +314,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   // render. Es la MISMA trampa que FASE JT ya documenta para la pantalla de
   // error; el estado arranca vacío, así que servidor y primer render del
   // cliente coinciden y el efecto lo rellena después.
+  const skipReasonText = useMemo(() => syncSkipReasonText(ibkrSkipReason, lang), [ibkrSkipReason, lang])
   const [attemptLabel, setAttemptLabel] = useState('')
   useEffect(() => {
     if (!ibkrLastAttempt) { setAttemptLabel(''); return }
@@ -485,7 +488,22 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                     {ibkrSyncError && (
                       <p className="mt-0.5" style={{ opacity: 0.85, wordBreak: 'break-word' }}>{ibkrSyncError}</p>
                     )}
+                    {/* Lo que IBKR dijo LITERALMENTE, y solo cuando aporta algo
+                        que nuestro texto no dice: para un codigo mapeado los dos
+                        son la misma frase con otras palabras, y repetirla fue
+                        justo el defecto de FASE KM. */}
+                    {ibkrUpstreamError && ibkrUpstreamError !== ibkrSyncError && (
+                      <p className="mt-0.5 font-mono text-[10px]" style={{ opacity: 0.7, wordBreak: 'break-word' }}>
+                        IBKR: {ibkrUpstreamError}
+                      </p>
+                    )}
                   </div>
+                )}
+                {/* Por que el automatico no esta corriendo. Sin esto, "no
+                    sincroniza" y "sincronizo hace un rato y no toca hasta
+                    maniana" se ven exactamente igual. */}
+                {ibkrLinked && !ibkrSyncError && skipReasonText && (
+                  <p className="text-xs mt-2 pl-9" style={{ color: 'var(--text-muted)' }}>{skipReasonText}</p>
                 )}
                 {/* El 365-day Flex cap hace que "conectado" casi nunca sea
                     "completo". Antes eso era un link de texto ("Completar

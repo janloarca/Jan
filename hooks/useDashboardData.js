@@ -12,7 +12,13 @@ import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, cred
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
-import { ibkrSyncIntervalMs, nextFailCount, ibkrLockIsStuck } from '@/lib/ibkrRetryPolicy'
+import { nextFailCount, NORMAL_INTERVAL_MS } from '@/lib/ibkrRetryPolicy'
+import { ibkrSyncDecision, bumpAttempts, ibkrDayKey } from '@/lib/ibkrSchedule'
+
+// Cada cuánto se RE-EVALÚA la decisión de sincronizar (no cada cuánto se
+// sincroniza: eso lo decide lib/ibkrSchedule.js). Solo existe para que una
+// pestaña que queda abierta días cruce a un día nuevo sola.
+const SYNC_HEARTBEAT_MS = NORMAL_INTERVAL_MS
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
@@ -99,6 +105,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // de su declaración sería un ReferenceError, no un undefined silencioso.
   // La consume el bloque de auto-sync de IBKR más abajo.
   const [ibkrAutoSyncing, setIbkrAutoSyncing] = useState(false)
+  // Por qué el auto-sync NO corrio, cuando no corre. Ver lib/ibkrSchedule.js.
+  const [ibkrSkipReason, setIbkrSkipReason] = useState(null)
 
   const alertsCheckedRef = useRef(null)
   useEffect(() => {
@@ -811,11 +819,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // cadencia larga de FASE II3 tampoco podía aplicarse dentro de una sesión: el
   // intervalo quedaba capturado con el valor del primer arranque.
   //
-  // Sin el guard, cada re-ejecución vuelve a evaluar la compuerta de tiempo
-  // (`shouldSync`, contra el último INTENTO) y re-arma el temporizador. No
-  // martillea: la compuerta permite a lo sumo un intento por ventana de
-  // cadencia, y `acquireLock('ibkr-sync')` es un Set en memoria, así que una
-  // re-ejecución a mitad de un sync no puede arrancar un segundo.
+  // Sin el guard, cada re-ejecución vuelve a evaluar la decisión
+  // (`ibkrSyncDecision`, lib/ibkrSchedule.js) y re-arma el latido. No martillea:
+  // desde FASE KN esa decisión permite un solo sync exitoso por día y como
+  // mucho tres intentos, y `acquireLock('ibkr-sync')` se reparte entre pestañas
+  // por BroadcastChannel, así que una re-ejecución a mitad de un sync no puede
+  // arrancar un segundo.
   // FASE GC. Id de la corrida de sync más reciente. El finally del auto-sync
   // apagaba el spinner solo `if (!cancelled)`, pero el efecto se re-ejecuta
   // cuando `settings` cambia y el PROPIO sync escribe settings a mitad de
@@ -973,30 +982,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     } catch {}
   }, [items, snapshots, bulkImport, activePortfolio, activeEntity, saveSettings])
 
-  // TOKEN_EXPIRED / INVALID_QUERY need user action (regenerate token / fix query),
-  // so they permanently halt auto-sync. LOCKED is TEMPORARY — IBKR unlocks the token
-  // on its own after a cooldown — so it is NOT fatal; instead auto-sync retries it on
-  // a long cadence (below) and a success clears the banner. Treating LOCKED as fatal
-  // used to deadlock the sync: it could never self-heal and the red banner stuck over
-  // fresh data forever.
-  const FATAL_ERROR_CODES = ['TOKEN_EXPIRED', 'INVALID_QUERY']
-
   useEffect(() => {
     if (dataLoading) return
     // Proceed if there's a legacy client-stored token OR creds already migrated to
     // the server vault (_ibkrVaultMigrated), as long as a query id exists.
     if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) return
-    if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) return
-    // ⛔ FASE KL. Un LOCKED que lleva varias corridas de la cadencia larga sin
-    // levantarse dejó de ser temporal: casi siempre es un token vencido, y cada
-    // reintento es otro intento fallido, o sea lo único que refresca el
-    // bloqueo. Dejar de pedir es lo único que puede permitir que expire; la
-    // salida al usuario es un token nuevo, y el banner y el pill ya la nombran.
-    // Un sync manual sigue disponible y cualquier éxito reinicia el contador.
-    if (ibkrLockIsStuck({
-      errorCode: settings?._ibkrAutoSyncErrorCode,
-      failCount: settings?._ibkrAutoSyncFailCount,
-    })) return
     // ⛔ FASE KF. No arrancar mientras HAY una escritura masiva en curso. El
     // caso real es el paso 1→2 del viaje: el usuario acaba de guardar
     // credenciales (lo que destraba este efecto) y de inmediato sube su
@@ -1014,27 +1004,47 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // sin dueño, así que no alcanza) y leer `items` de una ref en vez del
     // closure; queda anotado, no hecho a medias.
     if (bulkWriting) return
-    // After a LOCKED error, back off to a long cadence so we let IBKR's temporary
-    // lock expire (retrying too soon can refresh it) — but still retry, so a working
-    // token self-heals and the banner clears without manual action.
-    // Y lo mismo tras VARIOS fallos seguidos, sea cual sea su código: la
-    // cadencia de 30 minutos indefinida convertía cualquier error no mapeado en
-    // ~48 intentos fallidos por día contra IBKR, que es el disparador de su
-    // bloqueo (lib/ibkrRetryPolicy.js).
-    const SYNC_INTERVAL = ibkrSyncIntervalMs({
+
+    // ⛔ FASE KN. TODA la decisión de "¿sincronizo ahora?" vive en
+    // lib/ibkrSchedule.js y devuelve su RAZÓN. Antes eran tres constantes de
+    // tiempo evaluadas acá inline, así que cuando el sync no corría no había
+    // forma de saber cuál compuerta lo paró. Las reglas nuevas: un sync
+    // exitoso por día (IBKR actualiza el statement una sola vez, al cierre),
+    // nunca dentro de su ventana de reset diaria, y un presupuesto de intentos
+    // por día en vez de un techo que salía por accidente de la cadencia.
+    const decide = () => ibkrSyncDecision({
+      lastSuccess: [settings?._ibkrLastAutoSync, settings?._ibkrLastSync]
+        .filter(Boolean).sort().pop() || null,
+      lastAttempt: settings?._ibkrLastAutoSyncAttempt || null,
+      attempts: settings?._ibkrAttemptsToday || null,
       errorCode: settings?._ibkrAutoSyncErrorCode,
       failCount: settings?._ibkrAutoSyncFailCount,
     })
-    // Space attempts by the LAST ATTEMPT, not the last success — otherwise every
-    // page load while in an error state fired another immediate try, hammering
-    // IBKR with failed logins (which is what triggers its lockout).
-    const lastSync = settings._ibkrLastAutoSync ? new Date(settings._ibkrLastAutoSync).getTime() : 0
-    const lastAttempt = settings._ibkrLastAutoSyncAttempt ? new Date(settings._ibkrLastAutoSyncAttempt).getTime() : 0
-    const shouldSync = Date.now() - Math.max(lastSync, lastAttempt) > SYNC_INTERVAL
+
+    const first = decide()
+    setIbkrSkipReason(first.sync ? null : first.reason)
+    // Nada que esperar: estas dos razones no se levantan con el tiempo, así que
+    // ni siquiera se arma el temporizador.
+    if (!first.sync && (first.reason === 'fatal' || first.reason === 'lock-stuck')) return
 
     let cancelled = false
     const doAutoSync = async () => {
+      // Se re-evalúa en CADA disparo, nunca solo al armar: el temporizador es un
+      // latido, no una orden. Sin esto, un tick cada 30 minutos volvería a
+      // sincronizar 48 veces al día por más que la regla diga una.
+      const d = decide()
+      if (!d.sync) { setIbkrSkipReason(d.reason); return }
       if (cancelled || !acquireLock('ibkr-sync')) return
+      // ⚠ El intento NO se puede reclamar escribiendo settings ANTES de salir a
+      // la red, por más natural que suene. Este efecto depende de `settings`,
+      // así que esa escritura lo re-ejecuta, su cleanup marca `cancelled`, y el
+      // `if (cancelled) return` de más abajo TIRA el resultado del sync que
+      // acaba de volver: la sincronización se vuelve un no-op silencioso.
+      // (Probado escribiéndolo así primero.) El presupuesto se estampa al
+      // TERMINAR, en las dos ramas. Un sync que se cuelga no lo consume, y está
+      // bien: si se colgó, tampoco soltó el lock, así que no hay un segundo
+      // intento en esta sesión.
+      setIbkrSkipReason(null)
       const runId = ++ibkrSyncRunIdRef.current
       setIbkrAutoSyncing(true)
       try {
@@ -1073,9 +1083,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         }
         saveSettings({
           _ibkrLastAutoSync: new Date().toISOString(),
+          _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+          _ibkrAttemptsToday: bumpAttempts(settings?._ibkrAttemptsToday, ibkrDayKey()),
           _ibkrAutoSyncStatus: 'ok',
           _ibkrAutoSyncError: null,
           _ibkrAutoSyncErrorCode: null,
+          _ibkrLastUpstreamError: null,
           _ibkrAutoSyncFailCount: 0,
           _ibkrLastSyncSummary: { ...autoSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, autoSummary) },
         })
@@ -1086,7 +1099,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           _ibkrAutoSyncStatus: 'error',
           _ibkrAutoSyncError: err.message,
           _ibkrAutoSyncErrorCode: code,
+          // ⛔ FASE KN. Lo que IBKR dijo LITERALMENTE. Para todo código que
+          // mapeamos, `classifyError` reemplaza su texto por el nuestro, así que
+          // hasta hoy las palabras exactas se perdían: el bloqueo que tuvo el
+          // usuario no figura en los 19 códigos documentados, o sea es
+          // justamente la clase de estado donde el texto crudo ES la evidencia.
+          _ibkrLastUpstreamError: err.raw || null,
           _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+          _ibkrAttemptsToday: bumpAttempts(settings?._ibkrAttemptsToday, ibkrDayKey()),
           _ibkrAutoSyncFailCount: nextFailCount(settings?._ibkrAutoSyncFailCount),
         })
       } finally {
@@ -1097,8 +1117,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
 
-    if (shouldSync) doAutoSync()
-    const interval = setInterval(doAutoSync, SYNC_INTERVAL)
+    if (first.sync) doAutoSync()
+    // Latido, no cadencia: `doAutoSync` vuelve a decidir en cada disparo, así
+    // que esto solo sirve para que una pestaña que queda abierta cruce a un día
+    // nuevo o salga de la ventana de reset sin recargar.
+    const interval = setInterval(doAutoSync, SYNC_HEARTBEAT_MS)
     return () => { cancelled = true; clearInterval(interval) }
   }, [dataLoading, settings, user, handleIBKRSync, saveSettings, bulkWriting])
 
@@ -3003,6 +3026,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ibkrSyncSummary: settings?._ibkrLastSyncSummary || null,
     ibkrSyncError: settings?._ibkrAutoSyncError || null,
     ibkrSyncErrorCode: settings?._ibkrAutoSyncErrorCode || null,
+    ibkrUpstreamError: settings?._ibkrLastUpstreamError || null,
+    ibkrSkipReason,
     ibkrLastSync: settings?._ibkrLastAutoSync || settings?._ibkrLastSync || null,
   }
 }
