@@ -3,6 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
+import { sanitizeDayAsOf } from '@/lib/friendsStats'
 
 // Social layer: friend groups + a YTD-return leaderboard. Like shareTokens, the
 // data lives in TOP-LEVEL collections that firestore.rules leaves default-deny,
@@ -60,7 +61,16 @@ function sanitizeStatBlock(raw) {
         impactPct: isFinite(Number(m?.impactPct)) ? Number(m.impactPct) : 0,
       })).filter((m) => m.changePct != null)
     : []
-  return { ytd: clampPct(raw.ytd), mtd: clampPct(raw.mtd), day: clampPct(raw.day), movers, updatedAt: new Date().toISOString() }
+  return {
+    ytd: clampPct(raw.ytd), mtd: clampPct(raw.mtd), day: clampPct(raw.day), movers,
+    // FASE KO: de qué SESIÓN bursátil son `day` y `movers`. Un sábado, las
+    // acciones traen el movimiento del viernes, así que sin esto el grupo
+    // rankeaba "hoy" sobre datos de otra sesión. Es lo que manda el cliente y
+    // el cliente no es de fiar, así que se acepta SOLO la forma exacta
+    // 'YYYY-MM-DD' y nada más: una cadena arbitraria se descarta.
+    dayAsOf: sanitizeDayAsOf(raw.dayAsOf),
+    updatedAt: new Date().toISOString(),
+  }
 }
 
 function statsForScope(profile, scope) {
@@ -146,6 +156,11 @@ export async function POST(request) {
             mtd: st.mtd ?? null,
             day: st.day ?? null,
             movers: Array.isArray(st.movers) ? st.movers : [],
+            // FASE KO: de qué sesión son `day` y `movers` de ESTA persona. Dos
+            // miembros del mismo grupo pueden tenerla distinta (quien solo tiene
+            // cripto mide 24 h rodantes y nunca queda congelado; quien tiene
+            // acciones sí), así que viaja por fila, no por grupo.
+            dayAsOf: st.dayAsOf || null,
             updatedAt: st.updatedAt || prof.updatedAt || null,
           }
         }).sort((a, b) => (b.ytd ?? -Infinity) - (a.ytd ?? -Infinity))

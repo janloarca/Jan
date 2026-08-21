@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { MoreHorizontal, Check, X } from 'lucide-react'
 import BusyLabel from '@/components/ui/BusyLabel'
 import VerifiedBadge from '@/components/friends/VerifiedBadge'
-import { avatarColor, pctColor, fmtPct, timeAgo, initialOf, MEDALS } from '@/components/friends/friendsUi'
+import { avatarColor, pctColor, fmtPct, timeAgo, initialOf, MEDALS, dayLabel, sessionDayLabel } from '@/components/friends/friendsUi'
 
 const MAX_NAME = 40
 
@@ -207,7 +207,12 @@ export default function GroupCard({
                       {metric === 'mtd'
                         ? <>YTD <span style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd, 1)}</span></>
                         : <>{t('mes', 'month')} <span style={{ color: pctColor(r.mtd) }}>{fmtPct(r.mtd, 1)}</span></>}
-                      {' · '}{t('hoy', 'today')} <span style={{ color: pctColor(r.day) }}>{fmtPct(r.day, 1)}</span>
+                      {/* FASE KO: "hoy" solo cuando de verdad es hoy. Con la
+                          bolsa cerrada esta cifra es la de la última sesión, y
+                          decirle "hoy" comparaba a quien tiene acciones
+                          (congelado) contra quien tiene cripto (que sí se
+                          movió) bajo la misma palabra. */}
+                      {' · '}{dayLabel(r.dayAsOf, lang).text} <span style={{ color: pctColor(r.day) }}>{fmtPct(r.day, 1)}</span>
                     </div>
                   </div>
                   {hasDetail && <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>}
@@ -232,10 +237,19 @@ export default function GroupCard({
               {isOpen && (
                 <div className="px-4 pb-3 pt-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                   <div className="text-[10px] mb-1.5" style={{ color: 'var(--text-muted)' }}>
-                    {t('Posiciones de mayor impacto hoy', 'Biggest impact on today')}
+                    {(() => {
+                      const d = dayLabel(r.dayAsOf, lang)
+                      if (!d.stale) return t('Posiciones de mayor impacto hoy', 'Biggest impact on today')
+                      const when = sessionDayLabel(r.dayAsOf, lang)
+                      return t(`Posiciones de mayor impacto · cierre del ${when}`, `Biggest impact · ${when} close`)
+                    })()}
                   </div>
                   {(r.movers || []).length === 0 ? (
-                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('Sin movimientos de mercado hoy.', 'No market moves today.')}</p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      {dayLabel(r.dayAsOf, lang).stale
+                        ? t('Sin movimientos en esa sesión.', 'No market moves that session.')
+                        : t('Sin movimientos de mercado hoy.', 'No market moves today.')}
+                    </p>
                   ) : (
                     <div className="space-y-1">
                       {r.movers.map((m, mi) => (
