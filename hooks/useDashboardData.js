@@ -12,7 +12,7 @@ import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, cred
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
-import { ibkrSyncIntervalMs, nextFailCount } from '@/lib/ibkrRetryPolicy'
+import { ibkrSyncIntervalMs, nextFailCount, ibkrLockIsStuck } from '@/lib/ibkrRetryPolicy'
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
@@ -987,6 +987,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // the server vault (_ibkrVaultMigrated), as long as a query id exists.
     if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) return
     if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) return
+    // ⛔ FASE KL. Un LOCKED que lleva varias corridas de la cadencia larga sin
+    // levantarse dejó de ser temporal: casi siempre es un token vencido, y cada
+    // reintento es otro intento fallido, o sea lo único que refresca el
+    // bloqueo. Dejar de pedir es lo único que puede permitir que expire; la
+    // salida al usuario es un token nuevo, y el banner y el pill ya la nombran.
+    // Un sync manual sigue disponible y cualquier éxito reinicia el contador.
+    if (ibkrLockIsStuck({
+      errorCode: settings?._ibkrAutoSyncErrorCode,
+      failCount: settings?._ibkrAutoSyncFailCount,
+    })) return
     // ⛔ FASE KF. No arrancar mientras HAY una escritura masiva en curso. El
     // caso real es el paso 1→2 del viaje: el usuario acaba de guardar
     // credenciales (lo que destraba este efecto) y de inmediato sube su
