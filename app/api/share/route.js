@@ -8,6 +8,7 @@ import { buildSharePayload, sanitizeDisplay, sanitizeLang, sanitizeAdvisor, expi
 import { itemAnnualIncomeInBase } from '@/lib/serverPortfolio'
 import { projectItemAnnualIncome } from '@/components/dashboard/utils'
 import { kvGetJSON, kvSetJSON, kvDel } from '@/lib/kvClient'
+import { publicInstrument, sanitizeInstrumentIds } from '@/lib/instrumentSheet'
 import crypto from 'crypto'
 
 // El GET cotiza posiciones de mercado, así que es más pesado que una lectura
@@ -97,6 +98,25 @@ function incomeSourcesOf(items, convert, baseCurrency) {
 // ya no depende de que una transformación preserve exactamente los ratios
 // correctos sobre CADA campo que alguien agregue después.
 
+// Las fichas adjuntas se leen FRESCAS en cada GET, con o sin caché caliente
+// (≤6 docs: el cap vive en sanitizeInstrumentIds): una corrección del asesor a
+// su ficha no puede quedar 10 minutos detrás. Cada doc pasa por
+// publicInstrument, la proyección ALLOWLIST: solo claves conocidas salen al
+// público, y un doc ilegible simplemente no se muestra.
+async function loadInstruments(db, uid, ids) {
+  if (!ids.length) return []
+  const reads = await Promise.all(ids.map(async (id) => {
+    try {
+      const doc = await db.doc(`users/${uid}/instruments/${id}`).get()
+      if (!doc || !doc.exists) return null
+      return publicInstrument({ id: doc.id, ...doc.data() })
+    } catch {
+      return null
+    }
+  }))
+  return reads.filter(Boolean)
+}
+
 async function readLinks(shareRef, db, uid) {
   const doc = await shareRef.get()
   const data = doc.exists ? doc.data() : {}
@@ -151,19 +171,29 @@ export async function POST(request) {
       // de expiresAt = nunca vence.
       const lang = sanitizeLang(body.lang)
       const expiresAt = expiresAtFrom(body.expiry)
+      const instrumentIds = sanitizeInstrumentIds(body.instrumentIds)
       const token = crypto.randomBytes(16).toString('hex')
-      const link = { token, label, scope, display, lang, createdAt: new Date().toISOString(), ...(expiresAt ? { expiresAt } : {}) }
-      await db.collection('shareTokens').doc(token).set({ uid, createdAt: link.createdAt, scope, label, display, lang, ...(expiresAt ? { expiresAt } : {}) })
+      const link = {
+        token, label, scope, display, lang, createdAt: new Date().toISOString(),
+        ...(expiresAt ? { expiresAt } : {}),
+        ...(instrumentIds.length ? { instrumentIds } : {}),
+      }
+      await db.collection('shareTokens').doc(token).set({
+        uid, createdAt: link.createdAt, scope, label, display, lang,
+        ...(expiresAt ? { expiresAt } : {}),
+        ...(instrumentIds.length ? { instrumentIds } : {}),
+      })
       await shareRef.set({ links: [...links, link], uid, updatedAt: new Date().toISOString() })
       return NextResponse.json({ link })
     }
 
-    // Editar un link EXISTENTE: el workflow central del asesor es corregir la
-    // etiqueta (y en adelante, adjuntar fichas) de un link que el cliente YA
-    // tiene. Solo label es mutable: scope/display/lang/expiry quedan fijos,
-    // porque ensanchar la exposición de un link ya enviado (más alcance, más
-    // números) cambiaría lo que el cliente ve sin que nadie se lo dijera.
-    // Para eso se crea OTRO link.
+    // Editar un link EXISTENTE: el workflow central del asesor es adjuntarle
+    // una ficha nueva (o corregir la etiqueta) a un link que el cliente YA
+    // tiene. Solo label y fichas son mutables: scope/display/lang/expiry
+    // quedan fijos, porque ensanchar la exposición de un link ya enviado (más
+    // alcance, más números) cambiaría lo que el cliente ve sin que nadie se lo
+    // dijera. Para eso se crea OTRO link. Las fichas SÍ, porque son el
+    // producto del emisor, no datos del cliente.
     if (action === 'update') {
       const token = String(body.token || '')
       if (!/^[a-f0-9]{32}$/.test(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
@@ -175,6 +205,8 @@ export async function POST(request) {
         const label = body.label.slice(0, 40).trim()
         if (label) patch.label = label
       }
+      // Un [] explícito LIMPIA las fichas; omitir el campo las deja como están.
+      if (body.instrumentIds !== undefined) patch.instrumentIds = sanitizeInstrumentIds(body.instrumentIds)
       if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
       const updated = { ...existing, ...patch }
       await db.collection('shareTokens').doc(token).set(patch, { merge: true })
@@ -248,16 +280,21 @@ export async function GET(request) {
     // pisa lo cacheado: etiqueta e idioma del token doc (ya leídos), y la
     // identidad del asesor (una lectura de doc, por la misma frontera
     // sanitizeAdvisor que el camino sin caché).
+    const instrumentIds = sanitizeInstrumentIds(tokenData.instrumentIds)
     const cacheKey = `share:${token}`
     const cached = await kvGetJSON(cacheKey)
     if (cached && cached.empty !== true) {
-      const profile = await loadOwnerProfile(db, uid)
+      const [profile, instruments] = await Promise.all([
+        loadOwnerProfile(db, uid),
+        loadInstruments(db, uid, instrumentIds),
+      ])
       return NextResponse.json({
         ...cached,
         label: tokenData.label || null,
         lang,
         owner: profile.name || cached.owner || '',
         advisor: sanitizeAdvisor(profile.advisor),
+        instruments,
       })
     }
 
@@ -278,10 +315,17 @@ export async function GET(request) {
     if (!ctx) {
       // Portafolio vacio, o un alcance que hoy no matchea nada. No es un error:
       // es una respuesta legitima, y decirlo asi deja que la pagina lo explique
-      // en vez de mostrar una pantalla de link roto.
+      // en vez de mostrar una pantalla de link roto. Las fichas SÍ viajan: el
+      // caso real de un asesor es mandarle una oportunidad a un prospecto que
+      // todavía no tiene posiciones registradas.
+      const [profile, instruments] = await Promise.all([
+        loadOwnerProfile(db, uid),
+        loadInstruments(db, uid, instrumentIds),
+      ])
       return NextResponse.json({
         empty: true, display, lang, label: tokenData.label || null, scopeLabel,
-        baseCurrency: 'USD', owner: '', asOf: Date.now(),
+        baseCurrency: 'USD', owner: profile.name || '', advisor: sanitizeAdvisor(profile.advisor),
+        asOf: Date.now(), instruments,
       })
     }
 
@@ -315,7 +359,10 @@ export async function GET(request) {
 
     // Un portafolio vacío no se cachea (arriba retorna antes): puede llenarse
     // en cualquier momento y un `empty` cacheado lo escondería 10 minutos.
+    // Las fichas se adjuntan DESPUÉS de guardar: el núcleo cacheado nunca las
+    // lleva, porque se releen frescas en cada GET.
     await kvSetJSON(cacheKey, payload, SHARE_CACHE_TTL_S)
+    payload.instruments = await loadInstruments(db, uid, instrumentIds)
 
     return NextResponse.json(payload)
   } catch (err) {

@@ -17,11 +17,13 @@
 //   del repo para "elegí uno de N" desde FASE JT.
 
 import { useState, useEffect, useCallback } from 'react'
-import { Link2 } from 'lucide-react'
+import { Link2, FileText } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { formatDate } from '@/components/dashboard/utils'
+import { useInstruments } from '@/hooks/useInstruments'
 import BusyLabel from '@/components/ui/BusyLabel'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
+import InstrumentSheetsManager from '@/components/settings/InstrumentSheetsManager'
 
 export default function ShareTab({
   lang = 'es',
@@ -41,13 +43,19 @@ export default function ShareTab({
   // default lo que uno tiene en pantalla es menos sorprendente que compartir
   // toda la cuenta, que es lo que 'all' significa.
   const defaultSharePortfolio = activePortfolio && activePortfolio !== '__all__' ? activePortfolio : ''
-  const EMPTY_FORM = { label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both', expiry: 'never', lang: 'es' }
+  const EMPTY_FORM = { label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both', expiry: 'never', lang: 'es', instrumentIds: [] }
   const [shareForm, setShareForm] = useState(EMPTY_FORM)
-  // Edición por fila (FASE KP): corregir la etiqueta de un link que el cliente
-  // YA tiene, sin re-crearlo. Solo la etiqueta: alcance, números, idioma y
-  // vigencia son inmutables después de crear (el servidor también lo exige).
+  // Edición por fila (FASE KP): corregir la etiqueta o las fichas adjuntas de
+  // un link que el cliente YA tiene, sin re-crearlo. Solo eso: alcance,
+  // números, idioma y vigencia son inmutables después de crear (el servidor
+  // también lo exige).
   const [editingToken, setEditingToken] = useState(null)
   const [editLabel, setEditLabel] = useState('')
+  const [editIds, setEditIds] = useState([])
+  // Las fichas de instrumento del asesor (el teaser de un producto), para
+  // adjuntarlas a un link. El manager las edita; acá solo se eligen.
+  const { instruments, saveInstrument, deleteInstrument } = useInstruments()
+  const [managerOpen, setManagerOpen] = useState(false)
 
   const shareApi = useCallback(async (payload) => {
     const res = await authFetch('/api/share', {
@@ -89,7 +97,7 @@ export default function ShareTab({
           : { type: 'all' }
       const { link } = await shareApi({
         action: 'create', label: shareForm.label, scope, display: shareForm.display,
-        lang: shareForm.lang, expiry: shareForm.expiry,
+        lang: shareForm.lang, expiry: shareForm.expiry, instrumentIds: shareForm.instrumentIds,
       })
       setShareLinks((prev) => [...(prev || []), link])
       setShareCreating(false)
@@ -112,16 +120,17 @@ export default function ShareTab({
 
   const handleUpdateShare = async (token) => {
     const label = editLabel.trim()
-    if (!label) { setEditingToken(null); return }
     setShareLoading(true)
     try {
-      const { link } = await shareApi({ action: 'update', token, label })
+      const { link } = await shareApi({ action: 'update', token, ...(label ? { label } : {}), instrumentIds: editIds })
       setShareLinks((prev) => (prev || []).map((l) => (l.token === token ? link : l)))
       setEditingToken(null)
       flash('ok', t('Link actualizado', 'Link updated'))
     } catch (e) { flash('err', e.message) }
     setShareLoading(false)
   }
+
+  const toggleId = (id, list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
 
   const institutionOptions = [...new Set(portfolioItems.map((it) => (it.institution || '').trim()).filter(Boolean))].sort()
   const scopeChip = (scope) => {
@@ -138,6 +147,28 @@ export default function ShareTab({
   // El idioma solo se anota cuando NO es el default: una fila sin anotación es
   // un link en español, que es lo que casi todos son.
   const langChip = (l) => (l === 'en' ? ' · EN' : '')
+  const sheetsChip = (link) => (link.instrumentIds?.length
+    ? ` · 📄 ${link.instrumentIds.length} ${link.instrumentIds.length === 1 ? t('ficha', 'sheet') : t('fichas', 'sheets')}`
+    : '')
+
+  // Helper de render (función, no componente: un componente definido inline se
+  // re-crea en cada render y REMONTA su subárbol). Elige qué fichas lleva un
+  // link; el tope de 6 es el mismo que el servidor exige.
+  const renderSheetPicker = (selected, onToggle) => instruments.length === 0 ? null : (
+    <div>
+      <label className="text-xs text-slate-500 mb-1 block">{t('Fichas de instrumento adjuntas (opcional)', 'Attached instrument sheets (optional)')}</label>
+      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+        {instruments.map((ins) => (
+          <label key={ins.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-theme-elevated cursor-pointer">
+            <input type="checkbox" checked={selected.includes(ins.id)} onChange={() => onToggle(ins.id)}
+              disabled={!selected.includes(ins.id) && selected.length >= 6} />
+            <span className="text-xs text-white truncate">{ins.name}</span>
+            {ins.rating?.grade && <span className="text-micro shrink-0" style={{ color: 'var(--accent-blue)' }}>{ins.rating.grade}</span>}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
   const expiryLine = (link) => {
     if (!link?.expiresAt) return null
     const ts = Date.parse(link.expiresAt)
@@ -216,9 +247,12 @@ export default function ShareTab({
                     ) : (
                       <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
                     )}
-                    <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}{langChip(link.lang)}</p>
+                    <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}{langChip(link.lang)}{sheetsChip(link)}</p>
                     {exp && (
                       <p className="text-xs truncate" style={{ color: exp.expired ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>{exp.text}</p>
+                    )}
+                    {editingToken === link.token && (
+                      <div className="mt-2">{renderSheetPicker(editIds, (id) => setEditIds((p) => toggleId(id, p)))}</div>
                     )}
                   </div>
                   {editingToken === link.token ? (
@@ -234,8 +268,8 @@ export default function ShareTab({
                     </>
                   ) : (
                     <>
-                      <button onClick={() => { setEditingToken(link.token); setEditLabel(link.label || '') }}
-                        aria-label={t('Renombrar', 'Rename')} title={t('Renombrar', 'Rename')}
+                      <button onClick={() => { setEditingToken(link.token); setEditLabel(link.label || ''); setEditIds(link.instrumentIds || []) }}
+                        aria-label={t('Editar', 'Edit')} title={t('Editar', 'Edit')}
                         className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
                         ✎
                       </button>
@@ -308,6 +342,8 @@ export default function ShareTab({
             </p>
           </div>
 
+          {renderSheetPicker(shareForm.instrumentIds, (id) => setShareForm((p) => ({ ...p, instrumentIds: toggleId(id, p.instrumentIds) })))}
+
           {shareForm.scopeType === 'portfolio' && (
             <select value={shareForm.portfolioId} onChange={(e) => setShareForm((p) => ({ ...p, portfolioId: e.target.value }))}
               className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
@@ -358,10 +394,25 @@ export default function ShareTab({
         </button>
       )}
 
+      {/* Las fichas de instrumento: el teaser de un producto que el asesor
+          adjunta al link de su cliente. El manager vive acá porque este tab es
+          la superficie del asesor. */}
+      <button onClick={() => setManagerOpen(true)}
+        className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-glass-border rounded-xl hover:text-blue-400 hover:border-blue-500/30 transition-colors inline-flex items-center justify-center gap-1.5">
+        <FileText size={13} strokeWidth={2} />
+        {t('Fichas de instrumento', 'Instrument sheets')}{instruments.length > 0 ? ` (${instruments.length})` : ''}
+      </button>
+
       <p className="text-xs text-slate-600">{t(
         'Los links no vencen salvo que elijas una vigencia al crearlos; puedes revocarlos cuando quieras.',
         "Links don't expire unless you pick a duration when creating them; you can revoke them anytime."
       )}</p>
+
+      {managerOpen && (
+        <InstrumentSheetsManager lang={lang} instruments={instruments}
+          onSave={saveInstrument} onDelete={deleteInstrument}
+          onClose={() => setManagerOpen(false)} flash={flash} />
+      )}
     </div>
   )
 }

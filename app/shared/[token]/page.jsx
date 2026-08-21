@@ -31,10 +31,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { formatCurrency, TYPE_COLORS, categoryLabel } from '@/components/dashboard/utils'
 import { concentrationFrom } from '@/lib/sharePayload'
+import { DEFAULT_DISCLAIMER } from '@/lib/instrumentSheet'
 import { regionLabel } from '@/lib/reportData'
 import { niceScale } from '@/lib/niceAxis'
 import Logo from '@/components/ui/Logo'
-import { Sun, Moon, Download, Lock, Phone, Mail } from 'lucide-react'
+import { Sun, Moon, Download, Lock, Phone, Mail, ChevronDown, ExternalLink } from 'lucide-react'
 
 const LANG_KEY = 'chispudo-shared-lang'
 
@@ -129,7 +130,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
     display, owner, advisor, asOf, baseCurrency, label, scopeLabel, hasSeries,
     kpis = {}, allocation = [], holdings = [], series = [], income = {}, maturities = [],
     performance = [], calendarYears = [], flows = null, maxDrawdown = null,
-    currencies = [], geography = [],
+    currencies = [], geography = [], instruments = [],
     degraded, failedSymbols = [], empty,
   } = data
 
@@ -193,6 +194,21 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
   const pct2 = (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`
   const perfColor = (v) => (v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')
 
+  // Las fichas se muestran también sobre un portafolio VACÍO: el caso real de
+  // un asesor es mandarle una oportunidad a un prospecto sin posiciones aún.
+  const opportunities = instruments.length > 0 && (
+    <Section title={t('Oportunidades', 'Opportunities')}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        {t('Instrumentos que tu asesor preparó para ti.', 'Instruments your advisor prepared for you.')}
+      </p>
+      <div className="space-y-3">
+        {instruments.map((ins) => (
+          <InstrumentSheet key={ins.id || ins.name} ins={ins} t={t} lang={lang} advisor={advisor} owner={owner} />
+        ))}
+      </div>
+    </Section>
+  )
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <header className="sticky top-0 z-20 border-b" style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--bg-card)' }}>
@@ -228,12 +244,15 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
 
       <main className="max-w-4xl mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {empty ? (
-          <div className="card p-8 text-center">
-            <h1 className="text-h2 mb-2" style={{ color: 'var(--text-primary)' }}>{t('Nada que mostrar todavía', 'Nothing to show yet')}</h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {t('Este link apunta a un portafolio sin posiciones.', 'This link points at a portfolio with no positions.')}
-            </p>
-          </div>
+          <>
+            <div className="card p-8 text-center">
+              <h1 className="text-h2 mb-2" style={{ color: 'var(--text-primary)' }}>{t('Nada que mostrar todavía', 'Nothing to show yet')}</h1>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {t('Este link apunta a un portafolio sin posiciones.', 'This link points at a portfolio with no positions.')}
+              </p>
+            </div>
+            {opportunities}
+          </>
         ) : (
           <>
             <Hero
@@ -405,6 +424,8 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
                 )}
               </div>
             )}
+
+            {opportunities}
 
             <Disclosures t={t} asOfLabel={asOfLabel} owner={owner} advisor={advisor} />
           </>
@@ -668,6 +689,126 @@ function Disclosures({ t, asOfLabel, owner, advisor }) {
           {(owner || advisor?.firm) && (
             <p>{t('Preparado por', 'Prepared by')} {[owner, advisor?.firm].filter(Boolean).join(' · ')} {t('con Chispudo.', 'with Chispudo.')}</p>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// La ficha de instrumento: el teaser (anatomía de los teasers reales de la
+// región, ver lib/instrumentSheet.js). Colapsada muestra nombre + rating +
+// hero facts; expandida, el teaser completo con "Me interesa" (mailto al
+// asesor con asunto prellenado: cero backend) y el link al documento completo
+// (solo https, garantizado por la allowlist del servidor). Todo el contenido
+// del asesor se renderiza como NODOS DE TEXTO de React, jamás como HTML.
+function InstrumentSheet({ ins, t, lang, advisor, owner }) {
+  const [open, setOpen] = useState(false)
+  const interestHref = advisor?.email
+    ? `mailto:${advisor.email}?subject=${encodeURIComponent(t(`Me interesa: ${ins.name}`, `I'm interested: ${ins.name}`))}`
+    : null
+  const updated = ins.updatedAt ? shortDate(Date.parse(ins.updatedAt), lang) : null
+
+  return (
+    <div className="rounded-xl border" style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--bg-card-hover)' }}>
+      <button onClick={() => setOpen((v) => !v)} aria-expanded={open}
+        className="w-full text-left p-3.5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{ins.name}</span>
+            {ins.rating?.grade && (
+              <span className="text-micro px-1.5 py-0.5 rounded-md border shrink-0"
+                title={ins.rating.agency || undefined}
+                style={{ color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}>
+                {ins.rating.grade}
+              </span>
+            )}
+          </div>
+          {ins.heroFacts?.length > 0 && (
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
+              {ins.heroFacts.map((f, i) => (
+                <span key={`${f.label}-${i}`} className="text-xs">
+                  <span style={{ color: 'var(--text-muted)' }}>{f.label}: </span>
+                  <span style={{ color: 'var(--text-primary)' }}>{f.value}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <ChevronDown size={16} strokeWidth={2} className="shrink-0 mt-0.5 transition-transform"
+          style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none' }} />
+      </button>
+
+      {open && (
+        <div className="px-3.5 pb-3.5 space-y-3">
+          {updated && (
+            <p className="text-micro" style={{ color: 'var(--text-muted)' }}>{t('Ficha al', 'Sheet as of')} {updated}</p>
+          )}
+          {ins.summary && (
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{ins.summary}</p>
+          )}
+          {ins.highlights?.length > 0 && (
+            <ul className="space-y-1">
+              {ins.highlights.map((h, i) => (
+                <li key={i} className="text-xs flex gap-2" style={{ color: 'var(--text-secondary)' }}>
+                  <span className="shrink-0" style={{ color: 'var(--accent-blue)' }}>•</span>
+                  <span>{h}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {ins.terms?.length > 0 && (
+            <div>
+              <div className="text-micro mb-1.5" style={{ color: 'var(--text-muted)' }}>{t('Características', 'Terms')}</div>
+              <div className="divide-y rounded-lg border" style={{ borderColor: 'var(--card-border)' }}>
+                {ins.terms.map((row, i) => (
+                  <div key={`${row.label}-${i}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-2.5 py-1.5 text-xs">
+                    <span style={{ color: 'var(--text-muted)' }}>{row.label}</span>
+                    <span className="text-right" style={{ color: 'var(--text-primary)' }}>{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {ins.description && (
+            <div>
+              <div className="text-micro mb-1" style={{ color: 'var(--text-muted)' }}>{t('¿Qué es este producto?', 'What is this product?')}</div>
+              <p className="text-xs whitespace-pre-line" style={{ color: 'var(--text-secondary)' }}>{ins.description}</p>
+            </div>
+          )}
+          {ins.risks && (
+            <div>
+              <div className="text-micro mb-1" style={{ color: 'var(--text-muted)' }}>{t('Riesgos', 'Risks')}</div>
+              <p className="text-xs whitespace-pre-line" style={{ color: 'var(--text-secondary)' }}>{ins.risks}</p>
+            </div>
+          )}
+          {(interestHref || ins.url) && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {interestHref && (
+                <a href={interestHref}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                  style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                  {t('Me interesa', 'I\'m interested')}
+                </a>
+              )}
+              {ins.url && (
+                <a href={ins.url} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5"
+                  style={{ color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}>
+                  {t('Documento completo', 'Full document')}
+                  <ExternalLink size={12} strokeWidth={2} />
+                </a>
+              )}
+            </div>
+          )}
+          {(owner || advisor?.firm || advisor?.phone) && (
+            <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
+              {t('Contacto: ', 'Contact: ')}
+              {[[owner, advisor?.firm].filter(Boolean).join(' · '), advisor?.phone].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
+            {ins.disclaimer || DEFAULT_DISCLAIMER[lang === 'es' ? 'es' : 'en']}
+          </p>
         </div>
       )}
     </div>
