@@ -792,7 +792,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   // IBKR auto-sync
   const { acquireLock, releaseLock } = useTabCoordination()
-  const ibkrAutoSyncRef = useRef(false)
+  // ⛔ FASE KD. Acá vivía `ibkrAutoSyncRef`, un booleano de "ya armé el
+  // auto-sync en este mount" que hacía `return` en toda re-ejecución del
+  // efecto. Con él, la cadencia recurrente estaba MUERTA en la práctica:
+  //
+  //   1. el efecto depende de `settings` Y de `handleIBKRSync`, cuyas deps
+  //      incluyen `items`, o sea su identidad cambia con CADA tick de precios
+  //      (~5 min) y con cualquier escritura de settings;
+  //   2. la limpieza del efecto hacía `clearInterval`, así que el temporizador
+  //      se destruía en la primera re-ejecución;
+  //   3. la re-ejecución siguiente salía por el guard ANTES de crear uno nuevo.
+  //
+  // El propio sync escribe settings al terminar, así que eso pasaba siempre: de
+  // ahí en adelante solo se sincronizaba al recargar la página. En una pestaña
+  // que queda abierta días (el caso real del usuario) no volvía a correr nunca,
+  // la misma enfermedad que FASE HZ arregló para el backfill. Y de paso, la
+  // cadencia larga de FASE II3 tampoco podía aplicarse dentro de una sesión: el
+  // intervalo quedaba capturado con el valor del primer arranque.
+  //
+  // Sin el guard, cada re-ejecución vuelve a evaluar la compuerta de tiempo
+  // (`shouldSync`, contra el último INTENTO) y re-arma el temporizador. No
+  // martillea: la compuerta permite a lo sumo un intento por ventana de
+  // cadencia, y `acquireLock('ibkr-sync')` es un Set en memoria, así que una
+  // re-ejecución a mitad de un sync no puede arrancar un segundo.
   // FASE GC. Id de la corrida de sync más reciente. El finally del auto-sync
   // apagaba el spinner solo `if (!cancelled)`, pero el efecto se re-ejecuta
   // cuando `settings` cambia y el PROPIO sync escribe settings a mitad de
@@ -959,12 +981,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Proceed if there's a legacy client-stored token OR creds already migrated to
     // the server vault (_ibkrVaultMigrated), as long as a query id exists.
     if ((!settings?.ibkrToken && !settings?._ibkrVaultMigrated) || !settings?.ibkrQueryId) return
-    if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) {
-      ibkrAutoSyncRef.current = false
-      return
-    }
-    if (ibkrAutoSyncRef.current) return
-    ibkrAutoSyncRef.current = true
+    if (FATAL_ERROR_CODES.includes(settings?._ibkrAutoSyncErrorCode)) return
     // After a LOCKED error, back off to a long cadence so we let IBKR's temporary
     // lock expire (retrying too soon can refresh it) — but still retry, so a working
     // token self-heals and the banner clears without manual action.
