@@ -114,7 +114,7 @@ import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
-import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows } from '@/lib/badDataCleanup'
+import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows, detectCrossSourceDuplicateTrades } from '@/lib/badDataCleanup'
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { clearIbkrCredentials } from '@/lib/ibkrVault'
 import { ibkrFailureFeedback, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
@@ -743,6 +743,23 @@ export default function DashboardPage() {
   // Order matters (lib/badDataCleanup): fake trades first, since clearing the
   // acquisitionDate side effect (1b) needs to know WHICH symbols were faked.
   const healedRef = useRef(false)
+  // ⛔ FASE KG. Un sync recién terminado re-arma la limpieza EN LA MISMA sesión.
+  // `healedRef` es una-vez-por-sesión (para no reintentar un borrado que falla
+  // en bucle), así que sin esto una pasada que escribe filas malas se limpiaba
+  // recién en la próxima carga. Importa ahora porque el id de un trade de la
+  // ruta de API cambia con este mismo commit (pasa a llevar el `tradeID`, igual
+  // que el del archivo): el primer sync después del deploy escribe los docs
+  // nuevos y deja los viejos al lado, y el detector nuevo los borra: pero solo
+  // si llega a correr. Mismo patrón que el reset por `deletionEpoch` del
+  // backfill (FASE GM2).
+  const lastHealedSyncRef = useRef(null)
+  useEffect(() => {
+    const at = ibkrSyncSummary?.at || null
+    if (at && at !== lastHealedSyncRef.current) {
+      lastHealedSyncRef.current = at
+      healedRef.current = false
+    }
+  }, [ibkrSyncSummary])
   useEffect(() => {
     if (dataLoading || healedRef.current || !deleteTransaction || !deleteItem || !updateItem) return
     const fakeTrades = detectFakeAggregateTrades(transactions || [])
@@ -750,10 +767,12 @@ export default function DashboardPage() {
     const stampedAcquisitions = detectImportStampedAcquisitions(items || [], fakeTradeSymbols)
     const dupeDividends = detectDuplicateCashDividends(transactions || [])
     const dupeFlows = detectCrossSourceDuplicateFlows(transactions || [])
+    // FASE KG: el mismo trade escrito por los dos caminos de import.
+    const dupeTrades = detectCrossSourceDuplicateTrades(transactions || [])
     const phantoms = detectPhantomFlows(transactions || [])
     const fakeCashItems = detectFakeCashReportItems(items || [])
 
-    const txToDelete = [...fakeTrades, ...dupeDividends, ...dupeFlows, ...phantoms]
+    const txToDelete = [...fakeTrades, ...dupeDividends, ...dupeFlows, ...dupeTrades, ...phantoms]
     if (txToDelete.length === 0 && stampedAcquisitions.length === 0 && fakeCashItems.length === 0) return
     healedRef.current = true
     let cancelled = false
@@ -769,7 +788,7 @@ export default function DashboardPage() {
         try { await deleteItem(it.id); removedItems++ } catch { /* leave it; next load retries */ }
       }
       if (cancelled || (removedTx === 0 && clearedItems === 0 && removedItems === 0)) return
-      const total = [...fakeTrades, ...phantoms, ...dupeDividends, ...dupeFlows].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
+      const total = [...fakeTrades, ...phantoms, ...dupeDividends, ...dupeFlows, ...dupeTrades].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
         + fakeCashItems.reduce((sum, it) => sum + Math.abs(it.value || 0), 0)
       showToast(
         lang === 'es'
