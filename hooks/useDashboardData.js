@@ -15,6 +15,7 @@ import { ibkrSyncIntervalMs, nextFailCount } from '@/lib/ibkrRetryPolicy'
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
 import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
+import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
@@ -997,10 +998,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           const { decryptToken } = await import('@/lib/crypto')
           token = await decryptToken(settings.ibkrToken, user?.uid)
           try {
-            await authFetch('/api/brokers/ibkr', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
-            })
+            // FASE KC: lanza si el servidor no confirmó. Antes cualquier
+            // respuesta contaba como guardada y la línea de abajo borraba el
+            // token legacy: la única copia que existía.
+            await saveIbkrCredentials(token, settings.ibkrQueryId)
             saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
           } catch (e) { console.error('[ibkr] vault migration failed (will retry next sync):', e?.message) }
         }
@@ -1070,10 +1071,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const { decryptToken } = await import('@/lib/crypto')
         token = await decryptToken(settings.ibkrToken, user?.uid)
         try {
-          await authFetch('/api/brokers/ibkr', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'save-credentials', token, queryId: settings.ibkrQueryId }),
-          })
+          await saveIbkrCredentials(token, settings.ibkrQueryId)
           saveSettings({ ibkrToken: null, _ibkrVaultMigrated: true })
         } catch (e) { console.error('[ibkr] vault migration failed (manual sync):', e.message) }
       }

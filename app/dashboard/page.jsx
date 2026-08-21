@@ -116,6 +116,7 @@ import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
 import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows } from '@/lib/badDataCleanup'
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
+import { clearIbkrCredentials } from '@/lib/ibkrVault'
 import { ibkrFailureFeedback, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
 import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
 
@@ -678,13 +679,19 @@ export default function DashboardPage() {
     saveSettings(IBKR_DISCONNECTED_FIELDS)
     // Also wipe the SERVER vault — clearing only the client doc left the
     // encrypted token alive, so the connection resurfaced and auto-synced.
+    // FASE KC: `clearIbkrCredentials` lanza si el servidor no confirmó. El
+    // mirror del cliente ya se limpió arriba, así que desde el lado del usuario
+    // IBKR quedó desconectado igual; lo que sobrevive es el doc cifrado del
+    // vault, y decirlo es la diferencia entre reintentar y no enterarse.
     try {
-      await authFetch('/api/brokers/ibkr', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: '', queryId: '' }),
-      })
-    } catch (e) { console.error('[ibkr] vault clear on disconnect failed:', e?.message) }
-    showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
+      await clearIbkrCredentials()
+      showToast(lang === 'es' ? 'IBKR desconectado' : 'IBKR disconnected')
+    } catch (e) {
+      console.error('[ibkr] vault clear on disconnect failed:', e?.message)
+      showToast(lang === 'es'
+        ? 'IBKR desconectado aquí, pero no pudimos borrar la copia del servidor. Volvé a intentarlo.'
+        : 'IBKR disconnected here, but we could not clear the server copy. Please try again.')
+    }
   }, [saveSettings, showToast, lang])
 
   // FASE GO. El usuario pidió "desconexión completa": borrar la cuenta de

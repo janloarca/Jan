@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { RefreshCw, Rocket } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { clearIbkrCredentials } from '@/lib/ibkrVault'
 import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerConnectModal from '@/components/BrokerConnectModal'
@@ -160,11 +161,10 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const handleIbkrDisconnect = async () => {
     setIbkrSaving(true)
     try {
-      await authFetch('/api/brokers/ibkr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: null, queryId: null }),
-      })
+      // FASE KC: lanza si el servidor no confirmó el borrado. Antes se
+      // limpiaba la UI y se decía "IBKR desvinculado" igual, dejando el token
+      // cifrado vivo en el vault: reconectar lo encontraba de vuelta.
+      await clearIbkrCredentials()
       setIbkrConfigured(false)
       setIbkrToken('')
       setIbkrQueryId('')
