@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { formatCurrency, formatDate, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
@@ -57,35 +57,71 @@ const ANCHOR_SRC_LABEL = {
 function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, unmappedStart = 0, unmappedCount = 0, lang, cv, displayCur }) {
   return (
     <div className="mt-2">
-      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1 items-baseline">
-        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Cuenta' : 'Account'}</span>
-        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Arranque' : 'Start'}</span>
-        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Hoy' : 'Now'}</span>
-        <span className="text-[10px] uppercase tracking-wider text-right" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'Movimientos' : 'Flows'}</span>
-        {accounts.map((a) => (
-          <Fragment key={a.name}>
-            {/* Sin truncar: la etiqueta de fuente es el dato que hace útil a
-                esta tabla, y en un teléfono un nombre largo la cortaba justo a
-                ella ("Interactive Brokers (des..."). */}
-            <span className="text-[11px] leading-tight" style={{ color: 'var(--text-secondary)' }}>
-              {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
-              {START_SRC_LABEL[a.src] && (
-                <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  ({START_SRC_LABEL[a.src][lang === 'es' ? 'es' : 'en']}
-                  {/* FASE IX7. De qué día salió ese NAV. El arranque del broker
-                      se resuelve con arrastre, así que "el 1 de enero" puede ser
-                      en realidad el cierre del 31 de diciembre (feriado de
-                      mercado). Sin la fecha, la única forma de saber qué día se
-                      está usando era deducirlo de que el número no cambiaba. */}
-                  {a.srcDate ? ` · ${formatDate(`${a.srcDate}T00:00:00Z`)}` : ''})
+      {/* ⛔ FASE KJ. Un BLOQUE por cuenta, no una rejilla de 4 columnas.
+          Medido en el navegador a 390px (el ancho del teléfono del usuario):
+          los tres importes en mono se comían el ancho y dejaban 102px para el
+          nombre, así que "Interactive Brokers* (NAV broker · 1 ene 2026)"
+          ocupaba TRES líneas, y la última columna (Movimientos) se salía de la
+          tarjeta y quedaba CORTADA contra el borde. Eso no es densidad, es
+          información perdida.
+          Y la alineación por columnas, que es lo que se pierde, tampoco era lo
+          que hacía útil a esta tabla: la comparación entre cuentas ya está
+          arriba, ordenada. Acá se viene a contestar una pregunta sobre UNA
+          cuenta ("¿por qué dice +$383.93?"), así que cada cuenta se lee como
+          una unidad. */}
+      {/* Mismo orden que la lista de arriba (por tamaño), para poder moverse
+          entre las dos sin buscar. El orden que trae el motor es el de su mapa
+          de cuentas: no significa nada. */}
+      <div className="space-y-2">
+        {[...accounts]
+          .sort((x, y) => Math.abs((y.end ?? 0) - (y.start ?? 0) - (y.flow ?? 0)) - Math.abs((x.end ?? 0) - (x.start ?? 0) - (x.flow ?? 0)))
+          .map((a) => {
+          // La identidad que el motor usa, escrita para que se pueda comprobar:
+          // ganancia = hoy − arranque − movimientos. No es un cálculo nuevo (es
+          // la definición de attributeYtd), y ponerla acá conecta el bloque con
+          // la cifra de la lista de arriba en vez de dejarla en la cabeza.
+          const gain = (a.end ?? 0) - (a.start ?? 0) - (a.flow ?? 0)
+          const g = gain === 0 ? 0 : gain
+          return (
+            <div key={a.name} className="pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] leading-tight min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                  {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
+                  {START_SRC_LABEL[a.src] && (
+                    <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      ({START_SRC_LABEL[a.src][lang === 'es' ? 'es' : 'en']}
+                      {/* FASE IX7. De qué día salió ese NAV. El arranque del
+                          broker se resuelve con arrastre, así que "el 1 de
+                          enero" puede ser en realidad el cierre del 31 de
+                          diciembre (feriado de mercado). Sin la fecha, la única
+                          forma de saber qué día se está usando era deducirlo de
+                          que el número no cambiaba. */}
+                      {a.srcDate ? ` · ${formatDate(`${a.srcDate}T00:00:00Z`)}` : ''})
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.start ?? 0), displayCur)}</span>
-            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.end ?? 0), displayCur)}</span>
-            <span className="text-[11px] font-mono tabular-nums text-right" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(cv(a.flow ?? 0), displayCur)}</span>
-          </Fragment>
-        ))}
+                <span className="text-[11px] font-mono tabular-nums shrink-0"
+                  style={{ color: g > 0 ? 'var(--accent-green)' : g < 0 ? 'var(--text-negative)' : 'var(--text-muted)' }}>
+                  {g >= 0 ? '+' : ''}{formatCurrency(cv(g), displayCur)}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                {[
+                  { k: 'start', label: lang === 'es' ? 'Arranque' : 'Start', v: a.start ?? 0 },
+                  { k: 'end', label: lang === 'es' ? 'Hoy' : 'Now', v: a.end ?? 0 },
+                  { k: 'flow', label: lang === 'es' ? 'Movimientos' : 'Flows', v: a.flow ?? 0 },
+                ].map((term) => (
+                  <span key={term.k} className="flex items-baseline gap-1">
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{term.label}</span>
+                    <span className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                      {formatCurrency(cv(term.v), displayCur)}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+          })}
       </div>
       <div className="flex items-baseline justify-between gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
         <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
@@ -501,12 +537,17 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                       The share read as a return and was not one: a broker up
                       7.40% on the year showed "75%" next to it, which only meant
                       "most of this year's gain came from here". */}
+                  {/* FASE KJ: `-0` normalizado a `0`. Una cuenta que no movió
+                      nada (Banco Industrial: 4741.15 − 602.15 − 4139.00 = 0)
+                      puede caer en cero NEGATIVO, y ahí `gain >= 0` es true en
+                      JS (imprime '+') mientras Intl formatea -0 como "-$0.00":
+                      el resultado era un "+-$0.00" en pantalla. */}
                   {g.ret != null && isFinite(g.ret) && (
                     <span className="mr-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {g.ret >= 0 ? '+' : ''}{g.ret.toFixed(2)}%
+                      {(g.ret === 0 ? 0 : g.ret) >= 0 ? '+' : ''}{(g.ret === 0 ? 0 : g.ret).toFixed(2)}%
                     </span>
                   )}
-                  {g.gain >= 0 ? '+' : ''}{formatCurrency(cv(g.gain), displayCur)}
+                  {(g.gain === 0 ? 0 : g.gain) >= 0 ? '+' : ''}{formatCurrency(cv(g.gain === 0 ? 0 : g.gain), displayCur)}
                 </span>
               </div>
             ))}
