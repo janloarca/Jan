@@ -255,7 +255,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // nothing about how much it actually moved your net worth. Deduped by item
   // id (two holdings sharing a symbol must not shadow each other) and gated
   // by position weight: a $5 position's ±10% shouldn't headline the card.
-  // ⛔ FASE JX: el motor vive en lib/dayMovers.js, agregado POR ACTIVO. Este
+  // ⛔ FASE KN: el motor vive en lib/dayMovers.js, agregado POR ACTIVO. Este
   // bloque deduplicaba por ID DE ÍTEM, así que el mismo activo en dos cuentas
   // producía DOS filas compitiendo entre sí, y como el render las llaveaba por
   // etiqueta, esas dos filas homónimas dejaban un nodo rancio al cambiar de
@@ -299,7 +299,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     if (moversTab === 'losers' && movers.losers.length === 0 && movers.gainers.length > 0) setMoversTab('gainers')
   }, [movers, moversTab])
 
-  // ⛔ FASE JX. BAJO QUÉ HORARIO corre esta lista. La respuesta honesta es que
+  // ⛔ FASE KN. BAJO QUÉ HORARIO corre esta lista. La respuesta honesta es que
   // NO hay un solo horario, y ese era el problema: para una acción `change1d`
   // mide la última SESIÓN BURSÁTIL completada (hora del exchange), y para cripto
   // una ventana RODANTE de 24 horas. La misma lista mezclaba las dos sin
