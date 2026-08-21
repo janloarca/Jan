@@ -760,6 +760,22 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   {t('Última sincronización:', 'Last synced:')} {lastSyncLabel}
                 </p>
               )}
+              {/* ⛔ FASE KK. La RAZÓN, también cuando el usuario ya tiene datos.
+                  Antes `error` y `errorHint` estaban los dos gateados a
+                  `!hasData`, así que a cualquiera cuya conexión YA funcionó
+                  alguna vez (o sea exactamente la población que llega acá
+                  diciendo "dejó de funcionar") el modal le decía "no se pudo
+                  conectar" y escondía por qué, con un botón Reintentar al lado
+                  que repite lo mismo. La intención era no alarmar a quien tiene
+                  sus datos bien, y es razonable, pero "no alarmar" no es "no
+                  decir": el resultado era un callejón sin salida. Va en ámbar,
+                  debajo de la frase que tranquiliza, no en rojo. */}
+              {hasData && (error || errorHint) && (
+                <div className="text-xs mt-1.5 opacity-80 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {errorHint ? <p>{errorHint}</p> : null}
+                  {error ? <p className={errorHint ? 'mt-0.5' : ''} style={{ wordBreak: 'break-word' }}>{error}</p> : null}
+                </div>
+              )}
               {!hasData && errorHint && (
                 <p className="text-[var(--alert-error-icon)] opacity-80 text-xs mt-1.5">{errorHint}</p>
               )}
@@ -816,7 +832,16 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 )}
                 {/* Persistent last-sync breakdown: opening this connected view must
                     SAY what data the connection holds, without forcing a re-sync. */}
-                {syncSummary && (
+                {/* ⛔ FASE KK. Un resumen SIN fecha de sync es un FÓSIL, no el
+                    estado de esta conexión. `_ibkrLastSync`/`_ibkrLastAutoSync`
+                    se escriben en el MISMO saveSettings que el resumen, así que
+                    no pueden faltar en un resumen legítimo: si faltan, es
+                    porque un desconectar los limpió y dejó el resumen vivo
+                    (`_ibkrLastSyncSummary` no estaba en IBKR_DISCONNECTED_FIELDS
+                    hasta este commit). Eso hacía que una cuenta RECONECTADA
+                    mostrara "0 flujos · 0 costos" y "+317 operaciones" de una
+                    era anterior como si fueran de ahora. */}
+                {syncSummary && lastSyncTime && (
                   <div className="text-[10px] font-mono mt-1 px-3 py-2 rounded-lg text-left w-full max-w-xs"
                     style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
                     <div>{t('Datos guardados', 'Stored data')}: {syncSummary.equityDays ?? 0} {t('días NAV', 'NAV days')} · {syncSummary.trades ?? 0} trades · {(syncSummary.flows ?? 0) + (syncSummary.dividends ?? 0)} {t('flujos', 'flows')} · {syncSummary.fees ?? 0} {t('costos', 'costs')}</div>
@@ -827,7 +852,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 )}
                 {/* Auto-detected changes since the previous sync: the platform reads
                     every new movement on its own, this makes it visible. */}
-                {syncSummary?.changes && (
+                {syncSummary?.changes && lastSyncTime && (
                   <div className="text-xs px-3 py-2 rounded-lg text-left w-full max-w-xs"
                     style={{ backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)', color: 'var(--accent-green)' }}>
                     <span className="font-semibold">{t('Detectado en el último sync', 'Detected in the last sync')}:</span>{' '}

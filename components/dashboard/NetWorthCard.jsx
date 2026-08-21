@@ -581,29 +581,15 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 : `Year-start is ESTIMATED for ${ytdDegradedAccounts.join(', ')}: their row may not match their own chart.`}
             </p>
           )}
-          {/* FASE IK: los tres términos de cada fila, también cuando el panel SÍ
-              muestra. Una fila que no coincide con la gráfica de su cuenta se
-              podía ver pero no diagnosticar: había que deducir de los síntomas
-              si el desvío venía del arranque o de los movimientos, y eso es lo
-              que consume una ronda entera de capturas (lección FASE HP).
-              Colapsado por default: es diagnóstico, no algo que el usuario
-              venga a leer. */}
-          {hasBreakdown && Array.isArray(ytdBreakdownTerms?.accounts) && ytdBreakdownTerms.accounts.length > 0 && (
-            <div className="mt-2">
-              <button type="button" onClick={() => setShowRefusalDetail((v) => !v)}
-                aria-expanded={showRefusalDetail}
-                className="text-[11px] underline decoration-dotted underline-offset-2 cursor-pointer"
-                style={{ color: 'var(--text-muted)' }}>
-                {showRefusalDetail
-                  ? (lang === 'es' ? 'Ocultar detalle por cuenta' : 'Hide per-account detail')
-                  : (lang === 'es' ? 'Ver detalle por cuenta' : 'See per-account detail')}
-              </button>
-              {showRefusalDetail && (
-                <AccountTermsTable accounts={ytdBreakdownTerms.accounts} anchor={ytdBreakdownTerms.anchor} anchorTs={ytdBreakdownTerms.anchorTs} anchorSrc={ytdBreakdownTerms.anchorSrc} measuredTs={ytdBreakdownTerms.measuredTs} unmappedStart={ytdBreakdownTerms.unmappedStart} unmappedCount={ytdBreakdownTerms.unmappedCount}
-                  lang={lang} cv={cv} displayCur={displayCur} />
-              )}
-            </div>
-          )}
+          {/* ⛔ FASE KK. Acá vivía "Ver detalle por cuenta" (FASE IK): los tres
+              términos de cada fila cuando el panel SÍ muestra. Existió para
+              diagnosticar una fila que no coincidía con la gráfica de su
+              cuenta, y cumplió su trabajo: con el desglose ya cuadrando al
+              centavo (FASE KH) es un volcado forense encima de un número que ya
+              es correcto, y el usuario pidió quitarlo.
+              La MISMA tabla sigue montada en la rama de RECHAZO (arriba): ahí el
+              panel se niega a mostrar y esos términos son lo único que dice qué
+              cuenta no cuadra, o sea justo cuando hace falta. */}
           {hasBreakdown && ytdBreakdown.groups.some((g) => g.isUnexplained) && (
             <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {lang === 'es'
