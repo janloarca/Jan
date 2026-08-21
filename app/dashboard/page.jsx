@@ -534,7 +534,7 @@ export default function DashboardPage() {
       // exacto que provoca el bloqueo: error, toque, error, toque. Así que un
       // fallo arma un enfriamiento, y si es algo que el usuario puede arreglar,
       // le abrimos la pantalla donde se arregla en vez de gastar otro intento.
-      const fb = ibkrFailureFeedback(res?.errorCode, lang)
+      const fb = ibkrFailureFeedback(res?.errorCode, lang, { failCount: settings?._ibkrAutoSyncFailCount })
       setIbkrCooldownUntil(fb.cooldownMs > 0 ? Date.now() + fb.cooldownMs : 0)
       showToast(fb.message, fb.tone, 6000)
       if (fb.action === 'open-connection') setModal('ibkr')
@@ -547,7 +547,7 @@ export default function DashboardPage() {
     // Ya pasó en FASE HC con refetchBenchmark; esta es la segunda vez.
     // Omitirlo es seguro y es lo que este archivo hacía antes: showToast es un
     // useCallback con deps [], o sea su identidad nunca cambia.
-  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil])
+  }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil, settings?._ibkrAutoSyncFailCount])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
