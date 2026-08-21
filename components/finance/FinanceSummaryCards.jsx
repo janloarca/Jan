@@ -2,8 +2,12 @@
 
 // El resultado del mes: entró, salió, quedó.
 //
-// `investmentIncome` (automático, de los dividendos del portafolio) cuenta
-// dentro del ingreso total, con su nota al pie.
+// ⛔ SOLO dinero de Flujo. El ingreso por dividendos del portafolio se sumaba
+// acá con una nota al pie ("incluye Q237.39 de inversión"), y con eso la
+// pantalla llegaba a decir "Falta un lado" (ninguna fila de ingreso registrada)
+// arriba de un "Entró Q237.39" y un ahorro de +20.2% medido contra dinero que
+// el usuario nunca registró en Flujo. Son dos segmentos separados: lo que
+// Patrimonio genera se mide en Patrimonio.
 //
 // Dos cosas que antes se decían mal:
 //
@@ -24,11 +28,11 @@
 const RATE_FLOOR = -100
 
 export default function FinanceSummaryCards({
-  income, expenses, investmentIncome = 0,
+  income, expenses,
   momIncomePct = null, momExpensesPct = null, momComparable = true,
   lang = 'es',
 }) {
-  const totalIncome = income + (investmentIncome || 0)
+  const totalIncome = income
   const savings = totalIncome - expenses
   const savingsRate = totalIncome > 0 ? (savings / totalIncome) * 100 : null
   const t = (es, en) => lang === 'es' ? es : en
@@ -62,11 +66,6 @@ export default function FinanceSummaryCards({
           {money(totalIncome)}
           <Delta pct={momIncomePct} />
         </p>
-        {investmentIncome > 0 && (
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {t(`incluye Q${fmt(investmentIncome)} de inversión 🔒`, `includes Q${fmt(investmentIncome)} from investments 🔒`)}
-          </p>
-        )}
       </div>
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Salió', 'Went out')}</p>

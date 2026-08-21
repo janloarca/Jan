@@ -25,7 +25,7 @@ import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
-import { computeMonthlyAnalysis, buildFinanceInsights, investmentIncomeOfMonth } from '@/lib/financeMonth'
+import { computeMonthlyAnalysis, buildFinanceInsights } from '@/lib/financeMonth'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
@@ -97,8 +97,6 @@ export default function FinancesPage() {
     saveProfile,
     incomePlan,
     saveIncomePlan,
-    transactions: portfolioTransactions,
-    items: portfolioItems,
   } = useFirestoreItems()
 
   const { convert, loading: ratesLoading, refresh: refreshRates } = useExchangeRates()
@@ -132,24 +130,15 @@ export default function FinancesPage() {
     [monthTransactions]
   )
 
-  // ── Motor mensual: análisis, insights, ingreso de inversión (solo lectura) ──
-  const investmentIncome = useMemo(
-    // portfolioItems va a propósito (FASE JW): sin ellos, un pago escrito antes
-    // de que la cuenta pasara a reinvertir entra acá como ingreso del mes sin
-    // haber tocado ninguna cuenta bancaria.
-    () => investmentIncomeOfMonth(portfolioTransactions, { month, year }, convert, portfolioItems),
-    [portfolioTransactions, portfolioItems, month, year, convert]
+  // ── Motor mensual: análisis e insights ──
+  //
+  // ⛔ Solo transacciones de Flujo. El ingreso por dividendos del portafolio ya
+  // NO se inyecta acá: son dos segmentos separados (ver la cabecera de
+  // computeMonthlyAnalysis). Lo que Patrimonio genera se mide en Patrimonio.
+  const analysis = useMemo(
+    () => computeMonthlyAnalysis(financeTransactions, { month, year }, convert),
+    [financeTransactions, month, year, convert]
   )
-  const analysis = useMemo(() => {
-    // The read-only investment income counts as income in every compared month,
-    // so savings/savings-rate insights agree with the summary cards.
-    const prevMY = month === 0 ? { month: 11, year: year - 1 } : { month: month - 1, year }
-    return computeMonthlyAnalysis(financeTransactions, { month, year }, convert, {
-      extraIncome: investmentIncome.total,
-      prevExtraIncome: investmentIncomeOfMonth(portfolioTransactions, prevMY, convert, portfolioItems).total,
-      yoyExtraIncome: investmentIncomeOfMonth(portfolioTransactions, { month, year: year - 1 }, convert, portfolioItems).total,
-    })
-  }, [financeTransactions, portfolioTransactions, portfolioItems, investmentIncome, month, year, convert])
   const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
 
   // El desglose por grupo (y por categoría dentro de cada grupo) sale del MISMO
@@ -438,7 +427,6 @@ export default function FinancesPage() {
         )}
 
         <FinanceSummaryCards income={income} expenses={expenses}
-          investmentIncome={investmentIncome.total}
           momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
           momComparable={analysis.momComparable}
           lang={lang} />
