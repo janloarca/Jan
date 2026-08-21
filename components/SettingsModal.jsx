@@ -16,6 +16,7 @@ import { useEdgeFade } from '@/hooks/useEdgeFade'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import BusyLabel from '@/components/ui/BusyLabel'
 import FinanceWipePanel from '@/components/settings/FinanceWipePanel'
+import ShareTab from '@/components/settings/ShareTab'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -85,15 +86,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [tab, setTab] = useState('general')
-  const [shareLinks, setShareLinks] = useState(null) // null = not loaded yet
-  const [shareLoading, setShareLoading] = useState(false)
-  const [shareCopied, setShareCopied] = useState(null) // token just copied
-  const [shareCreating, setShareCreating] = useState(false)
-  // FASE KK. `portfolioId` arranca en el portafolio ACTIVO: compartir por
-  // default lo que uno tiene en pantalla es menos sorprendente que compartir
-  // toda la cuenta, que es lo que 'all' significa.
-  const defaultSharePortfolio = activePortfolio && activePortfolio !== '__all__' ? activePortfolio : ''
-  const [shareForm, setShareForm] = useState({ label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both' })
   const [saveStatus, setSaveStatus] = useState(null)
   const [friendsEnabled, setFriendsEnabled] = useState(settings?.friendsEnabled !== false)
   // Per-category notification prefs. Absent = on, mirrors friendsEnabled's default.
@@ -164,7 +156,17 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   // es el único lugar que el servidor lee (el cron no tiene el registro de
   // Auth a mano), en vez de dejarlo como una segunda fuente que consultar.
   const savedName = typeof profile?.name === 'string' ? profile.name : ''
+  // FASE KP. La identidad de ASESOR (firma, teléfono, correo) vive en el MISMO
+  // doc `settings/profile` y se guarda con el MISMO `onSaveProfile` (merge):
+  // cero writers nuevos. Alimenta el "Preparado por" y el bloque de contacto
+  // de los links compartidos con clientes; vacío = no se muestra nada.
+  const savedFirm = typeof profile?.advisorFirm === 'string' ? profile.advisorFirm : ''
+  const savedPhone = typeof profile?.advisorPhone === 'string' ? profile.advisorPhone : ''
+  const savedEmail = typeof profile?.advisorEmail === 'string' ? profile.advisorEmail : ''
   const [nameDraft, setNameDraft] = useState(savedName || userDisplayName || '')
+  const [firmDraft, setFirmDraft] = useState(savedFirm)
+  const [phoneDraft, setPhoneDraft] = useState(savedPhone)
+  const [emailDraft, setEmailDraft] = useState(savedEmail)
   const [savingName, setSavingName] = useState(false)
   // Misma lección que los interruptores de correo de arriba: el estado inicial
   // se calcula UNA vez, así que si el perfil todavía no había llegado al montar
@@ -174,6 +176,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   useEffect(() => {
     setNameDraft(savedName || userDisplayName || '')
   }, [savedName, userDisplayName])
+  useEffect(() => { setFirmDraft(savedFirm) }, [savedFirm])
+  useEffect(() => { setPhoneDraft(savedPhone) }, [savedPhone])
+  useEffect(() => { setEmailDraft(savedEmail) }, [savedEmail])
   const [testingEmail, setTestingEmail] = useState(null) // la cadencia en vuelo, o null
   const [testResult, setTestResult] = useState(null)
   // El error crudo del servidor se muestra tal cual (es lo que ahorra rondas
@@ -291,13 +296,22 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const flash = (type, msg) => { setSaveStatus({ type, msg }); setTimeout(() => setSaveStatus(null), 3000) }
 
   const trimmedName = nameDraft.trim()
-  const nameDirty = !!onSaveProfile && trimmedName !== savedName
+  const trimmedFirm = firmDraft.trim()
+  const trimmedPhone = phoneDraft.trim()
+  const trimmedEmail = emailDraft.trim()
+  const nameDirty = !!onSaveProfile && (
+    trimmedName !== savedName || trimmedFirm !== savedFirm ||
+    trimmedPhone !== savedPhone || trimmedEmail !== savedEmail
+  )
   const handleSaveName = async () => {
     if (!nameDirty || savingName) return
     setSavingName(true)
     try {
-      await onSaveProfile({ name: trimmedName })
-      flash('ok', t('Nombre guardado', 'Name saved'))
+      // Los cuatro campos van juntos en cada guardado: el merge de saveProfile
+      // los escribe sobre el mismo doc sin tocar lo demás (financialUpdatedAt
+      // incluido, la lección de FASE KB).
+      await onSaveProfile({ name: trimmedName, advisorFirm: trimmedFirm, advisorPhone: trimmedPhone, advisorEmail: trimmedEmail })
+      flash('ok', t('Perfil guardado', 'Profile saved'))
     } catch (e) {
       flash('err', isFirestoreQuotaError(e)
         ? t('La base alcanzó su límite diario. Intenta más tarde.', 'The database hit its daily limit. Try again later.')
@@ -368,54 +382,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     }
   }
 
-  const shareApi = useCallback(async (payload) => {
-    const res = await authFetch('/api/share', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const data = await safeJson(res)
-    if (!res.ok) throw new Error(data?.error || 'Error')
-    return data
-  }, [])
-
-  useEffect(() => {
-    if (tab !== 'share' || shareLinks !== null) return
-    setShareLoading(true)
-    shareApi({ action: 'list' })
-      .then((d) => setShareLinks(d.links || []))
-      .catch(() => setShareLinks([]))
-      .finally(() => setShareLoading(false))
-  }, [tab, shareLinks, shareApi])
-
-  const shareUrlFor = (token) => `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${token}`
-
-  const copyShareLink = (token) => {
-    navigator.clipboard.writeText(shareUrlFor(token))
-    setShareCopied(token)
-    setTimeout(() => setShareCopied(null), 2000)
-  }
-
-  const handleCreateShare = async () => {
-    setShareLoading(true)
-    try {
-      const scope = shareForm.scopeType === 'entity'
-        ? { type: 'entity', entityId: shareForm.entityId, entityName: (entities || []).find((e) => e.id === shareForm.entityId)?.name || '' }
-        : shareForm.scopeType === 'portfolio'
-          ? { type: 'portfolio', portfolioId: shareForm.portfolioId, portfolioName: (portfolios || []).find((p) => p.id === shareForm.portfolioId)?.name || '' }
-        : shareForm.scopeType === 'institutions'
-          ? { type: 'institutions', institutions: shareForm.institutions }
-          : { type: 'all' }
-      const { link } = await shareApi({ action: 'create', label: shareForm.label, scope, display: shareForm.display })
-      setShareLinks((prev) => [...(prev || []), link])
-      setShareCreating(false)
-      setShareForm({ label: '', scopeType: 'all', entityId: '', portfolioId: defaultSharePortfolio, institutions: [], display: 'both' })
-      copyShareLink(link.token)
-      flash('ok', t('Link creado y copiado', 'Link created and copied'))
-    } catch (e) { flash('err', e.message) }
-    setShareLoading(false)
-  }
-
   const toggleFriends = async () => {
     const next = !friendsEnabled
     setFriendsEnabled(next)
@@ -432,16 +398,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       setFriendsEnabled(!next) // revert on failure
       flash('err', e.message || t('Error al guardar', 'Error saving'))
     }
-  }
-
-  const handleRevokeShare = async (token) => {
-    setShareLoading(true)
-    try {
-      await shareApi({ action: 'revoke', token })
-      setShareLinks((prev) => (prev || []).filter((l) => l.token !== token))
-      flash('ok', t('Link revocado', 'Link revoked'))
-    } catch (e) { flash('err', e.message) }
-    setShareLoading(false)
   }
 
   const tabs = [
@@ -508,33 +464,78 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   de nombre sin motivo aparente en una app de finanzas se lee
                   como un dato que se pide porque sí. */}
               {onSaveProfile && (
-                <SectionCard icon={User} title={t('Tu nombre', 'Your name')}>
-                  <div>
-                    <label htmlFor="settings-name" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Nombre para mostrar', 'Display name')}
-                    </label>
-                    <div className="flex gap-2">
+                <SectionCard icon={User} title={t('Identidad y contacto', 'Identity & contact')}>
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="settings-name" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Nombre para mostrar', 'Display name')}
+                      </label>
                       <input
                         id="settings-name" type="text" value={nameDraft} maxLength={60}
                         onChange={(e) => setNameDraft(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
                         placeholder={t('Tu nombre', 'Your name')}
-                        className="flex-1 min-w-0 px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
                       />
+                      {/* `--text-muted` y no la clase `text-slate-600` que usan
+                          los captions vecinos: medido, esa resuelve a 4.00:1 en
+                          tema oscuro, o sea bajo el piso de texto. Igualar a un
+                          vecino que no llega seria propagar el defecto a codigo
+                          nuevo. El token esta en 6.7 oscuro / 7.2 claro. */}
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('Aparece en la portada de tu reporte PDF, en Amigos y como "Preparado por" en los links que compartes.', 'Appears on your PDF report cover, in Friends, and as "Prepared by" on links you share.')}
+                      </p>
+                    </div>
+                    {/* FASE KP: contacto de asesor para los links de cliente.
+                        Los tres son opcionales; vacio = no se muestra nada. */}
+                    <div>
+                      <label htmlFor="settings-advisor-firm" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Firma o empresa (opcional)', 'Firm or company (optional)')}
+                      </label>
+                      <input
+                        id="settings-advisor-firm" type="text" value={firmDraft} maxLength={80}
+                        onChange={(e) => setFirmDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                        placeholder={t('Ej. IDC Valores', 'E.g. IDC Valores')}
+                        className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label htmlFor="settings-advisor-phone" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                          {t('Teléfono (opcional)', 'Phone (optional)')}
+                        </label>
+                        <input
+                          id="settings-advisor-phone" type="tel" value={phoneDraft} maxLength={40}
+                          onChange={(e) => setPhoneDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                          placeholder="+502 5555 5555"
+                          className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="settings-advisor-email" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                          {t('Correo de contacto (opcional)', 'Contact email (optional)')}
+                        </label>
+                        <input
+                          id="settings-advisor-email" type="email" value={emailDraft} maxLength={120}
+                          onChange={(e) => setEmailDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
+                          placeholder={t('tu@firma.com', 'you@firm.com')}
+                          className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('Firma, teléfono y correo aparecen como contacto en los links que compartes con clientes.', 'Firm, phone and email appear as contact info on links you share with clients.')}
+                      </p>
                       <button type="button" onClick={handleSaveName} disabled={!nameDirty || savingName}
                         className="px-4 py-2.5 text-sm font-medium rounded-lg transition-colors shrink-0 border disabled:opacity-40 disabled:cursor-default"
                         style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
                         <BusyLabel busy={savingName} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>
                       </button>
                     </div>
-                    {/* `--text-muted` y no la clase `text-slate-600` que usan
-                        los captions vecinos: medido, esa resuelve a 4.00:1 en
-                        tema oscuro, o sea bajo el piso de texto. Igualar a un
-                        vecino que no llega seria propagar el defecto a codigo
-                        nuevo. El token esta en 6.7 oscuro / 7.2 claro. */}
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                      {t('Aparece en la portada de tu reporte PDF y en Amigos.', 'Appears on your PDF report cover and in Friends.')}
-                    </p>
                   </div>
                 </SectionCard>
               )}
@@ -780,181 +781,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           )}
 
 
-          {tab === 'share' && (() => {
-            const institutionOptions = [...new Set(portfolioItems.map((it) => (it.institution || '').trim()).filter(Boolean))].sort()
-            const scopeChip = (scope) => {
-              if (scope?.type === 'entity') return `👥 ${scope.entityName || t('Entidad', 'Entity')}`
-              if (scope?.type === 'institutions') return `🏦 ${(scope.institutions || []).join(', ')}`
-              return `📊 ${t('Todo el portafolio', 'Whole portfolio')}`
-            }
-            const displayChip = (display) => {
-              if (display === 'percent') return ` · 👁 ${t('solo %', '% only')}`
-              if (display === 'amounts') return ` · 👁 ${t('solo montos', 'amounts only')}`
-              return ''
-            }
-            const toggleInst = (inst) => setShareForm((p) => ({
-              ...p,
-              institutions: p.institutions.includes(inst) ? p.institutions.filter((i) => i !== inst) : [...p.institutions, inst],
-            }))
-            const canCreate = shareForm.scopeType === 'all'
-              || (shareForm.scopeType === 'entity' && shareForm.entityId)
-              || (shareForm.scopeType === 'portfolio' && shareForm.portfolioId)
-              || (shareForm.scopeType === 'institutions' && shareForm.institutions.length > 0)
-
-            return (
-            <div className="space-y-4">
-              <div className="flex items-start gap-2.5">
-                <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
-                  <Link2 size={15} style={{ color: 'var(--accent-blue)' }} />
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-white">{t('Links de solo lectura', 'Read-only links')}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{t(
-                    'Comparte tu portafolio completo con un asesor, o solo una parte: una entidad o cuentas específicas (ej. solo tu IBKR). Cada link es independiente y se puede revocar sin tocar los demás. Nunca revelan la institución de tus activos.',
-                    'Share your whole portfolio with an advisor, or just a slice: one entity or specific accounts (e.g. only your IBKR). Each link is independent and can be revoked without touching the others. They never reveal the institution behind your assets.'
-                  )}</p>
-                </div>
-              </div>
-
-              {/* Existing links */}
-              {shareLinks === null || (shareLoading && !shareLinks?.length && !shareCreating) ? (
-                <p className="text-xs text-slate-500">…</p>
-              ) : shareLinks.length === 0 && !shareCreating ? (
-                <p className="text-xs text-slate-600">{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {shareLinks.map((link) => (
-                    <div key={link.token} className="p-3 bg-theme-base border border-glass-border rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white font-medium truncate">{link.label || t('Sin nombre', 'Untitled')}</p>
-                          <p className="text-xs text-slate-500 truncate">{scopeChip(link.scope)}{displayChip(link.display)}</p>
-                        </div>
-                        <button onClick={() => copyShareLink(link.token)}
-                          className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                          {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
-                        </button>
-                        <button onClick={() => handleRevokeShare(link.token)} disabled={shareLoading} aria-label={t('Revocar', 'Revoke')}
-                          className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Create flow */}
-              {shareCreating ? (
-                <div className="space-y-3 p-3 bg-theme-base border border-glass-border rounded-xl">
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">{t('Nombre del link (para ti)', 'Link name (for you)')}</label>
-                    <input value={shareForm.label} onChange={(e) => setShareForm((p) => ({ ...p, label: e.target.value }))}
-                      placeholder={t('Ej: Para mi contador', 'E.g. For my accountant')} maxLength={40}
-                      className="w-full px-3 py-1.5 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">{t('¿Qué compartes?', 'What are you sharing?')}</label>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[
-                        { key: 'all', label: t('Todo', 'Everything') },
-                        ...(entities && entities.length > 1 ? [{ key: 'entity', label: t('Una entidad', 'One entity') }] : []),
-                        ...(portfolios && portfolios.length > 1 ? [{ key: 'portfolio', label: t('Un portafolio', 'One portfolio') }] : []),
-                        ...(institutionOptions.length > 0 ? [{ key: 'institutions', label: t('Cuentas específicas', 'Specific accounts') }] : []),
-                      ].map((opt) => (
-                        <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, scopeType: opt.key }))}
-                          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${shareForm.scopeType !== opt.key ? 'hover:text-white' : ''}`}
-                          style={shareForm.scopeType === opt.key
-                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
-                            : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    {shareForm.scopeType !== 'all' && (
-                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                        {t('La gráfica de crecimiento no se incluye: el historial guardado es del patrimonio completo, no de una parte.', 'The growth chart is left out: the saved history is of the whole net worth, not of one slice.')}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">{t('¿Qué números verán?', 'Which numbers will they see?')}</label>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[
-                        { key: 'both', label: t('Montos y %', 'Amounts & %') },
-                        { key: 'amounts', label: t('Solo montos', 'Amounts only') },
-                        { key: 'percent', label: t('Solo % (oculta montos)', '% only (hides amounts)') },
-                      ].map((opt) => (
-                        <button key={opt.key} onClick={() => setShareForm((p) => ({ ...p, display: opt.key }))}
-                          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${shareForm.display !== opt.key ? 'hover:text-white' : ''}`}
-                          style={shareForm.display === opt.key
-                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
-                            : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    {shareForm.display === 'percent' && (
-                      <p className="text-xs text-slate-600 mt-1">{t('Verán el desempeño y la asignación en %, sin ningún monto de dinero.', 'They\'ll see performance and allocation in %, without any money amounts.')}</p>
-                    )}
-                  </div>
-
-                  {shareForm.scopeType === 'portfolio' && (
-                    <select value={shareForm.portfolioId} onChange={(e) => setShareForm((p) => ({ ...p, portfolioId: e.target.value }))}
-                      className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
-                      <option value="">{t('- Elige el portafolio -', '- Pick the portfolio -')}</option>
-                      {(portfolios || []).map((pf) => (
-                        <option key={pf.id} value={pf.id}>{pf.icon || '\u{1F4C8}'} {pf.name}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {shareForm.scopeType === 'entity' && (
-                    <select value={shareForm.entityId} onChange={(e) => setShareForm((p) => ({ ...p, entityId: e.target.value }))}
-                      className="w-full px-3 py-2 bg-theme-surface border border-glass-border/60 rounded-lg text-xs text-white focus:outline-none">
-                      <option value="">{t('- Elige la entidad -', '- Pick the entity -')}</option>
-                      {(entities || []).map((en) => (
-                        <option key={en.id} value={en.id}>{en.icon || '📁'} {en.name}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {shareForm.scopeType === 'institutions' && (
-                    <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                      <p className="text-xs text-slate-600">{t('Solo se compartirán las posiciones de lo que marques:', 'Only positions from what you check will be shared:')}</p>
-                      {institutionOptions.map((inst) => (
-                        <label key={inst} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-theme-elevated cursor-pointer">
-                          <input type="checkbox" checked={shareForm.institutions.includes(inst)} onChange={() => toggleInst(inst)} />
-                          <span className="text-xs text-white">{inst}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <button onClick={handleCreateShare} disabled={shareLoading || !canCreate}
-                      className="flex-1 py-2 rounded-lg hover:bg-emerald-500 disabled:opacity-50 text-xs font-medium" style={{ color: '#ffffff', backgroundColor: 'var(--accent-green)' }}>
-                      {<BusyLabel busy={shareLoading} lang={lang}>{t('Crear y copiar link', 'Create & copy link')}</BusyLabel>}
-                    </button>
-                    <button onClick={() => setShareCreating(false)}
-                      className="px-3 py-2 border border-glass-border text-xs rounded-lg hover:bg-theme-elevated transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                      {t('Cancelar', 'Cancel')}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button onClick={() => setShareCreating(true)}
-                  className="w-full px-3 py-2.5 text-xs font-medium text-slate-400 border border-dashed border-glass-border rounded-xl hover:text-blue-400 hover:border-blue-500/30 transition-colors">
-                  + {t('Crear link para compartir', 'Create share link')}
-                </button>
-              )}
-
-              <p className="text-xs text-slate-600">{t('Los links expiran a los 90 días.', 'Links expire after 90 days.')}</p>
-            </div>
-            )
-          })()}
+          {tab === 'share' && (
+            <ShareTab
+              lang={lang} entities={entities} portfolios={portfolios}
+              portfolioItems={portfolioItems} activePortfolio={activePortfolio}
+              flash={flash}
+            />
+          )}
 
           {tab === 'data' && (
             <div className="space-y-4">
