@@ -337,7 +337,17 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         return true
       }
       const data = parseIBKRXmlFile(xmlText)
-      if (data.empty) { ibkrEmptyError(); return true }
+      // FASE KE: mensaje PROPIO del XML. `ibkrEmptyError` manda a exportar el
+      // Activity Statement, que es un consejo para el camino de CSV/Excel:
+      // dicho después de subir el Flex XML que esta misma app pidió, manda a
+      // otro reporte en vez de a lo que de verdad falta, que son secciones (o
+      // sus campos) dentro del Flex Query.
+      if (data.empty) {
+        setError(lang === 'es'
+          ? 'El Flex Query llegó vacío. Edítalo en IBKR (Performance & Reports → Flex Queries) y verifica que incluya "Open Positions", "Trades", "Cash Transactions", "Cash Report" y "Net Asset Value (NAV) in Base", con "Select All" marcado en los campos de cada sección: agregar una sección no incluye sus columnas.'
+          : 'The Flex Query came back empty. Edit it at IBKR (Performance & Reports → Flex Queries) and check that it includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Net Asset Value (NAV) in Base", with "Select All" ticked in each section\'s fields: adding a section does not include its columns.')
+        return true
+      }
       setIbkrData(data); setStep('ibkr-preview'); return true
     }
 

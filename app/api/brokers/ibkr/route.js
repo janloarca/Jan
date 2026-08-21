@@ -194,6 +194,23 @@ export async function POST(request) {
       return NextResponse.json({ ...classified, status: 'error' }, { status: 502 })
     }
 
+    // ⛔ FASE KE. Una respuesta SIN un solo `<` no puede ser ninguna forma XML:
+    // ni un statement, ni un aviso de "en progreso", ni un <ErrorMessage> (las
+    // tres se chequean arriba). Lo que queda es un formato que no leemos, y el
+    // caso realista es una Flex Query guardada en CSV: el Flex Web Service
+    // devuelve el formato que la query tenga configurado. Antes esto caía al
+    // `pending` de abajo y el cliente sondeaba hasta agotar su presupuesto,
+    // terminando en TIMEOUT sin ninguna pista de que el problema era el
+    // formato. Decirlo convierte un callejón sin salida en un arreglo de un
+    // minuto en la consola de IBKR.
+    if (!fetchXml.includes('<')) {
+      return NextResponse.json({
+        errorCode: 'INVALID_QUERY',
+        error: 'IBKR devolvió el reporte en un formato que no podemos leer. Edita tu Flex Query en IBKR (Performance & Reports → Flex Queries) y pon el formato en XML.',
+        status: 'error',
+      }, { status: 200 })
+    }
+
     return NextResponse.json({ status: 'pending' })
   }
 
