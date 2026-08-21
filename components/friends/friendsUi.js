@@ -58,3 +58,32 @@ export const MEDALS = ['🥇', '🥈', '🥉']
 export function initialOf(name) {
   return String(name || '?').trim().charAt(0).toUpperCase() || '?'
 }
+
+// ⛔ FASE KO. ¿La cifra del "día" de esta persona es de HOY?
+//
+// `day` y `movers` salen de `change1d`, que para una acción es la última sesión
+// bursátil COMPLETADA: un sábado es el movimiento del viernes, y lo mismo un
+// feriado o un martes antes de la apertura. Para cripto es una ventana rodante
+// de 24 h, siempre viva. O sea DOS miembros del mismo grupo pueden tener
+// frescuras distintas al mismo tiempo, y la pantalla decía "hoy" sobre las dos.
+//
+// Sin `dayAsOf` (una persona que publicó antes de que este campo existiera, o
+// que solo tiene cripto) se asume fresco: es el comportamiento de siempre y no
+// hay nada que afirmar de más.
+export function dayLabel(dayAsOf, lang, todayStr) {
+  const today = todayStr || new Date().toLocaleDateString('en-CA')
+  const t = (es, en) => (lang === 'es' ? es : en)
+  if (!dayAsOf || dayAsOf >= today) return { text: t('hoy', 'today'), stale: false, date: null }
+  return { text: t('cierre', 'close'), stale: true, date: dayAsOf }
+}
+
+// Fecha corta para el rótulo de una sesión cerrada ("15 ago" / "Aug 15").
+// Se lee del propio texto 'YYYY-MM-DD' y se fecha a MEDIODÍA UTC a propósito:
+// `new Date('2026-08-15')` es medianoche UTC, y al oeste de UTC eso imprime el
+// día anterior (la trampa que este repo ya documenta para las llaves de mes).
+export function sessionDayLabel(dayAsOf, lang) {
+  if (!dayAsOf) return ''
+  const d = new Date(`${dayAsOf}T12:00:00Z`)
+  if (isNaN(d)) return ''
+  return d.toLocaleDateString(lang === 'es' ? 'es' : 'en', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+}

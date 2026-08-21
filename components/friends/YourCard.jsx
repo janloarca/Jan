@@ -5,7 +5,7 @@ import { Pencil, Check, X } from 'lucide-react'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { Shimmer } from '@/components/dashboard/Skeleton'
 import VerifiedBadge from '@/components/friends/VerifiedBadge'
-import { YOU_COLOR, pctColor, fmtPct, timeAgo, initialOf } from '@/components/friends/friendsUi'
+import { YOU_COLOR, pctColor, fmtPct, timeAgo, initialOf, dayLabel, sessionDayLabel } from '@/components/friends/friendsUi'
 
 // El servidor recorta el nombre a 40 (route.js). Se recorta acá también para
 // que nadie escriba 60 caracteres y descubra al guardar que se le comieron 20.
@@ -48,11 +48,16 @@ export default function YourCard({
 
   const initial = initialOf(editing ? draft : displayName)
   const ago = timeAgo(updatedAt, lang)
+  const dayInfo = dayLabel(stats?.dayAsOf, lang)
+  const dayStale = dayInfo.stale
 
   const metrics = [
     { k: 'ytd', label: t('AÑO', 'YEAR'), v: stats?.ytd ?? null },
     { k: 'mtd', label: t('MES', 'MONTH'), v: stats?.mtd ?? null },
-    { k: 'day', label: t('HOY', 'TODAY'), v: stats?.day ?? null },
+    // FASE KO: el rótulo dice de qué sesión es. Con la bolsa cerrada esta cifra
+    // es la del último cierre, no la de hoy, y es la MISMA que se publica al
+    // grupo: la etiqueta tiene que coincidir con la que ven tus amigos.
+    { k: 'day', label: dayStale ? t('CIERRE', 'CLOSE') : t('HOY', 'TODAY'), v: stats?.day ?? null },
   ]
   const allNull = metrics.every((m) => m.v == null)
 
@@ -129,6 +134,12 @@ export default function YourCard({
                   invisible: se ve un número y nada dice que es una instantánea
                   que se queda quieta hasta que la vuelvas a publicar. */}
               {ago && <> · {t('publicado hace', 'published')} {ago}</>}
+              {/* FASE KO: de qué SESIÓN es la cifra del día, que es una
+                  frescura distinta de la de arriba (esa dice cuándo publicaste;
+                  esta, de cuándo son los precios). Con la bolsa cerrada las dos
+                  pueden ser muy distintas: publicaste hace un minuto un dato del
+                  viernes. */}
+              {dayStale && <> · {t('cierre del', 'close of')} {sessionDayLabel(stats?.dayAsOf, lang)}</>}
             </div>
           </div>
         )}
