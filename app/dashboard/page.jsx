@@ -455,7 +455,7 @@ export default function DashboardPage() {
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing,
-    ibkrSyncStatus, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
+    ibkrSyncStatus, ibkrSyncError, ibkrSyncErrorCode, ibkrLastSync, ibkrSyncSummary,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
   // Only matters for the ONE transition into 'ibkr': captures whether it was
@@ -1930,6 +1930,9 @@ export default function DashboardPage() {
           onStartIbkrJourney={startIbkrJourney}
           ibkrProgress={ibkrProgress}
           onOpenIbkrStep={openIbkrJourneyStep}
+          ibkrSyncError={ibkrSyncError}
+          ibkrSyncErrorCode={ibkrSyncErrorCode}
+          ibkrLastAttempt={settings?._ibkrLastAutoSyncAttempt || null}
           onBackgroundSync={handleIBKRPillClick}
           onImport={handleOpenImport}
           onAddAccount={handleOpenAccount}
