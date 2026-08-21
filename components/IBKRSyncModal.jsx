@@ -728,6 +728,26 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     }
   }, [errorCode, lang])
 
+  // ⛔ FASE KM. UNA sola línea de explicación, no dos que dicen lo mismo.
+  //
+  // Para todo código que SÍ mapeamos, `classifyError` reemplaza el mensaje de
+  // IBKR por texto nuestro, así que "el mensaje del servidor" y el consejo de
+  // arriba terminan siendo la misma frase con otras palabras: la captura del
+  // usuario mostró "IBKR bloqueó el token por demasiados intentos..." seguido
+  // de "IBKR rechazó el acceso por intentos fallidos...". El consejo gana
+  // porque además dice qué hacer. El mensaje crudo solo aporta cuando NO hay
+  // consejo, o sea cuando el código no está mapeado: ahí es la única
+  // información que existe y por eso no puede perderse.
+  //
+  // El código y el mensaje literal siguen visibles en la tarjeta de IBKR de
+  // ConnectionsModal (FASE KI), que es la superficie de diagnóstico.
+  const errorDetail = errorHint || error
+
+  // Reintentar durante un bloqueo lo REFRESCA: cada intento cuenta como otro
+  // intento fallido. Ofrecer el botón acá es ofrecer la única acción que
+  // garantiza que el bloqueo no se levante.
+  const retryFeedsLockout = errorCode === 'LOCKED'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title"
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
@@ -753,13 +773,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 {hasData
                   ? t('No se pudo conectar con IBKR, pero tus datos están actualizados.',
                       'Couldn\'t connect to IBKR, but your data is up to date.')
-                  : error}
+                  : errorDetail}
               </p>
-              {hasData && lastSyncLabel && (
-                <p className="text-xs mt-1 opacity-80" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {t('Última sincronización:', 'Last synced:')} {lastSyncLabel}
-                </p>
-              )}
+              {/* ⛔ FASE KM. Acá iba una tercera copia de "última sincronización:
+                  hace 7d": la cabecera del modal la imprime justo encima y el
+                  bloque de estado otra vez abajo, o sea la MISMA frase tres
+                  veces en una pantalla de teléfono. Lo que este aviso tiene que
+                  dar es la razón y qué hacer, no repetir un dato que ya está a
+                  dos centímetros. */}
               {/* ⛔ FASE KK. La RAZÓN, también cuando el usuario ya tiene datos.
                   Antes `error` y `errorHint` estaban los dos gateados a
                   `!hasData`, así que a cualquiera cuya conexión YA funcionó
@@ -770,14 +791,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   sus datos bien, y es razonable, pero "no alarmar" no es "no
                   decir": el resultado era un callejón sin salida. Va en ámbar,
                   debajo de la frase que tranquiliza, no en rojo. */}
-              {hasData && (error || errorHint) && (
-                <div className="text-xs mt-1.5 opacity-80 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
-                  {errorHint ? <p>{errorHint}</p> : null}
-                  {error ? <p className={errorHint ? 'mt-0.5' : ''} style={{ wordBreak: 'break-word' }}>{error}</p> : null}
-                </div>
-              )}
-              {!hasData && errorHint && (
-                <p className="text-[var(--alert-error-icon)] opacity-80 text-xs mt-1.5">{errorHint}</p>
+              {hasData && errorDetail && (
+                <p className="text-xs mt-1.5 opacity-80 leading-relaxed" style={{ color: 'var(--alert-warn-icon)', wordBreak: 'break-word' }}>
+                  {errorDetail}
+                </p>
               )}
               {!hasData && !errorHint && (errorCode === 'RATE_LIMITED' || error.toLowerCase().includes('try again')) && (
                 <p className="text-[var(--alert-error-icon)] opacity-80 text-xs mt-1.5">
@@ -787,9 +804,15 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               )}
               {!syncing && (
                 <div className="mt-2 flex items-center gap-4">
-                  <button onClick={handleSync} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
-                    {t('Reintentar', 'Retry')} →
-                  </button>
+                  {retryFeedsLockout ? (
+                    <button onClick={() => { setStep('config'); setShowConfig(true) }} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
+                      {t('Pegar un token nuevo', 'Paste a new token')} →
+                    </button>
+                  ) : (
+                    <button onClick={handleSync} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
+                      {t('Reintentar', 'Retry')} →
+                    </button>
+                  )}
                   {/* The CSV path bypasses the Flex token entirely — offer it
                       whenever the API path fails, not buried in a tab. */}
                   {importMode !== 'file' && (
@@ -806,10 +829,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           {step === 'connected' && !syncing && (
             <div className="space-y-5">
               <div className="flex flex-col items-center py-6 gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(52,211,153,0.15)' }}>
-                  <CheckCircle size={20} style={{ color: 'var(--accent-green)' }} />
+                {/* ⛔ FASE KM. Un check verde de "todo bien" justo debajo de un
+                    aviso que dice "no se pudo conectar" es la app
+                    contradiciéndose. Lo que sigue siendo cierto con un error
+                    encima es que las credenciales están guardadas y los datos
+                    están ahí, no que la conexión funcione: con error el
+                    tratamiento pasa a ámbar y el rótulo dice lo que de verdad
+                    describe. El caso sano no cambia. */}
+                <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: error ? 'var(--alert-warn-bg)' : 'rgba(52,211,153,0.15)' }}>
+                  <CheckCircle size={20} style={{ color: error ? 'var(--alert-warn-icon)' : 'var(--accent-green)' }} />
                 </div>
-                <p className="text-sm text-white font-medium">{t('IBKR Conectado', 'IBKR Connected')}</p>
+                <p className="text-sm text-white font-medium">
+                  {error ? t('IBKR configurado', 'IBKR configured') : t('IBKR Conectado', 'IBKR Connected')}
+                </p>
                 {lastSyncLabel && (
                   <p className="text-xs text-slate-500">
                     {t('Última sync:', 'Last sync:')} {lastSyncLabel}
@@ -866,18 +899,43 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 )}
               </div>
 
-              <button onClick={handleSync}
-                className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
-                style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}
-                disabled={decrypting}>
-                <RefreshCw size={14} />
-                {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
-              </button>
+              {/* ⛔ FASE KM. Con el token bloqueado, "Sincronizar ahora" es la
+                  acción que MANTIENE vivo el bloqueo (cada intento cuenta como
+                  otro intento fallido), y aun así era el botón azul grande
+                  mientras "Cambiar credenciales" (lo único que lo arregla)
+                  quedaba como link chiquito abajo. La jerarquía se invierte:
+                  el botón principal lleva a pegar el token nuevo y sincronizar
+                  baja a secundario, sin desaparecer, porque si el bloqueo ya
+                  expiró un sync sigue siendo válido. */}
+              {retryFeedsLockout ? (
+                <>
+                  <button onClick={() => { setStep('config'); setShowConfig(true) }}
+                    className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
+                    style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                    {t('Pegar un token nuevo', 'Paste a new token')}
+                  </button>
+                  <button onClick={handleSync}
+                    className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                    disabled={decrypting}>
+                    {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar de todos modos', 'Sync anyway')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={handleSync}
+                    className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
+                    style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}
+                    disabled={decrypting}>
+                    <RefreshCw size={14} />
+                    {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
+                  </button>
 
-              <button onClick={() => { setStep('config'); setShowConfig(true) }}
-                className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors">
-                {t('Cambiar credenciales', 'Change credentials')}
-              </button>
+                  <button onClick={() => { setStep('config'); setShowConfig(true) }}
+                    className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors">
+                    {t('Cambiar credenciales', 'Change credentials')}
+                  </button>
+                </>
+              )}
 
               {onDisconnect && (
                 <button onClick={() => { onDisconnect(); onClose() }}
