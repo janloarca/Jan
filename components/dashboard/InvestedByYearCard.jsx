@@ -14,14 +14,29 @@ import { computeInvestedByYear } from '@/lib/investedByYear'
 // años calendario que el reporte (lib/investedByYear.js). Un año sin anclas
 // en el archivo imprime "-" en ganancia: un guión honesto antes que un número
 // inventado. Cada fila expande su detalle (depósitos / retiros / comisiones).
-export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, returnYTD, ytdChange, convert, baseCurrency = 'USD', lang = 'es' }) {
+//
+// DOS COSAS QUE NO SON DECORACIÓN, y que hay que conservar al editar esta card:
+//
+// 1. El encabezado DICE que el % es un rendimiento. Ese porcentaje mide contra
+//    el valor de arranque del año, no contra la columna "invertido" que tiene
+//    justo a la izquierda, y sin decirlo el lector no tiene forma de saberlo:
+//    una fila con $760.46 invertidos y +$2,905.76 ganados imprime "+35.31%"
+//    mientras la cuenta obvia da 382%. El detalle expandido muestra el valor
+//    de inicio y de cierre, que es contra lo que ese % de verdad se midió.
+// 2. El pie NUNCA es un guión suelto. "Total" suma los años que SÍ se pudieron
+//    medir (diciendo cuántos son) y lo que falta se nombra como "sin repartir
+//    por año", de modo que invertido + ganado + sin repartir = patrimonio de
+//    hoy, exacto por construcción. Antes el total imprimía "-" y tiraba a la
+//    basura tanto la suma de los años medidos como el residuo, que es un
+//    número real y calculable.
+export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es' }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [openYear, setOpenYear] = useState(null)
 
   const data = useMemo(() => {
     const series = buildReportSeries(snapshots, { convert, baseCurrency })
-    return computeInvestedByYear({ transactions, items, series, convert, baseCurrency, returnYTD, ytdChange })
-  }, [transactions, items, snapshots, convert, baseCurrency, returnYTD, ytdChange])
+    return computeInvestedByYear({ transactions, items, series, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth })
+  }, [transactions, items, snapshots, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth])
 
   if (!data.hasData) return null
 
@@ -45,8 +60,8 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
           {t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
         </h3>
         <InfoTip text={t(
-          'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). Toca un año para ver su detalle.',
-          'Invested = that year\'s deposits minus withdrawals across all your accounts, entry fees discounted. No gains or interest, and money moved between your own accounts does not count. Earned = what your investments returned that year, net of your contributions (Dietz method, same as the YTD). Tap a year for its detail.'
+          'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). El % es el RENDIMIENTO del año: se mide contra el valor con el que arrancaste ese año, no contra lo que invertiste en él. Toca un año para ver ese valor de arranque y el detalle.',
+          'Invested = that year\'s deposits minus withdrawals across all your accounts, entry fees discounted. No gains or interest, and money moved between your own accounts does not count. Earned = what your investments returned that year, net of your contributions (Dietz method, same as the YTD). The % is the year\'s RETURN: measured against the value you started that year with, not against what you invested during it. Tap a year to see that starting value and the detail.'
         )} />
       </div>
 
@@ -54,10 +69,16 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
           ancho FIJO (pctCol): sin ella, el paréntesis de cada fila termina a
           una distancia distinta según el ancho del monto y la columna se lee
           desordenada aunque esté alineada a la derecha. */}
-      <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 pb-1.5" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+      <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 pb-1.5 items-end" style={{ borderBottom: '1px solid var(--glass-border)' }}>
         <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>{t('Año', 'Year')}</span>
         <span className="text-[10px] uppercase tracking-wider font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
-        <span className="text-[10px] uppercase tracking-wider font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('Ganado', 'Earned')}</span>
+        {/* El % vive dentro de esta columna, así que es ACÁ donde hay que decir
+            qué es. Sin esta segunda línea el único denominador a la vista es la
+            columna de al lado, y no es contra esa que se midió. */}
+        <span className="text-right leading-tight" style={{ color: 'var(--text-muted)' }}>
+          <span className="block text-[10px] uppercase tracking-wider font-medium">{t('Ganado', 'Earned')}</span>
+          <span className="block text-[9px]">{t('% = rendimiento', '% = return')}</span>
+        </span>
       </div>
 
       <div className="divide-y divide-glass-border/50">
@@ -91,6 +112,23 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
             </button>
             {openYear === r.year && (
               <div className="rounded-lg px-3 py-2 mb-1.5 space-y-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                {/* Contra QUÉ se midió el % de la fila. Va PRIMERO porque es el
+                    dato que la fila colapsada no puede mostrar y sin el cual el
+                    porcentaje no se puede reconciliar con nada. */}
+                {r.startValue != null && (
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Valor al inicio del año', 'Value at the start of the year')}</span>
+                    <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmt(r.startValue)}</span>
+                  </div>
+                )}
+                {r.endValue != null && (
+                  <div className="flex items-baseline justify-between gap-2 pb-1" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {r.partial ? t('Valor hoy', 'Value today') : t('Valor al cierre', 'Value at year end')}
+                    </span>
+                    <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmt(r.endValue)}</span>
+                  </div>
+                )}
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Depósitos', 'Deposits')}</span>
                   <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>+{fmt(r.deposits)}</span>
@@ -111,6 +149,17 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
                   <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{t('Invertido neto', 'Net invested')}</span>
                   <span className="text-xs font-mono tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>{fmt(r.invested)}</span>
                 </div>
+                {/* La frase que cierra la pregunta: el % es un rendimiento y se
+                    midió contra el arranque de arriba, no contra el invertido
+                    neto de esta misma caja. */}
+                {r.gainPct != null && r.startValue != null && (
+                  <p className="text-[10px] pt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    {t(
+                      `Rendimiento ${r.gainPct >= 0 ? '+' : ''}${r.gainPct.toFixed(2)}%: medido sobre los ${fmt(r.startValue)} del inicio más tus aportes ponderados por el tiempo que estuvieron invertidos, no sobre el invertido de este año.`,
+                      `Return ${r.gainPct >= 0 ? '+' : ''}${r.gainPct.toFixed(2)}%: measured against the ${fmt(r.startValue)} you started with plus your contributions weighted by how long they were invested, not against this year's invested amount.`
+                    )}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -123,13 +172,34 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
       <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Total</span>
         <span className="text-sm font-mono tabular-nums font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{fmt(data.totalInvested)}</span>
+        {/* Ya no un guión. La suma de los años que SÍ se midieron es
+            información real; lo que se dice al lado es cuántos son, para que
+            nadie la lea como la ganancia de toda la vida. */}
         <span className="text-sm font-mono tabular-nums font-semibold text-right whitespace-nowrap">
-          {data.totalGain != null
-            ? <span style={{ color: gainColor(data.totalGain) }}>{signFmt(data.totalGain)}</span>
+          {data.measuredGain != null
+            ? <span style={{ color: gainColor(data.measuredGain) }}>{signFmt(data.measuredGain)}</span>
             : <span style={{ color: 'var(--text-muted)' }}>-</span>}
-          <span className="inline-block w-[4.4rem]" aria-hidden="true" />
+          <span className="inline-block w-[4.4rem] text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            {data.unmeasuredYears > 0 ? `${data.measuredYears}/${data.rows.length} ${t('años', 'yrs')}` : ''}
+          </span>
         </span>
       </div>
+
+      {/* Lo que la tabla no pudo repartir por año, NOMBRADO. Es exactamente
+          patrimonio − invertido − lo medido, así que las tres líneas suman el
+          patrimonio de abajo por construcción. Casi siempre es la ganancia de
+          los años que imprimen "-"; por eso el rótulo no dice "ganancia". */}
+      {data.unallocated != null && (
+        <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline pt-1.5">
+          <span className="col-span-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {t('Sin repartir por año', 'Not attributed to a year')}
+          </span>
+          <span className="text-sm font-mono tabular-nums text-right whitespace-nowrap">
+            <span style={{ color: 'var(--text-muted)' }}>{signFmt(data.unallocated)}</span>
+            <span className="inline-block w-[4.4rem]" aria-hidden="true" />
+          </span>
+        </div>
+      )}
 
       {/* El ejercicio patrimonio contra invertido. mt-auto lo ancla al fondo
           cuando la card estira para igualar el alto de la columna vecina. */}
@@ -151,6 +221,10 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
         {t(
           '"-" en Ganado: el archivo no tiene datos de valor suficientes de ese año para medirlo. Las ganancias nunca incluyen tus aportes.',
           '"-" under Earned: the archive lacks enough value data from that year to measure it. Earnings never include your contributions.'
+        )}
+        {data.unallocated != null && ' ' + t(
+          'Lo "sin repartir" es lo que falta para llegar a tu patrimonio de hoy: casi todo es la ganancia de esos años.',
+          'The "not attributed" line is what is left to reach today\'s net worth: almost all of it is the gain of those years.'
         )}
       </p>
     </div>

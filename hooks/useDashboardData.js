@@ -3005,6 +3005,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved,
+    // El valor con el que arrancó el año, o sea contra QUÉ se midió returnYTD.
+    // Adición pura: ya se calculaba acá dentro (alimenta el desglose por
+    // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
+    // año, donde un % sin su base se lee contra la columna equivocada.
+    ytdStartValue,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
