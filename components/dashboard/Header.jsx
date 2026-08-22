@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
 import Logo from '@/components/ui/Logo'
-import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles } from 'lucide-react'
+import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles, Compass } from 'lucide-react'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
@@ -18,7 +18,7 @@ import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles } 
 // next to it, instead of a generic browser-style spin with no relation to it.
 const PILL_RING_R = 13.5
 const PILL_RING_C = 2 * Math.PI * PILL_RING_R
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -189,9 +189,19 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                       className="absolute right-0 mt-2 w-64 rounded-xl border p-1.5 z-40"
                       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', boxShadow: 'var(--shadow-modal)', backdropFilter: 'var(--glass-blur)' }}>
                       {[
-                        { icon: Plus, label: lang === 'es' ? 'Agregar manualmente' : 'Add manually',
+                        // "Agregar manualmente" nombraba a la vez este destino
+                        // (el formulario largo) y al recorrido guiado de la
+                        // pantalla de bienvenida. Una etiqueta es una promesa
+                        // sobre dónde aterrizas, así que se separan: acá el
+                        // nombre que la paleta de comandos ya usaba para ESTE
+                        // mismo destino, y el recorrido entra como su propia
+                        // entrada, abajo.
+                        { icon: Plus, label: lang === 'es' ? 'Agregar posición' : 'Add position',
                           desc: lang === 'es' ? 'Una posición a la vez' : 'One position at a time',
                           onClick: onAddAccount },
+                        onGuided && { icon: Compass, label: lang === 'es' ? 'Guíame paso a paso' : 'Walk me through it',
+                          desc: lang === 'es' ? 'Te preguntamos qué tienes' : 'We ask what you have',
+                          onClick: onGuided },
                         onOpenConnections && { icon: Link2, label: lang === 'es' ? 'Conectar tu broker' : 'Connect your broker',
                           desc: lang === 'es' ? 'Sync automático' : 'Automatic sync',
                           onClick: onOpenConnections },

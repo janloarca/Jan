@@ -189,12 +189,14 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
     }
   }, [seeding, demoActive])
 
+  // Ya no se estampa 'chispudo-onboarding-done'. Esa llave existía para que el
+  // tour se auto-abriera UNA sola vez en la vida; sin el auto-open no le queda
+  // ningún lector, y un campo que se escribe y nadie lee es exactamente cómo
+  // alguien más adelante cree que sirve para algo. El tour dejó de ser
+  // irrepetible: se pide desde "¿Cómo funciona?" o desde la paleta.
   const handleFinish = useCallback(() => {
     setVisible(false)
-    setTimeout(() => {
-      try { localStorage.setItem('chispudo-onboarding-done', '1') } catch {}
-      onComplete()
-    }, 200)
+    setTimeout(() => { onComplete() }, 200)
   }, [onComplete])
 
   // ── Anchored-step measurement: scroll target into view, then track its rect.
