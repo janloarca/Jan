@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
+import { useIngestRules } from '@/hooks/useIngestRules'
 
 // Finanzas is GTQ-denominated; normalize every transaction to GTQ before summing
 // so a USD entry isn't added 1:1 to GTQ totals (and mislabeled "Q").
@@ -100,6 +101,9 @@ export default function FinancesPage() {
   } = useFirestoreItems()
 
   const { convert, loading: ratesLoading, refresh: refreshRates } = useExchangeRates()
+  // Las reglas por comercio que el usuario enseñó. El hook las comparte con el
+  // importador del tablero, que antes clasificaba con cero reglas aprendidas.
+  const { rules: ingestRules, learn: learnCategory, learnMany: handleLearnCategories } = useIngestRules(user)
 
   const monthTransactions = useMemo(() => {
     return financeTransactions
@@ -183,42 +187,18 @@ export default function FinancesPage() {
 
     const merchant = tx.merchant || tx.description
     if (!merchant || !isMachineDescribed(tx)) return
-    await authFetch('/api/ingest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'learn', merchant, category, label: label || null }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      // Keep the local copy in step so the next correction, and the bulk
-      // re-read, already see what was just taught.
-      .then((d) => { if (Array.isArray(d?.rules)) setIngestRules(d.rules) })
-      .catch(() => {})
-  }, [updateFinanceTransaction])
+    // El hook mantiene la copia local al día, así la próxima corrección y el
+    // re-leído masivo ya ven lo que se acaba de enseñar.
+    await learnCategory(merchant, category, label).catch(() => {})
+  }, [updateFinanceTransaction, learnCategory])
 
   // A transaction's category is frozen on the document at capture time, so
   // every improvement to the classifier is invisible on everything already
   // recorded. This offers the re-read explicitly, with the count up front, and
   // only over rows a machine put in the "could not tell" bucket — see
   // lib/recategorize.js for exactly what it refuses to touch.
-  const [ingestRules, setIngestRules] = useState([])
   const [recatBusy, setRecatBusy] = useState(false)
   const [recatDone, setRecatDone] = useState(null)
-
-  useEffect(() => {
-    if (!user) return
-    let cancelled = false
-    authFetch('/api/ingest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list' }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && Array.isArray(d?.rules)) setIngestRules(d.rules) })
-      // Rules are an improvement to the plan, never a requirement: without them
-      // the built-in rules still run, so a failure here must stay silent.
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [user])
 
   const recatPlan = useMemo(
     () => planRecategorize(financeTransactions, { rules: ingestRules }),
@@ -519,6 +499,7 @@ export default function FinancesPage() {
           onUpdateFinanceTransaction={updateFinanceTransaction}
           existingFinanceTransactions={financeTransactions}
           ingestRules={ingestRules}
+          onLearnCategories={handleLearnCategories}
           onUpdateItem={updateItem}
           existingItems={items}
           lang={lang}
