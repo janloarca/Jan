@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { resolveIngestToken, readUserRules, readUserBaseCurrency, stampIngestResult } from '@/lib/ingestTokens'
 import { expenseFromAlert } from '@/lib/alertIngest'
 import { normalizeExpenseInput, ingestExpense, explainIngestError, INGEST_SOURCES } from '@/lib/expenseIngest'
+import { withFirestoreRetry, describeFirestoreFailure, firestoreErrorCode } from '@/lib/firestoreErrors'
 
 // De qué transporte dice venir la captura. Se acepta del cuerpo pero SOLO de la
 // lista cerrada: no es una frontera de seguridad (esa es el token), pero sí
@@ -65,7 +66,13 @@ export async function POST(request) {
   }
 
   try {
-    const resolved = await resolveIngestToken(db, token)
+    // Todo lo que sigue que pueda fallar es una operación de Firestore, y eso
+    // NO es una suposición: cada función pura del camino (normalizeExpenseInput,
+    // expenseFromAlert, categorizeExpense, resolveOccurredAt) devuelve un error
+    // en vez de lanzar, y los dos helpers que sí podrían (readUserBaseCurrency,
+    // stampIngestResult) ya traen su propio try. Así que un 500 acá es la base
+    // de datos, y el reintento va donde de verdad ayuda.
+    const resolved = await withFirestoreRetry(() => resolveIngestToken(db, token), { label: 'ingest/token' })
     if (!resolved) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
 
     // Dos formas de mandar el mismo gasto, y la diferencia es de dónde sale el
@@ -133,8 +140,16 @@ export async function POST(request) {
       return NextResponse.json({ error: input.error, message: explainIngestError(input.error) }, { status: 400 })
     }
 
-    const rules = await readUserRules(db, resolved.uid)
-    const result = await ingestExpense({ db, uid: resolved.uid, input, rules })
+    const rules = await withFirestoreRetry(() => readUserRules(db, resolved.uid), { label: 'ingest/rules' })
+    // Reintentable porque el id del documento es determinístico: repetirla no
+    // puede crear un segundo gasto. En el caso raro de que la escritura sí
+    // hubiera entrado antes de fallar, el reintento la encuentra y contesta
+    // 'duplicate' — la palabra queda mal pero el dinero queda bien, que es el
+    // lado correcto del error.
+    const result = await withFirestoreRetry(
+      () => ingestExpense({ db, uid: resolved.uid, input, rules }),
+      { label: 'ingest/write' }
+    )
     await stampIngestResult(db, token, result.status)
 
     return NextResponse.json({
@@ -148,7 +163,23 @@ export async function POST(request) {
       needsReview: result.transaction?._needsReview || false,
     })
   } catch (err) {
-    console.error('[api/ingest/expense] error:', err.message)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // Un fallo acá tenía DOS agujeros, y los dos son de diagnóstico:
+    //
+    // 1. No dejaba rastro. `stampIngestResult` solo corría en los caminos que
+    //    terminan bien o que rechazamos a propósito, así que la línea de
+    //    "último uso" del token seguía mostrando el resultado ANTERIOR: un
+    //    crash se veía exactamente igual que "el atajo nunca llegó", que es la
+    //    distinción que ese campo existe para hacer (FASE JP).
+    // 2. No decía nada. El cuerpo era 'Internal server error' y el log tiraba
+    //    el CÓDIGO, que en un error de Firestore es el diagnóstico entero.
+    const fail = describeFirestoreFailure(err)
+    console.error(`[api/ingest/expense] ${fail.kind} code=${firestoreErrorCode(err) ?? '?'}: ${err?.message}`, err?.stack)
+    await stampIngestResult(db, token, fail.code)
+    // 503 y no 500 para lo que se arregla solo (cuota, hipo de la base): es
+    // "volvé a intentar", no "hay un bug". El atajo muestra el cuerpo igual.
+    return NextResponse.json(
+      { error: fail.code, kind: fail.kind, message: fail.message },
+      { status: fail.retryable ? 503 : 500 }
+    )
   }
 }
