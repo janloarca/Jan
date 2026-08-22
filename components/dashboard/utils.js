@@ -714,6 +714,7 @@ export function getInvestmentClass(item) {
 }
 
 import { INVESTMENT_CLASS_COLORS } from '@/lib/colors'
+import { isDailyAccrual, accrualAnnualRate } from '@/lib/dailyAccrual'
 
 export const INVESTMENT_CLASS_META = {
   renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: INVESTMENT_CLASS_COLORS.renta_variable, icon: 'TrendingUp' },
@@ -1051,6 +1052,14 @@ export function solveDietzStartValue({ endValue, startTs, endTs, transactions, c
 // Ingresos card and estimatedAnnualIncome (InsightCards/GoalTracker) must use this —
 // they previously implemented different subsets and disagreed on rate-based items.
 export function projectItemAnnualIncome(item, balance) {
+  // FASE KT. Devengo diario: la tasa tecleada es EFECTIVA ANUAL, asi que la
+  // proyeccion del anio es la tasa a secas. Va PRIMERO y explicito aunque
+  // coincida con la rama de porcentaje, porque un `incomeAmount` viejo que
+  // quedo guardado de cuando el activo era de monto fijo gana antes que ella.
+  if (isDailyAccrual(item)) {
+    const r = accrualAnnualRate(item)
+    if (r > 0) return balance * (r / 100)
+  }
   if (item.rateType === 'variable' && item.rateMin > 0 && item.rateMax > 0) {
     const midRate = (item.rateMin + item.rateMax) / 2
     return balance * (midRate / 100)

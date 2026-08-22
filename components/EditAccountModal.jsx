@@ -8,6 +8,7 @@ import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
 import { currencyOptions } from '@/lib/currencies'
+import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 const ACCOUNT_TYPES = [
@@ -97,6 +98,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     capitalReturn: item.capitalReturn?.toString() || '',
     capitalDestination: item.capitalDestination || '',
     rateType: item.rateType || 'fixed',
+    accrual: item.accrual === ACCRUAL_DAILY ? ACCRUAL_DAILY : 'monthly',
     rateMin: item.rateMin?.toString() || '',
     rateMax: item.rateMax?.toString() || '',
     businessDayRule: item.businessDayRule || 'exact',
@@ -479,7 +481,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         } else {
           updated.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
-        if (form.rateType !== 'continuous') {
+        if (form.accrual === ACCRUAL_DAILY && form.rateType !== 'continuous') {
+          // FASE KT. Mismo helper que el alta: un solo lugar define qué
+          // calendario implica el devengo diario.
+          updated.accrual = ACCRUAL_DAILY
+          Object.assign(updated, dailyAccrualScheduleFields())
+          updated.businessDayRule = 'exact'
+        } else if (form.rateType !== 'continuous') {
+          // Volver a mensual tiene que BORRAR la marca, o el activo seguiría
+          // devengando diario con un calendario que el usuario ya cambió.
+          updated.accrual = 'monthly'
           // Ver AddAccountModal: 1..31, y 31 significa "último día del mes".
           updated.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
           updated.incomeMonthsExplicit = form.incomeMonths.length > 0
@@ -1589,6 +1600,29 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
+
+              {/* Frecuencia de devengo (FASE KT). Solo con tasa: un monto fijo
+                  no devenga, se paga. */}
+              {form.incomeMode !== 'fixed' && form.rateType !== 'continuous' && (
+                <div>
+                  <label className={labelCls}>{t('¿Con qué frecuencia acumula?', 'How often does it accrue?')}</label>
+                  <div className="flex gap-1">
+                    {[{ k: 'monthly', es: 'Mensual', en: 'Monthly' }, { k: ACCRUAL_DAILY, es: 'Diario', en: 'Daily' }].map(o => (
+                      <button key={o.k} type="button" onClick={() => set('accrual', o.k)}
+                        className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
+                        style={form.accrual === o.k ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                        {lang === 'es' ? o.es : o.en}
+                      </button>
+                    ))}
+                  </div>
+                  {form.accrual === ACCRUAL_DAILY && (
+                    <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                      {t('Acumula todos los días y se registra UN movimiento el último día de cada mes con lo acumulado.',
+                         'It accrues every day and ONE movement is recorded on the last day of each month with the total accrued.')}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Rate inputs */}
               {form.rateType === 'variable' ? (

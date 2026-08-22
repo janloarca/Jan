@@ -30,6 +30,7 @@ import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLi
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO } from '@/lib/incomeSchedule'
+import { isDailyAccrual, accrualAnnualRate, monthlyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -674,7 +675,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           }
         }
 
-        for (const { dateStr, backfill } of monthsToCheck) {
+        for (const { dateStr, month: payMonth, year: payYear, backfill } of monthsToCheck) {
           if (cancelled) return
           // Dates the user explicitly said did NOT happen (asked at account
           // creation, when the schedule implied a payment already due) —
@@ -695,7 +696,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           const incomeCurrency = it._originalCurrency || it.currency || 'USD'
           let amount = 0
 
-          if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+          // FASE KT. Devengo DIARIO, asentado una vez a fin de mes: el monto
+          // sale de los dias reales de ESE mes sobre el saldo de HOY, no de un
+          // doceavo parejo. Va primero porque manda sobre cualquier otra rama
+          // de tasa. De paso prorratea el mes de la compra, que el reparto
+          // plano acreditaba entero por unos dias de tenencia.
+          const dailyRate = isDailyAccrual(it) ? accrualAnnualRate(it) : 0
+          if (dailyRate > 0) {
+            amount = monthlyAccrual({
+              balance, annualRatePct: dailyRate,
+              year: payYear, monthIndex: payMonth, acquisitionDay: acqDay,
+            })
+          } else if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
             const midRate = (it.rateMin + it.rateMax) / 2
             amount = (balance * (midRate / 100)) / (payMonths.length || 12)
           } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
@@ -742,7 +754,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             date: dateStr,
             type: 'DIVIDEND',
             symbol: it.symbol || it.name,
-            description: `Dividend from ${it.name || it.symbol}`,
+            description: dailyRate > 0
+              ? `Accrued interest from ${it.name || it.symbol}`
+              : `Dividend from ${it.name || it.symbol}`,
             totalAmount: amount,
             currency: incomeCurrency,
             _source: 'auto',
