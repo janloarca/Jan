@@ -104,10 +104,17 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
           : ms < 86400000 ? t(`hace ${Math.round(ms / 3600000)} h`, `${Math.round(ms / 3600000)} h ago`)
             : t(`hace ${Math.round(ms / 86400000)} d`, `${Math.round(ms / 86400000)} d`)
     const r = tk.lastResult
+    // Un fallo del SERVIDOR (la base de datos no respondió) y un RECHAZO
+    // nuestro (el atajo mandó algo que no se puede usar) son diagnósticos
+    // opuestos: el primero se reintenta solo, el segundo hay que ir a
+    // arreglarlo al teléfono. Decirle "rechazado" a un crash manda a revisar
+    // justo donde no está el problema.
     const outcome = r === 'created' ? t('gasto registrado', 'expense recorded')
       : r === 'duplicate' ? t('ya estaba registrado', 'already recorded')
-        : r ? t(`rechazado: ${r}`, `rejected: ${r}`)
-          : null
+        : r === 'error:quota' ? t('la base llegó a su límite diario', 'database hit its daily limit')
+          : String(r || '').startsWith('error') ? t('falló en el servidor', 'server failure')
+            : r ? t(`rechazado: ${r}`, `rejected: ${r}`)
+              : null
     const bad = r && r !== 'created' && r !== 'duplicate'
     return {
       text: [t('Último uso ', 'Last used '), ago, outcome ? ` · ${outcome}` : ''].filter(Boolean).join(''),
