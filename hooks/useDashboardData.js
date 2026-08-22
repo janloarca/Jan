@@ -29,7 +29,8 @@ import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanD
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
-import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded } from '@/lib/incomeSchedule'
+import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO } from '@/lib/incomeSchedule'
+import { isDailyAccrual, accrualAnnualRate, monthlyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -619,6 +620,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
         const monthsToCheck = []
         const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate) : null
+        // FASE KS. El MISMO día de compra que ve la vista previa del
+        // formulario, resuelto por el helper compartido: acá se leía con
+        // getFullYear() LOCAL y allá con getUTCFullYear(), o sea las dos
+        // superficies podían discrepar sobre en qué mes cae una compra.
+        const acqDay = acquisitionDayISO(it.acquisitionDate)
         if (canBackfill) {
           const lookbackMonths = acqDate
             ? Math.min(24, Math.ceil((now.getTime() - acqDate.getTime()) / (30 * 86400000)))
@@ -627,13 +633,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
             const checkMonth = checkDate.getUTCMonth()
             const checkYear = checkDate.getUTCFullYear()
-            if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
             if (!payMonths.includes(checkMonth)) continue
             const payDay = it.incomePayDay || 1
             // Recortado al último día real del mes: ver clampPayDay
             // (lib/incomeSchedule.js) y el "2026-02-31" que desbordaba a marzo.
             if (offset === 0 && todayDay < clampPayDay(payDay, checkYear, checkMonth)) continue
             const dateStr = payDateFor(checkYear, checkMonth, payDay)
+            // Un pago nunca es anterior a la compra. El guard viejo comparaba
+            // contra el PRIMERO DEL MES de la compra, así que un día de pago
+            // anterior dentro de ese mismo mes pasaba: comprando el 20 de
+            // agosto con día de pago 1, se escribía un mes entero de interés
+            // fechado el 1 de agosto.
+            if (acqDay && dateStr < acqDay) continue
             // FASE HV. Un ingreso que se REINVIERTE en la propia cuenta ya está
             // adentro del saldo que el usuario tecleó: el saldo de hoy de una
             // cuenta que compone contiene todo lo que compuso hasta hoy. Backfillear
@@ -654,12 +665,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const payDay = it.incomePayDay || 1
             if (todayDay >= clampPayDay(payDay, now.getUTCFullYear(), currentMonth)) {
               const dateStr = payDateFor(now.getUTCFullYear(), currentMonth, payDay)
-              monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
+              // FASE KS. Esta rama no tenia NINGUN chequeo de fecha de compra,
+              // asi que una cuenta creada el 20 de agosto con dia de pago 1
+              // escribia su primer pago fechado el 1 de agosto.
+              if (!acqDay || dateStr >= acqDay) {
+                monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
+              }
             }
           }
         }
 
-        for (const { dateStr, backfill } of monthsToCheck) {
+        for (const { dateStr, month: payMonth, year: payYear, backfill } of monthsToCheck) {
           if (cancelled) return
           // Dates the user explicitly said did NOT happen (asked at account
           // creation, when the schedule implied a payment already due) —
@@ -680,7 +696,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           const incomeCurrency = it._originalCurrency || it.currency || 'USD'
           let amount = 0
 
-          if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
+          // FASE KT. Devengo DIARIO, asentado una vez a fin de mes: el monto
+          // sale de los dias reales de ESE mes sobre el saldo de HOY, no de un
+          // doceavo parejo. Va primero porque manda sobre cualquier otra rama
+          // de tasa. De paso prorratea el mes de la compra, que el reparto
+          // plano acreditaba entero por unos dias de tenencia.
+          const dailyRate = isDailyAccrual(it) ? accrualAnnualRate(it) : 0
+          if (dailyRate > 0) {
+            amount = monthlyAccrual({
+              balance, annualRatePct: dailyRate,
+              year: payYear, monthIndex: payMonth, acquisitionDay: acqDay,
+            })
+          } else if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
             const midRate = (it.rateMin + it.rateMax) / 2
             amount = (balance * (midRate / 100)) / (payMonths.length || 12)
           } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
@@ -727,7 +754,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             date: dateStr,
             type: 'DIVIDEND',
             symbol: it.symbol || it.name,
-            description: `Dividend from ${it.name || it.symbol}`,
+            description: dailyRate > 0
+              ? `Accrued interest from ${it.name || it.symbol}`
+              : `Dividend from ${it.name || it.symbol}`,
             totalAmount: amount,
             currency: incomeCurrency,
             _source: 'auto',
@@ -3005,6 +3034,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved,
+    // El valor con el que arrancó el año, o sea contra QUÉ se midió returnYTD.
+    // Adición pura: ya se calculaba acá dentro (alimenta el desglose por
+    // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
+    // año, donde un % sin su base se lee contra la columna equivocada.
+    ytdStartValue,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
