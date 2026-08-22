@@ -17,6 +17,7 @@ import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
 import { flowSign, flowMagnitude } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
+import { applyCategoryToMatchingRows, learnablesFrom } from '@/lib/importLearning'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
@@ -80,7 +81,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -745,15 +746,30 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
+    // Lo que el usuario corrigió en la vista previa se ENSEÑA acá, no antes: el
+    // conocimiento que se guarda tiene que ser el de lo que de verdad se
+    // importó. Best-effort a propósito: una regla que no se pudo guardar no
+    // puede hacer fallar un import de movimientos reales que ya se escribieron.
+    let learned = 0
+    if (isCard && onLearnCategories) {
+      const toLearn = learnablesFrom(toImport)
+      if (toLearn.length > 0) {
+        try {
+          await onLearnCategories(toLearn)
+          learned = toLearn.length
+        } catch { /* el import ya ocurrió: no se revierte por esto */ }
+      }
+    }
+
     setResult({
-      success, failed, updated,
+      success, failed, updated, learned,
       total: biData.transactions.length,
       skipped: isCard ? biMatch.confirmed.length : biMatch.exact.length,
       isBI: true,
     })
     setStep('done')
     setImporting(false)
-  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount])
+  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount, onLearnCategories])
 
   const doIBKRImport = useCallback(async () => {
     // History-only files are valid: a Flex XML for a closed year can carry just
@@ -1447,9 +1463,14 @@ When done, give me the .xlsx file ready to download.`
                                 <td className="py-1.5 px-2">
                                   <select value={tx.category}
                                     onChange={(e) => {
-                                      const next = { ...biMatch, newTxs: [...biMatch.newTxs] }
-                                      next.newTxs[i] = { ...next.newTxs[i], category: e.target.value }
-                                      setBiMatch(next)
+                                      // La corrección alcanza a las DEMÁS filas
+                                      // del mismo comercio en este import, y se
+                                      // enseña al terminar (lib/importLearning).
+                                      // Antes solo cambiaba esta fila y no
+                                      // enseñaba nada: el comercio volvía a
+                                      // "Otros Gastos" en el siguiente import.
+                                      const { rows } = applyCategoryToMatchingRows(biMatch.newTxs, i, e.target.value)
+                                      setBiMatch({ ...biMatch, newTxs: rows })
                                     }}
                                     className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none">
                                     {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
@@ -1855,6 +1876,18 @@ When done, give me the .xlsx file ready to download.`
                       <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
                         {t(`${result.updated} se corrigieron con el monto y los datos finales del banco.`,
                            `${result.updated} were corrected with the bank's final amount and data.`)}
+                      </p>
+                    )}
+                    {/* Lo que se aprendió se dice: una corrección que se guarda
+                        en silencio no se distingue de una que se perdió, y esa
+                        era justamente la queja. */}
+                    {result.learned > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
+                        {result.learned === 1
+                          ? t('Se aprendió 1 comercio: la próxima vez se clasifica solo.',
+                               'Learned 1 merchant: next time it classifies itself.')
+                          : t(`Se aprendieron ${result.learned} comercios: la próxima vez se clasifican solos.`,
+                               `Learned ${result.learned} merchants: next time they classify themselves.`)}
                       </p>
                     )}
                   </>

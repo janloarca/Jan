@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
+import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
@@ -457,6 +458,12 @@ export default function DashboardPage() {
     ibkrConnected, ibkrAutoSyncing,
     ibkrSyncStatus, ibkrSyncError, ibkrSyncErrorCode, ibkrUpstreamError, ibkrSkipReason, ibkrLastSync, ibkrSyncSummary,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
+
+  // Las reglas por comercio que el usuario enseñó corrigiendo categorías. El
+  // MISMO hook que usa Flujo, no una segunda carga: el importador de esta
+  // pantalla clasificaba con cero reglas aprendidas, así que el mismo estado de
+  // cuenta daba resultados distintos según desde dónde se subiera.
+  const { rules: ingestRules, learnMany: learnCategories } = useIngestRules(user)
 
   // Only matters for the ONE transition into 'ibkr': captures whether it was
   // already connected, so closing the modal can tell "just connected for the
@@ -1653,12 +1660,16 @@ export default function DashboardPage() {
         </>}
       </main>
 
+      {/* El importador del tablero NO recibía las reglas aprendidas, así que el
+          mismo estado de cuenta se clasificaba distinto según desde qué
+          pantalla se subiera. */}
       {modal === 'import' && (
         <FileImportModal
           onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction} onUpdateFinanceTransaction={updateFinanceTransaction}
           existingFinanceTransactions={financeTransactions}
+          ingestRules={ingestRules} onLearnCategories={learnCategories}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
