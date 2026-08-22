@@ -448,7 +448,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
+    returnYTD, ytdChange, ytdStartValue, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
     annualDividends, estimatedAnnualIncome,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -1516,7 +1516,7 @@ export default function DashboardPage() {
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
                   <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
-                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
                 <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
                   {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
