@@ -45,7 +45,13 @@ export default function AssetTypePicker({
               type="button"
               aria-pressed={on}
               onClick={() => onToggle(c.key)}
-              className="flex items-center gap-2 px-3 py-3 min-h-[44px] rounded-xl text-caption text-left transition-colors"
+              // Son nueve, así que en dos columnas la última queda huérfana con
+              // medio renglón vacío al lado. La última es justo el broker, que
+              // NO es un tipo de activo sino un atajo, así que ocupar el ancho
+              // llena el hueco y de paso dice que es de otra naturaleza. En tres
+              // columnas los nueve cierran exacto y no hace falta.
+              className={`flex items-center gap-2 px-3 py-3 min-h-[44px] rounded-xl text-caption text-left transition-colors${
+                c.isBroker ? (variant === 'page' ? ' col-span-2 sm:col-span-1' : ' col-span-2') : ''}`}
               style={{
                 border: on ? '1px solid var(--accent-blue)' : 'var(--glass-border)',
                 backgroundColor: on
