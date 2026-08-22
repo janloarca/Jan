@@ -8,6 +8,7 @@ import InlineCreateAccount from './InlineCreateAccount'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
+import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
@@ -115,6 +116,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     dividendAction: 'cash',
     sector: '', industry: '', exchangeName: '',
     rateType: 'fixed', rateMin: '', rateMax: '',
+    // 'monthly' (de siempre) | 'daily' (devenga diario, asienta a fin de mes)
+    accrual: 'monthly',
     accrualMethod: 'simple', paymentSchedule: 'monthly',
     businessDayRule: 'exact',
     maturityDate: '', maturityAction: 'return_capital', conversionDetails: '',
@@ -201,13 +204,20 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     : null
 
   const payMonthsCount = form.incomeMonths.length > 0 ? form.incomeMonths.length : 12
+  // Devengo diario: el calendario deja de ser una eleccion (son los 12 meses,
+  // el ultimo dia de cada uno), asi que se derivan los campos en vez de
+  // pedirlos. Un solo lugar los define: dailyAccrualScheduleFields.
+  const isDaily = form.accrual === ACCRUAL_DAILY
   const pastDuePayDates = useMemo(() => {
     if (isMarketAsset || !showIncome || form.rateType === 'continuous') return []
+    const sched = isDaily
+      ? dailyAccrualScheduleFields()
+      : { incomeMonths: form.incomeMonths, incomePayDay: form.incomePayDay }
     return getScheduledPayDates({
-      acquisitionDate: form.acquisitionDate, incomeMonths: form.incomeMonths,
-      incomePayDay: form.incomePayDay, rateType: form.rateType,
+      acquisitionDate: form.acquisitionDate, rateType: form.rateType,
+      incomeMonths: sched.incomeMonths, incomePayDay: sched.incomePayDay,
     })
-  }, [isMarketAsset, showIncome, form.rateType, form.acquisitionDate, form.incomeMonths, form.incomePayDay])
+  }, [isMarketAsset, showIncome, form.rateType, form.acquisitionDate, form.incomeMonths, form.incomePayDay, isDaily])
 
   // Drop stale exclusions if the schedule changed underneath them (e.g. the
   // user removed a month after marking that date "not received").
@@ -473,7 +483,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         } else {
           item.incomeAmount = parseFloat(form.incomeAmount) || 0
         }
-        if (form.rateType !== 'continuous') {
+        if (isDaily && form.rateType !== 'continuous') {
+          // FASE KT. El devengo diario no elige calendario: son los 12 meses,
+          // el ultimo dia de cada uno. Los campos salen del helper compartido
+          // para que el alta y la edicion no puedan escribir cosas distintas.
+          item.accrual = ACCRUAL_DAILY
+          Object.assign(item, dailyAccrualScheduleFields())
+          item.businessDayRule = 'exact'
+        } else if (form.rateType !== 'continuous') {
           // Acotado a 1..31: `min`/`max` de un input numérico no impiden TECLEAR
           // un 45. Un 31 sí es válido y significa "el último día del mes":
           // `clampPayDay` (lib/incomeSchedule.js) lo recorta mes a mes.
@@ -1393,6 +1410,29 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </button>
                 </div>
 
+                {/* Frecuencia de devengo. Solo con tasa: un monto fijo mensual
+                    no devenga, se paga, y ahi "diario" no significa nada. */}
+                {form.incomeMode !== 'fixed' && form.rateType !== 'continuous' && (
+                  <div>
+                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Con qué frecuencia acumula?', 'How often does it accrue?')}</label>
+                    <div className="flex gap-1">
+                      {[{ k: 'monthly', es: 'Mensual', en: 'Monthly' }, { k: ACCRUAL_DAILY, es: 'Diario', en: 'Daily' }].map(o => (
+                        <button key={o.k} type="button" onClick={() => set('accrual', o.k)}
+                          className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.accrual !== o.k ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
+                          style={form.accrual === o.k ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                          {t(o.es, o.en)}
+                        </button>
+                      ))}
+                    </div>
+                    {isDaily && (
+                      <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                        {t('Acumula todos los días, y se registra UN movimiento el último día de cada mes con lo acumulado. No se anota día por día: serían cientos de movimientos al año.',
+                           'It accrues every day, and ONE movement is recorded on the last day of each month with the total accrued. Not day by day: that would be hundreds of movements a year.')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Rate inputs */}
                 {form.rateType === 'variable' ? (
                   <>
@@ -1431,17 +1471,26 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           placeholder="5.5" type="number" step="any" className={inputCls} />
                       </>)}
                     </div>
-                    <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
-                      <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                        placeholder="10" type="number" min="1" max="31" className={inputCls} />
-                      {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
-                    </div>
+                    {isDaily ? (
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Se registra', 'Recorded on')}</label>
+                        <p className="text-xs pt-2" style={{ color: 'var(--text-secondary)' }}>
+                          {t('El último día de cada mes', 'The last day of each month')}
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                        <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
+                          placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                        {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Business day rule */}
-                {form.rateType !== 'continuous' && (
+                {form.rateType !== 'continuous' && !isDaily && (
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-[var(--text-muted,#475569)]">{t('Día hábil:', 'Business day:')}</label>
                     <select value={form.businessDayRule} onChange={e => set('businessDayRule', e.target.value)}
@@ -1453,7 +1502,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 )}
 
                 {/* Payment months */}
-                {form.rateType !== 'continuous' && (
+                {form.rateType !== 'continuous' && !isDaily && (
                   <div>
                     <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('¿En qué meses te pagan?', 'Which months do you get paid?')}</label>
                     <div className="flex flex-wrap gap-1">
@@ -1527,12 +1576,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   const qty = parseFloat(form.quantity) || 1
                   const price = parseFloat(form.purchasePrice) || 0
                   const balance = qty * price
-                  const estimate = estimateIncomeAmount({
+                  // Con devengo diario cada mes vale distinto (28 dias no son
+                  // 31), asi que la estimacion se hace POR FECHA en vez de una
+                  // sola para todas.
+                  const estimateFor = (d) => estimateIncomeAmount({
                     balance, incomeMode: form.incomeMode, incomeRate: parseFloat(form.incomeRate) || 0,
                     incomeAmount: parseFloat(form.incomeAmount) || 0, rateType: form.rateType,
                     rateMin: parseFloat(form.rateMin) || 0, rateMax: parseFloat(form.rateMax) || 0,
                     isPerShare: false, qty,
+                    accrual: form.accrual, acquisitionDay: form.acquisitionDate, payDate: d,
                   }, payMonthsCount)
+                  const estimate = estimateFor(pastDuePayDates[0])
                   const accrued = parseFloat(form.accruedInterestAtPurchase) || 0
                   const toggle = (d) => setExcludedPayDates(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
                   return (
@@ -1550,7 +1604,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                             <div key={d} className="flex items-center justify-between gap-2 text-xs bg-[var(--input-bg,#000000)] rounded px-2 py-1.5">
                               <span className="text-[var(--text-secondary,#cbd5e1)]">
                                 {new Date(`${d}T00:00:00`).toLocaleDateString(lang === 'es' ? 'es' : 'en', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                {estimate > 0 && <span className="text-[var(--text-muted,#64748b)] ml-1.5">~{form.currency} {estimate.toFixed(2)}</span>}
+                                {estimateFor(d) > 0 && <span className="text-[var(--text-muted,#64748b)] ml-1.5">~{form.currency} {estimateFor(d).toFixed(2)}</span>}
                                 {i === 0 && estimate > 0 && accrued > 0 && (
                                   <InfoTip text={t(
                                     `De este pago, aprox. ${form.currency} ${Math.min(accrued, estimate).toFixed(2)} ya era tuyo desde antes de comprar (interés corrido): no es ganancia nueva.`,
