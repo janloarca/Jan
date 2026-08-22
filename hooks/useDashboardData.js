@@ -29,7 +29,7 @@ import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanD
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
-import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded } from '@/lib/incomeSchedule'
+import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO } from '@/lib/incomeSchedule'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -619,6 +619,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
         const monthsToCheck = []
         const acqDate = it.acquisitionDate ? new Date(it.acquisitionDate) : null
+        // FASE KS. El MISMO día de compra que ve la vista previa del
+        // formulario, resuelto por el helper compartido: acá se leía con
+        // getFullYear() LOCAL y allá con getUTCFullYear(), o sea las dos
+        // superficies podían discrepar sobre en qué mes cae una compra.
+        const acqDay = acquisitionDayISO(it.acquisitionDate)
         if (canBackfill) {
           const lookbackMonths = acqDate
             ? Math.min(24, Math.ceil((now.getTime() - acqDate.getTime()) / (30 * 86400000)))
@@ -627,13 +632,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const checkDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1))
             const checkMonth = checkDate.getUTCMonth()
             const checkYear = checkDate.getUTCFullYear()
-            if (acqDate && checkDate < new Date(Date.UTC(acqDate.getFullYear(), acqDate.getMonth(), 1))) continue
             if (!payMonths.includes(checkMonth)) continue
             const payDay = it.incomePayDay || 1
             // Recortado al último día real del mes: ver clampPayDay
             // (lib/incomeSchedule.js) y el "2026-02-31" que desbordaba a marzo.
             if (offset === 0 && todayDay < clampPayDay(payDay, checkYear, checkMonth)) continue
             const dateStr = payDateFor(checkYear, checkMonth, payDay)
+            // Un pago nunca es anterior a la compra. El guard viejo comparaba
+            // contra el PRIMERO DEL MES de la compra, así que un día de pago
+            // anterior dentro de ese mismo mes pasaba: comprando el 20 de
+            // agosto con día de pago 1, se escribía un mes entero de interés
+            // fechado el 1 de agosto.
+            if (acqDay && dateStr < acqDay) continue
             // FASE HV. Un ingreso que se REINVIERTE en la propia cuenta ya está
             // adentro del saldo que el usuario tecleó: el saldo de hoy de una
             // cuenta que compone contiene todo lo que compuso hasta hoy. Backfillear
@@ -654,7 +664,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             const payDay = it.incomePayDay || 1
             if (todayDay >= clampPayDay(payDay, now.getUTCFullYear(), currentMonth)) {
               const dateStr = payDateFor(now.getUTCFullYear(), currentMonth, payDay)
-              monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
+              // FASE KS. Esta rama no tenia NINGUN chequeo de fecha de compra,
+              // asi que una cuenta creada el 20 de agosto con dia de pago 1
+              // escribia su primer pago fechado el 1 de agosto.
+              if (!acqDay || dateStr >= acqDay) {
+                monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
+              }
             }
           }
         }
