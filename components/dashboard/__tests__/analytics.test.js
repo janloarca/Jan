@@ -431,3 +431,50 @@ describe('computeNetContributions', () => {
     expect(result.totalContributed).toBe(1000)
   })
 })
+
+// FASE JA3. La atribución calculaba su ganancia a mano y por eso ignoraba las
+// tres piezas de la convención de la casa. El denominador (el portafolio) sigue
+// igual a propósito: esa ES la pregunta de una atribución.
+describe('computeAssetAttribution: la ganancia sigue la convención congelada', () => {
+  test('un bono que paga en efectivo a otra cuenta ya no sale con ganancia CERO', () => {
+    const items = [
+      { id: 'bond1', symbol: 'VITALI', type: 'Bond', quantity: 1, currentPrice: 6000, purchasePrice: 6000 },
+      { id: 'other', symbol: 'OTRO', type: 'Stock', quantity: 1, currentPrice: 4000, purchasePrice: 4000 },
+    ]
+    const txs = [
+      { type: 'DIVIDEND', _linkedItemId: 'bond1', totalAmount: 240, currency: 'USD', date: '2026-05-15' },
+    ]
+    const rows = computeAssetAttribution(items, txs, null, 'USD')
+    const vitali = rows.find((r) => r.symbol === 'VITALI')
+    // El cupón que el activo GENERÓ es su ganancia, aunque su precio no se mueva.
+    expect(vitali.gain).toBe(240)
+    // Sin el ingreso, la fila salía en 0 y no aparecía ni entre los que suman ni
+    // entre los que restan: exactamente el caso que getDividendIncomeByItem
+    // existe para arreglar.
+    expect(vitali.gain).not.toBe(0)
+  })
+
+  test('la ganancia mide contra el PRINCIPAL, no contra el desembolso total', () => {
+    const items = [
+      { id: 'b', symbol: 'VITALI', type: 'Bond', quantity: 1, currentPrice: 6000, purchasePrice: 6000, entryFee: 98 },
+    ]
+    const rows = computeAssetAttribution(items, [], null, 'USD')
+    // La convención congelada es explícita: ganancia = (valor − principalCost) +
+    // ingresos. La comisión NO baja la ganancia; vive en el denominador del
+    // RETORNO, y en esta tarjeta el denominador es el portafolio, así que acá
+    // simplemente no aparece. Un bono a la par sin cupón todavía cobrado mueve
+    // el portafolio en cero, que es la respuesta correcta.
+    expect(rows[0].gain).toBe(0)
+  })
+
+  test('un pasivo no entra como activo positivo ni aparece como "mayor perdedor"', () => {
+    const items = [
+      { id: 'a', symbol: 'ACC', type: 'Stock', quantity: 1, currentPrice: 1000, purchasePrice: 800 },
+      { id: 'd', symbol: 'HIPOTECA', type: 'Debt', isDebt: true, quantity: 1, currentPrice: 300000, purchasePrice: 300000 },
+    ]
+    const rows = computeAssetAttribution(items, [], null, 'USD')
+    expect(rows.map((r) => r.symbol)).toEqual(['ACC'])
+    // Y el denominador es solo el activo, así que el peso cuadra.
+    expect(rows[0].weight).toBe(100)
+  })
+})
