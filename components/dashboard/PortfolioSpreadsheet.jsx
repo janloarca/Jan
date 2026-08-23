@@ -3,10 +3,16 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
-import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
+import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
+// El MISMO parser que usa todo camino de import. Su cabecera documenta por qué
+// existe: las implementaciones por archivo convertían "150,25" en 15025 y
+// "1.234,56" en 1.23456, y esos números pasaban validación y aterrizaban en
+// Firestore como el dinero real del usuario. Esta celda era el último lugar con
+// su propio regex ingenuo.
+import { parseAmount } from '@/lib/numberParse'
 // El formato del .xlsx, compartido con el adjunto del correo mensual. El
 // módulo no arrastra ExcelJS hasta que se llama (import dinámico adentro).
 import { renderStyledSheet } from '@/lib/xlsxSheet'
@@ -130,7 +136,7 @@ function isMarketAsset(type) {
   return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
 }
 
-const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, hint, editLabel, livePreview, isNegative, currency, onEditStart, onEditEnd }) {
+const EditableCell = memo(function EditableCell({ displayValue, editValue, onSave, onReject, hint, editLabel, livePreview, isNegative, currency, onEditStart, onEditEnd }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const ref = useRef(null)
@@ -146,10 +152,21 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   }
 
   const commit = () => {
-    const num = parseFloat(draft.replace(/[^0-9.\-]/g, ''))
+    // `parseAmount` lee las dos convenciones latinoamericanas (punto y coma
+    // decimal). El regex viejo (`replace(/[^0-9.\-]/g, '')`) dejaba "12.500,00"
+    // como "12.500.00", que parseFloat resuelve a 12.5: doce con cincuenta en
+    // vez de doce mil quinientos, guardado con el banner verde de confirmación.
+    const num = parseAmount(draft)
     // Same ceiling as file imports (lib/validation MAX_PRICE) — inline edits
     // shouldn't be the one door where absurd values slip in.
-    if (isFinite(num) && num >= 0 && num <= 10_000_000) onSave(num)
+    if (isFinite(num) && num >= 0 && num <= 10_000_000) {
+      onSave(num)
+    } else if (String(draft).trim() !== '') {
+      // Un valor rechazado se descartaba en SILENCIO absoluto: el popover se
+      // cerraba y el número viejo seguía ahí. Una deuda tecleada en negativo o
+      // un inmueble sobre el tope se leían como "no pasó nada".
+      onReject?.(num)
+    }
     setEditing(false)
     onEditEnd?.()
   }
@@ -283,6 +300,17 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
   const [historicalItems, setHistoricalItems] = useState({})
 
+  // Las keys de bucket sintético que un item de IBKR VIVO produciría hoy. Se
+  // arma con la misma expresión que `cacheKeyFor` (más abajo) para que no puedan
+  // derivar: si esa cambia, esta tiene que cambiar con ella. La consumen el
+  // TOTAL y las filas de categoría, que antes tenían reglas distintas sobre qué
+  // entrada sin dueño cuenta.
+  const liveIbkrBucketKeys = useMemo(() => new Set(
+    (items || [])
+      .filter((it) => it && it._source === 'ibkr')
+      .map((it) => `${IBKR_UNKNOWN_KEY_PREFIX}${it.institution || ''}__${getTypeCategory(it)}`)
+  ), [items])
+
   const monthlyTotals = useMemo(() => {
     const base = baseCurrency || 'USD'
     // Snapshot NAV per month — used as a fallback for months that have no per-item
@@ -359,11 +387,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         // ~$12.4K, "el spreadsheet no funciona" (reporte real, dos veces).
         // Borrar una cuenta = nunca aparece en el historial (FASE GL), y eso
         // incluye esta suma.
-        const hasIbkrItems = items.some((it) => it && it._source === 'ibkr')
+        // Y solo el bucket de una institución+categoría que TODAVÍA existe. La
+        // key lleva el nombre de la institución adentro
+        // (`__ibkr_unknown__{inst}__{cat}`), así que renombrar la cuenta de "IB"
+        // a "Interactive Brokers" hace que el recompute escriba una key nueva y
+        // el merge deje la vieja al lado. Sumando por prefijo se contaba el NAV
+        // del broker DOS VECES en cada mes pasado, mientras la fila de
+        // institución (que lee la key exacta) solo mostraba una: categorías
+        // sumando menos que el TOTAL, la mecánica de FASE FT reabierta por una
+        // acción normal del usuario en vez de un cambio de lógica.
         Object.entries(hist).forEach(([id, v]) => {
           if (seen.has(id)) return
-          if (!id.startsWith(IBKR_UNKNOWN_KEY_PREFIX)) return
-          if (hasIbkrItems) sum += v.value || 0
+          if (!liveIbkrBucketKeys.has(id)) return
+          sum += v.value || 0
         })
         result[mk] = sum
       } else if (snapByMonth[mk] != null) {
@@ -373,7 +409,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }
     })
     return result
-  }, [snapshots, convert, baseCurrency, historicalItems, items])
+  }, [snapshots, convert, baseCurrency, historicalItems, items, liveIbkrBucketKeys])
 
   // Months whose TOTAL comes from a snapshot NAV fallback (no per-item breakdown):
   // the category rows show "—" there while the TOTAL shows a figure, so we mark
@@ -512,7 +548,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     itemSnapshotSavedRef.current = saveKey
     const data = {}
     items.forEach(it => {
-      const val = getItemValue(it)
+      // El caché guarda MAGNITUDES; el signo lo aplica cada lector
+      // (`monthlyTotals` acá, `lib/monthlySpreadsheet.js:143` del lado del
+      // correo, y ambos con `(it.isDebt ? -1 : 1) * value`). El motor histórico
+      // (`valueInBase`, lib/historicalValues.js) siempre escribió así.
+      //
+      // Este escritor era el único que guardaba el valor YA firmado, y como el
+      // lector niega igual, la doble negación volvía la deuda POSITIVA: una
+      // tarjeta de $5,000 inflaba el TOTAL de ese mes en $10,000. Solo se veía
+      // en el mes recién cerrado (el mes en curso lee de `items`, no del
+      // caché), y no se autocorregía nunca porque ese mes figura como completo
+      // y jamás se recomputa. De ahí el bump a SNAPSHOT_VERSION: los docs ya
+      // escritos con signo no se reparan por merge.
+      const val = it.isDebt ? -getItemValue(it) : getItemValue(it)
       if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '', category: getTypeCategory(it), institution: it.institution || '' }
     })
     onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD')
@@ -755,8 +803,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const toggleCat = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }))
   const toggleInst = (key) => setCollapsedInst(p => ({ ...p, [key]: !p[key] }))
 
-  const handleValueUpdate = useCallback((item, newVal) => {
+  const handleValueUpdate = useCallback(async (item, newVal) => {
     if (!onUpdateItem || !item.id) return
+    let patch
     if (isMarketAsset(item.type)) {
       const hasOpenLots = lots && lots.some(l =>
         (l.symbol || '').toUpperCase() === (item.symbol || '').toUpperCase() &&
@@ -784,21 +833,55 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const cur = item._originalCurrency || item.currency || 'USD'
       const base = baseCurrency || 'USD'
       const valInOriginal = showOriginal ? newVal : (convert ? convert(newVal, base, cur) : newVal)
-      onUpdateItem(item.id, { quantity: valInOriginal / price })
+      patch = { quantity: valInOriginal / price }
     } else {
       const qty = item.quantity || 1
+      let price
       if (showOriginal) {
-        onUpdateItem(item.id, { currentPrice: newVal / qty })
+        price = newVal / qty
       } else {
         const cur = item._originalCurrency || item.currency || 'USD'
         const base = baseCurrency || 'USD'
         const originalVal = convert ? convert(newVal, base, cur) : newVal
-        onUpdateItem(item.id, { currentPrice: originalVal / qty })
+        price = originalVal / qty
       }
+      // Una cuenta de banco guarda su saldo en los DOS campos (isBankLike, la
+      // regla compartida). Escribir solo `currentPrice` dejaba el costo en el
+      // valor viejo: corregir un saldo de 1,000 a 1,200 hacía que el dashboard
+      // creyera que el usuario GANÓ 200 en una cuenta de ahorro.
+      patch = isBankLike(item)
+        ? { currentPrice: price, purchasePrice: price }
+        : { currentPrice: price }
     }
-    setSaveMsg(lang === 'es' ? `${item.symbol || item.name}: guardado` : `${item.symbol || item.name}: saved`)
-    setTimeout(() => setSaveMsg(null), 2000)
+
+    // Confirmar DESPUÉS de que Firestore acepte, nunca antes. `updateItem` es
+    // optimista: pinta el valor nuevo, y si la escritura falla revierte y
+    // lanza. El banner verde se pintaba en la misma vuelta síncrona, así que el
+    // usuario leía "✓ guardado" y un segundo después la celda volvía sola al
+    // número viejo, indistinguible de "la app me borró la corrección".
+    const label = item.symbol || item.name
+    try {
+      await onUpdateItem(item.id, patch)
+      setSaveMsg(lang === 'es' ? `${label}: guardado` : `${label}: saved`)
+      setTimeout(() => setSaveMsg(null), 2000)
+    } catch (e) {
+      console.error('[spreadsheet] no se pudo guardar', e)
+      setBlockMsg(lang === 'es'
+        ? `${label}: no se pudo guardar. Revisá tu conexión e intentá de nuevo.`
+        : `${label}: could not save. Check your connection and try again.`)
+      setTimeout(() => setBlockMsg(null), 6000)
+    }
   }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang])
+
+  // Un valor que el editor RECHAZA (negativo, no numérico, sobre el tope) se
+  // descartaba en silencio: el popover se cerraba y el número viejo seguía ahí.
+  const handleValueReject = useCallback((item) => {
+    const label = item.symbol || item.name
+    setBlockMsg(lang === 'es'
+      ? `${label}: ese valor no se pudo leer. Usá solo números, sin signo negativo.`
+      : `${label}: could not read that value. Use numbers only, no minus sign.`)
+    setTimeout(() => setBlockMsg(null), 5000)
+  }, [lang])
 
   // CSV of the reconstructed monthly matrix — the dashboard export only covers
   // current items + transactions, not this per-month history.
@@ -813,9 +896,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       cat.institutions.forEach(inst => {
         inst.items.forEach(it => {
           const cells = months.map(mk => {
+            // El mes en curso ya viene firmado de `getItemValue`; el caché
+            // guarda magnitudes y hay que firmarlo acá. Sin esto una hipoteca
+            // salía "800.00, 800.00, ..., -800.00": once columnas positivas y
+            // una negativa, en un CSV cuyo TOTAL sí la resta, o sea un archivo
+            // cuyas filas no suman su propio total.
             if (mk === currentMonthKey) return getItemValue(it).toFixed(2)
             const v = historicalItems[mk]?.[it.id]?.value
-            return v != null ? v.toFixed(2) : ''
+            return v != null ? ((it.isDebt ? -1 : 1) * v).toFixed(2) : ''
           })
           rows.push([cat.label, it.symbol || it.name || '', ...cells].map(esc).join(','))
         })
@@ -1202,16 +1290,30 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       cat.institutions.forEach(inst => {
                         inst.items.forEach(it => {
                           if (it.id && histMonth[it.id]) {
-                            catHistTotal += histMonth[it.id].value || 0
+                            // Firmar la deuda, igual que el TOTAL y que el
+                            // lector del correo. Sin esto la fila Pasivos
+                            // imprimía (5,000.00) en la columna del mes actual
+                            // y 5,000.00 en las once pasadas, en el mismo gris
+                            // que "Bolsa de Valores": cambiaba de convención a
+                            // mitad de su propia fila y se leía como si la
+                            // deuda sumara.
+                            catHistTotal += (it.isDebt ? -1 : 1) * (histMonth[it.id].value || 0)
                             foundAny = true
                           }
                         })
                       })
+                      // Huérfanas: misma regla que el TOTAL (FASE GN). Solo el
+                      // bucket sintético de una cuenta de IBKR viva. Antes esta
+                      // fila sumaba CUALQUIER entrada sin dueño de su
+                      // categoría, así que borrar una de tres cuentas hacía que
+                      // las categorías sumaran MÁS que el TOTAL, y ese mismo
+                      // número volvía a aparecer en "Activos anteriores".
                       Object.entries(histMonth).forEach(([itemId, data]) => {
-                        if (!currentItemIds.has(itemId) && data.category === cat.key) {
-                          catHistTotal += data.value || 0
-                          foundAny = true
-                        }
+                        if (currentItemIds.has(itemId)) return
+                        if (!liveIbkrBucketKeys.has(itemId)) return
+                        if (data.category !== cat.key) return
+                        catHistTotal += data.value || 0
+                        foundAny = true
                       })
                     }
                     if (foundAny) {
@@ -1272,7 +1374,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             if (histMonth) {
                               instHistTotal = 0
                               inst.items.forEach(it => {
-                                if (it.id && histMonth[it.id]) instHistTotal += histMonth[it.id].value || 0
+                                // Mismo signo que el TOTAL y que la fila de categoría.
+                                if (it.id && histMonth[it.id]) instHistTotal += (it.isDebt ? -1 : 1) * (histMonth[it.id].value || 0)
                               })
                               if (histMonth[ibkrUnknownKey]) instHistTotal += histMonth[ibkrUnknownKey].value || 0
                             }
@@ -1361,6 +1464,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                       displayValue={val}
                                       editValue={editVal}
                                       onSave={(v) => handleValueUpdate(item, v)}
+                                      onReject={() => handleValueReject(item)}
                                       editLabel={editLabel}
                                       livePreview={livePreview}
                                       isNegative={val < 0}
