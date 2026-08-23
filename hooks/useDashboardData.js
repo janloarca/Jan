@@ -66,7 +66,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const firestoreData = useFirestoreItems()
   const {
     items, snapshots: rawSnapshots, transactions, goals, settings, profile,
-    loading: dataLoading, addItem, updateItem, deleteItem,
+    loading: dataLoading, loadError, addItem, updateItem, deleteItem,
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
@@ -3002,7 +3002,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Raw Firestore data
     items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
-    dataLoading,
+    dataLoading, loadError,
 
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,

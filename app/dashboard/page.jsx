@@ -255,7 +255,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'attribution' && !beginnerMode && (
-        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
+        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'benchmark' && (
         <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
@@ -433,7 +433,7 @@ export default function DashboardPage() {
   // Data layer
   const {
     items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
-    dataLoading,
+    dataLoading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     migrateMisplacedNav,
@@ -1455,7 +1455,30 @@ export default function DashboardPage() {
         {/* La compuerta es el conteo REAL de activos, nunca una bandera de
             sesión: por eso salirse del recorrido sin agregar nada devuelve acá
             solo, y nadie puede quedarse sin puerta de vuelta. */}
-        {portfolioItems.length === 0 && !dataLoading && (
+        {/* Una lectura que FALLÓ no es una cuenta vacía. Sin este guard, un
+            usuario con 40 cuentas y la red caída (o una regla de Firestore
+            denegando) veía "Bienvenido a Chispudo" con los botones de alta,
+            porque el listener dejaba `items` en [] y `loading` pasaba a false
+            igual. Es la afirmación falsa que el invariante de la casa prohíbe,
+            y encima invita a volver a crear cuentas que ya existen. */}
+        {portfolioItems.length === 0 && !dataLoading && loadError && (
+          <div className="card p-5 sm:p-6 text-center">
+            <p className="text-base font-semibold mb-2" style={{ color: 'var(--alert-warn-icon)' }}>
+              {lang === 'es' ? 'No pudimos cargar tus datos' : 'We could not load your data'}
+            </p>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              {lang === 'es'
+                ? 'Tus cuentas siguen guardadas: esto es un problema de conexión, no una cuenta vacía. Revisá tu internet y volvé a intentar.'
+                : 'Your accounts are still saved: this is a connection problem, not an empty account. Check your internet and try again.'}
+            </p>
+            <button onClick={() => window.location.reload()} className="btn-primary px-4 py-2 text-sm">
+              {lang === 'es' ? 'Reintentar' : 'Try again'}
+            </button>
+            <p className="text-xs mt-3 font-mono" style={{ color: 'var(--text-muted)' }}>{String(loadError)}</p>
+          </div>
+        )}
+
+        {portfolioItems.length === 0 && !dataLoading && !loadError && (
           <WelcomeScreen
             picked={firstRunPicked}
             onToggle={handleFirstRunToggle}

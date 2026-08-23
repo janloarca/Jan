@@ -117,6 +117,10 @@ export function useFirestoreItems() {
   const [profile, setProfile] = useState(initCache?.profile || null)
   const [incomePlan, setIncomePlan] = useState(initCache?.incomePlan || null)
   const [loading, setLoading] = useState(!initCache)
+  // El código de error de la última lectura que falló, o null. Existe para
+  // que la pantalla pueda distinguir "no tenés nada" de "no pude leer lo que
+  // tenés", que hasta ahora se veían idénticas.
+  const [loadError, setLoadError] = useState(null)
   const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
 
   useEffect(() => {
@@ -142,7 +146,21 @@ export function useFirestoreItems() {
       const currentUid = user.uid
       setUid(currentUid)
 
-      const onErr = (label) => (err) => { console.error(`[Firestore] ${label} listener error:`, err.code, err.message) }
+      // Un listener que falla dejaba su colección en `[]` y `loading` pasaba a
+      // false igual, así que un usuario con 40 cuentas veía la pantalla de
+      // bienvenida ("Todo tu patrimonio en un solo lugar") con los botones de
+      // alta, sin ninguna señal de que algo falló. No es un hueco: es una
+      // afirmación FALSA de que la cuenta está vacía, que es lo que el
+      // invariante de la casa prohíbe explícitamente. Peor todavía, invita a
+      // volver a crear cuentas que ya existen.
+      //
+      // Solo los listeners de las colecciones que definen "tengo datos" marcan
+      // esta bandera: si falla la de alertas o la de lots, la pantalla principal
+      // sigue siendo cierta y no hay por qué alarmar.
+      const onErr = (label, critical = false) => (err) => {
+        console.error(`[Firestore] ${label} listener error:`, err.code, err.message)
+        if (critical && !cancelled) setLoadError(err.code || 'unknown')
+      }
 
       unsubItems = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/items`),
@@ -151,7 +169,7 @@ export function useFirestoreItems() {
             setItems(snap.docs.map((d) => sanitizeItem({ ...d.data(), id: d.id })))
           }
         },
-        onErr('items')
+        onErr('items', true)
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
@@ -166,7 +184,7 @@ export function useFirestoreItems() {
             setLoading(false)
           }
         },
-        onErr('transactions')
+        onErr('transactions', true)
       )
 
       try {
@@ -1181,7 +1199,7 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,

@@ -1,4 +1,4 @@
-import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META } from './utils'
+import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getItemPrincipalCost, getDividendIncomeByItem } from './utils'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 
 function mean(arr) {
@@ -630,19 +630,39 @@ export function computeTWRSeries(chartData, transactions, convert, baseCurrency,
   return series
 }
 
-export function computeAssetAttribution(items) {
+// Cuánto movió cada activo el patrimonio COMPLETO. El denominador es el
+// portafolio a propósito (esa es la pregunta de una atribución: qué parte del
+// resultado total vino de acá), y por eso NO es el retorno del activo, que se
+// mide contra su propio costo y vive en Asignación de Activos.
+//
+// Lo que sí tenía que cambiar es el NUMERADOR, que se calculaba a mano y por lo
+// tanto ignoraba las tres piezas de la convención de la casa
+// (lib/assetLogic/corporateBondWithEntryFee.js):
+//   · el costo salía de `purchasePrice` crudo, sin la comisión de entrada;
+//   · no sumaba el ingreso que el activo GENERÓ, así que un bono que paga en
+//     efectivo a otra cuenta (VITALI) salía con ganancia 0 y no aparecía ni
+//     entre los que suman ni entre los que restan, justo el caso que
+//     getDividendIncomeByItem existe para arreglar;
+//   · el total sumaba los pasivos como si fueran activos positivos, así que
+//     amortizar una deuda se leía como "mayor perdedor".
+// Ahora la ganancia se calcula igual que en las demás superficies y solo el
+// denominador es distinto, que es lo único que de verdad distingue a esta
+// tarjeta.
+export function computeAssetAttribution(items, transactions, convert, baseCurrency) {
   if (!items || items.length === 0) return []
-  const totalValue = items.reduce((s, it) => s + (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0), 0)
+  const eligible = items.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+  const totalValue = eligible.reduce((s, it) => s + getItemValue(it), 0)
   if (totalValue <= 0) return []
 
-  return items.map((it) => {
-    const qty = it.quantity || 0
-    const cur = it.currentPrice || it.purchasePrice || 0
-    // No cost basis → we can't attribute a gain; report 0 rather than inventing
-    // cost = current price (which silently zeroed the gain anyway).
-    const cost = it.purchasePrice > 0 ? it.purchasePrice : null
-    const value = qty * cur
-    const gain = cost != null ? value - qty * cost : 0
+  const dividendIncome = getDividendIncomeByItem(transactions, items, convert, baseCurrency)
+
+  return eligible.map((it) => {
+    const value = getItemValue(it)
+    const principal = getItemPrincipalCost(it)
+    const income = dividendIncome.get(it.id) || 0
+    // Sin costo conocido no se puede atribuir una ganancia: se reporta 0 en vez
+    // de inventar que costó lo que vale hoy.
+    const gain = principal > 0 ? (value - principal) + income : 0
     return {
       symbol: it.symbol || it.name || '',
       value,
