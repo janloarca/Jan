@@ -99,6 +99,7 @@ const ProjectionSimulator = dynamic(() => import('@/components/dashboard/Project
 // montaje igual emite su chunk, o sea todo el mundo pagaba la descarga de una
 // card que nadie pide. Remontarla sigue siendo una línea, ahora dos.
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
+const ExchangeRatesCard = dynamic(() => import('@/components/dashboard/ExchangeRatesCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 const WealthProjectionCard = dynamic(() => import('@/components/dashboard/WealthProjectionCard'), { loading: () => <SkeletonCard /> })
 const InvestmentComparator = dynamic(() => import('@/components/dashboard/InvestmentComparator'), { loading: () => <SkeletonCard /> })
@@ -450,7 +451,7 @@ export default function DashboardPage() {
     marketPrices,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
-    ratesLoading, ratesError,
+    ratesLoading, ratesError, ratesUpdate, ratesStale,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, ytdStartValue, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
@@ -1586,6 +1587,12 @@ export default function DashboardPage() {
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
                   <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                  {/* Va pegada a Asignación de Activos porque su vista
+                      "Moneda" contesta la mitad de la misma pregunta (cuánto
+                      tienes en cada una); esta contesta la otra mitad (a qué
+                      tasa se está convirtiendo). Se oculta sola cuando el
+                      portafolio tiene una sola moneda. */}
+                  <CardBoundary id="FX-01"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>
                   <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
                 <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
