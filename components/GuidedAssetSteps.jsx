@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 
 /**
@@ -94,7 +95,19 @@ export default function GuidedAssetSteps({ ctx }) {
   // proveedor caído, un símbolo que no cotiza, una cripto que no está en el
   // mapa), guardar igual deja el activo con costo CERO y un retorno inventado
   // de miles por ciento. Una pregunta más, solo cuando de verdad hace falta.
-  const needsManualPrice = isMarketAsset && field === 'quantity' && price <= 0
+  //
+  // Se ENGANCHA al símbolo, no al valor actual: derivarlo de `price <= 0` a
+  // secas hace que el campo se desmonte apenas se teclea el primer dígito
+  // (price pasa a > 0), o sea el resto de la escritura cae al vacío y queda un
+  // precio de "2" en vez de "2400". Es exactamente el mismo defecto que este
+  // cambio vino a arreglar, una capa más arriba, y lo cazó la prueba de
+  // navegador tecleando carácter por carácter.
+  const [manualPriceFor, setManualPriceFor] = useState('')
+  useEffect(() => {
+    if (isMarketAsset && field === 'quantity' && price <= 0 && form.symbol) setManualPriceFor(form.symbol)
+  }, [isMarketAsset, field, price, form.symbol])
+  const needsManualPrice = isMarketAsset && field === 'quantity'
+    && (price <= 0 || manualPriceFor === form.symbol)
 
   const canAdvance = (() => {
     if (field === 'symbol') return !!form.symbol
@@ -166,6 +179,16 @@ export default function GuidedAssetSteps({ ctx }) {
           {form.symbol && price > 0 && (
             <p className="text-sm mt-3" style={{ color: 'var(--text-positive)' }}>
               ✓ {form.name || form.symbol} · {form.currency} {price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </p>
+          )}
+          {/* Sin esto, elegir un símbolo cuyo proveedor está caído simplemente
+              NO pinta la línea de arriba, y ese silencio se lee como que la app
+              no hizo nada. El precio se pide en el paso siguiente, pero decir
+              acá por qué falta es la diferencia entre una espera y una duda. */}
+          {quoteFailed && !fetchingQuote && form.symbol && (
+            <p className="text-sm mt-3" style={{ color: 'var(--alert-warn-icon)' }}>
+              {t(`No pudimos traer el precio de ${form.symbol}. Te lo preguntamos en el paso siguiente.`,
+                 `We could not fetch a price for ${form.symbol}. We will ask for it in the next step.`)}
             </p>
           )}
         </div>
