@@ -14,6 +14,7 @@ import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
+import { planCardPaymentNetting, transferDemotion } from '@/lib/cardPaymentNetting'
 import { flowSign, flowMagnitude } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
@@ -113,6 +114,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // Statement reconciliation: buckets from lib/statementMatcher + which rows the
   // user checked for import (new rows pre-checked, likely-duplicates unchecked).
   const [biMatch, setBiMatch] = useState(null)
+  // Pagos a la tarjeta que este estado del BANCO explica: la otra mitad de un
+  // movimiento entre cuentas propias. Ver lib/cardPaymentNetting.js.
+  const [biNetting, setBiNetting] = useState(null)
   const [walletStats, setWalletStats] = useState(null)
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
@@ -479,10 +483,16 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         setStep('map')
       } else if (detectBI(hdrs)) {
         const parsed = parseBI(rows, hdrs)
+        // Un débito que paga tu propia tarjeta no es un gasto: el gasto fue la
+        // compra, que ya está registrada del lado de la tarjeta. Se aparta
+        // ANTES de reconciliar para que ni siquiera sea candidato a importarse.
+        const netting = planCardPaymentNetting(parsed.transactions, existingFinanceTransactions)
+        const importable = parsed.transactions.filter((_, i) => !netting.bankIndexes.has(i))
         // Reconcile against what's already recorded: only truly-new rows get
         // imported; re-uploading the same statement yields zero additions.
-        const match = matchStatement(parsed.transactions, existingFinanceTransactions)
+        const match = matchStatement(importable, existingFinanceTransactions)
         setBiData(parsed)
+        setBiNetting(netting)
         setBiMatch(match)
         setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
         // Preselect the BI account the balance update belongs to — the "create
@@ -719,6 +729,25 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
+    // La OTRA mitad del movimiento entre cuentas propias. El pago que la
+    // tarjeta registró como ingreso era un sustituto del crédito de sueldo que
+    // no se podía ver; con el estado del banco a la vista ese crédito ya está,
+    // así que el sustituto pasa a duplicarlo. Se degrada a transferencia (que
+    // no cuenta en ningún total) en vez de borrarse: el movimiento ocurrió de
+    // verdad y borrar datos del usuario en medio de un import es peor que
+    // reetiquetarlos.
+    let netted = 0
+    if (!isCard && biNetting?.recordedIds?.size && onUpdateFinanceTransaction) {
+      for (const id of biNetting.recordedIds) {
+        try {
+          await onUpdateFinanceTransaction(id, transferDemotion())
+          netted++
+        } catch {
+          failed++
+        }
+      }
+    }
+
     for (const tx of toImport) {
       try {
         // `addFinanceTransaction` NO lanza: atrapa su propio error, lo loguea y
@@ -781,7 +810,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     }
 
     setResult({
-      success, failed, updated, learned,
+      success, failed, updated, learned, netted,
       total: biData.transactions.length,
       // Omitidas de verdad: las que el matcher apartó MENOS las que el usuario
       // rescató marcándolas. Antes solo contaba `exact`, así que las repetidas
@@ -794,7 +823,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     })
     setStep('done')
     setImporting(false)
-  }, [biData, biMatch, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount, onLearnCategories])
+  }, [biData, biMatch, biNetting, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount, onLearnCategories])
 
   const doIBKRImport = useCallback(async () => {
     // History-only files are valid: a Flex XML for a closed year can carry just
@@ -1367,6 +1396,22 @@ When done, give me the .xlsx file ready to download.`
                       {x.currency} {x.side === 'debit' ? t('cargos', 'debits') : t('créditos', 'credits')}: {t('esperado', 'expected')} {x.expected.toLocaleString()} · {t('leído', 'parsed')} {x.computed.toLocaleString()}
                     </span>
                   ))}
+                </div>
+              )}
+              {/* El pago a la tarjeta, reconocido como movimiento entre cuentas
+                  propias. Se dice en la vista previa porque desde afuera "esa
+                  fila no se importó" y "el importador la perdió" se ven igual. */}
+              {biNetting && biNetting.pairs.length > 0 && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={{ borderColor: 'var(--alert-success-border)', backgroundColor: 'var(--alert-success-bg)', color: 'var(--alert-success-icon)' }}>
+                  <span className="block font-medium">
+                    {t(`${biNetting.pairs.length} pago(s) a tu tarjeta: no se importan como gasto`,
+                       `${biNetting.pairs.length} payment(s) to your card: not imported as an expense`)}
+                  </span>
+                  <span className="block mt-0.5 opacity-80">
+                    {t('Es dinero que se movió entre cuentas tuyas, así que el gasto ya está del lado de la tarjeta. La fila que la tarjeta registró como ingreso deja de contar también, para no sumar el mismo dinero dos veces.',
+                       'That money moved between your own accounts, so the expense is already on the card side. The row the card recorded as income stops counting too, so the same money is not added twice.')}
+                  </span>
                 </div>
               )}
               {/* Cobertura de la captura automática, medida contra los
@@ -1971,6 +2016,12 @@ When done, give me the .xlsx file ready to download.`
                       <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
                         {t(`${result.updated} se corrigieron con el monto y los datos finales del banco.`,
                            `${result.updated} were corrected with the bank's final amount and data.`)}
+                      </p>
+                    )}
+                    {result.netted > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                        {t(`${result.netted} pago(s) a tu tarjeta quedaron como movimiento entre cuentas propias: ya no cuentan como ingreso ni como gasto.`,
+                           `${result.netted} payment(s) to your card are now a transfer between your own accounts: they no longer count as income or expense.`)}
                       </p>
                     )}
                     {/* Lo que se aprendió se dice: una corrección que se guarda
