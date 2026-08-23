@@ -1,5 +1,7 @@
 'use client'
 
+import { parseAmount, parseQuantity } from '@/lib/numberParse'
+
 /**
  * Cuerpo GUIADO del alta de un activo: una pregunta por pantalla.
  *
@@ -80,13 +82,23 @@ export default function GuidedAssetSteps({ ctx }) {
     amount: amountLabel,
   }
 
-  const price = parseFloat(form.purchasePrice) || 0
-  const qty = parseFloat(form.quantity) || 0
+  // `parseFloat` no entiende la coma decimal, que es lo que teclea medio LatAm,
+  // y los inputs de abajo son de texto justo para que el navegador ya no borre
+  // lo que no puede parsear. Las dos mitades tienen que ir juntas.
+  const price = parseAmount(form.purchasePrice)
+  const qty = parseQuantity(form.quantity)
   const liveTotal = price > 0 && qty > 0 ? qty * price : 0
+
+  // El precio de un activo de mercado normalmente lo trae la cotización sola, y
+  // por eso la secuencia no tiene paso de precio. Cuando NO resuelve (el
+  // proveedor caído, un símbolo que no cotiza, una cripto que no está en el
+  // mapa), guardar igual deja el activo con costo CERO y un retorno inventado
+  // de miles por ciento. Una pregunta más, solo cuando de verdad hace falta.
+  const needsManualPrice = isMarketAsset && field === 'quantity' && price <= 0
 
   const canAdvance = (() => {
     if (field === 'symbol') return !!form.symbol
-    if (field === 'quantity') return qty > 0
+    if (field === 'quantity') return qty > 0 && (!isMarketAsset || price > 0)
     if (field === 'name') return !!form.name.trim()
     if (field === 'amount') return isBank ? form.purchasePrice !== '' : price > 0
     // handleSubmit exige institución para TODO salvo inmueble y deuda (que ni
@@ -161,14 +173,38 @@ export default function GuidedAssetSteps({ ctx }) {
 
       {field === 'quantity' && (
         <div>
+          {/* type="text", no "number": con teclado en español el separador
+              decimal es COMA, y un input numérico devuelve '' ante lo que no
+              puede parsear, o sea el campo se borra solo tecla por tecla. Ese
+              era el "BTC no me dejaba poner 0.0001". `inputMode` conserva el
+              teclado numérico, y `parseQuantity` entiende las dos formas. */}
           <input
             value={form.quantity}
             onChange={e => set('quantity', e.target.value)}
             placeholder={type === 'Crypto' ? '0.5' : '10'}
-            type="number" step="any" inputMode="decimal"
+            type="text" inputMode="decimal"
             className={inputCls}
             autoFocus
           />
+          {needsManualPrice && (
+            <div className="mt-4">
+              <label htmlFor="guided-price" className="block text-sm mb-2" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
+                {t('No pudimos traer el precio. ¿A cuánto está cada uno?',
+                   'We could not fetch the price. What is each one worth?')}
+              </label>
+              <input
+                id="guided-price"
+                value={form.purchasePrice}
+                onChange={e => set('purchasePrice', e.target.value)}
+                placeholder="150.00"
+                type="text" inputMode="decimal"
+                className={inputCls}
+              />
+              <p className="text-xs mt-2" style={{ color: 'var(--text-muted,#475569)' }}>
+                {t(`En ${form.currency}.`, `In ${form.currency}.`)}
+              </p>
+            </div>
+          )}
           {liveTotal > 0 && (
             <p className="text-sm mt-3" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
               {t('Eso son', 'That is')} <strong style={{ color: 'var(--text-primary,white)' }}>
@@ -195,7 +231,7 @@ export default function GuidedAssetSteps({ ctx }) {
             value={form.purchasePrice}
             onChange={e => set('purchasePrice', e.target.value)}
             placeholder="10000"
-            type="number" step="any" inputMode="decimal"
+            type="text" inputMode="decimal"
             className={inputCls}
             autoFocus
           />

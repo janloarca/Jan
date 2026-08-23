@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
@@ -59,7 +60,7 @@ function formatTxDate(date) {
 // pick is visible before Guardar, not after.
 function FxHint({ amount, from, to, convert, t }) {
   if (!convert || !from || !to || from === to) return null
-  const n = parseFloat(amount)
+  const n = parseAmount(amount)
   if (!isFinite(n) || n === 0) return null
   const out = convert(n, from, to)
   if (!isFinite(out)) return null
@@ -178,7 +179,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   }
   const handleSaveTx = async (tx) => {
     if (!onUpdateTransaction) return
-    const amt = parseFloat(txDraft.amount)
+    const amt = parseAmount(txDraft.amount)
     if (!(amt > 0)) { setError(t('El monto debe ser mayor a 0', 'Amount must be greater than 0')); return }
     if (!txDraft.date) { setError(t('Elige la fecha del movimiento', 'Pick the movement date')); return }
     setSavingTxId(tx.id)
@@ -234,7 +235,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const requestCurrencyChange = (to) => {
     const from = form.currency
     if (to === from) return
-    const hasPrice = (parseFloat(form.purchasePrice) || 0) > 0 || (parseFloat(form.currentPrice) || 0) > 0
+    const hasPrice = (parseAmount(form.purchasePrice)) > 0 || (parseAmount(form.currentPrice)) > 0
     if (!hasPrice || !convert) { set('currency', to); return }
     setPendingCurrency({ from, to })
   }
@@ -242,10 +243,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     if (!pendingCurrency) return
     const { from, to } = pendingCurrency
     if (mode === 'convert' && convert) {
-      const p = parseFloat(form.purchasePrice)
-      const c = parseFloat(form.currentPrice)
-      if (isFinite(p)) set('purchasePrice', convert(p, from, to).toString())
-      if (isFinite(c)) set('currentPrice', convert(c, from, to).toString())
+      // El guard es el string CRUDO, no isFinite: parseAmount devuelve 0 ante
+      // un campo vacio, asi que sin esto un cambio de moneda escribiria "0"
+      // sobre un campo que el usuario habia dejado en blanco.
+      if (form.purchasePrice !== '') set('purchasePrice', convert(parseAmount(form.purchasePrice), from, to).toString())
+      if (form.currentPrice !== '') set('currentPrice', convert(parseAmount(form.currentPrice), from, to).toString())
     }
     set('currency', to)
     setPendingCurrency(null)
@@ -267,7 +269,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isPrivateStock = form.type === 'Stock' && (form.subtype === 'private_common' || form.subtype === 'private_preferred' || form.subtype === 'private')
   const isMarket = /stock|crypto|fund|etf/i.test(form.type) && !/realestate/i.test(form.type) && !isPrivateStock
   const isBank = /bank|banco/i.test(form.type)
-  const isBankLike = isBank || (!isMarket && (parseFloat(form.quantity) || 1) === 1)
+  const isBankLike = isBank || (!isMarket && (parseQuantity(form.quantity) || 1) === 1)
 
   // Movements that count against THIS asset. Matching has to mirror what the
   // chart does (PortfolioGrowthChart's scopedTransactions: id OR symbol) or the
@@ -342,7 +344,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const itemFindings = useMemo(() => (findings || []).filter((f) => f.itemId === item.id), [findings, item.id])
 
   const handleContribution = async () => {
-    const amt = parseFloat(contribAmount)
+    const amt = parseAmount(contribAmount)
     if (!amt || amt <= 0) return
     setContribSaving(true)
     setError('')
@@ -373,9 +375,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       const { itemFields, newLot, lotClose } = buildContributionFields({
         item: {
           type: form.type,
-          quantity: parseFloat(form.quantity) || 0,
-          purchasePrice: parseFloat(form.purchasePrice) || 0,
-          currentPrice: parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0,
+          quantity: parseQuantity(form.quantity),
+          purchasePrice: parseAmount(form.purchasePrice),
+          currentPrice: parseAmount(form.currentPrice) || parseAmount(form.purchasePrice),
           symbol: item.symbol,
           institution: item.institution,
           currency: itemCurrency,
@@ -436,8 +438,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         name: form.name.trim(),
         type: form.type,
         subtype: form.subtype || '',
-        quantity: parseFloat(form.quantity) || 0,
-        purchasePrice: parseFloat(form.purchasePrice) || 0,
+        quantity: parseQuantity(form.quantity),
+        purchasePrice: parseAmount(form.purchasePrice),
         institution: form.institution.trim(),
         // null (not undefined) clears the field on merge — the item goes back
         // to Personal; every entity filter treats null as 'default'.
@@ -447,8 +449,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         accountType: form.accountType,
       }
 
-      if (form.currentPrice && !isMarket) updated.currentPrice = parseFloat(form.currentPrice) || 0
-      if (isBank) updated.currentPrice = parseFloat(form.purchasePrice) || 0
+      if (form.currentPrice && !isMarket) updated.currentPrice = parseAmount(form.currentPrice)
+      if (isBank) updated.currentPrice = parseAmount(form.purchasePrice)
 
       // FASE HV. Desde cuándo es cierto el saldo guardado. Se sella en CADA
       // guardado de un activo que no cotiza, no solo cuando el número cambia:
@@ -473,13 +475,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.incomeMode = form.incomeMode
         updated.rateType = form.rateType
         if (form.rateType === 'variable') {
-          updated.rateMin = parseFloat(form.rateMin) || 0
-          updated.rateMax = parseFloat(form.rateMax) || 0
+          updated.rateMin = parseAmount(form.rateMin) || 0
+          updated.rateMax = parseAmount(form.rateMax) || 0
           updated.incomeRate = (updated.rateMin + updated.rateMax) / 2
         } else if (form.incomeMode === 'percent') {
-          updated.incomeRate = parseFloat(form.incomeRate) || 0
+          updated.incomeRate = parseAmount(form.incomeRate) || 0
         } else {
-          updated.incomeAmount = parseFloat(form.incomeAmount) || 0
+          updated.incomeAmount = parseAmount(form.incomeAmount) || 0
         }
         if (form.accrual === ACCRUAL_DAILY && form.rateType !== 'continuous') {
           // FASE KT. Mismo helper que el alta: un solo lugar define qué
@@ -517,7 +519,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         if (updated.dividendAction === 'reinvest') updated.incomeDestination = ''
         else if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
         if (form.capitalReturn) {
-          updated.capitalReturn = parseFloat(form.capitalReturn) || 0
+          updated.capitalReturn = parseAmount(form.capitalReturn) || 0
           if (form.capitalDestination) updated.capitalDestination = form.capitalDestination
         }
       }
@@ -534,7 +536,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // Illiquid
       updated.isIlliquid = form.isIlliquid
       if (form.isIlliquid && form.lastManualValuation) {
-        updated.lastManualValuation = parseFloat(form.lastManualValuation) || 0
+        updated.lastManualValuation = parseAmount(form.lastManualValuation) || 0
         updated.lastValuationDate = new Date().toISOString().split('T')[0]
         updated.valuationMethod = 'manual'
       }
@@ -552,12 +554,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
       // Fees
       if (form.managementFee) {
-        updated.managementFee = parseFloat(form.managementFee) || 0
+        updated.managementFee = parseAmount(form.managementFee) || 0
         updated.managementFeeType = form.managementFeeType || 'percent'
       }
-      if (form.expenseRatio) updated.expenseRatio = parseFloat(form.expenseRatio) || 0
+      if (form.expenseRatio) updated.expenseRatio = parseAmount(form.expenseRatio) || 0
       if (form.entryFee) {
-        updated.entryFee = parseFloat(form.entryFee) || 0
+        updated.entryFee = parseAmount(form.entryFee) || 0
         updated.entryFeeMode = form.entryFeeMode || 'separate'
       }
 
@@ -568,17 +570,17 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // SAFE fields
       if (isAlternative && form.subtype === 'safe_note') {
         updated.safeType = form.safeType
-        updated.safeCap = parseFloat(form.safeCap) || 0
-        updated.safeDiscount = parseFloat(form.safeDiscount) || 0
+        updated.safeCap = parseAmount(form.safeCap) || 0
+        updated.safeDiscount = parseAmount(form.safeDiscount) || 0
       }
 
       // VC/startup direct-investment fields — purely informational, see
       // AddAccountModal's comment on the same fields.
       if (isAlternative && form.subtype === 'private_equity') {
         updated.investmentStage = form.investmentStage || ''
-        updated.roundValuation = parseFloat(form.roundValuation) || 0
-        updated.ownershipPct = parseFloat(form.ownershipPct) || 0
-        updated.committedCapital = parseFloat(form.committedCapital) || 0
+        updated.roundValuation = parseAmount(form.roundValuation) || 0
+        updated.ownershipPct = parseAmount(form.ownershipPct) || 0
+        updated.committedCapital = parseAmount(form.committedCapital) || 0
       }
 
       // Debt fields
@@ -591,9 +593,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           updated.isDebt = true
           updated.isReceivable = false
         }
-        updated.interestRate = parseFloat(form.interestRate) || 0
-        updated.minimumPayment = parseFloat(form.minimumPayment) || 0
-        updated.monthlyPayment = parseFloat(form.monthlyPayment) || 0
+        updated.interestRate = parseAmount(form.interestRate) || 0
+        updated.minimumPayment = parseAmount(form.minimumPayment) || 0
+        updated.monthlyPayment = parseAmount(form.monthlyPayment) || 0
         updated.debtTerm = form.debtTerm || ''
         updated.installmentsTotal = parseInt(form.installmentsTotal) || 0
         updated.installmentsRemaining = parseInt(form.installmentsRemaining) || 0
@@ -601,8 +603,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         if (isCreditCard) {
           updated.cardBrand = form.cardBrand || ''
           updated.rewardType = form.rewardType || ''
-          updated.rewardRate = parseFloat(form.rewardRate) || 0
-          updated.rewardBalance = parseFloat(form.rewardBalance) || 0
+          updated.rewardRate = parseAmount(form.rewardRate) || 0
+          updated.rewardBalance = parseAmount(form.rewardBalance) || 0
         }
       }
 
@@ -625,7 +627,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         if (isBankLike) {
           flowDelta = (updated.purchasePrice || 0) - rawPP
         } else if (isMarket) {
-          const unitPrice = Number(rawItem.currentPrice) || parseFloat(form.currentPrice) || 0
+          const unitPrice = Number(rawItem.currentPrice) || parseAmount(form.currentPrice)
           flowDelta = ((updated.quantity || 0) - rawQty) * unitPrice
         }
       }
@@ -821,7 +823,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             <div>
               <label htmlFor="edit-current-balance" className={labelCls}>{t('Saldo actual', 'Current balance')} {t('en', 'in')} {form.currency}</label>
               <input id="edit-current-balance" value={form.purchasePrice} onChange={e => { set('purchasePrice', e.target.value); set('quantity', '1') }}
-                type="number" step="any" className={inputCls} />
+                type="text" inputMode="decimal" className={inputCls} />
               <FxHint amount={form.purchasePrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
             </div>
           ) : (
@@ -829,7 +831,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div>
                 <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
                 <input id="edit-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
-                  type="number" step="any" className={inputCls} />
+                  type="text" inputMode="decimal" className={inputCls} />
               </div>
               <div>
                 <label htmlFor="edit-purchase-price" className={labelCls}>
@@ -837,7 +839,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} />
                 </label>
                 <input id="edit-purchase-price" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
-                  type="number" step="any" className={inputCls} />
+                  type="text" inputMode="decimal" className={inputCls} />
                 <FxHint amount={form.purchasePrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
               </div>
             </div>
@@ -850,7 +852,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <InfoTip text={t('El valor de mercado actual. Si lo dejas vacío, se usa el precio de compra. Para activos de mercado se actualiza automáticamente.', 'Current market value. If empty, purchase price is used. Market assets update automatically.')} />
               </label>
               <input id="edit-current-price" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
-                type="number" step="any" placeholder={t('Dejar vacío = precio de compra', 'Empty = purchase price')}
+                type="text" inputMode="decimal" placeholder={t('Dejar vacío = precio de compra', 'Empty = purchase price')}
                 className={inputCls} />
               <FxHint amount={form.currentPrice} from={form.currency} to={baseCurrency} convert={convert} t={t} />
             </div>
@@ -893,7 +895,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <div>
                       <label htmlFor="edit-contrib-amount" className={labelCls}>{t('Monto', 'Amount')} ({form.currency})</label>
                       <input id="edit-contrib-amount" value={contribAmount} onChange={e => setContribAmount(e.target.value)}
-                        type="number" step="any" min="0" placeholder="7000" autoFocus className={inputCls} />
+                        type="text" inputMode="decimal" min="0" placeholder="7000" autoFocus className={inputCls} />
                     </div>
                     <div>
                       <label htmlFor="edit-contrib-date" className={labelCls}>{t('Fecha', 'Date')}</label>
@@ -929,7 +931,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       className="flex-1 px-3 py-2 text-xs border border-[var(--card-border,#38383A)] rounded-lg text-[var(--text-secondary,#94a3b8)]">
                       {t('Cancelar', 'Cancel')}
                     </button>
-                    <button type="button" onClick={handleContribution} disabled={contribSaving || !contribAmount || parseFloat(contribAmount) <= 0}
+                    <button type="button" onClick={handleContribution} disabled={contribSaving || !contribAmount || parseAmount(contribAmount) <= 0}
                       className="flex-1 px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40"
                       style={{ backgroundColor: contribType === 'add' ? 'var(--accent-green)' : 'var(--text-negative)', color: '#ffffff' }}>
                       {<BusyLabel busy={contribSaving} lang={lang}>{t('Registrar', 'Record')}</BusyLabel>}
@@ -980,7 +982,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                               </div>
                               <div>
                                 <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Monto', 'Amount')} ({tx.currency || form.currency})</span>
-                                <input type="number" step="any" min="0" value={txDraft.amount}
+                                <input type="text" inputMode="decimal" min="0" value={txDraft.amount}
                                   onChange={e => setTxDraft(d => ({ ...d, amount: e.target.value }))} className={inputCls} />
                               </div>
                             </div>
@@ -1120,7 +1122,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <div>
                     <label htmlFor="edit-manual-valuation" className={labelCls}>{t('Valuación manual', 'Manual valuation')}</label>
                     <input id="edit-manual-valuation" value={form.lastManualValuation} onChange={e => set('lastManualValuation', e.target.value)}
-                      type="number" step="any" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
+                      type="text" inputMode="decimal" placeholder={t('Valor estimado actual', 'Current estimated value')} className={inputCls} />
                   </div>
                 )}
               </div>
@@ -1177,7 +1179,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div>
                   <label htmlFor="edit-interest-rate" className={labelCls}>{t('Tasa interés %', 'Interest rate %')}</label>
                   <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
-                    placeholder="7.5" type="number" step="any" className={inputCls} />
+                    placeholder="7.5" type="text" inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
                   <label htmlFor="edit-debt-term" className={labelCls}>{t('Plazo', 'Term')}</label>
@@ -1199,7 +1201,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div>
                   <label htmlFor="edit-monthly-payment" className={labelCls}>{t('Pago mensual', 'Monthly payment')}</label>
                   <input id="edit-monthly-payment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
-                    placeholder="500" type="number" step="any" className={inputCls} />
+                    placeholder="500" type="text" inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
                   <label htmlFor="edit-installments-total" className={labelCls}>{t('Cuotas total', 'Total pmts')}</label>
@@ -1217,7 +1219,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div>
                   <label htmlFor="edit-min-payment" className={labelCls}>{t('Pago mínimo', 'Min payment')}</label>
                   <input id="edit-min-payment" value={form.minimumPayment} onChange={e => set('minimumPayment', e.target.value)}
-                    placeholder="500" type="number" step="any" className={inputCls} />
+                    placeholder="500" type="text" inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
                   <label htmlFor="edit-debt-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
@@ -1254,12 +1256,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <div>
                         <label htmlFor="edit-reward-rate" className={labelCls}>{t('Tasa reward %', 'Reward rate %')}</label>
                         <input id="edit-reward-rate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
-                          placeholder="1.5" type="number" step="any" className={inputCls} />
+                          placeholder="1.5" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
                         <label htmlFor="edit-reward-balance" className={labelCls}>{t('Balance acumulado', 'Accumulated balance')}</label>
                         <input id="edit-reward-balance" value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
-                          placeholder="5000" type="number" step="any" className={inputCls} />
+                          placeholder="5000" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                     </div>
                   )}
@@ -1284,12 +1286,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div>
                   <label className={labelCls}>Cap</label>
                   <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
-                    placeholder="10000000" type="number" step="any" className={inputCls} />
+                    placeholder="10000000" type="text" inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>{t('Desc %', 'Disc %')}</label>
                   <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
-                    placeholder="20" type="number" step="any" className={inputCls} />
+                    placeholder="20" type="text" inputMode="decimal" className={inputCls} />
                 </div>
               </div>
             </div>
@@ -1317,12 +1319,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div>
                   <label className={labelCls}>{t('Valuación de la ronda', 'Round valuation')}</label>
                   <input value={form.roundValuation} onChange={e => set('roundValuation', e.target.value)}
-                    placeholder="10000000" type="number" step="any" className={inputCls} />
+                    placeholder="10000000" type="text" inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>% {t('de la empresa', 'of the company')}</label>
                   <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
-                    placeholder="0.5" type="number" step="any" className={inputCls} />
+                    placeholder="0.5" type="text" inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>
@@ -1331,7 +1333,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <InfoTip text={t('El monto total que te comprometiste a aportar (se va llamando por partes). La tarjeta de métricas VC/PE lo usa para el PIC: qué % del compromiso ya se llamó. Opcional, no afecta el rendimiento.', 'The total amount you committed (called in pieces over time). The VC/PE metrics card uses it for PIC: what % of the commitment has been called. Optional, does not affect returns.')} />
                   </label>
                   <input value={form.committedCapital} onChange={e => set('committedCapital', e.target.value)}
-                    placeholder="50000" type="number" step="any" className={inputCls} />
+                    placeholder="50000" type="text" inputMode="decimal" className={inputCls} />
                 </div>
               </div>
             </div>
@@ -1340,16 +1342,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Fees */}
           <FormSection icon="💸" title={t('Costos & Comisiones', 'Costs & Fees')} summary={(() => {
             const parts = []
-            if (parseFloat(form.entryFee) > 0) parts.push(`${t('Entrada', 'Entry')} ${parseFloat(form.entryFee).toFixed(2)}`)
-            if (parseFloat(form.managementFee) > 0) parts.push(form.managementFeeType === 'fixed' ? `Mgmt $${parseFloat(form.managementFee).toFixed(2)}` : `Mgmt ${parseFloat(form.managementFee).toFixed(2)}%`)
-            if (parseFloat(form.expenseRatio) > 0) parts.push(`Expense ${parseFloat(form.expenseRatio).toFixed(2)}%`)
+            if (parseAmount(form.entryFee) > 0) parts.push(`${t('Entrada', 'Entry')} ${parseAmount(form.entryFee).toFixed(2)}`)
+            if (parseAmount(form.managementFee) > 0) parts.push(form.managementFeeType === 'fixed' ? `Mgmt $${parseAmount(form.managementFee).toFixed(2)}` : `Mgmt ${parseAmount(form.managementFee).toFixed(2)}%`)
+            if (parseAmount(form.expenseRatio) > 0) parts.push(`Expense ${parseAmount(form.expenseRatio).toFixed(2)}%`)
             return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
           })()}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className={labelCls}>{t('Costo entrada', 'Entry fee')} <InfoTip text={t('Monto fijo en tu moneda (ej: $80). NO es porcentaje. Es el costo de entrada o comisión que pagaste una sola vez.', 'Fixed amount in your currency (e.g. $80). NOT a percentage. One-time entry cost or commission you paid.')} /></label>
                 <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
-                  placeholder="80" type="number" step="any" className={inputCls}
+                  placeholder="80" type="text" inputMode="decimal" className={inputCls}
                   title={t('Costo de incorporación, comisión de entrada, etc.', 'Incorporation cost, entry commission, etc.')} />
               </div>
               <div>
@@ -1367,12 +1369,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     : t('Porcentaje ANUAL sobre el valor total. Ej: 0.50 = 0.50%/año. Toca % para cambiar a monto fijo.', 'Annual PERCENTAGE on total value. E.g. 0.50 = 0.50%/yr. Tap % to switch to fixed amount.')} />
                 </label>
                 <input value={form.managementFee} onChange={e => set('managementFee', e.target.value)}
-                  placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="number" step="any" className={inputCls} />
+                  placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="text" inputMode="decimal" className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos ANUAL en porcentaje. Ej: 0.03 = 0.03% por año. Este es un costo operativo del fondo/instrumento.', 'Annual expense ratio as a PERCENTAGE. E.g. 0.03 = 0.03% per year. This is the fund/instrument operating cost.')} /></label>
                 <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
-                  placeholder="0.03" type="number" step="any" className={inputCls}
+                  placeholder="0.03" type="text" inputMode="decimal" className={inputCls}
                   title={t('Ratio de gastos anual %', 'Annual expense ratio %')} />
               </div>
             </div>
@@ -1380,9 +1382,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             {/* Only asked once there IS a fee: which side of the purchase value
                 it sits on decides how much really left your pocket, and that is
                 the denominator of every return % for this asset. */}
-            {parseFloat(form.entryFee) > 0 && (() => {
-              const fee = parseFloat(form.entryFee) || 0
-              const typed = (parseFloat(form.quantity) || 1) * (parseFloat(form.purchasePrice) || 0)
+            {parseAmount(form.entryFee) > 0 && (() => {
+              const fee = parseAmount(form.entryFee) || 0
+              const typed = (parseQuantity(form.quantity) || 1) * (parseAmount(form.purchasePrice))
               const cur = form.currency || 'USD'
               const fmt = (v) => `${cur} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               const modes = [
@@ -1423,20 +1425,20 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               )
             })()}
 
-            {(parseFloat(form.entryFee) > 0 || parseFloat(form.managementFee) > 0 || parseFloat(form.expenseRatio) > 0) && (
+            {(parseAmount(form.entryFee) > 0 || parseAmount(form.managementFee) > 0 || parseAmount(form.expenseRatio) > 0) && (
               <p className="text-xs" style={{ color: 'color-mix(in srgb, var(--accent-orange) 60%, transparent)' }}>
-                {parseFloat(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseFloat(form.entryFee).toFixed(2)}  `}
-                {parseFloat(form.managementFee) > 0 && (
+                {parseAmount(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: $${parseAmount(form.entryFee).toFixed(2)}  `}
+                {parseAmount(form.managementFee) > 0 && (
                   form.managementFeeType === 'fixed'
-                    ? `${t('Mgmt', 'Mgmt')}: $${parseFloat(form.managementFee).toFixed(2)}/yr  `
-                    : `${t('Mgmt', 'Mgmt')}: ${parseFloat(form.managementFee).toFixed(2)}%  `
+                    ? `${t('Mgmt', 'Mgmt')}: $${parseAmount(form.managementFee).toFixed(2)}/yr  `
+                    : `${t('Mgmt', 'Mgmt')}: ${parseAmount(form.managementFee).toFixed(2)}%  `
                 )}
-                {parseFloat(form.expenseRatio) > 0 && `Expense: ${parseFloat(form.expenseRatio).toFixed(2)}%  `}
+                {parseAmount(form.expenseRatio) > 0 && `Expense: ${parseAmount(form.expenseRatio).toFixed(2)}%  `}
                 {(() => {
-                  const bal = (parseFloat(form.purchasePrice) || 0) * (parseFloat(form.quantity) || 0)
+                  const bal = (parseAmount(form.purchasePrice)) * (parseQuantity(form.quantity))
                   if (bal <= 0) return null
-                  const mgmt = form.managementFeeType === 'fixed' ? (parseFloat(form.managementFee) || 0) : bal * ((parseFloat(form.managementFee) || 0) / 100)
-                  const exp = bal * ((parseFloat(form.expenseRatio) || 0) / 100)
+                  const mgmt = form.managementFeeType === 'fixed' ? (parseAmount(form.managementFee) || 0) : bal * ((parseAmount(form.managementFee) || 0) / 100)
+                  const exp = bal * ((parseAmount(form.expenseRatio) || 0) / 100)
                   const total = mgmt + exp
                   return total > 0 ? `(~$${total.toFixed(0)}/yr)` : null
                 })()}
@@ -1630,12 +1632,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <div>
                     <label className={labelCls}>{t('Tasa mín %', 'Min %')}</label>
                     <input value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
-                      placeholder="4.5" type="number" step="any" className={inputCls} />
+                      placeholder="4.5" type="text" inputMode="decimal" className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>{t('Tasa máx %', 'Max %')}</label>
                     <input value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
-                      placeholder="5.5" type="number" step="any" className={inputCls} />
+                      placeholder="5.5" type="text" inputMode="decimal" className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>{t('Día pago', 'Pay day')}</label>
@@ -1650,11 +1652,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     {form.incomeMode === 'fixed' ? (<>
                       <label className={labelCls}>{t('Monto por pago', 'Per payment')} <InfoTip text={t('Monto fijo que recibes en cada pago, en la moneda del activo.', 'Fixed amount you receive each payment, in the asset\'s currency.')} /></label>
                       <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
-                        type="number" step="any" className={inputCls} />
+                        type="text" inputMode="decimal" className={inputCls} />
                     </>) : (<>
                       <label className={labelCls}>{t('Tasa anual %', 'Annual rate %')} <InfoTip text={t('Tasa de rendimiento anual en porcentaje. Se divide entre los meses de pago seleccionados.', 'Annual yield rate as percentage. Divided among selected payment months.')} /></label>
                       <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
-                        type="number" step="any" className={inputCls} />
+                        type="text" inputMode="decimal" className={inputCls} />
                     </>)}
                   </div>
                   {form.rateType !== 'continuous' && (
@@ -1748,7 +1750,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div>
                 <label className={labelCls}>{t('Capital devuelto por pago', 'Capital returned per payment')}</label>
                 <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
-                  placeholder="0" type="number" step="any" className={inputCls} />
+                  placeholder="0" type="text" inputMode="decimal" className={inputCls} />
               </div>
             </FormSection>
           )}
@@ -1802,8 +1804,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 {confirmDelete ? t('Confirmar', 'Confirm') : t('Eliminar', 'Delete')}
               </button>
               {(() => {
-                const qty = parseFloat(form.quantity) || (isBank ? 1 : 0)
-                const price = parseFloat(form.currentPrice) || parseFloat(form.purchasePrice) || 0
+                const qty = parseQuantity(form.quantity) || (isBank ? 1 : 0)
+                const price = parseAmount(form.currentPrice) || parseAmount(form.purchasePrice)
                 const total = qty * price
                 const isDebtType = /debt|deuda/i.test(form.type)
                 const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
