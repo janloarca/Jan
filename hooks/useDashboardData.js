@@ -99,7 +99,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => { setUtilsLang(lang) }, [lang])
 
   const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, isFetching: pricesFetching, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
-  const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+  const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, stale: ratesStale, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
   // FASE GB. Declarada AQUÍ (antes de los efectos escritores que la llevan en
   // sus deps) porque una deps array se evalúa en render: referenciarla antes
@@ -3028,7 +3028,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     enrichedItems, portfolioItems, marketPrices,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert, convertItemValue,
-    ratesLoading, ratesError, ratesUpdate,
+    // `ratesStale` lo publicaba useExchangeRates y este hook no lo
+    // desestructuraba, asi que nunca llegaba al tablero. No se notaba porque
+    // ninguna superficie mostraba tasas; la tarjeta de tipo de cambio lo usa
+    // para no presentar una tasa de ayer como si fuera de ahora.
+    ratesLoading, ratesError, ratesUpdate, ratesStale,
     handleRefresh,
 
     // Computed values
