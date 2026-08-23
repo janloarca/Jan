@@ -20,38 +20,18 @@
 // hubiera movido, y hay dos efectos que releen Firestore con `convert` en sus
 // deps. Por eso `setRates` compara por CONTENIDO.
 
-// ⚠️ DOS TRAMPAS DEL ARNES, las dos pagadas al escribir este archivo:
-//
-// 1. La ruta del mock es RELATIVA, no el alias `@/`: no resuelve dentro de
-//    jest.mock()/doMock() en este repo (ya documentado al testear
-//    app/api/prices/portfolio-history/route.js). El mock igual intercepta el
-//    import aliasado del hook: Jest mockea por modulo RESUELTO y los dos
-//    caminos llegan al mismo archivo.
-//
-// 2. El hook guarda las tasas en un cache a NIVEL DE MODULO, asi que sin
-//    resetearlo el primer test contamina a los siguientes y ninguno vuelve a
-//    poder observar la transicion "sin tasas -> con tasas", que ES el bug.
-//    Limpiarlo tiene DOS trampas encadenadas, las dos pagadas aca:
-//
-//    · `jest.isolateModules(...)` aisla TAMBIEN a React, asi que el hook queda
-//      con una instancia distinta de la del arnes y revienta con "Cannot read
-//      properties of null (reading 'useState')": se queda sin dispatcher.
-//    · Y re-pedir `@testing-library/react` dentro del beforeEach tampoco
-//      sirve: al importarse registra su propio `afterAll`, y Jest prohibe
-//      definir un hook de test dentro de otro ("Hooks cannot be defined
-//      inside tests").
-//
-//    La salida es resetear el registro pero FIJAR React a la instancia que el
-//    arnes ya tiene, para que los dos compartan dispatcher.
+// Las trampas del arnes (alias que no resuelve, isolateModules que aisla React,
+// y el afterAll de testing-library) estan documentadas en un solo lugar:
+// test-utils/hookHarness.js. El doMock de una ruta RELATIVA se queda aca porque
+// se resuelve contra este archivo, no contra el helper.
 
-const React = require('react')
-const { renderHook, act } = require('@testing-library/react')
+const { renderHook, act, pinReact } = require('../../test-utils/hookHarness')
 
 let useExchangeRates, authFetch
 
 beforeEach(() => {
   jest.resetModules()
-  jest.doMock('react', () => React)
+  pinReact()
   jest.doMock('../../lib/authFetch', () => ({ authFetch: jest.fn() }))
   ;({ authFetch } = require('../../lib/authFetch'))
   ;({ useExchangeRates } = require('../useExchangeRates'))
