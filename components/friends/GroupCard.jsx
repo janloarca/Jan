@@ -269,13 +269,16 @@ export default function GroupCard({
                     </p>
                   ) : (
                     <div className="space-y-1">
+                      {/* La lista YA viene ordenada por impacto (lo decide el
+                          cliente que publica, y el orden se conserva), así que
+                          la posición en la lista sigue diciendo cuál movió más.
+                          El NÚMERO del impacto no se muestra ni se publica: al
+                          lado del cambio de la posición dejaba despejar su peso
+                          en el portafolio. Ver lib/friendsStats.js. */}
                       {r.movers.map((m, mi) => (
                         <div key={mi} className="flex items-center justify-between text-[11px]">
                           <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>{m.symbol}</span>
-                          <div className="flex items-center gap-3">
-                            <span style={{ color: pctColor(m.changePct) }}>{fmtPct(m.changePct, 1)}</span>
-                            <span className="w-16 text-right" style={{ color: 'var(--text-muted)' }}>{t('impacto', 'impact')} {fmtPct(m.impactPct, 2)}</span>
-                          </div>
+                          <span style={{ color: pctColor(m.changePct) }}>{fmtPct(m.changePct, 1)}</span>
                         </div>
                       ))}
                     </div>
