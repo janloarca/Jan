@@ -77,6 +77,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
 
   if (recurring.length === 0 && !growthFromSavings) return null
 
+  const firePct = fireNumber > 0 ? (netWorth / fireNumber) * 100 : 0
   const ringPct = Math.min(rates.savingsRate, 100)
   const ringColor = rates.savingsRate >= 30 ? 'var(--accent-green)' : rates.savingsRate >= 15 ? 'var(--alert-warn-icon)' : 'var(--text-negative)'
 
@@ -142,12 +143,27 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
             <span className="text-slate-500">FIRE {t('número', 'number')} (25x)</span>
             <span className="text-white font-medium">{formatCurrency(fireNumber)}</span>
           </div>
-          <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${Math.min((netWorth / fireNumber) * 100, 100)}%` }} />
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+            <div className="h-full rounded-full transition-all"
+              style={{ width: `${Math.min(firePct, 100)}%`, backgroundColor: 'var(--accent-green)' }} />
           </div>
-          <div className="text-xs text-slate-600 mt-1 text-right">
-            {((netWorth / fireNumber) * 100).toFixed(1)}% {t('alcanzado', 'reached')}
+          {/* La barra estaba clampeada a 100% y el rótulo NO, así que se
+              contradecían dentro de la misma tarjeta: una barra llena encima de
+              un "1333.3% alcanzado". Ese 1333% no dice que alguien pasó la
+              independencia financiera trece veces, dice que el número FIRE
+              salió de un gasto recurrente que se tecleó una vez y quedó
+              incompleto (25 × Q100/mes = Q30,000). Pasado el 100% se nombra el
+              hecho en vez de imprimir un múltiplo que se lee como puntaje, y en
+              los dos casos se dice DE DÓNDE sale el número: si los gastos
+              declarados son una fracción de los reales, el número FIRE también.
+              Los gastos salen de esta misma tarjeta y nunca de Flujo: son dos
+              segmentos separados por decisión del usuario. */}
+          <div className="text-xs mt-1 text-right" style={{ color: 'var(--text-muted)' }}>
+            {firePct >= 100 ? t('Meta cubierta', 'Goal covered') : `${firePct.toFixed(1)}% ${t('alcanzado', 'reached')}`}
+          </div>
+          <div className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>
+            {t(`25× los gastos recurrentes que registraste (${formatCurrency(rates.monthlyExpenses)}/mes)`,
+               `25× the recurring expenses you entered here (${formatCurrency(rates.monthlyExpenses)}/mo)`)}
           </div>
         </div>
       )}
