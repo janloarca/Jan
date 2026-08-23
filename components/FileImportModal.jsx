@@ -688,6 +688,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       : [
         ...biMatch.newTxs.filter((_, i) => biSelected.has(`n${i}`)),
         ...biMatch.likely.filter((_, i) => biSelected.has(`l${i}`)).map((x) => x.parsed),
+        // Rescatables: filas que el matcher marcó como repetidas o ya
+        // registradas. Vienen DESMARCADAS (casi siempre acierta), pero tienen
+        // que poder importarse: dos cobros iguales el mismo día son reales, y
+        // sin esta ruta la única salida era editar el archivo y volver a
+        // subirlo. Nada que el parser leyó puede quedar sin forma de entrar.
+        ...(biMatch.repeats || []).filter((_, i) => biSelected.has(`d${i}`)).map((x) => x.parsed),
+        ...(biMatch.exact || []).filter((_, i) => biSelected.has(`e${i}`)).map((x) => x.parsed),
       ]
 
     // The statement is the bank's own record, so a row it confirms gets
@@ -714,13 +721,25 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
 
     for (const tx of toImport) {
       try {
-        await onAddFinanceTransaction({
+        // `addFinanceTransaction` NO lanza: atrapa su propio error, lo loguea y
+        // devuelve false. Este `catch` nunca corría y el valor de retorno no se
+        // leía en ningún lado, así que una red caída a mitad de un import de 60
+        // filas terminaba en "Importación exitosa · 60 transacciones", sobre
+        // filas que no se escribieron. El usuario no vuelve a subir ese estado
+        // porque ya lo dio por hecho: la peor forma de perder datos, porque
+        // nadie se entera.
+        const ok = await onAddFinanceTransaction({
           ...tx,
           description: sanitizeCell(String(tx.description || '')).slice(0, 200),
           ...(tx.reference ? { reference: sanitizeCell(String(tx.reference)).slice(0, 60) } : {}),
           ...(stmtAccount.trim() ? { account: sanitizeCell(stmtAccount.trim()).slice(0, 40) } : {}),
         })
-        success++
+        // `undefined` cuenta como éxito a propósito: un caller que no devuelva
+        // nada (un mock en tests, una implementación futura) no debe leerse
+        // como fallo. Solo un `false` explícito, que es lo que esta función
+        // devuelve cuando la escritura falló de verdad.
+        if (ok === false) failed++
+        else success++
       } catch {
         failed++
       }
@@ -764,7 +783,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setResult({
       success, failed, updated, learned,
       total: biData.transactions.length,
-      skipped: isCard ? biMatch.confirmed.length : biMatch.exact.length,
+      // Omitidas de verdad: las que el matcher apartó MENOS las que el usuario
+      // rescató marcándolas. Antes solo contaba `exact`, así que las repetidas
+      // dentro del archivo no aparecían en ningún conteo.
+      skipped: isCard
+        ? biMatch.confirmed.length
+        : (biMatch.exact.length + (biMatch.repeats?.length || 0)
+           - [...biSelected].filter((k) => k.startsWith('e') || k.startsWith('d')).length),
       isBI: true,
     })
     setStep('done')
@@ -1382,6 +1407,26 @@ When done, give me the .xlsx file ready to download.`
                 {biData.finalBalance > 0 && `: ${t('Saldo final', 'Final balance')}: Q${biData.finalBalance.toLocaleString()}`}
               </p>
 
+              {/* Filas que el parser no entendió. El conteo de arriba es el de
+                  las que SÍ entendió, así que sin esta línea un cambio parcial
+                  de formato del banco se llevaba un subconjunto del archivo sin
+                  que nada lo dijera: la pantalla mostraba un número más chico y
+                  se leía como si ese fuera el estado completo. */}
+              {(() => {
+                const sk = biData.skipped
+                const total = (sk?.noDate || 0) + (sk?.noAmount || 0)
+                if (!total) return null
+                return (
+                  <p className="text-xs mb-3 px-2 py-1.5 rounded" style={{ color: 'var(--alert-warn-icon)', backgroundColor: 'var(--alert-warn-bg)' }}>
+                    {t(`${total} fila(s) del archivo no se pudieron leer y no están arriba.`,
+                       `${total} row(s) in the file could not be read and are not listed above.`)}
+                    {' '}
+                    {t('Suelen ser encabezados o notas del banco. Si te faltan movimientos, revisá el archivo.',
+                       'These are usually headers or bank notes. If you are missing transactions, check the file.')}
+                  </p>
+                )
+              })()}
+
               <div className="p-3 bg-theme-base border border-glass-border rounded-lg mb-3">
                 <label className="text-xs text-slate-400 mb-1 block">{t('¿De qué cuenta o tarjeta es este estado? (opcional)', 'Which account or card is this statement from? (optional)')}</label>
                 <input value={stmtAccount} onChange={(e) => setStmtAccount(e.target.value)} list="stmt-accounts"
@@ -1570,15 +1615,65 @@ When done, give me the .xlsx file ready to download.`
                     </details>
                   )}
 
-                  {/* EXACT — skipped, collapsed */}
+                  {/* SE REPITEN EN EL ARCHIVO — rescatables.
+                      Dos cobros iguales el mismo día (dos Uber de Q75, dos
+                      cafés en el mismo local) son reales y distintos, y sin
+                      referencia del banco no hay forma de saberlo. Antes caían
+                      bajo "Ya registradas: se omiten", que era falso porque
+                      nunca se registraron, y sin checkbox no había ninguna ruta
+                      en la app para importarlas. */}
+                  {biMatch.repeats?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                        ⧉ {t(`Se repiten en el archivo (${biMatch.repeats.length}): marca las que sean cobros distintos`, `Repeated in the file (${biMatch.repeats.length}): check the ones that are separate charges`)}
+                      </p>
+                      <div className="overflow-x-auto max-h-40 overflow-y-auto border rounded-lg" style={{ borderColor: 'var(--alert-warn-border)' }}>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {biMatch.repeats.map(({ parsed }, i) => (
+                              <tr key={`d${i}`} className="border-b border-glass-border/50">
+                                <td className="py-1.5 px-2">
+                                  <input type="checkbox" checked={biSelected.has(`d${i}`)} onChange={(e) => {
+                                    const next = new Set(biSelected)
+                                    e.target.checked ? next.add(`d${i}`) : next.delete(`d${i}`)
+                                    setBiSelected(next)
+                                  }} />
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(parsed.date)}</td>
+                                <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                  {flowSign(parsed)}{parsed.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(parsed).toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* YA REGISTRADAS — colapsadas, pero rescatables.
+                      El rótulo por fin es cierto (solo llegan acá filas que
+                      matchearon algo existente), y aun así llevan checkbox:
+                      ningún criterio de matching es perfecto, y una fila que el
+                      parser leyó tiene que poder entrar aunque la app crea que
+                      ya está. */}
                   {biMatch.exact?.length > 0 && (
                     <details className="text-xs">
                       <summary className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                        ⏭ {t(`Ya registradas (${biMatch.exact.length}): se omiten`, `Already recorded (${biMatch.exact.length}): skipped`)}
+                        ⏭ {t(`Ya registradas (${biMatch.exact.length}): no se importan`, `Already recorded (${biMatch.exact.length}): not imported`)}
                       </summary>
                       <div className="mt-1 max-h-32 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
+                        <p className="text-slate-500 mb-1">{t('Si alguna es un cobro distinto, márcala para importarla.', 'If any is a separate charge, check it to import it.')}</p>
                         {biMatch.exact.map(({ parsed }, i) => (
-                          <p key={i} className="text-slate-500 truncate">{formatFinanceDate(parsed.date)} · {parsed.description} · {parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}</p>
+                          <label key={`e${i}`} className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={biSelected.has(`e${i}`)} onChange={(ev) => {
+                              const next = new Set(biSelected)
+                              ev.target.checked ? next.add(`e${i}`) : next.delete(`e${i}`)
+                              setBiSelected(next)
+                            }} />
+                            <span className="text-slate-500 truncate">{formatFinanceDate(parsed.date)} · {parsed.description} · {parsed.currency === 'USD' ? '$' : 'Q'}{parsed.amount.toLocaleString()}</span>
+                          </label>
                         ))}
                       </div>
                     </details>
