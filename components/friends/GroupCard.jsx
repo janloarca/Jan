@@ -85,11 +85,14 @@ export default function GroupCard({
             )}
             <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
               {group.memberCount} {t('miembros', 'members')}
+              {group.pendingCount > 0 && (
+                <> · {group.pendingCount} {t('aún no publican', 'have not published yet')}</>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => onCopy(group.inviteCode)}
+            <button onClick={() => onCopy(group.inviteCode, group.name)}
               aria-label={t('Compartir el código de invitación', 'Share the invite code')}
               className="px-2 py-1 text-xs font-mono rounded-md"
               style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-blue)' }}>
@@ -201,6 +204,19 @@ export default function GroupCard({
                       {t('act.', 'upd.')} {timeAgo(r.updatedAt, lang)}
                     </div>
                   </div>
+                  {/* Un miembro sin datos para el ALCANCE del grupo (ej. sin
+                      broker conectado en un grupo "Solo IBKR") no se rellena con
+                      su portafolio completo: se dice que no tiene esa cuenta.
+                      Sin esta línea, su fila en blanco se lee como una tarjeta
+                      rota en vez de como lo que es. */}
+                  {r.outOfScope ? (
+                    <div className="text-right shrink-0 max-w-[7.5rem]">
+                      <div className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('Sin datos', 'No data')}</div>
+                      <div className="text-[10px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+                        {t('no tiene esta cuenta conectada', 'no such account connected')}
+                      </div>
+                    </div>
+                  ) : (
                   <div className="text-right shrink-0">
                     <div className="text-sm font-bold font-mono tabular-nums" style={{ color: pctColor(r[metric]) }}>{fmtPct(r[metric])}</div>
                     <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
@@ -215,6 +231,7 @@ export default function GroupCard({
                       {' · '}{dayLabel(r.dayAsOf, lang).text} <span style={{ color: pctColor(r.day) }}>{fmtPct(r.day, 1)}</span>
                     </div>
                   </div>
+                  )}
                   {hasDetail && <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>}
                 </button>
                 {/* Quitar a alguien solo lo ve el dueño, y nunca sobre sí mismo:
