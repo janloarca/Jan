@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
+import { openingDepositDateFix } from '@/lib/originDeposits'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
@@ -648,6 +649,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     setError('')
     try {
       await onSave(updated)
+      // ⛔ Extensión de la lógica congelada G, aprobada por el usuario el 23 ago
+      // 2026. El depósito de apertura se fecha AL CREAR con la fecha de
+      // adquisición, y editarla acá actualizaba solo el ítem: el rebobinado del
+      // Spreadsheet usa la fecha del DEPÓSITO, así que con el depósito en agosto
+      // y la fecha corregida a enero cada mes anterior quedaba en 0.00, para
+      // siempre. Se mueve la FECHA, nunca el monto (sigue siendo principal +
+      // comisión, escrito por el handleSubmit único de AddAccountModal).
+      //
+      // Best-effort a propósito: el ítem ya se guardó, y hacer fallar el guardado
+      // entero por no poder re-fechar un movimiento sería peor que el hueco.
+      if (onUpdateTransaction && updated.acquisitionDate !== item.acquisitionDate) {
+        const fix = openingDepositDateFix(transactions, item, updated.acquisitionDate)
+        if (fix) {
+          try { await onUpdateTransaction(fix.id, { date: fix.date }) } catch (err) { console.error('[opening-deposit]', err.message) }
+        }
+      }
       if (createFlow && onAddTransaction && Math.abs(delta) > 0.01) {
         await onAddTransaction({
           date: new Date().toISOString().split('T')[0],
