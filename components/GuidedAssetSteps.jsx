@@ -45,7 +45,7 @@ export default function GuidedAssetSteps({ ctx }) {
     t, form, set, type, typeLabel, typeIcon,
     isMarketAsset, isBank, isDebt, isProperty,
     fieldIndex, fields, goNext, goBack, onExit,
-    searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote,
+    searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote, quoteFailed,
     handleSelectSymbol, inputRef, dropdownRef,
     filteredInstitutions, showInstSuggestions, setShowInstSuggestions,
     saving, error, progress,
@@ -189,8 +189,10 @@ export default function GuidedAssetSteps({ ctx }) {
           {needsManualPrice && (
             <div className="mt-4">
               <label htmlFor="guided-price" className="block text-sm mb-2" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
-                {t('No pudimos traer el precio. ¿A cuánto está cada uno?',
-                   'We could not fetch the price. What is each one worth?')}
+                {quoteFailed
+                  ? t(`No pudimos traer el precio de ${form.symbol}. ¿A cuánto está cada uno?`,
+                       `We could not fetch a price for ${form.symbol}. What is each one worth?`)
+                  : t('¿A cuánto está cada uno?', 'What is each one worth?')}
               </label>
               <input
                 id="guided-price"

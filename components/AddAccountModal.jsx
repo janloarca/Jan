@@ -159,6 +159,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [searchLoading, setSearchLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [fetchingQuote, setFetchingQuote] = useState(false)
+  // El proveedor no devolvió precio para el símbolo elegido. Se muestra en vez
+  // de callarse porque el usuario tiene que teclearlo: guardar con costo 0
+  // produce un retorno inventado de miles por ciento.
+  const [quoteFailed, setQuoteFailed] = useState(false)
   const [showIncome, setShowIncome] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
@@ -301,23 +305,37 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     searchAbortRef.current?.abort()
     searchAbortRef.current = new AbortController()
     setFetchingQuote(true)
+    setQuoteFailed(false)
     try {
       const res = await authFetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
-      if (res.ok) {
-        const data = await safeJson(res) || {}
-        if (data.quote?.price) {
-          if (data.quote.currency) setDetectedCurrency(data.quote.currency)
-          setForm(prev => ({
-            ...prev,
-            purchasePrice: data.quote.price.toString(),
-            currency: data.quote.currency || prev.currency,
-            sector: data.quote.sector || '',
-            industry: data.quote.industry || '',
-          }))
-        }
+      const data = res.ok ? (await safeJson(res) || {}) : {}
+      if (data.quote?.price) {
+        if (data.quote.currency) setDetectedCurrency(data.quote.currency)
+        setForm(prev => ({
+          ...prev,
+          purchasePrice: data.quote.price.toString(),
+          currency: data.quote.currency || prev.currency,
+          sector: data.quote.sector || '',
+          industry: data.quote.industry || '',
+        }))
+      } else {
+        // Este `else` faltaba, y su ausencia era el bug caro: sin él, el precio
+        // (y el sector, y la moneda detectada) de la selección ANTERIOR se queda
+        // en el formulario y se guarda como el costo de ESTA. Un ETF de $56
+        // elegido antes terminaba archivado como el precio de compra de
+        // Ethereum. Un precio heredado se ve idéntico a uno bueno, así que es
+        // peor que no tener ninguno: mejor vaciarlo y decirlo.
+        setDetectedCurrency(null)
+        setQuoteFailed(true)
+        setForm(prev => ({ ...prev, purchasePrice: '', sector: '', industry: '' }))
       }
     } catch (err) {
-      if (err.name !== 'AbortError') console.error('[quote]', err.message)
+      if (err.name !== 'AbortError') {
+        console.error('[quote]', err.message)
+        setDetectedCurrency(null)
+        setQuoteFailed(true)
+        setForm(prev => ({ ...prev, purchasePrice: '', sector: '', industry: '' }))
+      }
     }
     setFetchingQuote(false)
   }, [])
@@ -777,7 +795,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             fieldIndex: idx, fields: guidedFields, goNext,
             goBack: () => { setError(''); setGuidedIndex(Math.max(0, idx - 1)) },
             onExit: exit,
-            searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote,
+            searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote, quoteFailed,
             handleSelectSymbol, inputRef, dropdownRef,
             filteredInstitutions, showInstSuggestions, setShowInstSuggestions,
             saving, error, progress: guidedProgress,
@@ -899,10 +917,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       {fetchingQuote ? (
                         <BusyRing size="12px" style={{ color: 'var(--accent-blue)' }} />
                       ) : form.purchasePrice ? (
-                        <span className="text-xs text-emerald-400 font-medium">{form.currency} {parseAmount(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>{form.currency} {parseAmount(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       ) : null}
                     </div>
                   </div>
+                )}
+                {quoteFailed && !fetchingQuote && (
+                  <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
+                    {t(`No pudimos traer el precio de ${form.symbol}. Ponelo a mano abajo.`,
+                       `We could not fetch a price for ${form.symbol}. Enter it by hand below.`)}
+                  </p>
                 )}
               </div>
             )}

@@ -75,13 +75,20 @@ async function fetchAssetProfile(symbol) {
 
 async function fetchQuote(symbol, type) {
   if (type === 'Crypto') {
-    const info = CRYPTO_MAP[symbol.toUpperCase()]
-    if (!info) return null
+    // CRYPTO_MAP guarda el id de CoinGecko como STRING plano (`ETH: 'ethereum'`),
+    // no como objeto. Esta era la única de las nueve superficies que lo leía como
+    // `.id`, así que la URL salía con `ids=undefined`, CoinGecko contestaba `{}`
+    // y CADA cripto volvía sin precio. Peor: el caller no tenía rama de fallo, así
+    // que el precio de la búsqueda ANTERIOR sobrevivía en el formulario y quedaba
+    // guardado como costo (un ETF de $56 archivado como Ethereum, y de ahí un
+    // retorno de +3970% en cuanto el precio vivo aterrizaba en ~$2,400).
+    const id = CRYPTO_MAP[symbol.toUpperCase()]
+    if (!id) return null
     try {
-      const res = await fetchWithRetry(`https://api.coingecko.com/api/v3/simple/price?ids=${info.id}&vs_currencies=usd`)
+      const res = await fetchWithRetry(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`)
       if (!res.ok) return null
       const data = await res.json()
-      if (data[info.id]) return { price: data[info.id].usd, currency: 'USD', sector: 'Crypto', industry: 'Cryptocurrency' }
+      if (data[id]) return { price: data[id].usd, currency: 'USD', sector: 'Crypto', industry: 'Cryptocurrency' }
     } catch (err) {
       console.error(`[api/search] CoinGecko quote failed for ${symbol}:`, err.message)
     }
