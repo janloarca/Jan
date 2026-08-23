@@ -984,7 +984,15 @@ export function useFirestoreItems() {
   // del correo mensual lee estos mismos docs del lado del servidor y tiene que
   // rechazar versiones viejas con la misma vara. Bumpear allá, documentar acá.
 
-  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
+  // `replace` reemplaza el doc del mes entero en vez de fusionar. Lo usa SOLO el
+  // recálculo explícito del Spreadsheet ("Recalcular"), que cubre todos los meses
+  // de una pasada: sin él, una entrada que ya no corresponde (un activo borrado,
+  // uno cuya fecha de adquisición se movió hacia ADELANTE) no se puede quitar
+  // nunca, porque el merge solo sabe agregar y pisar. El efecto automático, que
+  // computa solo los meses faltantes y por lo tanto NO conoce el mes completo,
+  // conserva el merge de siempre: reemplazar desde ahí borraría lo que no
+  // recomputó.
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency, { replace = false } = {}) => {
     if (!uid || !monthKey || !itemsData) return
     // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
     if (items.some((i) => i._source === 'demo')) return
@@ -999,7 +1007,8 @@ export function useFirestoreItems() {
     // completo del doc, nunca merge.
     const existingData = existing.exists() ? existing.data() : null
     const staleVersion = existingData != null && (existingData._version || 0) < SNAPSHOT_VERSION
-    const existingItems = existingData && !staleVersion ? (existingData.items || {}) : {}
+    const fullWrite = replace || staleVersion
+    const existingItems = existingData && !fullWrite ? (existingData.items || {}) : {}
     const snapData = Object.fromEntries(Object.entries({
       monthKey,
       items: { ...existingItems, ...itemsData },
@@ -1007,7 +1016,7 @@ export function useFirestoreItems() {
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
-    await fs.setDoc(ref, snapData, staleVersion ? undefined : { merge: true })
+    await fs.setDoc(ref, snapData, fullWrite ? undefined : { merge: true })
   }, [uid, items])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {

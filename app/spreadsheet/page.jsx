@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useDashboardData } from '@/hooks/useDashboardData'
@@ -76,6 +76,18 @@ export default function SpreadsheetPage() {
     addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
     handleRefresh, pricesLoading, ratesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  // El usuario lo pidio con estas palabras: "utilizar el boton de refresh propio
+  // para que recapacite y repare la tabla despues de poner info nueva". El
+  // Spreadsheet registra aca su recalculo y el refresh del header lo dispara
+  // junto con el refresco de precios de siempre, en vez de obligarlo a buscar un
+  // segundo boton.
+  const recalcRef = useRef(null)
+  const handleHeaderRefresh = useCallback(() => {
+    handleRefresh()
+    if (recalcRef.current) recalcRef.current()
+  }, [handleRefresh])
+  const registerRecalculate = useCallback((fn) => { recalcRef.current = fn }, [])
 
   const [editItem, setEditItem] = useState(null)
   const [showReview, setShowReview] = useState(false)
@@ -186,7 +198,7 @@ export default function SpreadsheetPage() {
       <Header user={user} lang={lang} setLang={handleSetLang}
         friendsEnabled={settings?.friendsEnabled !== false}
         onImport={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard')}
-        onSignOut={handleSignOut} onRefresh={handleRefresh}
+        onSignOut={handleSignOut} onRefresh={handleHeaderRefresh}
         pricesLoading={pricesLoading || ratesLoading}
         loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
         loadStagesTotal={3} />
@@ -313,6 +325,7 @@ export default function SpreadsheetPage() {
             onLoadItemSnapshots={loadItemSnapshots}
             lots={lots}
             transactions={transactions}
+            onRegisterRecalculate={registerRecalculate}
           />
         </div>
       ) : view === 'debts' ? (
