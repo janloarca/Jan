@@ -3,7 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
-import { sanitizeDayAsOf, boundedPct } from '@/lib/friendsStats'
+import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
 
 // Social layer: friend groups + a YTD-return leaderboard. Like shareTokens, the
 // data lives in TOP-LEVEL collections that firestore.rules leaves default-deny,
@@ -54,14 +54,11 @@ function genPseudonym() {
 // amount-shaped is stripped.
 function sanitizeStatBlock(raw) {
   if (!raw || typeof raw !== 'object') return null
-  const movers = Array.isArray(raw.movers)
-    ? raw.movers.slice(0, MAX_MOVERS).map((m) => ({
-        symbol: String(m?.symbol || '?').slice(0, 12),
-        name: String(m?.name || '').slice(0, 40),
-        changePct: boundedPct(m?.changePct),
-        impactPct: isFinite(Number(m?.impactPct)) ? Number(m.impactPct) : 0,
-      })).filter((m) => m.changePct != null)
-    : []
+  // ⛔ FASE JA6. `impactPct` NO se guarda. Junto al cambio de la posición dejaba
+  // despejar su peso en el portafolio con una división. El orden de la lista lo
+  // decide el cliente y se conserva tal cual, así que quitar el campo no cuesta
+  // el ranking. Ver lib/friendsStats.js.
+  const movers = publicMovers(raw.movers)
   return {
     ytd: boundedPct(raw.ytd), mtd: boundedPct(raw.mtd), day: boundedPct(raw.day), movers,
     // FASE KO: de qué SESIÓN bursátil son `day` y `movers`. Un sábado, las
@@ -173,7 +170,13 @@ export async function POST(request) {
             ytd: st.ytd ?? null,
             mtd: st.mtd ?? null,
             day: st.day ?? null,
-            movers: Array.isArray(st.movers) ? st.movers : [],
+            // Se limpia también al LEER, no solo al escribir. Todo perfil ya
+            // publicado tiene `impactPct` guardado, y devolverlo tal cual
+            // dejaría la fuga abierta hasta que cada persona vuelva a publicar
+            // por su cuenta: un arreglo que solo cambia lo que se escribe de
+            // aquí en adelante no cierra nada hoy. El campo viejo se queda en
+            // Firestore hasta el próximo sync de esa persona, pero ya no sale.
+            movers: publicMovers(st.movers),
             // FASE KO: de qué sesión son `day` y `movers` de ESTA persona. Dos
             // miembros del mismo grupo pueden tenerla distinta (quien solo tiene
             // cripto mide 24 h rodantes y nunca queda congelado; quien tiene
