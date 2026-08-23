@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
-import { ZoomIn, ZoomOut, FileText, FileSpreadsheet } from 'lucide-react'
+import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { InfoTip } from '../ui/Tooltip'
@@ -211,7 +211,7 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   )
 })
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -716,6 +716,77 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, cacheProbed, generation])
 
+  // "Recalcular": el MISMO cómputo del efecto de arriba, pero disparable y con
+  // reporte.
+  //
+  // El efecto vive detrás de seis compuertas (cacheProbed, fetchKey, generation,
+  // monthGenRef, missingMonths, lastFetchedYearRef) y no tiene ninguna señal
+  // visible, así que desde afuera "recalculó y esta es la respuesta" y "nunca
+  // recalculó" se ven idénticos. Es la lección de FASE HP: si el arreglo corre
+  // en un efecto de fondo, hacerlo disparable y que DIGA qué hizo, en vez de
+  // gastar otra ronda deduciéndolo de una captura.
+  //
+  // Dos diferencias con el efecto, las dos deliberadas:
+  //  · recalcula TODOS los meses pasados, no solo los que faltan;
+  //  · y por eso puede escribir con `replace`: conoce el mes completo, así que
+  //    una entrada que ya no corresponde (un activo borrado, uno cuya fecha se
+  //    movió hacia adelante) por fin desaparece. El efecto automático NO puede
+  //    hacer eso: computa un subconjunto y borraría lo que no recomputó.
+  const [recalcReport, setRecalcReport] = useState(null)
+  const [recalculating, setRecalculating] = useState(false)
+
+  const handleRecalculate = useCallback(async () => {
+    if (recalculating) return
+    const pastMonths = months.filter(mk => mk !== currentMonthKey)
+    if (!onSaveItemSnapshots || !items || items.length === 0 || pastMonths.length === 0) {
+      setRecalcReport({ error: t('No hay meses pasados que recalcular.', 'There are no past months to recompute.') })
+      return
+    }
+    setRecalculating(true)
+    setRecalcReport(null)
+    try {
+      const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
+      const diag = {}
+      const { getHistoricalItemValues } = await import('@/lib/historicalValues')
+      const data = await getHistoricalItemValues(
+        itemsWithCategory, pastMonths, convert, baseCurrency, lots, transactions, snapshots, diag,
+      )
+      setHistoricalItems(prev => {
+        const merged = { ...prev }
+        Object.entries(data).forEach(([mk, itemData]) => {
+          // Reemplazo, no merge: es el punto entero del botón.
+          merged[mk] = stripStaleIbkrEntries(itemData, ibkrIdsRef.current, IBKR_UNKNOWN_KEY_PREFIX)
+        })
+        return merged
+      })
+      let written = 0
+      for (const mk of Object.keys(data)) {
+        if (Object.keys(data[mk]).length === 0) continue
+        try {
+          await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { replace: true })
+          written++
+        } catch { /* best-effort: un mes que no se pudo guardar se recomputa la próxima */ }
+      }
+      // El siguiente render del efecto automático no debe deshacer esto.
+      Object.keys(data).forEach((mk) => { monthGenRef.current[mk] = generation })
+      lastFetchedYearRef.current = fetchKey
+      setRecalcReport({ months: written, sources: Object.values(diag) })
+    } catch (err) {
+      setRecalcReport({ error: err?.message || String(err) })
+    }
+    setRecalculating(false)
+  }, [recalculating, months, currentMonthKey, onSaveItemSnapshots, items, convert, baseCurrency, lots, transactions, snapshots, generation, fetchKey, t])
+
+  // El botón de refrescar del header de /spreadsheet dispara lo MISMO, que es
+  // literalmente lo que pidió el usuario ("o utilizar el botón de refresh propio
+  // para que recapacite y repare la tabla"). Se expone por ref para no obligar a
+  // la página a levantar este estado.
+  useEffect(() => {
+    if (!onRegisterRecalculate) return
+    onRegisterRecalculate(handleRecalculate)
+    return () => onRegisterRecalculate(null)
+  }, [onRegisterRecalculate, handleRecalculate])
+
   const itemValue = useCallback((item) => {
     return showOriginal ? getOriginalValue(item) : getItemValue(item)
   }, [showOriginal])
@@ -1170,6 +1241,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
               <FileSpreadsheet size={13} strokeWidth={2} /> Excel
             </button>
+            <button onClick={handleRecalculate} disabled={recalculating || loadingHistory}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter] disabled:opacity-40"
+              style={{ color: 'var(--text-secondary)' }}
+              title={t('Volver a calcular los meses pasados con la información de hoy',
+                       'Recompute past months with today’s data')}>
+              <RefreshCw size={13} strokeWidth={2} className={recalculating ? 'animate-spin' : undefined} />
+              {recalculating ? t('Recalculando...', 'Recomputing...') : t('Recalcular', 'Recompute')}
+            </button>
           </div>
           {loadingHistory && (
             <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)]">
@@ -1192,6 +1271,54 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium"
           style={{ backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)', border: '1px solid var(--alert-success-border)' }}>
           &#10003; {saveMsg}
+        </div>
+      )}
+      {/* El reporte del recálculo. Un "nada que corregir" cierra la pregunta
+          igual que un "8 meses reescritos": lo que no puede volver a pasar es
+          que la respuesta sea invisible. Y decir de dónde salió CADA activo es
+          lo que distingue "se mantiene plano porque no hubo precio" de "se
+          mantiene plano porque está roto", que hasta hoy se veían igual. */}
+      {recalcReport && (
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs" data-testid="recalc-report"
+          style={recalcReport.error
+            ? { backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)', border: '1px solid var(--alert-warn-border)' }
+            : { backgroundColor: 'var(--alert-info-bg)', color: 'var(--text-primary)', border: '1px solid var(--alert-info-border)' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {recalcReport.error ? (
+                <span className="font-medium">{recalcReport.error}</span>
+              ) : (
+                <>
+                  <span className="font-medium">
+                    {recalcReport.months > 0
+                      ? t(`Recalculé ${recalcReport.months} ${recalcReport.months === 1 ? 'mes' : 'meses'}.`,
+                          `Recomputed ${recalcReport.months} ${recalcReport.months === 1 ? 'month' : 'months'}.`)
+                      : t('Nada que corregir.', 'Nothing to correct.')}
+                  </span>
+                  {recalcReport.sources.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {recalcReport.sources.map((s, i) => (
+                        <li key={`${s.name}-${i}`}>
+                          <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{s.name}</strong>
+                          {': '}
+                          {s.source === 'market'
+                            ? t('precio de mercado real.', 'real market price.')
+                            : s.source === 'events'
+                              ? t('reconstruido de tus movimientos.', 'rebuilt from your transactions.')
+                              : t(`sin precio histórico${s.symbol ? ` para ${s.symbol}` : ''}, se mantiene plano.`,
+                                  `no historical price${s.symbol ? ` for ${s.symbol}` : ''}, held flat.`)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+            <button onClick={() => setRecalcReport(null)} className="shrink-0 font-medium"
+              style={{ color: 'var(--text-muted)' }}>
+              {t('Cerrar', 'Dismiss')}
+            </button>
+          </div>
         </div>
       )}
       {/* This div HAS to be a real, self-contained 2D scroll container, not just

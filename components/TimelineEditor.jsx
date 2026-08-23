@@ -1,5 +1,7 @@
 'use client'
 
+import { parseAmount } from '@/lib/numberParse'
+
 // Repeating date+amount rows for capturing HOW an account reached its value
 // ("Dec 2024: +10,000 · Feb 2025: +5,000 …"). Pure controlled component: the
 // parent owns `rows` and decides what to do with them on submit.
@@ -15,7 +17,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
 
-  const sum = rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
+  const sum = rows.reduce((s, r) => s + (parseAmount(r.amount)), 0)
   const totalNum = Number(total) || 0
   const remainder = totalNum - sum
   const overshoot = remainder < -Math.max(totalNum * 0.005, 0.01)
@@ -27,7 +29,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
   const fillRemainder = () => {
     if (!(remainder > 0) || rows.length === 0) return
     const last = rows.length - 1
-    const lastAmt = parseFloat(rows[last].amount) || 0
+    const lastAmt = parseAmount(rows[last].amount)
     setRow(last, { amount: String(Math.round((lastAmt + remainder) * 100) / 100) })
   }
 
@@ -42,7 +44,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
           <input type="date" value={row.date} max={today}
             onChange={(e) => setRow(i, { date: e.target.value })}
             className={`${inputCls} flex-1`} aria-label={t(`Fecha del aporte ${i + 1}`, `Contribution ${i + 1} date`)} />
-          <input type="number" value={row.amount} step="any" min="0" placeholder="10000"
+          <input type="text" inputMode="decimal" value={row.amount} min="0" placeholder="10000"
             onChange={(e) => setRow(i, { amount: e.target.value })}
             className={`${inputCls} flex-1 text-right font-mono`} aria-label={t(`Monto del aporte ${i + 1}`, `Contribution ${i + 1} amount`)} />
           <button type="button" onClick={() => removeRow(i)} disabled={rows.length <= 1}
@@ -101,10 +103,10 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
 export function validateTimelineRows(rows, total, { requireExact = false, lang = 'es' } = {}) {
   const t = (es, en) => lang === 'es' ? es : en
   const today = new Date().toISOString().split('T')[0]
-  const clean = rows.filter((r) => (parseFloat(r.amount) || 0) > 0 && r.date)
+  const clean = rows.filter((r) => (parseAmount(r.amount)) > 0 && r.date)
   if (clean.length === 0) return t('Agrega al menos un aporte con fecha y monto.', 'Add at least one dated contribution.')
   if (clean.some((r) => r.date > today)) return t('Las fechas no pueden ser futuras.', 'Dates cannot be in the future.')
-  const sum = clean.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
+  const sum = clean.reduce((s, r) => s + (parseAmount(r.amount)), 0)
   const totalNum = Number(total) || 0
   const tol = Math.max(totalNum * 0.005, 0.01)
   if (sum - totalNum > tol) return t('Los aportes superan el valor total.', 'Contributions exceed the total value.')
