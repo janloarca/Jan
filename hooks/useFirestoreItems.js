@@ -979,6 +979,17 @@ export function useFirestoreItems() {
   // 27 (FASE IX6): el rendimiento reinvertido se indexaba por SÍMBOLO, así que
   // dos cuentas homónimas sin ticker propio (DOS "ClubCashIn") se acreditaban
   // el rendimiento de ambas. Todo mes cacheado tiene esa mezcla horneada.
+  // 28 (FASE JA): DOS cosas que envenenaron el caché, ambas irreparables por
+  // merge. (a) El escritor del mes en curso guardaba el valor YA FIRMADO
+  // (`getItemValue`, negativo para deuda) mientras el motor histórico y los dos
+  // lectores (`monthlyTotals` acá y lib/monthlySpreadsheet.js del correo) usan
+  // la convención de MAGNITUDES: la doble negación volvía la deuda positiva y
+  // una tarjeta de $5,000 inflaba el TOTAL de ese mes en $10,000, solo en el
+  // mes recién cerrado y sin autocorregirse nunca porque ese mes figura como
+  // completo. (b) La key del bucket sintético de IBKR lleva el nombre de la
+  // institución adentro, así que renombrar la cuenta dejaba el bucket viejo al
+  // lado del nuevo y el TOTAL, que sumaba por PREFIJO, contaba el NAV del
+  // broker dos veces en cada mes pasado.
   //
   // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
   // del correo mensual lee estos mismos docs del lado del servidor y tiene que

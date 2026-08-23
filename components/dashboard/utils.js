@@ -597,6 +597,25 @@ export function getDividendIncomeByItem(transactions, items, convert, baseTo = '
   return out
 }
 
+// ¿Este item guarda su saldo en `purchasePrice` además de en `currentPrice`?
+//
+// Una cuenta de banco no tiene "precio de compra": su saldo ES su costo, por
+// diseño (ver el comentario de getIncomeReceivedByItem, justo abajo, y toda la
+// fórmula de retorno que depende de eso). Así que corregir su saldo obliga a
+// escribir los DOS campos: escribir solo `currentPrice` deja el costo en el
+// valor viejo y a partir de ahí la app cree que el usuario GANÓ la diferencia
+// en una cuenta de ahorro, lo que envenena Rendimiento por Institución, el
+// retorno por clase de activo y los reportes de ganancias.
+//
+// Vivía escrita a mano en dos lugares de hooks/useDashboardData.js (el crédito
+// de dividendos y el ajuste de saldo) mientras PortfolioSpreadsheet, que es la
+// tercera superficie que corrige saldos bancarios, no la conocía y escribía
+// medio par. Dos copias de una regla es cómo una se queda atrás; tres es cómo
+// nadie sabe cuál manda.
+export function isBankLike(item) {
+  return /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(item?.type || '')
+}
+
 // The mirror image of getDividendIncomeByItem: income keyed by the account that
 // RECEIVED it, not the asset that produced it.
 //
