@@ -132,6 +132,14 @@ export default function NotificationCenter({ items, transactions, lang, settings
     if (result === 'granted') checkAndNotify(items, lang)
   }
 
+  // Con cero activos no hay NADA que notificar: `notifications` se deriva de
+  // `items`. Y la guardia de abajo estaba invertida en la práctica, porque
+  // `pushPermission` solo se asigna cuando itemCount > 0 (ver el efecto de
+  // arriba): sin activos se quedaba en 'default', la guardia no cortaba, y el
+  // banner de "activa las alertas de pagos y vencimientos" salía EXACTAMENTE
+  // para quien no tiene nada de qué ser avisado. Este return va primero.
+  if ((items || []).length === 0) return null
+
   if (notifications.length === 0 && pushPermission !== 'default') return null
 
   const typeStyles = {

@@ -125,7 +125,7 @@ import { DEMO_ITEMS, DEMO_LOTS, DEMO_TRANSACTIONS, isDemoItem } from '@/lib/demo
 import AssetAllocation from '@/components/dashboard/AssetAllocation'
 import NotificationCenter from '@/components/dashboard/NotificationCenter'
 import InstallPrompt from '@/components/dashboard/InstallPrompt'
-import EmptyState from '@/components/dashboard/EmptyState'
+import WelcomeScreen from '@/components/dashboard/WelcomeScreen'
 // MonthlyBreakdown removed — replaced by /spreadsheet page
 import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
@@ -255,7 +255,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'attribution' && !beginnerMode && (
-        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} /></CardBoundary>
+        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'benchmark' && (
         <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
@@ -297,6 +297,11 @@ export default function DashboardPage() {
   // acompañamos activo por activo. Es lo que ve un usuario nuevo en vez de
   // caer directo en el formulario largo.
   const [showGuided, setShowGuided] = useState(false)
+  // Lo que marcó en la pantalla de bienvenida. Vive ACÁ y no dentro de la
+  // pantalla para que salirse del recorrido sin agregar nada devuelva a la
+  // bienvenida con las pastillas todavía encendidas.
+  const [firstRunPicked, setFirstRunPicked] = useState([])
+  const [demoSeeding, setDemoSeeding] = useState(false)
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -428,7 +433,7 @@ export default function DashboardPage() {
   // Data layer
   const {
     items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
-    dataLoading,
+    dataLoading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     migrateMisplacedNav,
@@ -479,6 +484,15 @@ export default function DashboardPage() {
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
   const handleOpenGuided = useCallback(() => { setModal(null); setShowGuided(true) }, [])
+  // Actualizador funcional a propósito: deja las deps en [] y la identidad
+  // estable, así ninguna deps array de más abajo puede nombrarlo antes de que
+  // exista (la trampa de TDZ que este repo ya pagó dos veces).
+  const handleFirstRunToggle = useCallback((key) => {
+    setFirstRunPicked((p) => (p.includes(key) ? p.filter((k) => k !== key) : [...p, key]))
+  }, [])
+  // El tour deja de abrirse solo: ahora se pide. Esta es una de sus dos puertas
+  // (la otra es la paleta de comandos, para quien ya tiene activos).
+  const handleOpenTour = useCallback(() => { setModal(null); setShowOnboarding(true) }, [])
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
   const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
@@ -944,7 +958,12 @@ export default function DashboardPage() {
 
   // Export XLSX
   const handleExport = useCallback(async () => {
-    if (items.length === 0) return
+    // Antes era un `return` mudo: el clic simplemente no hacía nada, sin toast
+    // ni error. Se copia la forma que handleReport ya usa para lo mismo.
+    if (items.length === 0) {
+      showToast(lang === 'es' ? 'Agrega activos antes de exportar' : 'Add assets before exporting')
+      return
+    }
     showToast(lang === 'es' ? 'Generando Excel...' : 'Generating Excel...', 'info')
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.json_to_sheet(enrichedItems.map((it) => {
@@ -1065,6 +1084,13 @@ export default function DashboardPage() {
   }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
+    // Sin guard esto armaba un resumen de "Patrimonio Neto: $0.00 · Posiciones:
+    // 0" y lo mandaba al share nativo o al portapapeles, o sea publicaba una
+    // cartera vacía como si fuera un dato. Mismo aviso que exportar.
+    if (enrichedItems.length === 0) {
+      showToast(lang === 'es' ? 'Agrega activos antes de compartir' : 'Add assets before sharing')
+      return
+    }
     const t = (es, en) => lang === 'es' ? es : en
     const assets = enrichedItems.filter((it) => !it.isDebt)
     const debts = enrichedItems.filter((it) => it.isDebt)
@@ -1112,7 +1138,9 @@ export default function DashboardPage() {
         showToast(t('No se pudo copiar', 'Could not copy to clipboard'), 'error')
       }
     }
-  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang])
+    // showToast se declara arriba de handleShare, así que nombrarlo acá es
+    // seguro (y su identidad es estable: useCallback con deps []).
+  }, [enrichedItems, netWorth, totalAssets, returnYTD, lang, showToast])
 
   const handleSignOut = async () => {
     const { auth } = await import('@/lib/firebase')
@@ -1140,14 +1168,17 @@ export default function DashboardPage() {
       case 'blockchain': handleOpenBlockchain(); break
       case 'ledger': setModal('ledger'); break
       case 'viewItem': setDetailItem(data); break
+      case 'tour': handleOpenTour(); break
     }
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain])
+    // handleOpenTour se declara MUY arriba (junto a handleOpenGuided), así que
+    // nombrarlo acá no cruza ninguna zona muerta temporal.
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain, handleOpenTour])
 
-  useEffect(() => {
-    if (!dataLoading && enrichedItems.length === 0 && !showOnboarding && typeof window !== 'undefined' && !localStorage.getItem('chispudo-onboarding-done')) {
-      setShowOnboarding(true)
-    }
-  }, [dataLoading, enrichedItems.length])
+  // Acá vivía el auto-open del tour para un usuario con cero activos. Se quitó:
+  // se abría ENCIMA de la pantalla de bienvenida y la suprimía, así que lo
+  // primero que veía alguien recién llegado era un modal con cuatro controles,
+  // y el más prominente era mirar datos que no son suyos. Ahora el tour se
+  // pide, desde "¿Cómo funciona?" o desde la paleta de comandos.
 
   // Returning from the per-page tour chain (PageTour routed back with the final
   // flag): reopen the tour so it can show its closing card. The flag itself is
@@ -1271,6 +1302,7 @@ export default function DashboardPage() {
         ibkrNeedsAttention={ibkrNeedsAttention}
         onIBKR={handleIBKRPillClick}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
+        onGuided={portfolioItems.length === 0 ? handleOpenGuided : null}
         enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
@@ -1375,7 +1407,14 @@ export default function DashboardPage() {
             <ChispudoLoader mode="inline" size="small" state="refreshing" delay={250} lang={lang} />
           )}
           {/* Freshness dot: 1-day-old data is normal (snapshots are daily), so
-              1-13d stays neutral/muted — amber only kicks in at ≥14d. */}
+              1-13d stays neutral/muted — amber only kicks in at ≥14d.
+              Con cero activos no se dibuja: no hay nada cuya frescura reportar,
+              y "Sin datos aún" bajo un saludo de bienvenida es ruido. La cadena
+              se corta acá y no en el div de afuera, porque ahí adentro también
+              viven EntitySwitcher y PortfolioSelector con sus propias guardias.
+              El texto "Sin datos aún" NO se borra: sigue siendo correcto para
+              una cuenta con activos antes del primer refresco de precios. */}
+          {portfolioItems.length > 0 && <>
           {dataAge === 0 ? (
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           ) : dataAge != null && dataAge >= 14 ? (
@@ -1395,6 +1434,7 @@ export default function DashboardPage() {
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
+          </>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
               entities={entities} activeEntity={activeEntity}
@@ -1412,24 +1452,54 @@ export default function DashboardPage() {
         <h1 className="sr-only">{lang === 'es' ? 'Patrimonio: Dashboard' : 'Net Worth: Dashboard'}</h1>
 
 
-        {/* One onboarding surface at a time — don't stack this under the tour modal */}
-        {portfolioItems.length === 0 && !dataLoading && !showOnboarding && (
-          <EmptyState
-            // Con cero activos, "agregar" significa el recorrido guiado: el
-            // formulario largo sigue disponible desde el botón "Nuevo".
-            onAdd={handleOpenGuided}
-            onImport={handleOpenImport}
-            onTemplate={async () => {
-              const { generateTemplate } = await import('@/lib/generateTemplate')
-              await generateTemplate()
-            }}
-            onDemo={async () => {
-              // Seed first, then open the tour: with demo items already present
-              // the tour mounts straight into the anchored walkthrough.
-              await handleSeedDemo()
-              setShowOnboarding(true)
-            }}
+        {/* La compuerta es el conteo REAL de activos, nunca una bandera de
+            sesión: por eso salirse del recorrido sin agregar nada devuelve acá
+            solo, y nadie puede quedarse sin puerta de vuelta. */}
+        {/* Una lectura que FALLÓ no es una cuenta vacía. Sin este guard, un
+            usuario con 40 cuentas y la red caída (o una regla de Firestore
+            denegando) veía "Bienvenido a Chispudo" con los botones de alta,
+            porque el listener dejaba `items` en [] y `loading` pasaba a false
+            igual. Es la afirmación falsa que el invariante de la casa prohíbe,
+            y encima invita a volver a crear cuentas que ya existen. */}
+        {portfolioItems.length === 0 && !dataLoading && loadError && (
+          <div className="card p-5 sm:p-6 text-center">
+            <p className="text-base font-semibold mb-2" style={{ color: 'var(--alert-warn-icon)' }}>
+              {lang === 'es' ? 'No pudimos cargar tus datos' : 'We could not load your data'}
+            </p>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              {lang === 'es'
+                ? 'Tus cuentas siguen guardadas: esto es un problema de conexión, no una cuenta vacía. Revisá tu internet y volvé a intentar.'
+                : 'Your accounts are still saved: this is a connection problem, not an empty account. Check your internet and try again.'}
+            </p>
+            <button onClick={() => window.location.reload()} className="btn-primary px-4 py-2 text-sm">
+              {lang === 'es' ? 'Reintentar' : 'Try again'}
+            </button>
+            <p className="text-xs mt-3 font-mono" style={{ color: 'var(--text-muted)' }}>{String(loadError)}</p>
+          </div>
+        )}
+
+        {portfolioItems.length === 0 && !dataLoading && !loadError && (
+          <WelcomeScreen
+            picked={firstRunPicked}
+            onToggle={handleFirstRunToggle}
+            onStart={handleOpenGuided}
             onConnect={handleOpenConnections}
+            onImport={handleOpenImport}
+            onDemo={async () => {
+              // Sembrar PRIMERO y después abrir el tour: con los datos de
+              // ejemplo ya presentes, el tour monta directo en el recorrido con
+              // foco sobre las tarjetas en vez de en su menú de intro.
+              setDemoSeeding(true)
+              try {
+                await handleSeedDemo()
+                setShowOnboarding(true)
+              } finally {
+                setDemoSeeding(false)
+              }
+            }}
+            demoBusy={demoSeeding}
+            onHowItWorks={handleOpenTour}
+            ownerName={profile?.name || user?.displayName || ''}
             lang={lang}
           />
         )}
@@ -2231,7 +2301,7 @@ export default function DashboardPage() {
         items={portfolioItems} lang={lang} onAction={handleCmdAction} />
 
       <MobileNav
-        onAdd={handleOpenAccount} onImport={handleOpenImport}
+        onAdd={portfolioItems.length === 0 ? handleOpenGuided : handleOpenAccount} onImport={handleOpenImport}
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
@@ -2257,6 +2327,7 @@ export default function DashboardPage() {
 
       {showGuided && (
         <GuidedSetup
+          initialPicked={firstRunPicked}
           onClose={() => setShowGuided(false)}
           onAdd={async (item) => {
             // Mismo wrapper que el alta manual: DEBE devolver el id o el
@@ -2285,9 +2356,16 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-        returnYTD={returnYTD} annualDividends={annualDividends} riskMetrics={riskMetrics}
-        baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
+      {/* Sus tres preguntas sugeridas son todas sobre el portafolio ("dame un
+          resumen financiero"), así que con cero activos la burbuja ofrece algo
+          que no puede contestar. Gateado en el montaje y no adentro: el widget
+          es `dynamic(ssr:false)`, así también se ahorra su chunk justo en la
+          carga donde el peso se nota, que es la primera de todas. */}
+      {portfolioItems.length > 0 && (
+        <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
+          returnYTD={returnYTD} annualDividends={annualDividends} riskMetrics={riskMetrics}
+          baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
+      )}
     </div>
   )
 }

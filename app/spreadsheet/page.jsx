@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useDashboardData } from '@/hooks/useDashboardData'
@@ -76,6 +76,18 @@ export default function SpreadsheetPage() {
     addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
     handleRefresh, pricesLoading, ratesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  // El usuario lo pidio con estas palabras: "utilizar el boton de refresh propio
+  // para que recapacite y repare la tabla despues de poner info nueva". El
+  // Spreadsheet registra aca su recalculo y el refresh del header lo dispara
+  // junto con el refresco de precios de siempre, en vez de obligarlo a buscar un
+  // segundo boton.
+  const recalcRef = useRef(null)
+  const handleHeaderRefresh = useCallback(() => {
+    handleRefresh()
+    if (recalcRef.current) recalcRef.current()
+  }, [handleRefresh])
+  const registerRecalculate = useCallback((fn) => { recalcRef.current = fn }, [])
 
   const [editItem, setEditItem] = useState(null)
   const [showReview, setShowReview] = useState(false)
@@ -186,7 +198,7 @@ export default function SpreadsheetPage() {
       <Header user={user} lang={lang} setLang={handleSetLang}
         friendsEnabled={settings?.friendsEnabled !== false}
         onImport={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard')}
-        onSignOut={handleSignOut} onRefresh={handleRefresh}
+        onSignOut={handleSignOut} onRefresh={handleHeaderRefresh}
         pricesLoading={pricesLoading || ratesLoading}
         loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
         loadStagesTotal={3} />
@@ -200,9 +212,18 @@ export default function SpreadsheetPage() {
         {
           tab: t('Hoja de Cálculo', 'Spreadsheet'),
           title: t('Vistas y celdas editables', 'Views and editable cells'),
-          body: t('Arriba cambias de vista: Portfolio (inversiones), Deudas, Bienes (inmuebles y similares) y Hojas personalizadas. Los valores con "~" son estimados calculados con precios históricos; si conoces el valor real de un mes, haz clic en la celda y corrígelo.',
-                  'Switch views up top: Portfolio (investments), Debts, Estate (real estate and similar) and custom Sheets. Values marked "~" are estimates from historical prices; if you know a month\'s real value, click the cell and correct it.'),
-          tip: t('Tus correcciones manuales siempre ganan sobre los estimados.', 'Your manual corrections always win over estimates.'),
+          // Este paso prometía que se podía corregir CUALQUIER mes haciendo clic
+          // en su celda, y que esa corrección ganaba sobre el estimado. Ninguna
+          // de las dos cosas existe: solo la columna del mes actual es editable
+          // (las demás se renderizan como texto plano, sin cursor ni mensaje),
+          // así que quien intentaba corregir marzo hacía clic doce veces sin
+          // ninguna respuesta. Corregir un mes pasado de verdad necesita una
+          // capa persistida aparte que sobreviva a los bumps de
+          // SNAPSHOT_VERSION, o sea una función con su propio diseño; mientras
+          // no exista, el texto dice lo que la pantalla de verdad hace.
+          body: t('Arriba cambias de vista: Portfolio (inversiones), Deudas, Bienes (inmuebles y similares) y Hojas personalizadas. Los valores con "~" son estimados calculados con precios históricos.',
+                  'Switch views up top: Portfolio (investments), Debts, Estate (real estate and similar) and custom Sheets. Values marked "~" are estimates from historical prices.'),
+          tip: t('La columna del mes actual es editable: haz clic en una celda para corregir su valor de hoy.', "The current month's column is editable: click a cell to correct today's value."),
         },
         {
           tab: t('Hoja de Cálculo', 'Spreadsheet'),
@@ -313,6 +334,7 @@ export default function SpreadsheetPage() {
             onLoadItemSnapshots={loadItemSnapshots}
             lots={lots}
             transactions={transactions}
+            onRegisterRecalculate={registerRecalculate}
           />
         </div>
       ) : view === 'debts' ? (

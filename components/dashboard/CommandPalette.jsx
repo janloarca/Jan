@@ -15,6 +15,10 @@ const ACTIONS = [
   { id: 'refresh', icon: 'RefreshCw', labelEs: 'Actualizar precios', labelEn: 'Refresh prices', shortcut: 'R' },
   { id: 'theme', icon: 'Sun', labelEs: 'Cambiar tema', labelEn: 'Toggle theme' },
   { id: 'lang', icon: 'Globe', labelEs: 'Switch to English', labelEn: 'Cambiar a Español' },
+  // La puerta permanente al tour. Antes se auto-abría una sola vez en la vida
+  // y después quedaba inalcanzable para siempre; acá lo encuentra cualquiera
+  // que lo busque, sin agregar un control visible más a la pantalla.
+  { id: 'tour', icon: 'Zap', labelEs: '¿Cómo funciona?', labelEn: 'How does it work?' },
 ]
 
 export default function CommandPalette({ open, onClose, items, lang, onAction }) {

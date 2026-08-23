@@ -3,7 +3,7 @@ import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
-import { sanitizeDayAsOf } from '@/lib/friendsStats'
+import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
 
 // Social layer: friend groups + a YTD-return leaderboard. Like shareTokens, the
 // data lives in TOP-LEVEL collections that firestore.rules leaves default-deny,
@@ -43,26 +43,24 @@ function genPseudonym() {
   return `${n} ${a} ${num}`
 }
 
-function clampPct(v) {
-  const n = Number(v)
-  if (!isFinite(n)) return null
-  return Math.max(-200, Math.min(200, n))
-}
+// El acotado vive en lib/friendsStats.js y se IMPORTA, no se re-escribe: es la
+// misma regla del lado del productor y del validador, y dos copias es como una
+// se queda atrás (lo mismo que ya se hizo con sanitizeDayAsOf). Acá tenía su
+// propia copia, así que al cambiar "clampear" por "descartar fuera de banda"
+// habría quedado el servidor saturando lo que el cliente ya rechazaba.
 
 // Server-side re-validation of the stats the client publishes — the client is
-// untrusted, so we clamp every number and strip anything amount-shaped.
+// untrusted, so every number goes through the shared band and anything
+// amount-shaped is stripped.
 function sanitizeStatBlock(raw) {
   if (!raw || typeof raw !== 'object') return null
-  const movers = Array.isArray(raw.movers)
-    ? raw.movers.slice(0, MAX_MOVERS).map((m) => ({
-        symbol: String(m?.symbol || '?').slice(0, 12),
-        name: String(m?.name || '').slice(0, 40),
-        changePct: clampPct(m?.changePct),
-        impactPct: isFinite(Number(m?.impactPct)) ? Number(m.impactPct) : 0,
-      })).filter((m) => m.changePct != null)
-    : []
+  // ⛔ FASE JA6. `impactPct` NO se guarda. Junto al cambio de la posición dejaba
+  // despejar su peso en el portafolio con una división. El orden de la lista lo
+  // decide el cliente y se conserva tal cual, así que quitar el campo no cuesta
+  // el ranking. Ver lib/friendsStats.js.
+  const movers = publicMovers(raw.movers)
   return {
-    ytd: clampPct(raw.ytd), mtd: clampPct(raw.mtd), day: clampPct(raw.day), movers,
+    ytd: boundedPct(raw.ytd), mtd: boundedPct(raw.mtd), day: boundedPct(raw.day), movers,
     // FASE KO: de qué SESIÓN bursátil son `day` y `movers`. Un sábado, las
     // acciones traen el movimiento del viernes, así que sin esto el grupo
     // rankeaba "hoy" sobre datos de otra sesión. Es lo que manda el cliente y
@@ -73,9 +71,20 @@ function sanitizeStatBlock(raw) {
   }
 }
 
+// Un grupo escopado NUNCA cae al portafolio completo.
+//
+// FASE JA5. Esto hacía `(scope === 'ibkr' && stats.ibkr) ? stats.ibkr :
+// stats.all`, o sea un miembro SIN broker conectado dentro de un grupo "Solo
+// IBKR" publicaba el retorno de TODO su portafolio, en silencio. Dos daños a la
+// vez: la comparación deja de ser la que el grupo dice ser (una cuenta de
+// broker contra un patrimonio entero), y esa persona está publicando MÁS de lo
+// que aceptó al entrar a un grupo cuyo rótulo prometía que solo se comparte la
+// cuenta del broker. Sin bloque para el alcance del grupo no se publica nada:
+// la fila queda sin cifras y la tarjeta dice por qué.
 function statsForScope(profile, scope) {
   const stats = profile?.stats || {}
-  return (scope === 'ibkr' && stats.ibkr) ? stats.ibkr : (stats.all || null)
+  if (scope === 'ibkr') return stats.ibkr || null
+  return stats.all || null
 }
 
 async function readGroup(db, groupId) {
@@ -85,7 +94,7 @@ async function readGroup(db, groupId) {
 
 export async function POST(request) {
   const { limited } = await rateLimit(request, { maxRequests: 40 })
-  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (limited) return NextResponse.json({ error: 'Too many requests', code: 'rate_limited' }, { status: 429 })
 
   const { uid, error } = await verifyAuth(request)
   if (error) return error
@@ -103,7 +112,7 @@ export async function POST(request) {
     // ---- sync: publish my public stats + display meta ------------------------
     if (action === 'sync') {
       const all = sanitizeStatBlock(body.stats?.all)
-      if (!all) return NextResponse.json({ error: 'Missing stats' }, { status: 400 })
+      if (!all) return NextResponse.json({ error: 'Missing stats', code: 'missing_stats' }, { status: 400 })
       const ibkr = sanitizeStatBlock(body.stats?.ibkr)
       const syncedPct = Math.max(0, Math.min(1, Number(body.syncedPct) || 0))
       const update = {
@@ -145,17 +154,29 @@ export async function POST(request) {
           : await db.getAll(...memberUids.map((m) => db.collection('friendProfiles').doc(m)))
         const rows = profs.filter((p) => p.exists).map((p) => {
           const prof = p.data()
-          const st = statsForScope(prof, g.scope) || {}
+          const scoped = statsForScope(prof, g.scope)
+          const st = scoped || {}
           return {
             uid: p.id,
             isYou: p.id === uid,
             displayName: prof.displayName || 'Anónimo',
             avatar: prof.avatar || '',
             verified: !!prof.verified,
+            // Sin datos para el alcance del grupo: la fila existe (la persona
+            // ESTÁ en el grupo) pero no tiene cifras, y hay que decir por qué o
+            // se lee igual que una tarjeta rota. Nunca se sustituye por el
+            // portafolio completo, ver statsForScope.
+            outOfScope: !scoped,
             ytd: st.ytd ?? null,
             mtd: st.mtd ?? null,
             day: st.day ?? null,
-            movers: Array.isArray(st.movers) ? st.movers : [],
+            // Se limpia también al LEER, no solo al escribir. Todo perfil ya
+            // publicado tiene `impactPct` guardado, y devolverlo tal cual
+            // dejaría la fuga abierta hasta que cada persona vuelva a publicar
+            // por su cuenta: un arreglo que solo cambia lo que se escribe de
+            // aquí en adelante no cierra nada hoy. El campo viejo se queda en
+            // Firestore hasta el próximo sync de esa persona, pero ya no sale.
+            movers: publicMovers(st.movers),
             // FASE KO: de qué sesión son `day` y `movers` de ESTA persona. Dos
             // miembros del mismo grupo pueden tenerla distinta (quien solo tiene
             // cripto mide 24 h rodantes y nunca queda congelado; quien tiene
@@ -167,7 +188,14 @@ export async function POST(request) {
         groups.push({
           id: g.id, name: g.name, scope: g.scope || 'all',
           inviteCode: g.inviteCode, isOwner: g.ownerUid === uid,
-          memberCount: memberUids.length, rows,
+          memberCount: memberUids.length,
+          // Cuántos entraron al grupo y todavía no publican nada. `rows` sale de
+          // los perfiles que EXISTEN, así que la tarjeta decía "5 miembros" y
+          // mostraba 3 sin explicar los otros dos: desde afuera, una fila que
+          // falta y una tarjeta rota se ven igual. Con el número dicho, es un
+          // dato ("2 aún no publican") en vez de un hueco.
+          pendingCount: Math.max(0, memberUids.length - rows.length),
+          rows,
         })
       }
       groups.sort((a, b) => a.name.localeCompare(b.name))
@@ -177,11 +205,11 @@ export async function POST(request) {
     // ---- create-group --------------------------------------------------------
     if (action === 'create-group') {
       const name = String(body.name || '').slice(0, 40).trim()
-      if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
+      if (!name) return NextResponse.json({ error: 'Name required', code: 'name_required' }, { status: 400 })
       const scope = body.scope === 'ibkr' ? 'ibkr' : 'all'
       const owned = await db.collection('friendGroups').where('ownerUid', '==', uid).get()
       if (owned.size >= MAX_GROUPS_PER_USER) {
-        return NextResponse.json({ error: `Max ${MAX_GROUPS_PER_USER} groups` }, { status: 400 })
+        return NextResponse.json({ error: `Max ${MAX_GROUPS_PER_USER} groups`, code: 'max_groups' }, { status: 400 })
       }
       const groupId = crypto.randomBytes(12).toString('hex')
       const inviteCode = genCode()
@@ -193,9 +221,9 @@ export async function POST(request) {
     // ---- join: enforce the member cap atomically -----------------------------
     if (action === 'join') {
       const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
-      if (!code) return NextResponse.json({ error: 'Code required' }, { status: 400 })
+      if (!code) return NextResponse.json({ error: 'Code required', code: 'code_required' }, { status: 400 })
       const snap = await db.collection('friendGroups').where('inviteCode', '==', code).limit(1).get()
-      if (snap.empty) return NextResponse.json({ error: 'Invalid code' }, { status: 404 })
+      if (snap.empty) return NextResponse.json({ error: 'Invalid code', code: 'invalid_code' }, { status: 404 })
       const groupRef = snap.docs[0].ref
       const result = await db.runTransaction(async (tx) => {
         const doc = await tx.get(groupRef)
@@ -206,7 +234,7 @@ export async function POST(request) {
         tx.update(groupRef, { memberUids: [...members, uid] })
         return { id: doc.id }
       })
-      if (result.full) return NextResponse.json({ error: 'Group is full' }, { status: 400 })
+      if (result.full) return NextResponse.json({ error: 'Group is full', code: 'group_full' }, { status: 400 })
       return NextResponse.json({ ok: true, groupId: result.id })
     }
 
@@ -214,10 +242,10 @@ export async function POST(request) {
     if (action === 'leave' || action === 'kick') {
       const groupId = String(body.groupId || '')
       const group = await readGroup(db, groupId)
-      if (!group) return NextResponse.json({ error: 'Unknown group' }, { status: 404 })
+      if (!group) return NextResponse.json({ error: 'Unknown group', code: 'group_gone' }, { status: 404 })
       const target = action === 'kick' ? String(body.uid || '') : uid
       if (action === 'kick' && group.ownerUid !== uid) {
-        return NextResponse.json({ error: 'Only the owner can remove members' }, { status: 403 })
+        return NextResponse.json({ error: 'Only the owner can remove members', code: 'owner_only' }, { status: 403 })
       }
       const members = (group.memberUids || []).filter((m) => m !== target)
       const groupRef = db.collection('friendGroups').doc(groupId)
@@ -235,17 +263,17 @@ export async function POST(request) {
     if (action === 'rename') {
       const groupId = String(body.groupId || '')
       const name = String(body.name || '').slice(0, 40).trim()
-      if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
+      if (!name) return NextResponse.json({ error: 'Name required', code: 'name_required' }, { status: 400 })
       const group = await readGroup(db, groupId)
-      if (!group) return NextResponse.json({ error: 'Unknown group' }, { status: 404 })
-      if (group.ownerUid !== uid) return NextResponse.json({ error: 'Only the owner can rename' }, { status: 403 })
+      if (!group) return NextResponse.json({ error: 'Unknown group', code: 'group_gone' }, { status: 404 })
+      if (group.ownerUid !== uid) return NextResponse.json({ error: 'Only the owner can rename', code: 'owner_only' }, { status: 403 })
       await db.collection('friendGroups').doc(groupId).update({ name })
       return NextResponse.json({ ok: true })
     }
     if (action === 'delete-group') {
       const groupId = String(body.groupId || '')
       const group = await readGroup(db, groupId)
-      if (!group) return NextResponse.json({ error: 'Unknown group' }, { status: 404 })
+      if (!group) return NextResponse.json({ error: 'Unknown group', code: 'group_gone' }, { status: 404 })
       if (group.ownerUid !== uid) return NextResponse.json({ error: 'Only the owner can delete' }, { status: 403 })
       await db.collection('friendGroups').doc(groupId).delete()
       return NextResponse.json({ ok: true })

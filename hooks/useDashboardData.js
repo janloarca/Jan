@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -66,7 +66,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const firestoreData = useFirestoreItems()
   const {
     items, snapshots: rawSnapshots, transactions, goals, settings, profile,
-    loading: dataLoading, addItem, updateItem, deleteItem,
+    loading: dataLoading, loadError, addItem, updateItem, deleteItem,
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
@@ -526,7 +526,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const { newPrice } = creditDestinationBalance(destRunningBalances, dest, amount, sourceCurrency, convert)
       // Banks track their balance in purchasePrice; for bonds/alternatives purchasePrice
       // is the cost basis and must survive income payments
-      const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+      const isBankDest = isBankLike(dest)
       await updateItem(dest.id, isBankDest
         ? { currentPrice: newPrice, purchasePrice: newPrice }
         : { currentPrice: newPrice })
@@ -2414,7 +2414,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const cashTotal = useMemo(() => {
     return portfolioItems
-      .filter((it) => /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(it.type || ''))
+      .filter((it) => isBankLike(it))
       .reduce((s, it) => s + getItemValue(it), 0)
   }, [portfolioItems])
 
@@ -2734,7 +2734,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // one destination, never a batch.
   const applyDestinationDelta = useCallback(async (dest, delta, currency) => {
     if (delta === 0) return
-    const isBankDest = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i.test(dest.type || '')
+    const isBankDest = isBankLike(dest)
     const { newPrice } = creditDestinationBalance({}, dest, delta, currency, convert)
     await updateItem(dest.id, isBankDest ? { currentPrice: newPrice, purchasePrice: newPrice } : { currentPrice: newPrice })
   }, [updateItem, convert])
@@ -3002,7 +3002,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Raw Firestore data
     items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
-    dataLoading,
+    dataLoading, loadError,
 
     // Firestore actions
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,

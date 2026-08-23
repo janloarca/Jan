@@ -36,6 +36,15 @@ function seedFromStorage() {
   } catch { /* localStorage bloqueado o corrupto: mismo comportamiento de antes */ }
 }
 
+function sameRates(a, b) {
+  if (a === b) return true
+  if (!a || !b) return false
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  for (const k of ka) if (a[k] !== b[k]) return false
+  return true
+}
+
 export function useExchangeRates(baseCurrency) {
   const [rates, setRates] = useState(() => { seedFromStorage(); return _cachedRates })
   const [loading, setLoading] = useState(false)
@@ -69,7 +78,14 @@ export function useExchangeRates(baseCurrency) {
           _cachedRates = valid
           _cachedLastUpdate = data.timestamp
           _cachedStale = !!data.stale
-          setRates(valid)
+          // Publicar una identidad NUEVA solo si las tasas de verdad cambiaron.
+          // `convert` depende de `rates` (ver abajo), así que su identidad es lo
+          // que invalida todo memo que produzca números convertidos: sin esta
+          // comparación, el poll de cada 15 minutos re-dispararía esos memos y
+          // los efectos que releen Firestore aunque el FX no se hubiera movido
+          // un centavo. Es el mismo patrón de firma por CONTENIDO que el repo ya
+          // usa para `items` y para la pertenencia por cuenta.
+          setRates((prev) => (sameRates(prev, valid) ? prev : valid))
           setLastUpdate(data.timestamp)
           setStale(!!data.stale)
           try { localStorage.setItem(FX_STORAGE_KEY, JSON.stringify({ rates: valid, timestamp: data.timestamp })) } catch { /* sin persistencia, sin drama */ }
@@ -119,7 +135,19 @@ export function useExchangeRates(baseCurrency) {
     }
     const result = (amount / fromRate) * toRate
     return isFinite(result) ? result : amount
-  }, [])
+    // Depende de `rates` A PROPÓSITO, aunque lea del ref. La identidad de esta
+    // función es lo único que le dice a React que un memo con números YA
+    // CONVERTIDOS quedó viejo. Con `[]` la identidad nunca cambiaba, así que un
+    // total calculado durante la carga fría (cuando `convert` devuelve el monto
+    // 1:1 porque todavía no hay tasas) se quedaba cacheado el resto de la
+    // sesión: en Finanzas, un ingreso de USD 1,000 se mostraba como "Q1,000" y
+    // ni el botón de refresco podía moverlo, porque esa pantalla no tiene
+    // precios de mercado que muevan otra dependencia. El dashboard lo tapaba
+    // por accidente: sus memos también dependen de los precios, que sí cambian.
+    //
+    // El churn que esto podría causar está cerrado arriba: `setRates` solo
+    // publica una identidad nueva cuando alguna tasa de verdad cambió.
+  }, [rates])
 
   const getRate = useCallback((fromCurrency, toCurrency) => {
     if (!ratesRef.current) return 1
@@ -133,7 +161,9 @@ export function useExchangeRates(baseCurrency) {
       return 1
     }
     return toRate / fromRate
-  }, [])
+    // Misma razón que `convert`: un consumidor que memoiza sobre `getRate`
+    // tiene que recomputar cuando la tasa cambia.
+  }, [rates])
 
   const convertItemValue = useCallback((item) => {
     const qty = item.quantity || 0

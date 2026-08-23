@@ -5,6 +5,7 @@ import {
   computeModifiedDietz,
   getItemValue,
   getItemPrice,
+  isBankLike,
   getEffectiveYield,
   projectItemAnnualIncome,
   formatCurrency,
@@ -1070,5 +1071,30 @@ describe('getIncomeReceivedByItem / getInvestedCapital', () => {
     const invested = [bond, fondo].reduce((s, it) => s + getInvestedCapital(it, received.get(it.id)), 0)
     expect(invested).toBe(6098)
     expect((240 / invested) * 100).toBeCloseTo(3.936, 2)
+  })
+})
+
+// FASE JA. La regla de "esta cuenta guarda su saldo en los DOS campos" vivía
+// escrita a mano en tres lugares y la Hoja, que es la tercera superficie que
+// corrige saldos bancarios, no la conocía: escribía solo `currentPrice` y dejaba
+// el costo en el valor viejo, así que corregir un saldo de 1,000 a 1,200 hacía
+// que la app creyera que el usuario ganó 200 en una cuenta de ahorro.
+describe('isBankLike: una sola definición de "el saldo ES el costo"', () => {
+  test('reconoce las formas en que la app nombra una cuenta de efectivo', () => {
+    for (const type of ['Bank', 'Banco', 'Cash', 'Savings', 'Checking', 'Cuenta Monetaria', 'Ahorro', 'Efectivo']) {
+      expect(isBankLike({ type })).toBe(true)
+    }
+  })
+
+  test('no arrastra activos cuyo costo de compra es un hecho aparte del valor', () => {
+    for (const type of ['Stock', 'Bond', 'Crypto', 'Fund', 'Real Estate', 'Alternative']) {
+      expect(isBankLike({ type })).toBe(false)
+    }
+  })
+
+  test('un item sin tipo, nulo o indefinido no rompe', () => {
+    expect(isBankLike({})).toBe(false)
+    expect(isBankLike(null)).toBe(false)
+    expect(isBankLike(undefined)).toBe(false)
   })
 })

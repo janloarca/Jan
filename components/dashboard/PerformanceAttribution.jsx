@@ -5,11 +5,11 @@ import { formatCurrency, getTypeCategory, TYPE_COLORS } from './utils'
 import { computeAssetAttribution } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 
-export default function PerformanceAttribution({ items, lang }) {
+export default function PerformanceAttribution({ items, lang, transactions, convert, baseCurrency }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const attribution = useMemo(() => {
-    const raw = computeAssetAttribution(items || [])
+    const raw = computeAssetAttribution(items || [], transactions, convert, baseCurrency)
     if (raw.length === 0) return null
 
     const positive = raw.filter((a) => a.gain > 0).slice(0, 8)
@@ -30,7 +30,7 @@ export default function PerformanceAttribution({ items, lang }) {
       .sort((a, b) => b.gain - a.gain)
 
     return { positive, negative, totalGain, totalValue, catAttribution }
-  }, [items])
+  }, [items, transactions, convert, baseCurrency])
 
   if (!attribution || attribution.totalValue <= 0) return null
 

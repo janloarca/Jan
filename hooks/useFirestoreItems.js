@@ -117,6 +117,10 @@ export function useFirestoreItems() {
   const [profile, setProfile] = useState(initCache?.profile || null)
   const [incomePlan, setIncomePlan] = useState(initCache?.incomePlan || null)
   const [loading, setLoading] = useState(!initCache)
+  // El código de error de la última lectura que falló, o null. Existe para
+  // que la pantalla pueda distinguir "no tenés nada" de "no pude leer lo que
+  // tenés", que hasta ahora se veían idénticas.
+  const [loadError, setLoadError] = useState(null)
   const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
 
   useEffect(() => {
@@ -142,7 +146,21 @@ export function useFirestoreItems() {
       const currentUid = user.uid
       setUid(currentUid)
 
-      const onErr = (label) => (err) => { console.error(`[Firestore] ${label} listener error:`, err.code, err.message) }
+      // Un listener que falla dejaba su colección en `[]` y `loading` pasaba a
+      // false igual, así que un usuario con 40 cuentas veía la pantalla de
+      // bienvenida ("Todo tu patrimonio en un solo lugar") con los botones de
+      // alta, sin ninguna señal de que algo falló. No es un hueco: es una
+      // afirmación FALSA de que la cuenta está vacía, que es lo que el
+      // invariante de la casa prohíbe explícitamente. Peor todavía, invita a
+      // volver a crear cuentas que ya existen.
+      //
+      // Solo los listeners de las colecciones que definen "tengo datos" marcan
+      // esta bandera: si falla la de alertas o la de lots, la pantalla principal
+      // sigue siendo cierta y no hay por qué alarmar.
+      const onErr = (label, critical = false) => (err) => {
+        console.error(`[Firestore] ${label} listener error:`, err.code, err.message)
+        if (critical && !cancelled) setLoadError(err.code || 'unknown')
+      }
 
       unsubItems = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/items`),
@@ -151,7 +169,7 @@ export function useFirestoreItems() {
             setItems(snap.docs.map((d) => sanitizeItem({ ...d.data(), id: d.id })))
           }
         },
-        onErr('items')
+        onErr('items', true)
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
@@ -166,7 +184,7 @@ export function useFirestoreItems() {
             setLoading(false)
           }
         },
-        onErr('transactions')
+        onErr('transactions', true)
       )
 
       try {
@@ -979,12 +997,31 @@ export function useFirestoreItems() {
   // 27 (FASE IX6): el rendimiento reinvertido se indexaba por SÍMBOLO, así que
   // dos cuentas homónimas sin ticker propio (DOS "ClubCashIn") se acreditaban
   // el rendimiento de ambas. Todo mes cacheado tiene esa mezcla horneada.
+  // 28 (FASE JA): DOS cosas que envenenaron el caché, ambas irreparables por
+  // merge. (a) El escritor del mes en curso guardaba el valor YA FIRMADO
+  // (`getItemValue`, negativo para deuda) mientras el motor histórico y los dos
+  // lectores (`monthlyTotals` acá y lib/monthlySpreadsheet.js del correo) usan
+  // la convención de MAGNITUDES: la doble negación volvía la deuda positiva y
+  // una tarjeta de $5,000 inflaba el TOTAL de ese mes en $10,000, solo en el
+  // mes recién cerrado y sin autocorregirse nunca porque ese mes figura como
+  // completo. (b) La key del bucket sintético de IBKR lleva el nombre de la
+  // institución adentro, así que renombrar la cuenta dejaba el bucket viejo al
+  // lado del nuevo y el TOTAL, que sumaba por PREFIJO, contaba el NAV del
+  // broker dos veces en cada mes pasado.
   //
   // El NÚMERO vive en lib/snapshotVersion.js (FASE IE): el spreadsheet adjunto
   // del correo mensual lee estos mismos docs del lado del servidor y tiene que
   // rechazar versiones viejas con la misma vara. Bumpear allá, documentar acá.
 
-  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency) => {
+  // `replace` reemplaza el doc del mes entero en vez de fusionar. Lo usa SOLO el
+  // recálculo explícito del Spreadsheet ("Recalcular"), que cubre todos los meses
+  // de una pasada: sin él, una entrada que ya no corresponde (un activo borrado,
+  // uno cuya fecha de adquisición se movió hacia ADELANTE) no se puede quitar
+  // nunca, porque el merge solo sabe agregar y pisar. El efecto automático, que
+  // computa solo los meses faltantes y por lo tanto NO conoce el mes completo,
+  // conserva el merge de siempre: reemplazar desde ahí borraría lo que no
+  // recomputó.
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency, { replace = false } = {}) => {
     if (!uid || !monthKey || !itemsData) return
     // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
     if (items.some((i) => i._source === 'demo')) return
@@ -999,7 +1036,8 @@ export function useFirestoreItems() {
     // completo del doc, nunca merge.
     const existingData = existing.exists() ? existing.data() : null
     const staleVersion = existingData != null && (existingData._version || 0) < SNAPSHOT_VERSION
-    const existingItems = existingData && !staleVersion ? (existingData.items || {}) : {}
+    const fullWrite = replace || staleVersion
+    const existingItems = existingData && !fullWrite ? (existingData.items || {}) : {}
     const snapData = Object.fromEntries(Object.entries({
       monthKey,
       items: { ...existingItems, ...itemsData },
@@ -1007,7 +1045,7 @@ export function useFirestoreItems() {
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
     }).filter(([, v]) => v !== undefined))
-    await fs.setDoc(ref, snapData, staleVersion ? undefined : { merge: true })
+    await fs.setDoc(ref, snapData, fullWrite ? undefined : { merge: true })
   }, [uid, items])
 
   const loadItemSnapshots = useCallback(async (monthKeys) => {
@@ -1161,7 +1199,7 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,

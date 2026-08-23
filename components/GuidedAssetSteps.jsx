@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { parseAmount, parseQuantity } from '@/lib/numberParse'
+
 /**
  * Cuerpo GUIADO del alta de un activo: una pregunta por pantalla.
  *
@@ -43,7 +46,7 @@ export default function GuidedAssetSteps({ ctx }) {
     t, form, set, type, typeLabel, typeIcon,
     isMarketAsset, isBank, isDebt, isProperty,
     fieldIndex, fields, goNext, goBack, onExit,
-    searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote,
+    searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote, quoteFailed,
     handleSelectSymbol, inputRef, dropdownRef,
     filteredInstitutions, showInstSuggestions, setShowInstSuggestions,
     saving, error, progress,
@@ -80,13 +83,35 @@ export default function GuidedAssetSteps({ ctx }) {
     amount: amountLabel,
   }
 
-  const price = parseFloat(form.purchasePrice) || 0
-  const qty = parseFloat(form.quantity) || 0
+  // `parseFloat` no entiende la coma decimal, que es lo que teclea medio LatAm,
+  // y los inputs de abajo son de texto justo para que el navegador ya no borre
+  // lo que no puede parsear. Las dos mitades tienen que ir juntas.
+  const price = parseAmount(form.purchasePrice)
+  const qty = parseQuantity(form.quantity)
   const liveTotal = price > 0 && qty > 0 ? qty * price : 0
+
+  // El precio de un activo de mercado normalmente lo trae la cotización sola, y
+  // por eso la secuencia no tiene paso de precio. Cuando NO resuelve (el
+  // proveedor caído, un símbolo que no cotiza, una cripto que no está en el
+  // mapa), guardar igual deja el activo con costo CERO y un retorno inventado
+  // de miles por ciento. Una pregunta más, solo cuando de verdad hace falta.
+  //
+  // Se ENGANCHA al símbolo, no al valor actual: derivarlo de `price <= 0` a
+  // secas hace que el campo se desmonte apenas se teclea el primer dígito
+  // (price pasa a > 0), o sea el resto de la escritura cae al vacío y queda un
+  // precio de "2" en vez de "2400". Es exactamente el mismo defecto que este
+  // cambio vino a arreglar, una capa más arriba, y lo cazó la prueba de
+  // navegador tecleando carácter por carácter.
+  const [manualPriceFor, setManualPriceFor] = useState('')
+  useEffect(() => {
+    if (isMarketAsset && field === 'quantity' && price <= 0 && form.symbol) setManualPriceFor(form.symbol)
+  }, [isMarketAsset, field, price, form.symbol])
+  const needsManualPrice = isMarketAsset && field === 'quantity'
+    && (price <= 0 || manualPriceFor === form.symbol)
 
   const canAdvance = (() => {
     if (field === 'symbol') return !!form.symbol
-    if (field === 'quantity') return qty > 0
+    if (field === 'quantity') return qty > 0 && (!isMarketAsset || price > 0)
     if (field === 'name') return !!form.name.trim()
     if (field === 'amount') return isBank ? form.purchasePrice !== '' : price > 0
     // handleSubmit exige institución para TODO salvo inmueble y deuda (que ni
@@ -156,19 +181,55 @@ export default function GuidedAssetSteps({ ctx }) {
               ✓ {form.name || form.symbol} · {form.currency} {price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </p>
           )}
+          {/* Sin esto, elegir un símbolo cuyo proveedor está caído simplemente
+              NO pinta la línea de arriba, y ese silencio se lee como que la app
+              no hizo nada. El precio se pide en el paso siguiente, pero decir
+              acá por qué falta es la diferencia entre una espera y una duda. */}
+          {quoteFailed && !fetchingQuote && form.symbol && (
+            <p className="text-sm mt-3" style={{ color: 'var(--alert-warn-icon)' }}>
+              {t(`No pudimos traer el precio de ${form.symbol}. Te lo preguntamos en el paso siguiente.`,
+                 `We could not fetch a price for ${form.symbol}. We will ask for it in the next step.`)}
+            </p>
+          )}
         </div>
       )}
 
       {field === 'quantity' && (
         <div>
+          {/* type="text", no "number": con teclado en español el separador
+              decimal es COMA, y un input numérico devuelve '' ante lo que no
+              puede parsear, o sea el campo se borra solo tecla por tecla. Ese
+              era el "BTC no me dejaba poner 0.0001". `inputMode` conserva el
+              teclado numérico, y `parseQuantity` entiende las dos formas. */}
           <input
             value={form.quantity}
             onChange={e => set('quantity', e.target.value)}
             placeholder={type === 'Crypto' ? '0.5' : '10'}
-            type="number" step="any" inputMode="decimal"
+            type="text" inputMode="decimal"
             className={inputCls}
             autoFocus
           />
+          {needsManualPrice && (
+            <div className="mt-4">
+              <label htmlFor="guided-price" className="block text-sm mb-2" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
+                {quoteFailed
+                  ? t(`No pudimos traer el precio de ${form.symbol}. ¿A cuánto está cada uno?`,
+                       `We could not fetch a price for ${form.symbol}. What is each one worth?`)
+                  : t('¿A cuánto está cada uno?', 'What is each one worth?')}
+              </label>
+              <input
+                id="guided-price"
+                value={form.purchasePrice}
+                onChange={e => set('purchasePrice', e.target.value)}
+                placeholder="150.00"
+                type="text" inputMode="decimal"
+                className={inputCls}
+              />
+              <p className="text-xs mt-2" style={{ color: 'var(--text-muted,#475569)' }}>
+                {t(`En ${form.currency}.`, `In ${form.currency}.`)}
+              </p>
+            </div>
+          )}
           {liveTotal > 0 && (
             <p className="text-sm mt-3" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
               {t('Eso son', 'That is')} <strong style={{ color: 'var(--text-primary,white)' }}>
@@ -195,7 +256,7 @@ export default function GuidedAssetSteps({ ctx }) {
             value={form.purchasePrice}
             onChange={e => set('purchasePrice', e.target.value)}
             placeholder="10000"
-            type="number" step="any" inputMode="decimal"
+            type="text" inputMode="decimal"
             className={inputCls}
             autoFocus
           />

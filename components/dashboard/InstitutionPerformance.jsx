@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, formatCompact, getItemValue, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost } from './utils'
+import { formatCurrency, formatCompact, getItemValue, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 // Institution comparison card.
@@ -27,6 +27,19 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
     const incomeReceived = getIncomeReceivedByItem(transactions, items, convert, baseCurrency)
     const map = {}
     items.forEach((it) => {
+      // El MISMO filtro externo que AssetAllocation, que es lo que CLAUDE.md
+      // afirma que hacen las dos ("todo cálculo de ganancia/rendimiento de esta
+      // app lo excluye desde el filtro más externo"). Acá no estaba, y como
+      // `getItemValue` devuelve NEGATIVO para una deuda, una hipoteca de
+      // 300,000 producía `gainLoss = -300,000 - 300,000 = -600,000`, o sea
+      // -200%, y además restaba del total contra el que se calcula el % de cada
+      // institución: todas las demás filas salían infladas y el pie de esta
+      // tarjeta mostraba un patrimonio distinto del de la tarjeta de al lado.
+      //
+      // No toca lógica congelada: la fórmula (ganancia contra principal, %
+      // entre costo total) es idéntica en ambas tarjetas. Lo que difiere, y se
+      // corrige acá, es QUÉ items entran.
+      if (it.isDebt || isExcludedFromNetWorth(it)) return
       const rawName = it.institution || t('Sin institución', 'No institution')
       // Normalized key: "IDC VALORES" and "IDC Valores" are one custodian, not two rows.
       const key = rawName.trim().replace(/\s+/g, ' ').toLowerCase()

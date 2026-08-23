@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import AddAccountModal from '../AddAccountModal'
+import { orderPicked, categoryFor } from '@/lib/firstRunPlan'
+import AssetTypePicker from './AssetTypePicker'
 
 /**
  * Primeros pasos de un usuario nuevo: le PREGUNTAMOS qué tiene y después lo
@@ -18,30 +20,22 @@ import AddAccountModal from '../AddAccountModal'
  * lógica congelada). Acá solo vive la secuencia.
  */
 
-const CATEGORIES = [
-  { key: 'Stock', icon: '📈', es: 'Acciones', en: 'Stocks' },
-  { key: 'Crypto', icon: '₿', es: 'Cripto', en: 'Crypto' },
-  { key: 'Fund', icon: '💼', es: 'Fondos o ETFs', en: 'Funds or ETFs' },
-  { key: 'Bank', icon: '🏦', es: 'Cuenta de banco', en: 'Bank account' },
-  { key: 'Bond', icon: '🏛', es: 'Bonos o plazo fijo', en: 'Bonds or fixed term' },
-  { key: 'RealEstate', icon: '🏠', es: 'Inmuebles', en: 'Real estate' },
-  { key: 'Alternative', icon: '🔮', es: 'Inversiones privadas', en: 'Private investments' },
-  { key: 'Debt', icon: '💳', es: 'Deudas', en: 'Debts' },
-  // No es un tipo de activo: es un atajo. Si tiene cuenta en un broker,
-  // teclear posición por posición sería absurdo cuando la app ya sabe
-  // sincronizar. Lo manda al flujo de conexión que ya existe.
-  { key: 'broker', icon: '🔗', es: 'Cuenta en un broker', en: 'A broker account', isBroker: true },
-]
-
 export default function GuidedSetup({
   onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination,
   existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
   onConnectBroker,
+  // Lo que ya marcó AFUERA (la pantalla de bienvenida hace la pregunta ahí
+  // mismo). Con esto el modal abre DIRECTO en el primer activo; sin esto
+  // arranca en su propio checklist, igual que siempre.
+  initialPicked = [],
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
-  const [phase, setPhase] = useState('checklist') // checklist | asset | done
-  const [picked, setPicked] = useState([])
-  const [queue, setQueue] = useState([])
+  // Inicializadores lazy y no un efecto: un efecto pintaría el checklist un
+  // frame antes de saltar, que es exactamente el destello que el tour ya tiene
+  // con sus 300 ms en blanco.
+  const [picked, setPicked] = useState(initialPicked)
+  const [queue, setQueue] = useState(() => orderPicked(initialPicked))
+  const [phase, setPhase] = useState(() => (orderPicked(initialPicked).length > 0 ? 'asset' : 'checklist')) // checklist | asset | done
   const [index, setIndex] = useState(0)
   const [addedCount, setAddedCount] = useState(0)
 
@@ -49,10 +43,9 @@ export default function GuidedSetup({
     setPicked(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]))
 
   const start = () => {
-    // El orden de CATEGORIES manda, no el orden en que fue tocando: así el
-    // recorrido es predecible y el broker (que es un atajo, no un activo)
-    // siempre queda al final.
-    const ordered = CATEGORIES.filter(c => picked.includes(c.key)).map(c => c.key)
+    // La regla de orden vive en lib/firstRunPlan (y ahí está fijada por test):
+    // manda el catálogo, no el orden en que fue tocando.
+    const ordered = orderPicked(picked)
     if (ordered.length === 0) return
     setQueue(ordered)
     setIndex(0)
@@ -65,7 +58,7 @@ export default function GuidedSetup({
   }
 
   const current = queue[index]
-  const currentCat = CATEGORIES.find(c => c.key === current)
+  const currentCat = categoryFor(current)
 
   // ---------- Pantalla 1: qué tenés ----------
   if (phase === 'checklist') {
@@ -82,31 +75,10 @@ export default function GuidedSetup({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {CATEGORIES.map(c => {
-              const on = picked.includes(c.key)
-              return (
-                <button key={c.key} type="button" onClick={() => toggle(c.key)}
-                  className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm text-left transition-colors"
-                  style={{
-                    border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--card-border,#38383A)'}`,
-                    background: on ? 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' : 'transparent',
-                    color: 'var(--text-primary,white)',
-                  }}>
-                  <span className="text-lg shrink-0">{c.icon}</span>
-                  <span className="min-w-0">{t(c.es, c.en)}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          <button type="button" onClick={start} disabled={picked.length === 0}
-            className="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40"
-            style={{ background: 'var(--accent-blue)', color: '#ffffff' }}>
-            {picked.length === 0
-              ? t('Marca al menos uno', 'Check at least one')
-              : t(`Empezar (${picked.length})`, `Start (${picked.length})`)}
-          </button>
+          <AssetTypePicker
+            picked={picked} onToggle={toggle} onStart={start}
+            lang={lang} variant="modal"
+          />
 
           <button type="button" onClick={onClose}
             className="w-full text-xs py-1" style={{ color: 'var(--text-muted,#475569)' }}>

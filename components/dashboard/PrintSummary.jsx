@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { formatCurrency, categoryLabel } from './utils'
 import { buildReportData, regionLabel } from '@/lib/reportData'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
@@ -84,11 +85,20 @@ export default function PrintSummary({
     setDownloading(true)
     try {
       const { generateReport } = await import('@/lib/generateReport')
+      // Los mismos argumentos que la vista previa le pasa a `buildReportData`,
+      // sin recortar. Faltaban `ytdBreakdownReason`, `benchmarkName`,
+      // `benchmarkReturn`, `volatilityPct`, `sharpe` y `beta`, así que llegaban
+      // como undefined y esas secciones simplemente NO se imprimían: el PDF
+      // descargado no era lo que el usuario acababa de ver en pantalla. El padre
+      // sí se los pasa a este componente; se perdían acá, en el reenvío.
       await generateReport({
         items, snapshots, transactions,
         netWorth, totalAssets, lang,
-        returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown,
+        returnYTD, ytdChange, returnSinceStart, sinceStartDate,
+        ytdBreakdown, ytdBreakdownReason,
         annualDividends, estimatedAnnualIncome,
+        benchmarkName, benchmarkReturn,
+        volatilityPct, sharpe, beta,
         profileName, baseCurrency, convert, period,
       })
     } catch (err) {
@@ -122,7 +132,18 @@ export default function PrintSummary({
     return { path, min, max, first: pts[0], last: pts[pts.length - 1], W, H }
   }, [data.series])
 
-  return (
+  // El reporte se renderiza en un PORTAL a `document.body`, y no es cosmético:
+  // la regla de impresión de abajo es `body > *:not(.fixed)`, que solo alcanza a
+  // los HIJOS DIRECTOS de body. Sin portal, esta raíz `.fixed` vive anidada
+  // dentro del div raíz de la página (que sí es hijo directo), así que ese div
+  // se apagaba y se llevaba el modal por delante: el botón "Imprimir" producía
+  // una PÁGINA EN BLANCO. Con el portal, `.fixed` es hijo directo y la regla
+  // hace lo que dice.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  if (!mounted) return null
+
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white text-black rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {/* Controles (ocultos al imprimir) */}
@@ -623,6 +644,7 @@ export default function PrintSummary({
           .print\\:p-4 { padding: 1rem !important; }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   )
 }
