@@ -27,6 +27,7 @@ import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { computeMonthlyAnalysis, buildFinanceInsights } from '@/lib/financeMonth'
+import { isTransferCategory } from '@/lib/financeCategories'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
@@ -124,14 +125,22 @@ export default function FinancesPage() {
       })
   }, [financeTransactions, month, year, convert])
 
-  const income = useMemo(() =>
-    monthTransactions.filter(tx => tx.type === 'INCOME').reduce((s, tx) => s + (tx.amount || 0), 0),
+  // Las transferencias entre cuentas propias quedan fuera de las dos cifras,
+  // igual que en `computeMonthlyAnalysis`: dos motores sumando el mismo mes con
+  // reglas distintas es como la pantalla termina contradiciendose a si misma.
+  const flowTxs = useMemo(
+    () => monthTransactions.filter(tx => !isTransferCategory(tx.category)),
     [monthTransactions]
   )
 
+  const income = useMemo(() =>
+    flowTxs.filter(tx => tx.type === 'INCOME').reduce((s, tx) => s + (tx.amount || 0), 0),
+    [flowTxs]
+  )
+
   const expenses = useMemo(() =>
-    monthTransactions.filter(tx => tx.type === 'EXPENSE').reduce((s, tx) => s + (tx.amount || 0), 0),
-    [monthTransactions]
+    flowTxs.filter(tx => tx.type === 'EXPENSE').reduce((s, tx) => s + (tx.amount || 0), 0),
+    [flowTxs]
   )
 
   // ── Motor mensual: análisis e insights ──
