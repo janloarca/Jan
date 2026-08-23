@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
@@ -23,8 +23,9 @@ import GlobalBoard from '@/components/friends/GlobalBoard'
 // coincidir o la insignia diría una cosa distinta de la que se calculó acá.
 const VERIFIED_MIN_SYNCED = 0.6
 
-export default function FriendsPage() {
+function FriendsPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [lang, setLang] = useState('es')
@@ -41,21 +42,31 @@ export default function FriendsPage() {
     if (typeof window !== 'undefined') localStorage.setItem('chispudo-lang', next)
   }, [lang])
 
+  // A dónde volver después de iniciar sesión. Sin esto, quien toca un link de
+  // invitación sin sesión cae en /login, se registra, y aterriza en el dashboard
+  // SIN ninguna memoria de que venía a un grupo: la invitación muere ahí. El
+  // login ya sabe leer `redirect` y ya se protege de open-redirect.
+  const loginHref = useMemo(() => {
+    const code = searchParams?.get('code')
+    const dest = code ? `/friends?code=${encodeURIComponent(code)}` : '/friends'
+    return `/login?redirect=${encodeURIComponent(dest)}`
+  }, [searchParams])
+
   useEffect(() => {
     let unsubscribe = () => {}
     async function initAuth() {
       const { auth } = await import('@/lib/firebase')
       const { onIdTokenChanged } = await import('firebase/auth')
-      if (!auth) { setAuthLoading(false); router.push('/login'); return }
+      if (!auth) { setAuthLoading(false); router.push(loginHref); return }
       unsubscribe = onIdTokenChanged(auth, (currentUser) => {
-        if (!currentUser) router.push('/login')
+        if (!currentUser) router.push(loginHref)
         else setUser(currentUser)
         setAuthLoading(false)
       })
     }
     initAuth()
     return () => unsubscribe()
-  }, [router])
+  }, [router, loginHref])
 
   const {
     enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
@@ -134,6 +145,24 @@ export default function FriendsPage() {
   const [metric, setMetric] = useState('ytd') // 'ytd' | 'mtd' (Este mes)
   const syncedRef = useRef(false)
   const toastTimer = useRef(null)
+  const codeSeededRef = useRef(false)
+
+  // Un link de invitación (`/friends?code=XXXX`) abre el panel de unirse con el
+  // código ya puesto. Sin esto, la página nunca leía el parámetro: quien tocaba
+  // el link tenía que adivinar que había un botón "Unirme con código", abrirlo,
+  // volver a WhatsApp y copiar el código a mano. Se siembra UNA sola vez, para
+  // no volver a pisar lo que el usuario esté tecleando si el efecto re-corre.
+  useEffect(() => {
+    if (codeSeededRef.current) return
+    const raw = searchParams?.get('code')
+    if (!raw) return
+    const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)
+    if (!clean) return
+    codeSeededRef.current = true
+    setJoinCode(clean)
+    setJoining(true)
+    setCreating(false)
+  }, [searchParams])
 
   // Con tono: antes todo salía en el mismo azul, así que un error se veía
   // idéntico a "Código copiado". Los estilos salen de lib/toastStyle.js, donde
@@ -146,14 +175,37 @@ export default function FriendsPage() {
   }, [])
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
+  // El servidor devuelve un `code` estable y el texto vive acá, que es donde
+  // está el idioma. Antes el mensaje crudo del servidor se pintaba tal cual, así
+  // que un usuario con toda la app en español recibía "Invalid code" justo en el
+  // paso más frágil de la cadena de invitación, sin decirle qué hacer.
+  const errorText = useCallback((code, fallback) => {
+    switch (code) {
+      case 'invalid_code': return t('Ese código no existe. Pedile a tu amigo que lo copie de nuevo desde la app.', "That code doesn't exist. Ask your friend to copy it again from the app.")
+      case 'group_full': return t('El grupo ya está lleno.', 'That group is already full.')
+      case 'group_gone': return t('Ese grupo ya no existe.', 'That group no longer exists.')
+      case 'owner_only': return t('Solo quien creó el grupo puede hacer eso.', 'Only the group owner can do that.')
+      case 'name_required': return t('Escribí un nombre para el grupo.', 'Enter a name for the group.')
+      case 'code_required': return t('Pegá el código del grupo.', 'Paste the group code.')
+      case 'max_groups': return t('Llegaste al máximo de grupos que podés crear.', 'You reached the maximum number of groups you can create.')
+      case 'missing_stats': return t('Todavía no hay números que publicar.', 'There are no numbers to publish yet.')
+      case 'rate_limited': return t('Demasiados intentos seguidos. Esperá un momento.', 'Too many attempts in a row. Wait a moment.')
+      default: return fallback || t('Algo salió mal. Intentá de nuevo.', 'Something went wrong. Try again.')
+    }
+  }, [t])
+
   const api = useCallback(async (payload) => {
     const res = await authFetch('/api/friends', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     })
     const data = await safeJson(res)
-    if (!res.ok) throw new Error(data?.error || 'Error')
+    if (!res.ok) {
+      const err = new Error(errorText(data?.code, data?.error))
+      err.code = data?.code || null
+      throw err
+    }
     return data
-  }, [])
+  }, [errorText])
 
   const refresh = useCallback(async () => {
     try {
@@ -331,10 +383,22 @@ export default function FriendsPage() {
   // `navigator.clipboard?.writeText(code)` sin esperar ni atrapar la promesa y
   // avisaba "Código copiado" pasara lo que pasara: en un contexto sin
   // portapapeles mentía. Mismo patrón que el botón de compartir del tablero.
-  const copyCode = useCallback(async (code) => {
+  const copyCode = useCallback(async (code, groupName) => {
+    // Se comparte una INVITACIÓN, no un código pelado. Con solo el código, quien
+    // lo recibe tiene que saber que existe chispu.xyz, encontrar la pestaña
+    // Amigos, dar con "Unirme con código" y pegarlo a mano: cinco pasos
+    // adivinados. El link los hace cero, porque la página lee `?code=` y abre el
+    // panel con el código ya puesto.
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://chispu.xyz'
+    const url = `${origin}/friends?code=${encodeURIComponent(code)}`
+    const named = groupName ? `"${groupName}"` : t('mi grupo', 'my group')
+    const text = t(
+      `Te invito a ${named} en Chispudo. Entra aquí: ${url}`,
+      `I'm inviting you to ${named} on Chispudo. Join here: ${url}`
+    )
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Chispudo', text: code })
+        await navigator.share({ title: 'Chispudo', text })
         return
       } catch (e) {
         // Cancelar el menú nativo no es un fallo, no hay nada que avisar.
@@ -342,8 +406,8 @@ export default function FriendsPage() {
       }
     }
     try {
-      await navigator.clipboard.writeText(code)
-      flash(t('Código copiado', 'Code copied'), 'success')
+      await navigator.clipboard.writeText(text)
+      flash(t('Invitación copiada', 'Invite copied'), 'success')
     } catch {
       flash(t('No se pudo copiar. El código es: ', 'Could not copy. The code is: ') + code, 'warn')
     }
@@ -482,7 +546,14 @@ export default function FriendsPage() {
 
       {joining && (
         <div className="card p-3 space-y-3">
-          <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={12}
+          {/* Se limpia lo pegado ANTES de recortarlo. Con `maxLength={12}` sobre
+              el texto crudo, pegar "Código: K7MPQR3" desde WhatsApp guardaba
+              "CÓDIGO: K7MP": el navegador cortaba antes de que el servidor
+              pudiera sanear, y el usuario recibía "código inválido" sobre un
+              código que estaba perfecto. Es el fallo más probable de toda la
+              cadena de invitación, porque nadie manda el código pelado. */}
+          <input value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
             placeholder={t('Pega el código del grupo', 'Paste the group code')}
             className="w-full px-3 py-2 rounded-lg text-sm font-mono tracking-widest bg-theme-surface border border-glass-border/60 focus:outline-none"
             style={{ color: 'var(--text-primary)' }} />
@@ -562,5 +633,15 @@ export default function FriendsPage() {
         </div>
       )}
     </PageShell>
+  )
+}
+
+// `useSearchParams` obliga a un límite de Suspense en el App Router (el mismo
+// patrón que ya usa /login). Sin él, el build falla al pre-renderizar.
+export default function FriendsPage() {
+  return (
+    <Suspense fallback={null}>
+      <FriendsPageInner />
+    </Suspense>
   )
 }

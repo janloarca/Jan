@@ -343,6 +343,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       return
     }
     setDeleting(type)
+    let socialPurgeFailed = false
     try {
       if (type.startsWith('group:') && onDeleteItemGroup) {
         const g = accountGroups.find((x) => `group:${x.key}` === type)
@@ -368,13 +369,26 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         await onSaveSettings(IBKR_DISCONNECTED_FIELDS)
         // "Delete everything" left the Amigos profile and group membership
         // behind — the wipe only ever touched portfolio collections, never
-        // the social ones. Same purge toggleFriends(false) does.
-        await authFetch('/api/friends', {
+        // the social ones. Same purge disableFriends() does.
+        //
+        // Y su fallo se DICE. Estaba envuelto en `.catch(() => {})`, así que un
+        // error acá dejaba el perfil público y las membresías vivas bajo un
+        // aviso que decía "Datos y conexiones eliminados": en un borrado total,
+        // decir que algo se borró cuando no se borró es el peor fallo posible.
+        // El resto ya se borró, así que se avisa qué quedó pendiente en vez de
+        // presentar el borrado como completo.
+        const purge = await authFetch('/api/friends', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disable' }),
-        }).catch(() => {})
+        }).catch(() => null)
+        if (!purge?.ok) socialPurgeFailed = true
       }
       setConfirmDelete(null)
-      flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
+      if (socialPurgeFailed) {
+        flash('err', t('Datos eliminados, pero tu perfil de Amigos sigue publicado. Apaga Amigos en General para borrarlo.',
+                       'Data deleted, but your Friends profile is still published. Turn Friends off under General to delete it.'))
+      } else {
+        flash('ok', type === 'all' ? t('Datos y conexiones eliminados', 'Data and connections deleted') : t('Datos eliminados', 'Data deleted'))
+      }
     } catch (e) {
       flash('err', e.message || t('Error al borrar', 'Error deleting'))
     } finally {
@@ -382,20 +396,59 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     }
   }
 
-  const toggleFriends = async () => {
-    const next = !friendsEnabled
-    setFriendsEnabled(next)
+  // Apagar Amigos es DESTRUCTIVO y no se puede deshacer: sale de todos los
+  // grupos, y un grupo donde eras el único miembro se ELIMINA para siempre
+  // (junto con su código de invitación). El interruptor lo hacía de un toque,
+  // sin decir nada de los grupos, y encima:
+  //
+  //   await authFetch(...).catch(() => {})
+  //
+  // se tragaba el fallo entero, así que si la purga no ocurría el interruptor
+  // igual quedaba apagado y el aviso decía "Amigos desactivado" mientras el
+  // perfil público y las membresías seguían VIVAS en el servidor. Es la peor
+  // forma de fallar en algo de privacidad: una promesa falsa de borrado.
+  //
+  // Ahora: dos toques, la consecuencia dicha antes de confirmar, y la PURGA VA
+  // PRIMERO. El orden importa. Si la purga falla, nada cambió y se dice; si
+  // fallara el guardado de la preferencia después de purgar, los datos ya no
+  // están y solo queda la pestaña visible, que es el lado seguro del error y
+  // se arregla reintentando.
+  const [confirmFriendsOff, setConfirmFriendsOff] = useState(false)
+  const [friendsBusy, setFriendsBusy] = useState(false)
+
+  const disableFriends = async () => {
+    setFriendsBusy(true)
     try {
-      await onSaveSettings({ friendsEnabled: next })
-      // Turning it off purges the public profile + removes you from every group.
-      if (!next) {
-        await authFetch('/api/friends', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disable' }),
-        }).catch(() => {})
+      const res = await authFetch('/api/friends', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disable' }),
+      })
+      // authFetch no lanza ante un 4xx/5xx: hay que leer la respuesta o un
+      // fallo del servidor pasa por éxito (la lección de lib/ibkrVault.js).
+      if (!res?.ok) {
+        let msg = `HTTP ${res?.status || '?'}`
+        try { const j = await res.json(); if (j?.error) msg = j.error } catch { /* respuesta no-JSON */ }
+        throw new Error(msg)
       }
-      flash('ok', next ? t('Amigos activado', 'Friends enabled') : t('Amigos desactivado', 'Friends disabled'))
+      await onSaveSettings({ friendsEnabled: false })
+      setFriendsEnabled(false)
+      setConfirmFriendsOff(false)
+      flash('ok', t('Amigos desactivado y perfil público borrado', 'Friends disabled and public profile deleted'))
     } catch (e) {
-      setFriendsEnabled(!next) // revert on failure
+      flash('err', t('No se pudo desactivar: tu perfil sigue publicado. ', 'Could not disable: your profile is still published. ') + (e.message || ''))
+    } finally {
+      setFriendsBusy(false)
+    }
+  }
+
+  const toggleFriends = async () => {
+    if (friendsEnabled) { setConfirmFriendsOff(true); return } // apagar pide confirmación
+    setConfirmFriendsOff(false)
+    setFriendsEnabled(true)
+    try {
+      await onSaveSettings({ friendsEnabled: true })
+      flash('ok', t('Amigos activado', 'Friends enabled'))
+    } catch (e) {
+      setFriendsEnabled(false) // revert on failure
       flash('err', e.message || t('Error al guardar', 'Error saving'))
     }
   }
@@ -624,6 +677,30 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   title={t('Mostrar la pestaña Amigos', 'Show the Friends tab')}
                   description={t('Ranking de retorno con tus amigos. Solo se comparte tu % y símbolos, nunca montos. Al apagar se oculta la pestaña y se borra tu perfil público.', 'A return leaderboard with friends. Only your % and symbols are shared, never amounts. Turning it off hides the tab and deletes your public profile.')}
                 />
+                {/* La consecuencia completa, dicha ANTES de ejecutarla: apagar
+                    no solo esconde la pestaña, sale de todos los grupos y borra
+                    los que sean solo tuyos. Nada de esto se puede deshacer. */}
+                {confirmFriendsOff && (
+                  <div className="rounded-lg border px-4 py-3 space-y-2.5"
+                    style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)' }}>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                      {t('Al apagar: se borra tu perfil público y sales de TODOS tus grupos. Un grupo donde seas el único miembro se elimina para siempre, con su código de invitación. No se puede deshacer.',
+                         'Turning this off deletes your public profile and removes you from ALL your groups. A group where you are the only member is deleted for good, invite code included. This cannot be undone.')}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={disableFriends} disabled={friendsBusy}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-60"
+                        style={{ backgroundColor: 'var(--text-negative)', color: '#ffffff' }}>
+                        <BusyLabel busy={friendsBusy} lang={lang}>{t('Confirmar: desactivar', 'Confirm: turn off')}</BusyLabel>
+                      </button>
+                      <button type="button" onClick={() => setConfirmFriendsOff(false)} disabled={friendsBusy}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-60"
+                        style={{ borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+                        {t('Cancelar', 'Cancel')}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Currency + benchmark as compact selects — the old 14-card grid
                     made the tab feel endless for a choice made once. */}
