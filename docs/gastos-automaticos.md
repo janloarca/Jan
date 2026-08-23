@@ -26,6 +26,13 @@ Los dos escriben en el mismo lugar y el mismo cobro nunca se guarda dos veces
 > El gasto quedó en Flujo con su ⚡, con la hora local correcta (08:06, no
 > corrida) y clasificado en Alimentación sin intervención.
 >
+> ℹ️ **Los dos `Internal server error` del 21 ago 2026 se resolvieron solos.** El
+> usuario volvió a usar el atajo el fin de semana siguiente y entró sin
+> problemas, sobre el MISMO build (el arreglo de FASE KU se desplegó después).
+> Eso es lo que confirma el diagnóstico: un fallo transitorio de la base de
+> datos, no una configuración rota ni un bug del camino. Una credencial mal
+> puesta, un permiso o un error de código seguirían fallando hoy.
+>
 > ⚠️ **Lo que sigue SIN verificar: ¿Apple Pay dentro de una app o un sitio web
 > dispara la misma automatización?** iOS rotula el disparador como *"When Any
 > Card is **tapped**"*, y "tapped" apunta literalmente a acercar el teléfono. La
@@ -296,6 +303,9 @@ guardar reglas a partir de descripciones sueltas.
 | La hora del gasto sale corrida | El atajo arma `occurredAt` con *Format Current Date → ISO 8601*. Si iOS emite esa hora **sin zona**, el servidor (UTC) la leería seis horas corrida. Desde FASE JR el servidor descarta una hora sin zona y usa la de llegada, que para el atajo es prácticamente el instante de la compra — así que no hay nada que configurar. Quitar el campo `occurredAt` del cuerpo también es válido y da el mismo resultado |
 | No sé si el atajo llegó al servidor | Configuración → Automático muestra, bajo cada token, **cuándo se usó por última vez y cómo terminó**. "Nunca se ha usado" significa que la petición no llegó ni una vez: el problema está en el teléfono, no en el servidor |
 | Responde `"status": "duplicate"` | Ya estaba registrado, no es error |
+| Responde **503** `error:quota` | La base de datos llegó a su límite diario de uso. Se reinicia sola en unas horas; ese gasto no se registró, así que agregarlo a mano o esperar a que llegue por el estado de cuenta |
+| Responde **503** `error:14` (o `error:4` / `error:13`) | Hipo de la base de datos. El servidor ya lo reintenta solo tres veces, así que llegar acá significa que no cedió: es pasajero y la próxima compra debería entrar |
+| Responde **500** | Fallo del servidor que no es de la base. La línea de "último uso" del token guarda el código; hay que reportarlo |
 | El correo no entra | La regla de reenvío perdió el `+<token>`, o el correo llegó sin monto reconocible |
 | Todo cae en Otros Gastos | Aún no hay regla para ese comercio: corrígelo una vez y se aprende |
 
