@@ -222,6 +222,15 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
         // subiría. Se calcula aparte, con el mismo umbral de polvo para que un
         // préstamo saldado quede de verdad en cero.
         const fromFields = debitFields(fromItem, num)
+        // Nunca en silencio: sin campos que escribir, `strip(null)` deja un `{}`
+        // y Firestore acepta un update vacío como no-op, o sea el préstamo
+        // bajaría y el efectivo no (la forma exacta del bug de FASE JD3).
+        if (!fromFields) {
+          setSaving(false)
+          setError(t('La cuenta que paga no tiene un valor con el que trabajar. Revisa su saldo antes de pagar.',
+                     'The paying account has no usable value. Check its balance before paying.'))
+          return false
+        }
         // Cada lado en SU moneda: pagar una hipoteca en dólares desde una
         // cuenta en quetzales mueve Q de un lado y $ del otro.
         const applied = debtCrossCurrency ? debtReceived : num
@@ -236,11 +245,19 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           }),
         })
       } else if (isTransfer) {
-        let toFields
         const fromFields = debitFields(fromItem, num)
         // Cada lado usa el monto de SU moneda. Con la misma moneda coinciden.
         const credited = crossCurrency ? received : num
-        toFields = creditFields(toItem, credited)
+        const toFields = creditFields(toItem, credited)
+        // Nunca en silencio: sin campos que escribir, `strip(null)` deja un `{}`
+        // y Firestore acepta un update vacío como no-op, que es exactamente
+        // cómo se veía el bug de "el destino sube y el origen no baja".
+        if (!fromFields || !toFields) {
+          setSaving(false)
+          setError(t('Una de las dos cuentas no tiene un valor con el que trabajar. Revisa su saldo o su precio antes de transferir.',
+                     'One of the two accounts has no usable value. Check its balance or price before transferring.'))
+          return false
+        }
         await onTransfer({
           fromId: fromItem.id, fromFields,
           toId: toItem.id, toFields,
