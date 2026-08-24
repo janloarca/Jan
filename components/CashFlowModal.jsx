@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
 import { buildTransferTransaction } from '@/lib/transferTx'
+import { accountValue, debitFields, creditFields } from '@/lib/transferFields'
 import { currencyOptions } from '@/lib/currencies'
 import BusyLabel from '@/components/ui/BusyLabel'
 
@@ -13,10 +14,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
-  const isBank = (item) => /bank|banco|cash/i.test(item.type)
-  const getValue = (item) => isBank(item)
-    ? (item.currentPrice || item.purchasePrice || 0)
-    : (item.quantity || 0) * (item.currentPrice || item.purchasePrice || 0)
+  // Misma regla compartida que TransferModal (lib/transferFields.js): acá había
+  // una copia ANGOSTA que dejaba a una "Cuenta Monetaria" del lado no-banco.
+  const getValue = accountValue
   const formatOption = (item) =>
     `${item.name || item.symbol} (${item.institution || '-'}) - ${item.currency || 'USD'} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -132,23 +132,11 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     setSavedMsg('')
     try {
       if (isTransfer) {
-        let fromFields, toFields
-        if (isBank(fromItem)) {
-          const newBal = (fromItem.currentPrice || fromItem.purchasePrice || 0) - num
-          fromFields = { currentPrice: newBal, purchasePrice: newBal }
-        } else {
-          const price = fromItem.currentPrice || fromItem.purchasePrice || 1
-          fromFields = { quantity: (fromItem.quantity || 0) - num / price }
-        }
+        let toFields
+        const fromFields = debitFields(fromItem, num)
         // Cada lado usa el monto de SU moneda. Con la misma moneda coinciden.
         const credited = crossCurrency ? received : num
-        if (isBank(toItem)) {
-          const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + credited
-          toFields = { currentPrice: newBal, purchasePrice: newBal }
-        } else {
-          const price = toItem.currentPrice || toItem.purchasePrice || 1
-          toFields = { quantity: (toItem.quantity || 0) + credited / price }
-        }
+        toFields = creditFields(toItem, credited)
         await onTransfer({
           fromId: fromItem.id, fromFields,
           toId: toItem.id, toFields,
@@ -471,7 +459,19 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           )}
 
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">{t('Monto', 'Amount')}</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-slate-400">{t('Monto', 'Amount')}</label>
+              {/* Para CUALQUIER tipo de cuenta, no solo las de banco: en un fondo
+                  había que teclear el monto a mano, y si el número que uno tiene
+                  en la cabeza no coincide al centavo con el guardado queda un
+                  residuo colgado. */}
+              {isTransfer && fromItem && sourceValue > 0 && (
+                <button type="button" onClick={() => setAmount(String(sourceValue))}
+                  className="text-xs text-blue-400 hover:text-blue-300">
+                  {t('Todo', 'All')}
+                </button>
+              )}
+            </div>
             <div className="flex gap-2">
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
                 placeholder="10000" step="any" min="0" autoFocus

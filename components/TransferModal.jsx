@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
+import { accountValue, debitFields, creditFields } from '@/lib/transferFields'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], convert, lang = 'es' }) {
@@ -17,10 +18,10 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const [error, setError] = useState('')
 
   const t = (es, en) => lang === 'es' ? es : en
-  const isBank = (item) => /bank|banco|cash/i.test(item.type)
-  const getValue = (item) => isBank(item)
-    ? (item.currentPrice || item.purchasePrice || 0)
-    : (item.quantity || 0) * (item.currentPrice || item.purchasePrice || 0)
+  // La regla de "esto es una cuenta de saldo" y el cálculo de los campos viven
+  // en lib/transferFields.js, compartidos con CashFlowModal: acá había una
+  // copia ANGOSTA que dejaba a una "Cuenta Monetaria" del lado equivocado.
+  const getValue = accountValue
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -83,21 +84,8 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
       // Cada lado usa el monto de SU moneda: lo que salió para el origen, lo
       // que entró para el destino. Con la misma moneda son el mismo número.
       const credited = crossCurrency ? received : amt
-      let fromFields, toFields
-      if (isBank(fromItem)) {
-        const newBal = (fromItem.currentPrice || fromItem.purchasePrice || 0) - amt
-        fromFields = { currentPrice: newBal, purchasePrice: newBal }
-      } else {
-        const price = fromItem.currentPrice || fromItem.purchasePrice || 1
-        fromFields = { quantity: (fromItem.quantity || 0) - amt / price }
-      }
-      if (isBank(toItem)) {
-        const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + credited
-        toFields = { currentPrice: newBal, purchasePrice: newBal }
-      } else {
-        const price = toItem.currentPrice || toItem.purchasePrice || 1
-        toFields = { quantity: (toItem.quantity || 0) + credited / price }
-      }
+      const fromFields = debitFields(fromItem, amt)
+      const toFields = creditFields(toItem, credited)
 
       // Single atomic batch: both balances + the transaction record commit together
       await onTransfer({
@@ -163,8 +151,12 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
                     {t('Disponible', 'Available')}: {fromItem.currency} {sourceValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 )}
-                {fromItem && isBank(fromItem) && (
-                  <button type="button" onClick={() => setAmount(sourceValue.toString())}
+                {/* Para CUALQUIER tipo de cuenta, no solo las de banco: en un
+                    fondo había que teclear el monto a mano, y si el número que
+                    uno tiene en la cabeza no coincide al centavo con el
+                    guardado queda un residuo colgado. */}
+                {fromItem && sourceValue > 0 && (
+                  <button type="button" onClick={() => setAmount(String(sourceValue))}
                     className="text-xs text-blue-400 hover:text-blue-300">
                     {t('Todo', 'All')}
                   </button>
