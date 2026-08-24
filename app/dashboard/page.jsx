@@ -577,6 +577,15 @@ export default function DashboardPage() {
   const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
   const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
   const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null }); setShowReview(true) }, [])
+  // Al cerrar el recorrido guiado: cerrar el modal y abrir el repaso en modo
+  // guiado (`onlyWithFindings`, que AccountReviewModal ya sabe hacer y ya ordena
+  // por severidad). Es la promesa de esa pantalla, cumplida: hasta hoy decía que
+  // Chispu iba a pedir lo que faltara y no había ningún camino que llevara ahí.
+  const handleGuidedComplete = useCallback(() => {
+    setShowGuided(false)
+    setReviewTarget({ itemId: null, guided: true, institution: null })
+    setShowReview(true)
+  }, [])
   const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null }); setShowReview(true) }, [])
   const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
@@ -1561,6 +1570,7 @@ export default function DashboardPage() {
                 onEditItem={setEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
+                onCompleteAll={handleEnrichGuided}
                 onOpenLiquidYield={() => setModal('liquidYield')}
                 onConfirmDistinct={(f) => {
                   (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
@@ -2148,7 +2158,8 @@ export default function DashboardPage() {
 
       {detailItem && (
         <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
-          transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+          transactions={transactions} convert={convert} baseCurrency={baseCurrency}
+          allItems={portfolioItems} />
       )}
 
       {showReview && !editItem && (
@@ -2349,6 +2360,8 @@ export default function DashboardPage() {
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           onConnectBroker={handleOpenConnections}
+          pendingCount={dataCompleteness.findings.length}
+          onCompleteData={handleGuidedComplete}
           lang={lang}
         />
       )}
