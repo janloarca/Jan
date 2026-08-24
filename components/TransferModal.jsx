@@ -5,11 +5,13 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
 import BusyLabel from '@/components/ui/BusyLabel'
 
-export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], lang = 'es' }) {
+export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], convert, lang = 'es' }) {
   const trapRef = useFocusTrap()
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
   const [amount, setAmount] = useState('')
+  const [toAmount, setToAmount] = useState('')
+  const [toTouched, setToTouched] = useState(false)
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -30,6 +32,36 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const toItem = existingItems.find((i) => i.id === toId)
   const sourceValue = fromItem ? getValue(fromItem) : 0
 
+  // ⛔ Una transferencia entre monedas tiene DOS montos.
+  //
+  // El usuario movió Q2,500 a una cuenta en dólares y la app le acreditó
+  // $2,500: esta pantalla restaba `amt` del origen y sumaba el MISMO `amt` al
+  // destino, sin mirar la moneda de ninguno de los dos.
+  //
+  // Se pregunta CUÁNTO LLEGÓ, no la tasa (decisión del usuario): eso es lo que
+  // se lee directo del estado de cuenta, sin hacer ninguna cuenta. La tasa se
+  // deriva y se muestra para revisarla.
+  const fromCurrency = fromItem?.currency || 'USD'
+  const toCurrency = toItem?.currency || fromCurrency
+  const crossCurrency = !!(fromItem && toItem) && String(fromCurrency).toUpperCase() !== String(toCurrency).toUpperCase()
+
+  // La tasa de la app es una SUGERENCIA, jamás la verdad: el banco le pone su
+  // propio spread, así que el número real solo lo sabe quien hizo la operación.
+  const suggested = (() => {
+    const amt = parseFloat(amount)
+    if (!crossCurrency || !isFinite(amt) || amt <= 0 || typeof convert !== 'function') return null
+    const out = convert(amt, fromCurrency, toCurrency)
+    return isFinite(out) && out > 0 ? out : null
+  })()
+
+  const receivedRaw = toTouched ? parseFloat(toAmount) : (suggested ?? parseFloat(toAmount))
+  const received = isFinite(receivedRaw) && receivedRaw > 0 ? receivedRaw : null
+  const impliedRate = (() => {
+    const amt = parseFloat(amount)
+    if (!crossCurrency || !received || !isFinite(amt) || amt <= 0) return null
+    return amt / received
+  })()
+
   const formatOption = (item) =>
     `${item.name} (${item.institution || '-'}) - ${item.currency} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -39,11 +71,18 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
     if (!fromItem || !toItem) { setError(t('Selecciona origen y destino.', 'Select source and destination.')); return }
     if (!amt || amt <= 0) { setError(t('Ingresa un monto mayor a 0.', 'Enter an amount greater than 0.')); return }
     if (amt > sourceValue) { setError(t('Monto excede el saldo disponible.', 'Amount exceeds available balance.')); return }
+    if (crossCurrency && !received) {
+      setError(t('Indica cuánto llegó a la cuenta destino.', 'Enter how much arrived in the destination account.'))
+      return
+    }
 
     setSaving(true)
     setError('')
     try {
       // Compute only the fields that change on each side
+      // Cada lado usa el monto de SU moneda: lo que salió para el origen, lo
+      // que entró para el destino. Con la misma moneda son el mismo número.
+      const credited = crossCurrency ? received : amt
       let fromFields, toFields
       if (isBank(fromItem)) {
         const newBal = (fromItem.currentPrice || fromItem.purchasePrice || 0) - amt
@@ -53,11 +92,11 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
         fromFields = { quantity: (fromItem.quantity || 0) - amt / price }
       }
       if (isBank(toItem)) {
-        const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + amt
+        const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + credited
         toFields = { currentPrice: newBal, purchasePrice: newBal }
       } else {
         const price = toItem.currentPrice || toItem.purchasePrice || 1
-        toFields = { quantity: (toItem.quantity || 0) + amt / price }
+        toFields = { quantity: (toItem.quantity || 0) + credited / price }
       }
 
       // Single atomic batch: both balances + the transaction record commit together
@@ -69,7 +108,8 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
         // TRANSFER row keys on, so transfers made here were invisible in both
         // accounts. See that file for the full list of what broke.
         transaction: buildTransferTransaction({
-          fromItem, toItem, amount: amt, date, source: 'manual_transfer',
+          fromItem, toItem, amount: amt, toAmount: crossCurrency ? received : null,
+          date, source: 'manual_transfer',
         }),
       })
       onAddTransaction?.()
@@ -134,6 +174,32 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             <input value={amount} onChange={(e) => setAmount(e.target.value)}
               type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
           </div>
+
+          {/* Solo cuando las monedas difieren. Con la misma moneda no hay
+              nada que preguntar y un campo de más sería ruido. */}
+          {crossCurrency && (
+            <div className="rounded-lg p-3 border" style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)' }}>
+              <label className={labelCls}>
+                {t(`¿Cuánto llegó en ${toCurrency}?`, `How much arrived in ${toCurrency}?`)}
+              </label>
+              <input
+                value={toTouched ? toAmount : (suggested != null ? suggested.toFixed(2) : '')}
+                onChange={(e) => { setToTouched(true); setToAmount(e.target.value) }}
+                type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
+              <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {t(
+                  'Tu banco usa su propia tasa, no la del mercado. Pon el monto EXACTO que te acreditaron: es el único dato cierto.',
+                  'Your bank uses its own rate, not the market one. Enter the EXACT amount credited: it is the only certain figure.'
+                )}
+              </p>
+              {impliedRate != null && (
+                <p className="text-[11px] mt-1 font-mono" style={{ color: 'var(--text-muted)' }}>
+                  {t('Tasa implícita', 'Implied rate')}: 1 {toCurrency} = {impliedRate.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} {fromCurrency}
+                  {!toTouched && ` · ${t('sugerida', 'suggested')}`}
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className={labelCls}>{t('Fecha', 'Date')}</label>

@@ -9,7 +9,7 @@ import { currencyOptions } from '@/lib/currencies'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 
-export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], lang = 'es', baseCurrency = 'USD', prefill = null }) {
+export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], convert, lang = 'es', baseCurrency = 'USD', prefill = null }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -61,6 +61,8 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const [error, setError] = useState('')
   const [savedCount, setSavedCount] = useState(0)
   const [savedMsg, setSavedMsg] = useState('')
+  const [toAmount, setToAmount] = useState('')
+  const [toTouched, setToTouched] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
   const prefilledItem = prefill?.linkedId ? existingItems.find((i) => i.id === prefill.linkedId) : null
@@ -77,6 +79,27 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // The account whose balance this movement can update
   const balanceTarget = (isYield || isExternal) ? linkedItem : null
   const effectiveCurrency = balanceTarget ? (balanceTarget.currency || 'USD') : currency
+  // ⛔ Una transferencia entre monedas tiene DOS montos. Esta pantalla restaba
+  // `num` del origen y sumaba el MISMO `num` al destino sin mirar la moneda de
+  // ninguno: Q2,500 se acreditaban como $2,500. Ver lib/transferTx.js.
+  const fromCurrency = fromItem?.currency || 'USD'
+  const toCurrency = toItem?.currency || fromCurrency
+  const crossCurrency = isTransfer && !!fromItem && !!toItem
+    && String(fromCurrency).toUpperCase() !== String(toCurrency).toUpperCase()
+  const suggestedTo = (() => {
+    const amt = parseFloat(amount)
+    if (!crossCurrency || !isFinite(amt) || amt <= 0 || typeof convert !== 'function') return null
+    const out = convert(amt, fromCurrency, toCurrency)
+    return isFinite(out) && out > 0 ? out : null
+  })()
+  const receivedRaw = toTouched ? parseFloat(toAmount) : (suggestedTo ?? parseFloat(toAmount))
+  const received = isFinite(receivedRaw) && receivedRaw > 0 ? receivedRaw : null
+  const impliedRate = (() => {
+    const amt = parseFloat(amount)
+    if (!crossCurrency || !received || !isFinite(amt) || amt <= 0) return null
+    return amt / received
+  })()
+
   const isBackdated = date < today
   const willTouchBalance = !!balanceTarget && !alreadyReflected && !!onExecuteContribution
 
@@ -98,6 +121,10 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     if (isTransfer) {
       if (!fromItem || !toItem) { setError(t('Selecciona las dos cuentas.', 'Select both accounts.')); return false }
       if (num > sourceValue) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
+      if (crossCurrency && !received) {
+        setError(t('Indica cuánto llegó a la cuenta destino.', 'Enter how much arrived in the destination account.'))
+        return false
+      }
     }
     if (isYield && !yieldSource) { setError(t('Selecciona el activo que generó el ingreso.', 'Select the asset that generated the income.')); return false }
     setSaving(true)
@@ -113,18 +140,21 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           const price = fromItem.currentPrice || fromItem.purchasePrice || 1
           fromFields = { quantity: (fromItem.quantity || 0) - num / price }
         }
+        // Cada lado usa el monto de SU moneda. Con la misma moneda coinciden.
+        const credited = crossCurrency ? received : num
         if (isBank(toItem)) {
-          const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + num
+          const newBal = (toItem.currentPrice || toItem.purchasePrice || 0) + credited
           toFields = { currentPrice: newBal, purchasePrice: newBal }
         } else {
           const price = toItem.currentPrice || toItem.purchasePrice || 1
-          toFields = { quantity: (toItem.quantity || 0) + num / price }
+          toFields = { quantity: (toItem.quantity || 0) + credited / price }
         }
         await onTransfer({
           fromId: fromItem.id, fromFields,
           toId: toItem.id, toFields,
           transaction: buildTransferTransaction({
-            fromItem, toItem, amount: num, date, description, currency, source: 'manual_cashflow',
+            fromItem, toItem, amount: num, toAmount: crossCurrency ? received : null,
+            date, description, currency, source: 'manual_cashflow',
           }),
         })
       } else {
@@ -341,6 +371,33 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               {fromItem && (
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {t('Disponible', 'Available')}: {fromItem.currency || 'USD'} {sourceValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Solo cuando las monedas difieren: con la misma no hay nada que
+              preguntar. Se pide cuánto LLEGÓ, no la tasa, porque eso es lo que
+              se lee directo del estado de cuenta. */}
+          {crossCurrency && (
+            <div className="rounded-lg p-3 border" style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)' }}>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>
+                {t(`¿Cuánto llegó en ${toCurrency}?`, `How much arrived in ${toCurrency}?`)}
+              </label>
+              <input
+                value={toTouched ? toAmount : (suggestedTo != null ? suggestedTo.toFixed(2) : '')}
+                onChange={(e) => { setToTouched(true); setToAmount(e.target.value) }}
+                type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
+              <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {t(
+                  'Tu banco usa su propia tasa, no la del mercado. Pon el monto EXACTO que te acreditaron: es el único dato cierto.',
+                  'Your bank uses its own rate, not the market one. Enter the EXACT amount credited: it is the only certain figure.'
+                )}
+              </p>
+              {impliedRate != null && (
+                <p className="text-[11px] mt-1 font-mono" style={{ color: 'var(--text-muted)' }}>
+                  {t('Tasa implícita', 'Implied rate')}: 1 {toCurrency} = {impliedRate.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} {fromCurrency}
+                  {!toTouched && ` · ${t('sugerida', 'suggested')}`}
                 </p>
               )}
             </div>
