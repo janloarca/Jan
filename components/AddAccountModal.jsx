@@ -409,7 +409,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (saving) return
     setError('')
 
-    if (!form.acquisitionDate) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
+    // La fecha es obligatoria en el formulario LARGO, donde el campo está a la
+    // vista y dejarlo en blanco es un descuido. En el recorrido guiado NO hay
+    // paso de fecha a propósito (se pregunta lo mínimo y el resto lo reclama
+    // Enrich Data después), así que exigirla ahí es pedir algo que la pantalla
+    // nunca dio forma de contestar: el recorrido quedaba imposible de terminar.
+    // Vacía es seguro y está verificado abajo: el depósito de apertura y su lote
+    // caen a hoy con su propio `|| new Date()`, y `effectiveAcqDate` cae a enero
+    // del año de `createdAt`. El ítem se queda sin fecha, que es justo lo que
+    // hace disparar `no-acq-date` en el boletín.
+    if (!form.acquisitionDate && !guidedType) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
 
     const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
