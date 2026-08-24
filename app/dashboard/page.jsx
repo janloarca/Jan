@@ -1793,7 +1793,7 @@ export default function DashboardPage() {
           onClose={handleCloseModal}
           onTransfer={transferFunds}
           onAddTransaction={() => showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')}
-          existingItems={items} lang={lang}
+          existingItems={items} convert={convert} lang={lang}
         />
       )}
 
@@ -1970,6 +1970,7 @@ export default function DashboardPage() {
           onConfirmNewMoney={(itemId) => updateItem(itemId, { _newMoneyConfirmed: true })}
           existingItems={items}
           transactions={transactions}
+          convert={convert}
           lang={lang}
           baseCurrency={baseCurrency}
           prefill={cashflowPrefill}
