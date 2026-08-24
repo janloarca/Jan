@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
-import { buildTransferTransaction } from '@/lib/transferTx'
+import { buildTransferTransaction, buildDebtPaymentTransaction } from '@/lib/transferTx'
 import { currencyOptions } from '@/lib/currencies'
+import { debtOptions, debtBalance as debtBalanceOf } from '@/lib/propertyEquity'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 
@@ -28,6 +29,11 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const [origin, setOrigin] = useState(prefill?.origin || 'external')
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
+  // Pago de deuda: a qué préstamo va el dinero (ver debtOptions abajo).
+  const [debtId, setDebtId] = useState('')
+  // Gasto de un activo (una reparación, una cuota extraordinaria): de QUÉ
+  // activo es el costo. Ver la rama isExpense abajo.
+  const [costForId, setCostForId] = useState('')
   const [yieldSourceId, setYieldSourceId] = useState('')
   // Account the external flow / yield lands in (or leaves from). Optional but
   // recommended: with it, the movement also updates that account's balance and
@@ -65,13 +71,28 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const today = new Date().toISOString().split('T')[0]
   const prefilledItem = prefill?.linkedId ? existingItems.find((i) => i.id === prefill.linkedId) : null
 
+  // Las deudas se filtran de TODO menos del pago de deuda: sin esto una deuda
+  // aparecería como destino de un dividendo o de un aporte, que no significa
+  // nada. El pago sí las necesita, y solo ahí (`debtTargets`).
   const assets = existingItems.filter((i) => !i.isDebt)
+  const debtTargets = debtOptions(existingItems)
   const fromItem = assets.find((i) => i.id === fromId)
   const toItem = assets.find((i) => i.id === toId)
   const yieldSource = assets.find((i) => i.id === yieldSourceId)
   const linkedItem = assets.find((i) => i.id === linkedId)
   const sourceValue = fromItem ? getValue(fromItem) : 0
   const isTransfer = origin === 'transfer'
+  // Pagar una deuda mueve dinero entre DOS cuentas tuyas (el efectivo baja, la
+  // deuda baja lo mismo), así que el patrimonio no cambia y el Dietz de
+  // portafolio lo ignora. Es un retiro solo desde la cuenta que paga.
+  const isDebtPayment = flowType === 'WITHDRAWAL' && origin === 'debt'
+  // Un gasto que un activo GENERA (reparar el techo, una cuota extraordinaria).
+  // Se escribe como FEE, que es el tipo que lib/costsSummary.js ya lee, así que
+  // aparece solo en la pantalla de Costos atribuido a ese activo. Es la primera
+  // UI manual que escribe un FEE: hasta hoy solo los creaba el import de IBKR.
+  const isExpense = flowType === 'WITHDRAWAL' && origin === 'expense'
+  const costForItem = assets.find((i) => i.id === costForId)
+  const debtItem = debtTargets.find((i) => i.id === debtId)
   const isYield = flowType === 'DEPOSIT' && origin === 'yield'
   const isExternal = origin === 'external'
   // The account whose balance this movement can update
@@ -99,12 +120,64 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
       if (!fromItem || !toItem) { setError(t('Selecciona las dos cuentas.', 'Select both accounts.')); return false }
       if (num > sourceValue) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
     }
+    if (isExpense && !costForItem) { setError(t('Selecciona de qué activo es este gasto.', 'Select which asset this expense belongs to.')); return false }
+    if (isDebtPayment) {
+      if (!fromItem || !debtItem) { setError(t('Selecciona la cuenta que paga y el préstamo.', 'Select the paying account and the loan.')); return false }
+      if (num > sourceValue) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
+      if (num > debtBalanceOf(debtItem) + 0.005) { setError(t('El pago es mayor a lo que debes en ese préstamo.', 'The payment is larger than what you owe on that loan.')); return false }
+    }
     if (isYield && !yieldSource) { setError(t('Selecciona el activo que generó el ingreso.', 'Select the asset that generated the income.')); return false }
     setSaving(true)
     setError('')
     setSavedMsg('')
     try {
-      if (isTransfer) {
+      if (isExpense) {
+        // El gasto NO cambia el valor del activo: reparar el techo no revalúa
+        // la casa, es dinero que salió. Por eso no se toca su balance y solo
+        // baja el de la cuenta que pagó, si el usuario la eligió.
+        const feeTx = {
+          date,
+          type: 'FEE',
+          symbol: costForItem.symbol || costForItem.name || 'FEE',
+          description: description || `${t('Gasto de', 'Expense on')} ${costForItem.name || costForItem.symbol}`,
+          totalAmount: num,
+          amount: num,
+          currency: effectiveCurrency,
+          _linkedItemId: costForItem.id,
+          _origin: 'expense',
+          _source: 'manual_cashflow',
+          ...(balanceTarget ? { _paidFromItemId: balanceTarget.id } : {}),
+        }
+        if (balanceTarget) {
+          const { itemFields, newLot, lotClose } = buildContributionFields({
+            item: balanceTarget, amount: num, date, isAdd: false, currency: effectiveCurrency,
+          })
+          await onExecuteContribution({ itemId: balanceTarget.id, itemFields, transaction: feeTx, newLot, lotClose })
+        } else {
+          await onAddTransaction(feeTx)
+        }
+      } else if (isDebtPayment) {
+        // Baja el efectivo de la cuenta que paga y baja el saldo del préstamo
+        // por el mismo monto: el patrimonio no se mueve, que es la verdad.
+        // La deuda se guarda en POSITIVO (getItemValue la niega al leer), así
+        // que pagar es REDUCIR su magnitud y nunca cruzar a negativo.
+        let fromFields
+        if (isBank(fromItem)) {
+          const newBal = (fromItem.currentPrice || fromItem.purchasePrice || 0) - num
+          fromFields = { currentPrice: newBal, purchasePrice: newBal }
+        } else {
+          const price = fromItem.currentPrice || fromItem.purchasePrice || 1
+          fromFields = { quantity: (fromItem.quantity || 0) - num / price }
+        }
+        const newDebt = Math.max(0, debtBalanceOf(debtItem) - num)
+        await onTransfer({
+          fromId: fromItem.id, fromFields,
+          toId: debtItem.id, toFields: { currentPrice: newDebt, purchasePrice: newDebt, quantity: 1 },
+          transaction: buildDebtPaymentTransaction({
+            fromItem, debtItem, amount: num, date, description, currency, source: 'manual_debt_payment',
+          }),
+        })
+      } else if (isTransfer) {
         let fromFields, toFields
         if (isBank(fromItem)) {
           const newBal = (fromItem.currentPrice || fromItem.purchasePrice || 0) - num
@@ -226,6 +299,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     : [
         { key: 'external', label: t('Sale del portafolio', 'Leaves portfolio'), desc: t('Gastos, efectivo fuera de la app', 'Spending, cash outside the app') },
         { key: 'transfer', label: t('A otra cuenta', 'To my account'), desc: t('Movimiento entre tus cuentas', 'Move between your accounts') },
+        // Solo si hay una deuda cargada: ofrecer "pago de deuda" a quien no
+        // tiene ninguna es una puerta que no lleva a ningun lado.
+        { key: 'expense', label: t('Gasto de un activo', 'Asset expense'), desc: t('Reparaciones, cuotas extraordinarias', 'Repairs, one-off charges') },
+        ...(debtTargets.length > 0
+          ? [{ key: 'debt', label: t('Pago de deuda', 'Loan payment'), desc: t('Baja el saldo de un prestamo tuyo', 'Pays down one of your loans') }]
+          : []),
       ]
 
   const chipStyle = (active) => active
@@ -321,6 +400,51 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               {originOptions.find((o) => o.key === origin)?.desc}
             </p>
           </div>
+
+          {isExpense && (
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('¿De qué activo es este gasto?', 'Which asset is this expense on?')}</label>
+              <select value={costForId} onChange={(e) => setCostForId(e.target.value)} className={inputCls}>
+                <option value="">{t('Seleccionar...', 'Select...')}</option>
+                {assets.map((item) => <option key={item.id} value={item.id}>{item.name || item.symbol} ({item.institution || '-'})</option>)}
+              </select>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t('El valor del activo no cambia: reparar no revalúa. Queda registrado como costo y aparece en la pantalla de Costos.',
+                   'The asset value does not change: repairing does not revalue it. It is recorded as a cost and shows on the Costs screen.')}
+              </p>
+            </div>
+          )}
+
+          {isDebtPayment && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Cuenta que paga', 'Paying account')}</label>
+                <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={inputCls}>
+                  <option value="">{t('Seleccionar...', 'Select...')}</option>
+                  {assets.map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Préstamo', 'Loan')}</label>
+                <select value={debtId} onChange={(e) => setDebtId(e.target.value)} className={inputCls}>
+                  <option value="">{t('Seleccionar...', 'Select...')}</option>
+                  {debtTargets.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name || item.symbol} - {item.currency || 'USD'} {debtBalanceOf(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {debtItem && (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {t('Debes', 'You owe')}: {debtItem.currency || 'USD'} {debtBalanceOf(debtItem).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {' · '}
+                  {t('Tu patrimonio no cambia: el efectivo baja y la deuda baja lo mismo.',
+                     'Your net worth does not change: cash goes down and the debt goes down the same.')}
+                </p>
+              )}
+            </div>
+          )}
 
           {isTransfer && (
             <div className="space-y-3">
