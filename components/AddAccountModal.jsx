@@ -13,6 +13,7 @@ import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
+import { debtOptions } from '@/lib/propertyEquity'
 import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
@@ -109,7 +110,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [guidedIndex, setGuidedIndex] = useState(0)
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
-    institution: '', currency: 'USD', acquisitionDate: new Date().toISOString().split('T')[0],
+    institution: '', currency: 'USD',
+    // El alta guiada NO rellena la fecha con hoy: pregunta 2 o 3 cosas por
+    // activo a propósito, y estampar "hoy" en algo que se compró hace años es
+    // inventar un dato, no ahorrarle trabajo a nadie. Peor: esa fecha manda en
+    // el rebobinado histórico y, desde FASE KV, también fecha el depósito de
+    // apertura. Vacía, el hallazgo `no-acq-date` la pide después con una
+    // sugerencia real (la fecha del primer movimiento), que es justo el bulletin
+    // que el usuario echaba de menos. El formulario largo sí la ofrece prellena:
+    // ahí el campo está a la vista y se corrige de un vistazo.
+    acquisitionDate: guidedType ? '' : new Date().toISOString().split('T')[0],
     accountType: 'taxable',
     incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
     incomePayDay: '', incomeMonths: [],
@@ -129,6 +139,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     safeCap: '', safeDiscount: '', safeType: 'post_money',
     investmentStage: '', roundValuation: '', ownershipPct: '', committedCapital: '',
     interestRate: '', minimumPayment: '',
+    // Inmueble: el enganche, el préstamo que lo financia, y los dos costos
+    // fijos de tenerlo. Ver lib/propertyEquity.js: de estos cuatro más la deuda
+    // vinculada salen "cuánto llevas pagado", "cuánto falta" y el capital
+    // propio, sin teclear nada dos veces. ⛔ Ninguno toca el patrimonio.
+    downPayment: '', linkedDebtId: '', adminFeeMonthly: '', propertyTaxAnnual: '',
     debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
     entryFee: '', entryFeeMode: 'separate', managementFee: '', managementFeeType: 'percent', expenseRatio: '',
@@ -189,6 +204,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const isPrivateStock = type === 'Stock' && (subtype === 'private_common' || subtype === 'private_preferred')
   const isMarketAsset = (type === 'Stock' && !isPrivateStock) || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'RealEstate'
+  // Las deudas que se le pueden ofrecer a un inmueble, hipotecas primero.
+  const propertyDebtOptions = useMemo(() => debtOptions(existingItems), [existingItems])
   const isBank = type === 'Bank'
   const isBond = type === 'Bond'
   const isAlternative = type === 'Alternative'
@@ -392,7 +409,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (saving) return
     setError('')
 
-    if (!form.acquisitionDate) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
+    // La fecha es obligatoria en el formulario LARGO, donde el campo está a la
+    // vista y dejarlo en blanco es un descuido. En el recorrido guiado NO hay
+    // paso de fecha a propósito (se pregunta lo mínimo y el resto lo reclama
+    // Enrich Data después), así que exigirla ahí es pedir algo que la pantalla
+    // nunca dio forma de contestar: el recorrido quedaba imposible de terminar.
+    // Vacía es seguro y está verificado abajo: el depósito de apertura y su lote
+    // caen a hoy con su propio `|| new Date()`, y `effectiveAcqDate` cae a enero
+    // del año de `createdAt`. El ítem se queda sin fecha, que es justo lo que
+    // hace disparar `no-acq-date` en el boletín.
+    if (!form.acquisitionDate && !guidedType) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
 
     const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
@@ -462,6 +488,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.quantity = 1
         item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseAmount(form.currentPrice)
+        // Los cuatro campos del inmueble. Solo se escriben si tienen valor, y
+        // NINGUNO entra a getItemValue: el vínculo con la hipoteca es de solo
+        // lectura y el patrimonio no se mueve (lib/propertyEquity.js).
+        if (form.downPayment) item.downPayment = parseAmount(form.downPayment)
+        if (form.linkedDebtId) item.linkedDebtId = form.linkedDebtId
+        if (form.adminFeeMonthly) item.adminFeeMonthly = parseAmount(form.adminFeeMonthly)
+        if (form.propertyTaxAnnual) item.propertyTaxAnnual = parseAmount(form.propertyTaxAnnual)
       } else if (isBank) {
         item.symbol = form.symbol.trim() || `${form.institution.trim().replace(/\s+/g, '-').toUpperCase()}-${(form.name.trim() || 'CUENTA').replace(/\s+/g, '-').toUpperCase()}`
         item.name = form.name.trim() || `${form.institution.trim()} - ${t('Cuenta', 'Account')}`
@@ -662,7 +695,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // dedup pass). Answering once should mean once, or "Capturar historia"
       // reads as the app not having listened, and worse, invites a real
       // duplicate deposit from a well-meaning second click.
-      if (isNewMoney && !isDebt) item._newMoneyConfirmed = true
+      // En el alta guiada NO se estampa: la marca existe para que la pregunta
+      // "¿de dónde vino este dinero?" no vuelva después de haberla contestado
+      // EXPLÍCITAMENTE, y el modo guiado nunca la muestra. El depósito de
+      // apertura que se escribe abajo ya explica el saldo en el caso normal, así
+      // que el hallazgo sigue callado; lo que se recupera es que vuelva a
+      // preguntar cuando ese depósito falta o no alcanza, que es su trabajo.
+      if (isNewMoney && !isDebt && !guidedType) item._newMoneyConfirmed = true
 
       // Same guardrails as file imports (future dates, absurd values, bad currency) —
       // manual entry previously skipped them entirely.
@@ -1051,6 +1090,64 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </div>
                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
                   {t('Si dejas "Valor de hoy" vacío, usamos lo que pagaste.', 'If you leave "Value today" empty, we use what you paid.')}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label htmlFor="add-downPayment" className={labelCls}>
+                      {t('Enganche', 'Down payment')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span>
+                    </label>
+                    <input id="add-downPayment" value={form.downPayment} onChange={e => set('downPayment', e.target.value)}
+                      placeholder="20000" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-linkedDebtId" className={labelCls}>
+                      {t('Préstamo que la financia', 'Loan financing it')}
+                      <InfoTip text={t('Si la compraste con un préstamo, vinculalo y calculamos solos cuánto llevas pagado, cuánto falta y tu capital propio. No cambia tu patrimonio: la deuda ya resta por su cuenta.',
+                                       'If you bought it with a loan, link it and we work out how much you have paid, how much is left, and your equity. It does not change your net worth: the debt already subtracts on its own.')} />
+                    </label>
+                    {propertyDebtOptions.length > 0 ? (
+                      <select id="add-linkedDebtId" value={form.linkedDebtId}
+                        onChange={e => set('linkedDebtId', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Sin préstamo --', '-- No loan --')}</option>
+                        {propertyDebtOptions.map(d => (
+                          <option key={d.id} value={d.id}>
+                            {d.name || d.symbol}{d.subtype === 'mortgage' ? ` (${t('hipoteca', 'mortgage')})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      /* Sin ninguna deuda cargada no se ofrece "crear una": el
+                         widget que existe (InlineCreateAccount) crea un ACTIVO,
+                         no una deuda, así que ofrecerlo llevaría al lugar
+                         equivocado. Se dice dónde está el camino real. */
+                      <p className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>
+                        {t('Todavía no tienes ningún préstamo cargado. Agregalo con "Nuevo → Deuda" y después vinculalo desde aquí.',
+                           'You have no loan on file yet. Add it with "New → Debt" and link it from here afterwards.')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label htmlFor="add-adminFeeMonthly" className={labelCls}>
+                      {t('Admin / mantenimiento', 'HOA / upkeep')} <span style={{ color: 'var(--text-muted)' }}>({t('al mes', 'monthly')})</span>
+                    </label>
+                    <input id="add-adminFeeMonthly" value={form.adminFeeMonthly} onChange={e => set('adminFeeMonthly', e.target.value)}
+                      placeholder="150" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-propertyTaxAnnual" className={labelCls}>
+                      {t('Impuesto', 'Property tax')} <span style={{ color: 'var(--text-muted)' }}>({t('al año', 'yearly')})</span>
+                    </label>
+                    <input id="add-propertyTaxAnnual" value={form.propertyTaxAnnual} onChange={e => set('propertyTaxAnnual', e.target.value)}
+                      placeholder="1200" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Las reparaciones no van aquí: son irregulares, se registran una por una como gasto y quedan con su fecha.',
+                     'Repairs do not go here: they are irregular, you log each one as an expense and it keeps its date.')}
                 </p>
               </div>
             )}

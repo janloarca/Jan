@@ -16,7 +16,7 @@ const SEV_STYLE = {
 }
 const SEV_ICON = { high: '⚠', medium: '●', low: 'ℹ' }
 
-export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
+export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onCompleteAll, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return new Set()
@@ -168,22 +168,35 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
         ))}
       </div>
 
-      {(visible.length > 3 || dismissedCount > 0) && (
-        <div className="mt-2 flex items-center gap-3">
-          {visible.length > 3 && (
-            <button onClick={() => setExpanded(!expanded)}
-              className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
-              {expanded ? t('Ver menos', 'Show less') : `${t('Ver todas', 'Show all')} (${visible.length})`}
-            </button>
-          )}
-          {dismissedCount > 0 && (
-            <button onClick={restoreDismissed}
-              className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
-              {t(`Restaurar descartadas (${dismissedCount})`, `Restore dismissed (${dismissedCount})`)}
-            </button>
-          )}
-        </div>
-      )}
+      {/* Arreglar hueco por hueco desde acá funciona, pero cuenta por cuenta es
+          mucho más rápido: el repaso agrupa los hallazgos por activo y ordena por
+          severidad (`onlyWithFindings`, AccountReviewModal), así que se contesta
+          todo lo de una cuenta de una sola vez.
+          Prop APARTE de `onOpenReview` a propósito: ese abre el repaso COMPLETO
+          (todas las cuentas, incluidas las que no tienen ningún hueco) y es lo
+          correcto para el hallazgo de tipo 'review' y para el botón general de
+          Acciones. Acá la promesa es otra, "lo que falta", y una etiqueta tiene
+          que llevar a donde dice. */}
+      <div className="mt-2 flex items-center gap-3 flex-wrap">
+        {onCompleteAll && (
+          <button onClick={() => onCompleteAll()}
+            className="text-xs underline" style={{ color: 'var(--accent-blue)' }}>
+            {t(`Completar cuenta por cuenta (${visible.length})`, `Complete account by account (${visible.length})`)}
+          </button>
+        )}
+        {visible.length > 3 && (
+          <button onClick={() => setExpanded(!expanded)}
+            className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
+            {expanded ? t('Ver menos', 'Show less') : `${t('Ver todas', 'Show all')} (${visible.length})`}
+          </button>
+        )}
+        {dismissedCount > 0 && (
+          <button onClick={restoreDismissed}
+            className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
+            {t(`Restaurar descartadas (${dismissedCount})`, `Restore dismissed (${dismissedCount})`)}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

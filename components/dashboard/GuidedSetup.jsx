@@ -28,6 +28,11 @@ export default function GuidedSetup({
   // mismo). Con esto el modal abre DIRECTO en el primer activo; sin esto
   // arranca en su propio checklist, igual que siempre.
   initialPicked = [],
+  // Cuántos huecos de datos quedan y cómo abrir el repaso que los llena. La
+  // pantalla de cierre ya prometía "si dejaste algún dato pendiente, Chispu te
+  // lo va a ir pidiendo" y no cumplía: nada llevaba de aquí al repaso. Con 0
+  // (o sin el prop) la pantalla queda exactamente como estaba.
+  pendingCount = 0, onCompleteData = null,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   // Inicializadores lazy y no un efecto: un efecto pintaría el checklist un
@@ -154,13 +159,28 @@ export default function GuidedSetup({
               : t('Cuando quieras', 'Whenever you want')}
           </h2>
           <p className="text-sm mt-2" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
-            {t('De aquí en adelante lo haces desde el botón "Nuevo", arriba a la derecha. Si dejaste algún dato pendiente, Chispu te lo va a ir pidiendo.',
-               'From here on you do it from the "New" button, top right. If you left anything out, Chispu will ask you for it.')}
+            {pendingCount > 0
+              ? t(`De aquí en adelante lo haces desde el botón "Nuevo", arriba a la derecha. Para que tu historial y tus retornos sean ciertos faltan ${pendingCount} ${pendingCount === 1 ? 'dato' : 'datos'}: los podemos completar ahora o después.`,
+                  `From here on you do it from the "New" button, top right. For your history and returns to be right, ${pendingCount} ${pendingCount === 1 ? 'detail is' : 'details are'} missing: we can fill them in now or later.`)
+              : t('De aquí en adelante lo haces desde el botón "Nuevo", arriba a la derecha. Si dejaste algún dato pendiente, Chispu te lo va a ir pidiendo.',
+                  'From here on you do it from the "New" button, top right. If you left anything out, Chispu will ask you for it.')}
           </p>
         </div>
+        {/* El primario pasa a ser completar los datos cuando de verdad falta
+            algo: es la promesa de la línea de arriba, cumplida. Saltable
+            siempre (los dos botones de abajo se quedan). */}
+        {pendingCount > 0 && onCompleteData && (
+          <button type="button" onClick={onCompleteData}
+            className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
+            style={{ background: 'var(--accent-blue)', color: '#ffffff' }}>
+            {t(`Completar los datos (${pendingCount})`, `Complete the details (${pendingCount})`)}
+          </button>
+        )}
         <button type="button" onClick={() => { setPicked([]); setPhase('checklist') }}
-          className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
-          style={{ background: 'var(--accent-blue)', color: '#ffffff' }}>
+          className="w-full px-4 py-3 rounded-xl text-sm font-medium"
+          style={pendingCount > 0 && onCompleteData
+            ? { color: 'var(--text-secondary,#94a3b8)', border: '1px solid var(--card-border,#38383A)' }
+            : { background: 'var(--accent-blue)', color: '#ffffff', fontWeight: 600 }}>
           {t('Agregar algo más', 'Add something else')}
         </button>
         <button type="button" onClick={onClose}
