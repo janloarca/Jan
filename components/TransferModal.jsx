@@ -86,6 +86,16 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
       const credited = crossCurrency ? received : amt
       const fromFields = debitFields(fromItem, amt)
       const toFields = creditFields(toItem, credited)
+      // Nunca en silencio: sin campos que escribir, `strip(null)` deja un `{}`
+      // y Firestore acepta un update vacío como no-op. Desde afuera eso es
+      // exactamente el bug que esta pantalla tenía ("el destino sube y el
+      // origen no baja"), así que se dice en vez de escribirlo.
+      if (!fromFields || !toFields) {
+        setSaving(false)
+        setError(t('Una de las dos cuentas no tiene un valor con el que trabajar. Revisa su saldo o su precio antes de transferir.',
+                   'One of the two accounts has no usable value. Check its balance or price before transferring.'))
+        return
+      }
 
       // Single atomic batch: both balances + the transaction record commit together
       await onTransfer({

@@ -710,9 +710,18 @@ export function useFirestoreItems() {
   const transferFunds = useCallback(async ({ fromId, fromFields, toId, toFields, transaction }) => {
     if (!uid) throw new Error('No uid')
     const { db, fs } = await getFirebase()
+    // Un update vacío es un NO-OP que Firestore acepta sin quejarse, así que un
+    // lado que no trae campos deja el saldo intacto y aun así reporta éxito:
+    // eso es literalmente cómo se veía "el destino sube y el origen no baja".
+    // Con un lado mudo la transferencia entera se rehúsa, nunca a medias.
+    const from = strip(fromFields)
+    const to = strip(toFields)
+    if (!Object.keys(from).length || !Object.keys(to).length) {
+      throw new Error('Transfer would not move one of the two balances')
+    }
     const batch = fs.writeBatch(db)
-    batch.update(fs.doc(db, `users/${uid}/items`, fromId), strip(fromFields))
-    batch.update(fs.doc(db, `users/${uid}/items`, toId), strip(toFields))
+    batch.update(fs.doc(db, `users/${uid}/items`, fromId), from)
+    batch.update(fs.doc(db, `users/${uid}/items`, toId), to)
     if (transaction) {
       batch.set(fs.doc(db, `users/${uid}/transactions`, txDocId(transaction)), strip({ ...transaction, createdAt: new Date().toISOString() }))
     }

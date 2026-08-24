@@ -132,11 +132,19 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     setSavedMsg('')
     try {
       if (isTransfer) {
-        let toFields
         const fromFields = debitFields(fromItem, num)
         // Cada lado usa el monto de SU moneda. Con la misma moneda coinciden.
         const credited = crossCurrency ? received : num
-        toFields = creditFields(toItem, credited)
+        const toFields = creditFields(toItem, credited)
+        // Nunca en silencio: sin campos que escribir, `strip(null)` deja un `{}`
+        // y Firestore acepta un update vacío como no-op, que es exactamente
+        // cómo se veía el bug de "el destino sube y el origen no baja".
+        if (!fromFields || !toFields) {
+          setSaving(false)
+          setError(t('Una de las dos cuentas no tiene un valor con el que trabajar. Revisa su saldo o su precio antes de transferir.',
+                     'One of the two accounts has no usable value. Check its balance or price before transferring.'))
+          return false
+        }
         await onTransfer({
           fromId: fromItem.id, fromFields,
           toId: toItem.id, toFields,
