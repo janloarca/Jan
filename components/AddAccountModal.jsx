@@ -110,7 +110,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [guidedIndex, setGuidedIndex] = useState(0)
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
-    institution: '', currency: 'USD', acquisitionDate: new Date().toISOString().split('T')[0],
+    institution: '', currency: 'USD',
+    // El alta guiada NO rellena la fecha con hoy: pregunta 2 o 3 cosas por
+    // activo a propósito, y estampar "hoy" en algo que se compró hace años es
+    // inventar un dato, no ahorrarle trabajo a nadie. Peor: esa fecha manda en
+    // el rebobinado histórico y, desde FASE KV, también fecha el depósito de
+    // apertura. Vacía, el hallazgo `no-acq-date` la pide después con una
+    // sugerencia real (la fecha del primer movimiento), que es justo el bulletin
+    // que el usuario echaba de menos. El formulario largo sí la ofrece prellena:
+    // ahí el campo está a la vista y se corrige de un vistazo.
+    acquisitionDate: guidedType ? '' : new Date().toISOString().split('T')[0],
     accountType: 'taxable',
     incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
     incomePayDay: '', incomeMonths: [],
@@ -677,7 +686,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // dedup pass). Answering once should mean once, or "Capturar historia"
       // reads as the app not having listened, and worse, invites a real
       // duplicate deposit from a well-meaning second click.
-      if (isNewMoney && !isDebt) item._newMoneyConfirmed = true
+      // En el alta guiada NO se estampa: la marca existe para que la pregunta
+      // "¿de dónde vino este dinero?" no vuelva después de haberla contestado
+      // EXPLÍCITAMENTE, y el modo guiado nunca la muestra. El depósito de
+      // apertura que se escribe abajo ya explica el saldo en el caso normal, así
+      // que el hallazgo sigue callado; lo que se recupera es que vuelva a
+      // preguntar cuando ese depósito falta o no alcanza, que es su trabajo.
+      if (isNewMoney && !isDebt && !guidedType) item._newMoneyConfirmed = true
 
       // Same guardrails as file imports (future dates, absurd values, bad currency) —
       // manual entry previously skipped them entirely.
