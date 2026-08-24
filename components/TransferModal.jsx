@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
-import { accountValue, debitFields, creditFields } from '@/lib/transferFields'
+import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
+import { parseAmount } from '@/lib/numberParse'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], convert, lang = 'es' }) {
@@ -29,8 +30,15 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  const fromItem = existingItems.find((i) => i.id === fromId)
-  const toItem = existingItems.find((i) => i.id === toId)
+  // Un pasivo NO puede ser ninguno de los dos lados de una transferencia.
+  // Como origen no tiene saldo que mover, y como destino el crédito le SUBÍA la
+  // magnitud de la deuda en vez de pagarla, o sea el camino estaba al revés.
+  // Pagar un préstamo tiene su propio flujo (Movimiento → Pago de deuda), que
+  // sí baja el saldo del préstamo y el efectivo a la vez.
+  const assets = existingItems.filter((i) => !i.isDebt)
+  const hasDebts = existingItems.some((i) => i.isDebt)
+  const fromItem = assets.find((i) => i.id === fromId)
+  const toItem = assets.find((i) => i.id === toId)
   const sourceValue = fromItem ? getValue(fromItem) : 0
 
   // ⛔ Una transferencia entre monedas tiene DOS montos.
@@ -49,29 +57,34 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // La tasa de la app es una SUGERENCIA, jamás la verdad: el banco le pone su
   // propio spread, así que el número real solo lo sabe quien hizo la operación.
   const suggested = (() => {
-    const amt = parseFloat(amount)
+    const amt = parseAmount(amount)
     if (!crossCurrency || !isFinite(amt) || amt <= 0 || typeof convert !== 'function') return null
     const out = convert(amt, fromCurrency, toCurrency)
     return isFinite(out) && out > 0 ? out : null
   })()
 
-  const receivedRaw = toTouched ? parseFloat(toAmount) : (suggested ?? parseFloat(toAmount))
+  const receivedRaw = toTouched ? parseAmount(toAmount) : (suggested ?? parseAmount(toAmount))
   const received = isFinite(receivedRaw) && receivedRaw > 0 ? receivedRaw : null
   const impliedRate = (() => {
-    const amt = parseFloat(amount)
+    const amt = parseAmount(amount)
     if (!crossCurrency || !received || !isFinite(amt) || amt <= 0) return null
     return amt / received
   })()
 
+  const money = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const formatOption = (item) =>
-    `${item.name} (${item.institution || '-'}) - ${item.currency} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    `${item.name} (${item.institution || '-'}) - ${item.currency || 'USD'} ${money(getValue(item))}`
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const amt = parseFloat(amount)
+    const amt = parseAmount(amount)
     if (!fromItem || !toItem) { setError(t('Selecciona origen y destino.', 'Select source and destination.')); return }
     if (!amt || amt <= 0) { setError(t('Ingresa un monto mayor a 0.', 'Enter an amount greater than 0.')); return }
-    if (amt > sourceValue) { setError(t('Monto excede el saldo disponible.', 'Amount exceeds available balance.')); return }
+    if (!date) { setError(t('Elige la fecha de la transferencia.', 'Pick the transfer date.')); return }
+    // Medio centavo de tolerancia: "Todo" llena el saldo REDONDEADO a centavos
+    // (que es el que se muestra), así que un saldo de 482.007 produciría 482.01
+    // y sin la tolerancia el botón se bloquearía a sí mismo.
+    if (amt > sourceValue + DUST) { setError(t('Monto excede el saldo disponible.', 'Amount exceeds available balance.')); return }
     if (crossCurrency && !received) {
       setError(t('Indica cuánto llegó a la cuenta destino.', 'Enter how much arrived in the destination account.'))
       return
@@ -136,7 +149,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             <label className={labelCls}>{t('Origen', 'From')}</label>
             <select value={fromId} onChange={(e) => { setFromId(e.target.value); if (e.target.value === toId) setToId('') }} className={inputCls}>
               <option value="">{t('Seleccionar...', 'Select...')}</option>
-              {existingItems.map((item) => (
+              {assets.map((item) => (
                 <option key={item.id} value={item.id}>{formatOption(item)}</option>
               ))}
             </select>
@@ -146,10 +159,16 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             <label className={labelCls}>{t('Destino', 'To')}</label>
             <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputCls}>
               <option value="">{t('Seleccionar...', 'Select...')}</option>
-              {existingItems.filter((i) => i.id !== fromId).map((item) => (
+              {assets.filter((i) => i.id !== fromId).map((item) => (
                 <option key={item.id} value={item.id}>{formatOption(item)}</option>
               ))}
             </select>
+            {hasDebts && (
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t('Para abonar a un préstamo usa Movimiento → Pago de deuda: eso sí baja su saldo.',
+                   'To pay down a loan use Movement → Loan payment: that one actually lowers its balance.')}
+              </p>
+            )}
           </div>
 
           <div>
@@ -158,7 +177,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
               <div className="flex items-center gap-2">
                 {fromItem && (
                   <span className="text-xs text-[var(--text-secondary,#94a3b8)]">
-                    {t('Disponible', 'Available')}: {fromItem.currency} {sourceValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {t('Disponible', 'Available')}: {fromItem.currency || 'USD'} {money(sourceValue)}
                   </span>
                 )}
                 {/* Para CUALQUIER tipo de cuenta, no solo las de banco: en un
@@ -166,15 +185,21 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
                     uno tiene en la cabeza no coincide al centavo con el
                     guardado queda un residuo colgado. */}
                 {fromItem && sourceValue > 0 && (
-                  <button type="button" onClick={() => setAmount(String(sourceValue))}
+                  <button type="button" onClick={() => setAmount((Math.round(sourceValue * 100) / 100).toFixed(2))}
                     className="text-xs text-blue-400 hover:text-blue-300">
                     {t('Todo', 'All')}
                   </button>
                 )}
               </div>
             </div>
+            {/* type="text" y NO type="number": con teclado en español el
+                separador decimal es COMA, y un input numérico devuelve '' ante
+                lo que no puede parsear, o sea el campo se vacía tecla por tecla
+                (la lección de FASE KV). Y el monto se lee con parseAmount, que
+                entiende las dos convenciones: `parseFloat('12.500')` devolvía
+                12.5, o sea mil veces menos, en silencio. */}
             <input value={amount} onChange={(e) => setAmount(e.target.value)}
-              type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
+              type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
           </div>
 
           {/* Solo cuando las monedas difieren. Con la misma moneda no hay
@@ -187,7 +212,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
               <input
                 value={toTouched ? toAmount : (suggested != null ? suggested.toFixed(2) : '')}
                 onChange={(e) => { setToTouched(true); setToAmount(e.target.value) }}
-                type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
+                type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
               <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {t(
                   'Tu banco usa su propia tasa, no la del mercado. Pon el monto EXACTO que te acreditaron: es el único dato cierto.',
