@@ -17,6 +17,13 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // El comprobante de lo que la app ACABA de escribir. Una transferencia que se
+  // cierra sola no deja ninguna evidencia, así que "lo hice y sigue igual" no
+  // se puede distinguir de "la app calculó mal", de "escribió bien y el tablero
+  // muestra un número viejo" ni de "el teléfono sigue en el bundle anterior".
+  // Es la misma lección del botón "Reparar ahora" (FASE HP): si el resultado no
+  // se ve, cada reporte cuesta una ronda de diagnóstico.
+  const [receipt, setReceipt] = useState(null)
 
   const t = (es, en) => lang === 'es' ? es : en
   // La regla de "esto es una cuenta de saldo" y el cálculo de los campos viven
@@ -124,7 +131,15 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
         }),
       })
       onAddTransaction?.()
-      onClose()
+      // Los valores DESPUÉS se leen con `accountValue`, o sea con la misma
+      // función con la que el tablero suma esa cuenta: si el comprobante y el
+      // tablero no coinciden, el problema está en el display y no en el
+      // cálculo, y eso se ve en una sola captura.
+      setReceipt({
+        from: { name: fromItem.name, currency: fromCurrency, before: sourceValue, after: accountValue({ ...fromItem, ...fromFields }) },
+        to: { name: toItem.name, currency: toCurrency, before: getValue(toItem), after: accountValue({ ...toItem, ...toFields }) },
+        build: (typeof window !== 'undefined' && window.__CHISPU_BUILD) || '',
+      })
     } catch (err) {
       setError(err.message)
     }
@@ -142,6 +157,30 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
           <h2 id="transfer-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Transferencia', 'Transfer')}</h2>
           <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
         </div>
+        {receipt ? (
+          <div className="p-6 space-y-3">
+            <p className="text-sm" style={{ color: 'var(--accent-green)' }}>
+              {t('Listo. Esto es lo que quedó guardado:', 'Done. This is what was saved:')}
+            </p>
+            {[receipt.from, receipt.to].map((side, i) => (
+              <div key={i} className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{side.name}</p>
+                <p className="text-sm font-mono" style={{ color: 'var(--text-primary)' }}>
+                  {side.currency || 'USD'} {money(side.before)} → {money(side.after)}
+                </p>
+              </div>
+            ))}
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {t('Si el tablero no muestra estos mismos números, tomá una captura de esta pantalla: dice exactamente qué se guardó.',
+                 'If the dashboard does not show these same numbers, screenshot this: it says exactly what was saved.')}
+              {receipt.build ? ` (${String(receipt.build).slice(0, 8)})` : ''}
+            </p>
+            <button type="button" onClick={onClose}
+              className="w-full py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
+              {t('Cerrar', 'Close')}
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-3">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
 
@@ -245,6 +284,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   )
