@@ -7,6 +7,7 @@ import { buildContributionFields } from '@/lib/contributions'
 import { buildTransferTransaction, buildDebtPaymentTransaction } from '@/lib/transferTx'
 import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
 import { currencyOptions } from '@/lib/currencies'
+import { parseAmount } from '@/lib/numberParse'
 import { debtOptions, debtBalance as debtBalanceOf } from '@/lib/propertyEquity'
 import BusyLabel from '@/components/ui/BusyLabel'
 
@@ -108,15 +109,15 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const crossCurrency = isTransfer && !!fromItem && !!toItem
     && String(fromCurrency).toUpperCase() !== String(toCurrency).toUpperCase()
   const suggestedTo = (() => {
-    const amt = parseFloat(amount)
+    const amt = parseAmount(amount)
     if (!crossCurrency || !isFinite(amt) || amt <= 0 || typeof convert !== 'function') return null
     const out = convert(amt, fromCurrency, toCurrency)
     return isFinite(out) && out > 0 ? out : null
   })()
-  const receivedRaw = toTouched ? parseFloat(toAmount) : (suggestedTo ?? parseFloat(toAmount))
+  const receivedRaw = toTouched ? parseAmount(toAmount) : (suggestedTo ?? parseAmount(toAmount))
   const received = isFinite(receivedRaw) && receivedRaw > 0 ? receivedRaw : null
   const impliedRate = (() => {
-    const amt = parseFloat(amount)
+    const amt = parseAmount(amount)
     if (!crossCurrency || !received || !isFinite(amt) || amt <= 0) return null
     return amt / received
   })()
@@ -130,12 +131,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const debtCrossCurrency = isDebtPayment && !!fromItem && !!debtItem
     && String(fromCurrency).toUpperCase() !== String(debtCurrency).toUpperCase()
   const suggestedDebtTo = (() => {
-    const amt = parseFloat(amount)
+    const amt = parseAmount(amount)
     if (!debtCrossCurrency || !isFinite(amt) || amt <= 0 || typeof convert !== 'function') return null
     const out = convert(amt, fromCurrency, debtCurrency)
     return isFinite(out) && out > 0 ? out : null
   })()
-  const debtReceivedRaw = toTouched ? parseFloat(toAmount) : (suggestedDebtTo ?? parseFloat(toAmount))
+  const debtReceivedRaw = toTouched ? parseAmount(toAmount) : (suggestedDebtTo ?? parseAmount(toAmount))
   const debtReceived = isFinite(debtReceivedRaw) && debtReceivedRaw > 0 ? debtReceivedRaw : null
 
   const isBackdated = date < today
@@ -153,12 +154,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     // button's `disabled={saving}` state re-renders — the real cause of a
     // "×2" duplicate deposit marker on the chart from what was one click.
     if (saving) return false
-    const num = parseFloat(amount)
+    const num = parseAmount(amount)
     if (!num || num <= 0) return false
     if (!date) { setError(t('Elige la fecha del movimiento.', 'Pick the movement date.')); return false }
     if (isTransfer) {
       if (!fromItem || !toItem) { setError(t('Selecciona las dos cuentas.', 'Select both accounts.')); return false }
-      if (num > sourceValue) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
+      if (num > sourceValue + DUST) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
       if (crossCurrency && !received) {
         setError(t('Indica cuánto llegó a la cuenta destino.', 'Enter how much arrived in the destination account.'))
         return false
@@ -167,7 +168,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
     if (isExpense && !costForItem) { setError(t('Selecciona de qué activo es este gasto.', 'Select which asset this expense belongs to.')); return false }
     if (isDebtPayment) {
       if (!fromItem || !debtItem) { setError(t('Selecciona la cuenta que paga y el préstamo.', 'Select the paying account and the loan.')); return false }
-      if (num > sourceValue) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
+      if (num > sourceValue + DUST) { setError(t('El monto excede el saldo de la cuenta origen.', 'Amount exceeds the source account balance.')); return false }
       if (debtCrossCurrency && !debtReceived) {
         setError(t('Indica cuánto se abonó al préstamo.', 'Enter how much was applied to the loan.'))
         return false
@@ -549,7 +550,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
               <input
                 value={toTouched ? toAmount : ((debtCrossCurrency ? suggestedDebtTo : suggestedTo) != null ? (debtCrossCurrency ? suggestedDebtTo : suggestedTo).toFixed(2) : '')}
                 onChange={(e) => { setToTouched(true); setToAmount(e.target.value) }}
-                type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
+                type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
               <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {t(
                   'Tu banco usa su propia tasa, no la del mercado. Pon el monto EXACTO que te acreditaron: es el único dato cierto.',
@@ -640,15 +641,20 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                   en la cabeza no coincide al centavo con el guardado queda un
                   residuo colgado. */}
               {isTransfer && fromItem && sourceValue > 0 && (
-                <button type="button" onClick={() => setAmount(String(sourceValue))}
+                <button type="button" onClick={() => setAmount((Math.round(sourceValue * 100) / 100).toFixed(2))}
                   className="text-xs text-blue-400 hover:text-blue-300">
                   {t('Todo', 'All')}
                 </button>
               )}
             </div>
             <div className="flex gap-2">
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                placeholder="10000" step="any" min="0" autoFocus
+              {/* type="text" y NO type="number": con teclado en español el
+                  separador decimal es COMA y un input numérico se vacía tecla
+                  por tecla (FASE KV). El monto se lee con parseAmount, que
+                  entiende las dos convenciones: `parseFloat('12.500')` daba
+                  12.5, mil veces menos, en silencio. */}
+              <input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
+                placeholder="10000" autoFocus
                 className={`${inputCls} flex-1 text-lg font-bold`} />
               {!isTransfer && (balanceTarget ? (
                 <span className="px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-slate-300 w-20 text-center">
@@ -711,14 +717,14 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 className="flex-1 px-4 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                 {savedCount > 0 ? t('Cerrar', 'Close') : t('Cancelar', 'Cancel')}
               </button>
-              <button type="submit" disabled={saving || !amount || parseFloat(amount) <= 0}
+              <button type="submit" disabled={saving || !amount || parseAmount(amount) <= 0}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
                 style={{ color: '#ffffff', backgroundColor: isTransfer ? 'var(--accent-blue)' : flowType === 'DEPOSIT' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                 {<BusyLabel busy={saving} lang={lang}>{isTransfer ? t('Transferir', 'Transfer') : t('Registrar', 'Log')}</BusyLabel>}
               </button>
             </div>
             {!isTransfer && (
-              <button type="button" onClick={() => submit(true)} disabled={saving || !amount || parseFloat(amount) <= 0}
+              <button type="button" onClick={() => submit(true)} disabled={saving || !amount || parseAmount(amount) <= 0}
                 className="w-full py-2 text-xs underline underline-offset-2 transition-colors disabled:opacity-40"
                 style={{ color: 'var(--accent-blue)' }}>
                 {t('Guardar y agregar otro', 'Save and add another')}
