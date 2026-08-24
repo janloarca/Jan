@@ -43,6 +43,11 @@ export default function RootLayout({ children }) {
   const buildId = process.env.NEXT_BUILD_ID || '__dev__'
   const themeScript = `
     (function() {
+      // El build que ESTÁ CORRIENDO, alcanzable desde cualquier pantalla.
+      // Sin esto, "hice el cambio y sigue igual" no se puede distinguir de
+      // "el teléfono sigue pegado al bundle viejo", que en este repo ya costó
+      // un día entero y cuatro deploys (FASES HK/HM).
+      try { window.__CHISPU_BUILD = '${buildId}'; } catch(e) {}
       try {
         var saved = localStorage.getItem('chispudo-theme');
         // Default matches the dashboard's default ('dark') — a different default here
