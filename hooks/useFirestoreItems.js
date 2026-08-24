@@ -4,6 +4,13 @@ import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
+// Historial de bumps de SNAPSHOT_VERSION (el número vive en lib/snapshotVersion.js
+// para que el lector del servidor use la MISMA vara). Cada bump es porque un doc
+// ya cacheado quedó con una reconstrucción que el merge NUNCA corrige por su
+// cuenta:
+//   v29 (24 ago 2026): una transferencia entre monedas le acreditaba al destino
+//        el monto del ORIGEN (Q2,500 llegaban como $2,500). Los meses cacheados
+//        tienen ese paso horneado en la reconstrucción de las dos cuentas.
 
 let _db = null
 let _auth = null
