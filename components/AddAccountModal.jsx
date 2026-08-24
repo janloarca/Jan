@@ -13,6 +13,7 @@ import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
+import { debtOptions } from '@/lib/propertyEquity'
 import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 
@@ -129,6 +130,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     safeCap: '', safeDiscount: '', safeType: 'post_money',
     investmentStage: '', roundValuation: '', ownershipPct: '', committedCapital: '',
     interestRate: '', minimumPayment: '',
+    // Inmueble: el enganche, el préstamo que lo financia, y los dos costos
+    // fijos de tenerlo. Ver lib/propertyEquity.js: de estos cuatro más la deuda
+    // vinculada salen "cuánto llevas pagado", "cuánto falta" y el capital
+    // propio, sin teclear nada dos veces. ⛔ Ninguno toca el patrimonio.
+    downPayment: '', linkedDebtId: '', adminFeeMonthly: '', propertyTaxAnnual: '',
     debtTerm: '', installmentsTotal: '', installmentsRemaining: '', monthlyPayment: '',
     cardBrand: '', rewardType: '', rewardRate: '', rewardBalance: '',
     entryFee: '', entryFeeMode: 'separate', managementFee: '', managementFeeType: 'percent', expenseRatio: '',
@@ -189,6 +195,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const isPrivateStock = type === 'Stock' && (subtype === 'private_common' || subtype === 'private_preferred')
   const isMarketAsset = (type === 'Stock' && !isPrivateStock) || type === 'Crypto' || type === 'Fund'
   const isProperty = type === 'RealEstate'
+  // Las deudas que se le pueden ofrecer a un inmueble, hipotecas primero.
+  const propertyDebtOptions = useMemo(() => debtOptions(existingItems), [existingItems])
   const isBank = type === 'Bank'
   const isBond = type === 'Bond'
   const isAlternative = type === 'Alternative'
@@ -462,6 +470,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.quantity = 1
         item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseAmount(form.currentPrice)
+        // Los cuatro campos del inmueble. Solo se escriben si tienen valor, y
+        // NINGUNO entra a getItemValue: el vínculo con la hipoteca es de solo
+        // lectura y el patrimonio no se mueve (lib/propertyEquity.js).
+        if (form.downPayment) item.downPayment = parseAmount(form.downPayment)
+        if (form.linkedDebtId) item.linkedDebtId = form.linkedDebtId
+        if (form.adminFeeMonthly) item.adminFeeMonthly = parseAmount(form.adminFeeMonthly)
+        if (form.propertyTaxAnnual) item.propertyTaxAnnual = parseAmount(form.propertyTaxAnnual)
       } else if (isBank) {
         item.symbol = form.symbol.trim() || `${form.institution.trim().replace(/\s+/g, '-').toUpperCase()}-${(form.name.trim() || 'CUENTA').replace(/\s+/g, '-').toUpperCase()}`
         item.name = form.name.trim() || `${form.institution.trim()} - ${t('Cuenta', 'Account')}`
@@ -1051,6 +1066,64 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </div>
                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
                   {t('Si dejas "Valor de hoy" vacío, usamos lo que pagaste.', 'If you leave "Value today" empty, we use what you paid.')}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label htmlFor="add-downPayment" className={labelCls}>
+                      {t('Enganche', 'Down payment')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span>
+                    </label>
+                    <input id="add-downPayment" value={form.downPayment} onChange={e => set('downPayment', e.target.value)}
+                      placeholder="20000" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-linkedDebtId" className={labelCls}>
+                      {t('Préstamo que la financia', 'Loan financing it')}
+                      <InfoTip text={t('Si la compraste con un préstamo, vinculalo y calculamos solos cuánto llevas pagado, cuánto falta y tu capital propio. No cambia tu patrimonio: la deuda ya resta por su cuenta.',
+                                       'If you bought it with a loan, link it and we work out how much you have paid, how much is left, and your equity. It does not change your net worth: the debt already subtracts on its own.')} />
+                    </label>
+                    {propertyDebtOptions.length > 0 ? (
+                      <select id="add-linkedDebtId" value={form.linkedDebtId}
+                        onChange={e => set('linkedDebtId', e.target.value)} className={inputCls}>
+                        <option value="">{t('-- Sin préstamo --', '-- No loan --')}</option>
+                        {propertyDebtOptions.map(d => (
+                          <option key={d.id} value={d.id}>
+                            {d.name || d.symbol}{d.subtype === 'mortgage' ? ` (${t('hipoteca', 'mortgage')})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      /* Sin ninguna deuda cargada no se ofrece "crear una": el
+                         widget que existe (InlineCreateAccount) crea un ACTIVO,
+                         no una deuda, así que ofrecerlo llevaría al lugar
+                         equivocado. Se dice dónde está el camino real. */
+                      <p className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>
+                        {t('Todavía no tienes ningún préstamo cargado. Agregalo con "Nuevo → Deuda" y después vinculalo desde aquí.',
+                           'You have no loan on file yet. Add it with "New → Debt" and link it from here afterwards.')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label htmlFor="add-adminFeeMonthly" className={labelCls}>
+                      {t('Admin / mantenimiento', 'HOA / upkeep')} <span style={{ color: 'var(--text-muted)' }}>({t('al mes', 'monthly')})</span>
+                    </label>
+                    <input id="add-adminFeeMonthly" value={form.adminFeeMonthly} onChange={e => set('adminFeeMonthly', e.target.value)}
+                      placeholder="150" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-propertyTaxAnnual" className={labelCls}>
+                      {t('Impuesto', 'Property tax')} <span style={{ color: 'var(--text-muted)' }}>({t('al año', 'yearly')})</span>
+                    </label>
+                    <input id="add-propertyTaxAnnual" value={form.propertyTaxAnnual} onChange={e => set('propertyTaxAnnual', e.target.value)}
+                      placeholder="1200" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Las reparaciones no van aquí: son irregulares, se registran una por una como gasto y quedan con su fecha.',
+                     'Repairs do not go here: they are irregular, you log each one as an expense and it keeps its date.')}
                 </p>
               </div>
             )}

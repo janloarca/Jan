@@ -2147,7 +2147,8 @@ export default function DashboardPage() {
 
       {detailItem && (
         <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
-          transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+          transactions={transactions} convert={convert} baseCurrency={baseCurrency}
+          allItems={portfolioItems} />
       )}
 
       {showReview && !editItem && (

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { openingDepositDateFix } from '@/lib/originDeposits'
+import { debtOptions, isProperty as isPropertyItem } from '@/lib/propertyEquity'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import InlineCreateAccount from './InlineCreateAccount'
@@ -99,6 +100,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     incomeDestination: item.incomeDestination || '',
     capitalReturn: item.capitalReturn?.toString() || '',
     capitalDestination: item.capitalDestination || '',
+    // Inmueble (ver lib/propertyEquity.js). Los cuatro son de solo lectura para
+    // el patrimonio: de aquí sale cuánto llevas pagado y tu capital propio.
+    downPayment: item.downPayment?.toString() || '',
+    linkedDebtId: item.linkedDebtId || '',
+    adminFeeMonthly: item.adminFeeMonthly?.toString() || '',
+    propertyTaxAnnual: item.propertyTaxAnnual?.toString() || '',
     rateType: item.rateType || 'fixed',
     accrual: item.accrual === ACCRUAL_DAILY ? ACCRUAL_DAILY : 'monthly',
     rateMin: item.rateMin?.toString() || '',
@@ -416,6 +423,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isBondOrAlt = /bond|bono|inversion|alternative|alternativ/i.test(form.type)
   const isCrypto = /crypto|cripto/i.test(form.type)
   const isDebt = /debt|deuda|pasivo|liability/i.test(form.type)
+  const isProperty = isPropertyItem({ type: form.type })
+  const propertyDebtOptions = useMemo(() => debtOptions(existingItems.filter(it => it.id !== item.id)), [existingItems, item.id])
   const isReceivable = form.isReceivable
   const isCreditCard = form.subtype === 'credit_card' || /credit.?card|tarjeta/i.test(form.type)
   const isAlternative = /alternative|alternativ/i.test(form.type)
@@ -584,6 +593,18 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         updated.committedCapital = parseAmount(form.committedCapital) || 0
       }
 
+      // Inmueble: enganche, préstamo vinculado y los dos costos fijos. Se
+      // escriben SIEMPRE (no solo si tienen valor) para que borrar un campo de
+      // verdad lo borre: con `if (form.x)` un cero o un vacío dejarían vivo el
+      // valor viejo, que es cómo alguien "quita" el enganche y sigue viéndolo.
+      // ⛔ Ninguno entra a getItemValue: el patrimonio no se mueve.
+      if (isProperty) {
+        updated.downPayment = parseAmount(form.downPayment) || 0
+        updated.linkedDebtId = form.linkedDebtId || ''
+        updated.adminFeeMonthly = parseAmount(form.adminFeeMonthly) || 0
+        updated.propertyTaxAnnual = parseAmount(form.propertyTaxAnnual) || 0
+      }
+
       // Debt fields
       if (isDebt) {
         if (form.isReceivable) {
@@ -697,7 +718,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
   // Check if other items reference this one
   const referencedBy = existingItems.filter(it =>
-    it.id !== item.id && (it.incomeDestination === item.id || it.capitalDestination === item.id)
+    it.id !== item.id && (it.incomeDestination === item.id || it.capitalDestination === item.id
+      || it.linkedDebtId === item.id)
   )
 
   const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] focus:outline-none focus:border-blue-500/50'
@@ -1309,6 +1331,59 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <label className={labelCls}>{t('Desc %', 'Disc %')}</label>
                   <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
                     placeholder="20" type="text" inputMode="decimal" className={inputCls} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Inmueble: el enganche, el préstamo que lo financia y los dos
+              costos fijos de tenerlo. De aquí sale la tarjeta de
+              AssetDetailModal (cuánto llevas pagado, cuánto falta, capital
+              propio). ⛔ Solo lectura para el patrimonio: la deuda ya resta por
+              su cuenta como ítem propio, ver lib/propertyEquity.js. */}
+          {isProperty && (
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>
+                🏠 {t('Financiamiento y costos', 'Financing and costs')}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label htmlFor="edit-downPayment" className={labelCls}>{t('Enganche', 'Down payment')}</label>
+                  <input id="edit-downPayment" value={form.downPayment} onChange={e => set('downPayment', e.target.value)}
+                    placeholder="20000" type="text" inputMode="decimal" className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="edit-linkedDebtId" className={labelCls}>
+                    {t('Préstamo que la financia', 'Loan financing it')}
+                    <InfoTip text={t('Vinculá el préstamo y calculamos solos cuánto llevas pagado, cuánto falta y tu capital propio. No cambia tu patrimonio: la deuda ya resta por su cuenta.',
+                                     'Link the loan and we work out how much you have paid, how much is left, and your equity. It does not change your net worth: the debt already subtracts on its own.')} />
+                  </label>
+                  {propertyDebtOptions.length > 0 ? (
+                    <select id="edit-linkedDebtId" value={form.linkedDebtId}
+                      onChange={e => set('linkedDebtId', e.target.value)} className={inputCls}>
+                      <option value="">{t('-- Sin préstamo --', '-- No loan --')}</option>
+                      {propertyDebtOptions.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.name || d.symbol}{d.subtype === 'mortgage' ? ` (${t('hipoteca', 'mortgage')})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>
+                      {t('No tienes préstamos cargados. Agregalo con "Nuevo → Deuda".',
+                         'No loans on file. Add one with "New → Debt".')}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="edit-adminFeeMonthly" className={labelCls}>{t('Admin / mantenimiento (al mes)', 'HOA / upkeep (monthly)')}</label>
+                  <input id="edit-adminFeeMonthly" value={form.adminFeeMonthly} onChange={e => set('adminFeeMonthly', e.target.value)}
+                    placeholder="150" type="text" inputMode="decimal" className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="edit-propertyTaxAnnual" className={labelCls}>{t('Impuesto (al año)', 'Property tax (yearly)')}</label>
+                  <input id="edit-propertyTaxAnnual" value={form.propertyTaxAnnual} onChange={e => set('propertyTaxAnnual', e.target.value)}
+                    placeholder="1200" type="text" inputMode="decimal" className={inputCls} />
                 </div>
               </div>
             </div>
