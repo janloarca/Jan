@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED } from '@/lib/financeCategories'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -38,7 +40,9 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
 
   const handleSubmit = async () => {
     setError('')
-    if (!form.amount || parseFloat(form.amount) <= 0) {
+    // El guard de `!form.amount` se queda: parseAmount('') devuelve 0 (y no
+    // NaN), asi que sin el un campo en blanco y un cero se verian iguales.
+    if (!form.amount || parseAmount(form.amount) <= 0) {
       setError(t('Ingresa un monto válido.', 'Enter a valid amount.'))
       return
     }
@@ -49,7 +53,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
     setSaving(true)
     const ok = await onAdd({
       type: form.type,
-      amount: parseFloat(form.amount),
+      amount: parseAmount(form.amount),
       category: form.category,
       description: form.description,
       date: form.date,
@@ -94,7 +98,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
 
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Monto', 'Amount')} *</label>
-            <input type="number" step="0.01" value={form.amount}
+            <AmountInput value={form.amount}
               onChange={e => setForm({ ...form, amount: e.target.value })}
               placeholder="0.00"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none input-focus" />

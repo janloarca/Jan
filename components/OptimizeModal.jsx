@@ -4,6 +4,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { currencyOptions } from '@/lib/currencies'
 import BusyLabel from '@/components/ui/BusyLabel'
+import AmountInput from '@/components/ui/AmountInput'
+// Tres lecturas distintas y no una: la CANTIDAD por parseQuantity (un
+// separador solitario es decimal), el dinero por parseAmount (convencion LatAm
+// de miles) y la TASA por parseRate (decimal, y conserva el signo).
+import { parseAmount, parseQuantity, parseRate } from '@/lib/numberParse'
 
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 
@@ -195,15 +200,15 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
       if (f.acquisitionDate) updated.acquisitionDate = f.acquisitionDate
       if (f.institution) updated.institution = f.institution
       if (f.currency) updated.currency = f.currency
-      if (f.quantity !== '' && f.quantity !== undefined) updated.quantity = parseFloat(f.quantity) || 0
-      if (f.purchasePrice !== '' && f.purchasePrice !== undefined) updated.purchasePrice = parseFloat(f.purchasePrice) || 0
+      if (f.quantity !== '' && f.quantity !== undefined) updated.quantity = parseQuantity(f.quantity)
+      if (f.purchasePrice !== '' && f.purchasePrice !== undefined) updated.purchasePrice = parseAmount(f.purchasePrice)
       if (f.currentPrice !== '' && f.currentPrice !== undefined) {
-        updated.currentPrice = parseFloat(f.currentPrice) || 0
+        updated.currentPrice = parseAmount(f.currentPrice)
         if (isBankItem) updated.purchasePrice = updated.currentPrice
       }
       if (f.incomeMode) updated.incomeMode = f.incomeMode
-      if (f.incomeAmount !== '' && f.incomeAmount !== undefined) updated.incomeAmount = parseFloat(f.incomeAmount) || 0
-      if (f.incomeRate !== '' && f.incomeRate !== undefined) updated.incomeRate = parseFloat(f.incomeRate) || 0
+      if (f.incomeAmount !== '' && f.incomeAmount !== undefined) updated.incomeAmount = parseAmount(f.incomeAmount)
+      if (f.incomeRate !== '' && f.incomeRate !== undefined) updated.incomeRate = parseRate(f.incomeRate)
       updated.updatedAt = new Date().toISOString()
       await onSave(updated)
     } catch {}
@@ -367,7 +372,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                     {t('Registrado:', 'Recorded:')} {Number(q.item.currentPrice || q.item.purchasePrice || 0).toLocaleString()} {currentForm.currency}
                   </span>
                 </div>
-                <input type="number" step="any" value={currentForm.currentPrice}
+                <AmountInput value={currentForm.currentPrice}
                   onChange={(e) => set('currentPrice', e.target.value)}
                   className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
               </div>
@@ -394,7 +399,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               </div>
               <div>
                 <label className="text-xs text-slate-500 mb-1 block">{t('Nuevo monto por pago (si cambió)', 'New amount per payment (if changed)')}</label>
-                <input type="number" step="any" value={currentForm.incomeAmount}
+                <AmountInput value={currentForm.incomeAmount}
                   placeholder={(q.item.incomeAmount || 0).toString()}
                   onChange={(e) => set('incomeAmount', e.target.value)}
                   className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -425,7 +430,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               {currentForm.incomeMode === 'fixed' ? (
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">{t('Monto por pago', 'Amount per payment')}</label>
-                  <input type="number" step="any" value={currentForm.incomeAmount}
+                  <AmountInput value={currentForm.incomeAmount}
                     placeholder={(q.item.incomeAmount || 0).toString()}
                     onChange={(e) => set('incomeAmount', e.target.value)}
                     className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -433,7 +438,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               ) : (
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
-                  <input type="number" step="any" value={currentForm.incomeRate}
+                  <AmountInput value={currentForm.incomeRate}
                     placeholder={(q.item.incomeRate || 0).toString()}
                     onChange={(e) => set('incomeRate', e.target.value)}
                     className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -448,13 +453,13 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">{t('Cantidad', 'Quantity')}</label>
-                    <input type="number" step="any" value={currentForm.quantity}
+                    <AmountInput value={currentForm.quantity}
                       onChange={(e) => set('quantity', e.target.value)}
                       className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">{t('Precio', 'Price')}</label>
-                    <input type="number" step="any" value={currentForm.purchasePrice}
+                    <AmountInput value={currentForm.purchasePrice}
                       onChange={(e) => set('purchasePrice', e.target.value)}
                       className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
                   </div>
@@ -462,7 +467,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
               ) : (
                 <div>
                   <label className="text-xs text-slate-500 mb-1 block">{t('Saldo actual', 'Current balance')}</label>
-                  <input type="number" step="any" value={currentForm.currentPrice}
+                  <AmountInput value={currentForm.currentPrice}
                     onChange={(e) => set('currentPrice', e.target.value)}
                     className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
                 </div>
