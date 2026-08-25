@@ -44,7 +44,7 @@ export default function CategoryEditor({ tx, onApply, onCancel, lang = 'es' }) {
   return (
     <div
       ref={boxRef}
-      className="card p-3 space-y-2.5 w-[17rem] max-w-[calc(100vw-2rem)]"
+      className="modal-anim card p-3 space-y-2.5 w-[17rem] max-w-[calc(100vw-2rem)]"
       style={{ boxShadow: 'var(--shadow-modal, 0 12px 32px rgba(0,0,0,0.35))' }}
     >
       <div className="min-w-0">

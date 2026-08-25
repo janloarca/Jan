@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { formatCurrency, categoryLabel } from './utils'
 import { buildReportData, regionLabel } from '@/lib/reportData'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
+import { useModalExiting } from '@/components/ui/ModalMount'
 
 // Este modal es SIEMPRE un documento blanco (un reporte impreso no tiene modo
 // oscuro), pero el CSS global del tema reinterpreta clases: en tema claro
@@ -141,11 +142,17 @@ export default function PrintSummary({
   // hace lo que dice.
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
+  // El portal saca este nodo del árbol, así que el `>` de ModalMount no puede
+  // llegar hasta acá: el estado de salida viaja por contexto y el atributo se
+  // pone sobre la raíz PORTADA. Va antes del guard de montaje por la regla dura
+  // de este repo (ningún `return` antes de un hook).
+  const exiting = useModalExiting()
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white text-black rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}
+      {...(exiting ? { 'data-modal-exit': '' } : {})}>
+      <div className="modal-anim bg-white text-black rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {/* Controles (ocultos al imprimir) */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-3 border-b print:hidden">
           <div className="flex items-center gap-3">
