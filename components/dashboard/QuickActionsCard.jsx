@@ -16,6 +16,47 @@ import { InfoTip } from '../ui/Tooltip'
 // "pasó algo y lo quiero registrar" contra "quiero traer o revisar datos".
 // Compartir/Exportar quedan como texto al pie: son salidas, no registros, y
 // compiten por atención con lo que la gente de verdad viene a hacer.
+// ⛔ Tile y GroupLabel viven FUERA del componente, y no es estilo.
+//
+// Definidos dentro del render, su identidad es NUEVA en cada render, así que
+// React los ve como otro tipo de componente y DESMONTA Y REMONTA su nodo del
+// DOM cada vez. Si eso cae entre el mousedown y el mouseup (o entre el
+// touchstart y el touchend), el nodo que recibió el toque ya no existe cuando
+// se suelta y el CLICK NUNCA LLEGA: el usuario tiene que tocar varias veces.
+//
+// Y en este tablero pasa seguido, porque re-renderiza solo con cada tick de
+// precios. Medido en el navegador con el mecanismo aislado: 40 de 40 clics
+// perdidos con el componente adentro, 0 de 40 con el componente afuera.
+const Tile = ({ a }) => (
+  <button type="button" onClick={a.onClick}
+    className="relative w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-colors hover:bg-theme-elevated min-w-0"
+    style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+    <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+      style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>
+      <a.icon size={15} />
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block text-body font-medium truncate" style={{ color: 'var(--text-primary)' }}>{a.label}</span>
+      <span className="block text-micro leading-snug" style={{ color: 'var(--text-muted)' }}>{a.desc}</span>
+    </span>
+    {a.dot && (
+      <span className="absolute top-2 right-2 w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: a.dot }} />
+    )}
+    {a.badge != null && !a.dot && (
+      <span className="text-micro font-semibold px-1.5 py-0.5 rounded shrink-0"
+        style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
+        {a.badge}
+      </span>
+    )}
+  </button>
+)
+
+const GroupLabel = ({ children }) => (
+  <span className="block text-micro uppercase tracking-wider font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+    {children}
+  </span>
+)
+
 export default function QuickActionsCard({
   onImport, onAddAccount, onTransfer, onCashFlow, onSell, onPriceAlerts,
   onExport, onShare, onIntegrations, onReview,
@@ -81,35 +122,6 @@ export default function QuickActionsCard({
     },
   ].filter(Boolean)
 
-  const Tile = ({ a }) => (
-    <button type="button" onClick={a.onClick}
-      className="relative w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-colors hover:bg-theme-elevated min-w-0"
-      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
-      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>
-        <a.icon size={15} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-body font-medium truncate" style={{ color: 'var(--text-primary)' }}>{a.label}</span>
-        <span className="block text-micro leading-snug" style={{ color: 'var(--text-muted)' }}>{a.desc}</span>
-      </span>
-      {a.dot && (
-        <span className="absolute top-2 right-2 w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: a.dot }} />
-      )}
-      {a.badge != null && !a.dot && (
-        <span className="text-micro font-semibold px-1.5 py-0.5 rounded shrink-0"
-          style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
-          {a.badge}
-        </span>
-      )}
-    </button>
-  )
-
-  const GroupLabel = ({ children }) => (
-    <span className="block text-micro uppercase tracking-wider font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
-      {children}
-    </span>
-  )
 
   // Mismo marco (p-4) y mismo encabezado (punto + título en mayúsculas +
   // InfoTip) que AssetAllocation / InstitutionPerformance: las cuatro cards de

@@ -563,6 +563,18 @@ function Hero({ t, owner, advisor, label, scopeLabel, asOfLabel, kpis, showAmoun
   )
 }
 
+// Fuera del componente a propósito: definido adentro, su identidad cambia en
+// cada render y React remonta su nodo, así que un click que caiga entre el
+// down y el up se pierde (medido: 40 de 40). `money` viaja como prop.
+function Row({ label, value, sign, strong, color, money }) {
+  return (
+  <div className={`flex items-center justify-between gap-3 py-1.5 text-sm ${strong ? 'font-medium' : ''}`}>
+    <span style={{ color: strong ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{label}</span>
+    <span className="tabular-nums shrink-0" style={{ color: color || 'var(--text-primary)' }}>{sign}{money(Math.abs(value))}</span>
+  </div>
+)
+}
+
 // La reconciliación: inicio + depósitos − retiros + resultado = final. La
 // sección que PRUEBA la aritmética del documento, y la única que puede hacerlo
 // porque el resultado se muestra como el RESIDUO de esa identidad (derivación
@@ -570,25 +582,19 @@ function Hero({ t, owner, advisor, label, scopeLabel, asOfLabel, kpis, showAmoun
 // construcción). Solo existe con serie y con montos: son montos.
 function Reconciliation({ t, flows, valueChange, money, lang }) {
   const gain = (valueChange.abs ?? 0) - (flows.net ?? 0)
-  const Row = ({ label, value, sign, strong, color }) => (
-    <div className={`flex items-center justify-between gap-3 py-1.5 text-sm ${strong ? 'font-medium' : ''}`}>
-      <span style={{ color: strong ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{label}</span>
-      <span className="tabular-nums shrink-0" style={{ color: color || 'var(--text-primary)' }}>{sign}{money(Math.abs(value))}</span>
-    </div>
-  )
   return (
     <Section title={t('Movimiento del período', 'Period activity')}>
       <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
-        <Row label={`${t('Valor al', 'Value on')} ${shortDate(valueChange.firstTs, lang)}`} value={valueChange.first} sign="" strong />
+        <Row money={money} label={`${t('Valor al', 'Value on')} ${shortDate(valueChange.firstTs, lang)}`} value={valueChange.first} sign="" strong />
         {flows.deposits > 0 && (
-          <Row label={`${t('Depósitos', 'Deposits')} (${flows.depositCount})`} value={flows.deposits} sign="+" color="var(--text-secondary)" />
+          <Row money={money} label={`${t('Depósitos', 'Deposits')} (${flows.depositCount})`} value={flows.deposits} sign="+" color="var(--text-secondary)" />
         )}
         {flows.withdrawals > 0 && (
-          <Row label={`${t('Retiros', 'Withdrawals')} (${flows.withdrawalCount})`} value={flows.withdrawals} sign="-" color="var(--text-secondary)" />
+          <Row money={money} label={`${t('Retiros', 'Withdrawals')} (${flows.withdrawalCount})`} value={flows.withdrawals} sign="-" color="var(--text-secondary)" />
         )}
-        <Row label={t('Resultado del período', 'Period result')} value={gain} sign={gain >= 0 ? '+' : '-'}
+        <Row money={money} label={t('Resultado del período', 'Period result')} value={gain} sign={gain >= 0 ? '+' : '-'}
           color={gain >= 0 ? 'var(--accent-green)' : 'var(--text-negative)'} />
-        <Row label={`${t('Valor al', 'Value on')} ${shortDate(valueChange.lastTs, lang)}`} value={valueChange.last} sign="" strong />
+        <Row money={money} label={`${t('Valor al', 'Value on')} ${shortDate(valueChange.lastTs, lang)}`} value={valueChange.last} sign="" strong />
       </div>
       {flows.incomeCollected > 0 && (
         <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
