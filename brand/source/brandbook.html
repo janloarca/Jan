@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Chispudo · Manual de marca</title>
+<style>
+@font-face{font-family:CInter;src:url('file:///usr/share/fonts/truetype/chispudo/Inter-wght-400.ttf');font-weight:400}
+@font-face{font-family:CInter;src:url('file:///usr/share/fonts/truetype/chispudo/Inter-wght-500.ttf');font-weight:500}
+@font-face{font-family:CInter;src:url('file:///usr/share/fonts/truetype/chispudo/Inter-wght-600.ttf');font-weight:600}
+@font-face{font-family:CInter;src:url('file:///usr/share/fonts/truetype/chispudo/Inter-wght-700.ttf');font-weight:700}
+@font-face{font-family:CInter;src:url('file:///usr/share/fonts/truetype/chispudo/Inter-wght-900.ttf');font-weight:900}
+@font-face{font-family:CMono;src:url('file:///usr/share/fonts/truetype/chispudo/JetBrains-Mono-wght-500.ttf');font-weight:500}
+@font-face{font-family:CMono;src:url('file:///usr/share/fonts/truetype/chispudo/JetBrains-Mono-wght-700.ttf');font-weight:700}
+@page{size:297mm 210mm;margin:0}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}
+body{font-family:CInter,sans-serif;color:#111827;background:#fff}
+.page{width:297mm;height:210mm;padding:17mm 20mm 14mm;background:#F8F9FB;position:relative;overflow:hidden;page-break-after:always;display:flex;flex-direction:column}
+.page:last-child{page-break-after:auto}
+.page.dark{background:#0A0A12;color:#fff}
+.page.white{background:#fff}
+.kicker{font-size:8.2pt;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#2563EB;margin:0 0 5mm}
+.dark .kicker{color:#60A5FA}
+h1{font-size:30pt;font-weight:900;letter-spacing:-.025em;line-height:1.06;margin:0 0 4mm}
+h2{font-size:12.5pt;font-weight:700;letter-spacing:-.01em;margin:0 0 2.5mm}
+p{font-size:9.6pt;line-height:1.62;color:#374151;margin:0 0 3.4mm;max-width:150mm}
+.dark p{color:rgba(235,235,245,.78)}
+.lead{font-size:11.6pt;line-height:1.55;color:#111827;max-width:175mm}
+.dark .lead{color:rgba(235,235,245,.9)}
+small{font-size:8.1pt;color:#6B7280;line-height:1.5;display:block}
+.dark small{color:rgba(235,235,245,.55)}
+.body{flex:1;min-height:0}
+.foot{display:flex;justify-content:space-between;align-items:flex-end;font-size:7.6pt;color:#9AA3B2;padding-top:5mm;border-top:1px solid #E5E7EB}
+.dark .foot{color:rgba(235,235,245,.4);border-top:1px solid rgba(255,255,255,.10)}
+.mono{font-family:CMono,monospace;font-variant-numeric:tabular-nums}
+.rule{height:3px;width:22mm;background:#2563EB;border-radius:2px;margin:0 0 7mm}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11mm}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6mm}
+.card{background:#fff;border:1px solid #E5E7EB;border-radius:5mm;padding:6mm}
+.dark .card{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.10)}
+.swatch{border-radius:4mm;overflow:hidden;border:1px solid rgba(0,0,0,.07)}
+.swatch .chip{height:26mm}
+.swatch .meta{padding:3mm 3.5mm 4mm;background:#fff}
+.swatch .nm{font-size:8.6pt;font-weight:700;margin-bottom:1mm}
+.swatch .hx{font-family:CMono,monospace;font-size:7.7pt;color:#4B5563;letter-spacing:.01em}
+.tag{display:inline-block;font-size:7.4pt;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:1.1mm 2.4mm;border-radius:2mm;background:#EFF4FF;color:#2563EB}
+.ok,.no{font-size:8.4pt;font-weight:700;display:flex;align-items:center;gap:2mm;margin-top:2.5mm}
+.ok{color:#059669}.no{color:#DC2626}
+table{width:100%;border-collapse:collapse;font-size:8.7pt}
+th{text-align:left;font-weight:700;font-size:7.6pt;letter-spacing:.1em;text-transform:uppercase;color:#6B7280;padding:0 0 2.5mm;border-bottom:1px solid #E5E7EB}
+td{padding:2.6mm 0;border-bottom:1px solid #EEF1F5;vertical-align:middle;color:#374151}
+.dark th{color:rgba(235,235,245,.5);border-bottom-color:rgba(255,255,255,.12)}
+.dark td{color:rgba(235,235,245,.78);border-bottom-color:rgba(255,255,255,.07)}
+.dont{border:1px solid #E5E7EB;border-radius:4mm;padding:4mm;background:#fff;text-align:center}
+.dont .box{height:16.5mm;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:2.5mm}
+.dont .lbl{font-size:7.7pt;color:#DC2626;font-weight:600;line-height:1.35}
+.toc{font-size:9.8pt;line-height:1}
+.toc div{display:flex;align-items:baseline;gap:3mm;padding:2.9mm 0;border-bottom:1px solid #E9EDF2}
+.toc .n{font-family:CMono,monospace;font-size:8pt;color:#2563EB;width:8mm;font-weight:700}
+.toc .t{flex:1;font-weight:600}
+.toc .p{font-family:CMono,monospace;font-size:8pt;color:#9AA3B2}
+.tight td{padding:1.9mm 0}
+</style></head><body>
+
+<!-- 1 COVER -->
+<div class="page dark" style="justify-content:space-between;padding:20mm">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <img src="../logos/svg/chispudo-logo-inverso.svg" style="width:62mm">
+    <div style="text-align:right;font-size:8.4pt;color:rgba(235,235,245,.55);line-height:1.7">
+      Manual de marca<br><span class="mono">v1 · 2026</span>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:8.2pt;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#60A5FA;margin-bottom:6mm">Identidad visual y verbal</div>
+    <div style="font-size:46pt;font-weight:900;letter-spacing:-.03em;line-height:1.02;max-width:210mm">
+      Todo tu patrimonio,<br>en un solo lugar.
+    </div>
+    <p style="margin-top:7mm;font-size:11pt;max-width:150mm;color:rgba(235,235,245,.7)">
+      Chispudo es el rastreador de portafolio hecho para América Latina: acciones, cripto, bonos,
+      bienes raíces, deuda privada y notas SAFE, medidos con una sola vara.
+    </p>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:8.4pt;color:rgba(235,235,245,.45)">
+    <span class="mono">chispu.xyz</span><span>Documento interno de marca</span>
+  </div>
+</div>
+
+<!-- 2 TOC -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">Contenido</div><h1>Qué hay aquí</h1><div class="rule"></div>
+    <div class="grid2" style="gap:14mm">
+      <div class="toc">
+        <div><span class="n">01</span><span class="t">La marca</span><span class="p">03</span></div>
+        <div><span class="n">02</span><span class="t">Personalidad y voz</span><span class="p">04</span></div>
+        <div><span class="n">03</span><span class="t">Anatomía del logo</span><span class="p">05</span></div>
+        <div><span class="n">04</span><span class="t">Construcción y proporciones</span><span class="p">06</span></div>
+        <div><span class="n">05</span><span class="t">Versiones del logo</span><span class="p">07</span></div>
+        <div><span class="n">06</span><span class="t">El logo sobre fondos</span><span class="p">08</span></div>
+      </div>
+      <div class="toc">
+        <div><span class="n">07</span><span class="t">Área de protección y tamaño mínimo</span><span class="p">09</span></div>
+        <div><span class="n">08</span><span class="t">Usos incorrectos</span><span class="p">10</span></div>
+        <div><span class="n">09</span><span class="t">Color de marca</span><span class="p">11</span></div>
+        <div><span class="n">10</span><span class="t">Color por clase de activo</span><span class="p">12</span></div>
+        <div><span class="n">11</span><span class="t">Tipografía</span><span class="p">13</span></div>
+        <div><span class="n">12</span><span class="t">Superficies y aplicaciones</span><span class="p">14</span></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12mm;background:#EFF4FF;border-color:#BFD3FF">
+      <h2 style="color:#2563EB">Una regla por encima de todas</h2>
+      <p style="margin:0;max-width:none">Este manual describe lo que la aplicación ya renderiza hoy: las proporciones del logo, los
+      valores de color y la escala tipográfica salen del propio código de producto, no de una interpretación.
+      Si un archivo de marca y la aplicación alguna vez dicen cosas distintas, gana el código y este documento se corrige.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">02</span></div>
+</div>
+
+<!-- 3 BRAND -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">01 · La marca</div><h1>Qué es Chispudo</h1><div class="rule"></div>
+    <p class="lead">Una herramienta de patrimonio para gente que tiene su dinero repartido en más de un país,
+    más de una moneda y más de un tipo de activo. Chispudo junta todo eso y responde una sola pregunta con honestidad:
+    cuánto tengo, y cuánto de eso me lo gané.</p>
+    <div class="grid3" style="margin-top:9mm">
+      <div class="card"><h2>Para quién</h2><p style="margin:0">Inversionistas de América Latina con activos mezclados: una cuenta de corretaje afuera,
+      un bono local, cripto, un fondo líquido en quetzales, una participación en una empresa privada.</p></div>
+      <div class="card"><h2>Qué promete</h2><p style="margin:0">Un número que se sostiene. Cada retorno se calcula neteando los aportes,
+      así que meter dinero nunca se ve como ganancia y un depósito nunca se disfraza de rendimiento.</p></div>
+      <div class="card"><h2>Qué no hace</h2><p style="margin:0">No opera, no mueve dinero y no tiene permiso de escritura en ningún broker.
+      Chispudo observa y explica: nunca ejecuta.</p></div>
+    </div>
+    <h2 style="margin-top:11mm">El nombre</h2>
+    <p><b>Chispudo</b> es la marca, y se escribe siempre completa y con mayúscula inicial. En español guatemalteco,
+    chispudo describe a alguien despierto, que agarra las cosas al vuelo. Esa es la promesa del producto en una palabra,
+    y de ahí sale también el rayo del isotipo. <b>chispu.xyz</b> es el dominio, no una forma corta de la marca:
+    se usa como dirección, nunca como firma en lugar del logo.</p>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">03</span></div>
+</div>
+
+<!-- 4 VOICE -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">02 · Personalidad y voz</div><h1>Cómo hablamos</h1><div class="rule"></div>
+    <div class="grid2" style="gap:12mm">
+      <div>
+        <p class="lead" style="font-size:10.6pt">Chispudo le habla a alguien que sabe de dinero pero no tiene por qué saber de finanzas cuantitativas.
+        Explica el número, no lo decora.</p>
+        <table style="margin-top:6mm"><tr><th style="width:50%">Somos</th><th>No somos</th></tr>
+          <tr><td><b>Claros</b>: una idea por frase</td><td>Densos ni académicos</td></tr>
+          <tr><td><b>Exactos</b>: si no se sabe, se dice</td><td>Optimistas por default</td></tr>
+          <tr><td><b>Cercanos</b>: se habla de vos, no de usted</td><td>Solemnes ni corporativos</td></tr>
+          <tr><td><b>Serenos</b>: el rojo se reserva</td><td>Alarmistas</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="card"><h2>Reglas de escritura</h2>
+          <table style="margin-top:1mm">
+            <tr><td style="width:56%"><b>Nunca guiones largos</b> en texto visible</td><td><span class="mono">: , .</span> en su lugar</td></tr>
+            <tr><td><b>Bilingüe siempre</b>: español e inglés</td><td>Nada solo en uno</td></tr>
+            <tr><td><b>Cifras con moneda explícita</b></td><td><span class="mono">GTQ 500.00</span></td></tr>
+            <tr><td><b>Un dato ausente se nombra</b></td><td>Nunca un cero inventado</td></tr>
+          </table>
+          <small style="margin-top:3mm">El guión largo está prohibido en la interfaz por decisión de marca. En comentarios de código se permite.</small>
+        </div>
+        <div class="card" style="margin-top:6mm;background:#EFF4FF;border-color:#BFD3FF">
+          <div class="tag">Ejemplo</div>
+          <p style="margin:3mm 0 0"><b style="color:#059669">Sí:</b> "No pudimos traer el precio de BTC en esta sesión. El total de abajo no lo incluye."</p>
+          <p style="margin:2mm 0 0"><b style="color:#DC2626">No:</b> "Ha ocurrido un error inesperado."</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">04</span></div>
+</div>
+
+<!-- 5 ANATOMY -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">03 · Anatomía del logo</div><h1>Isotipo y logotipo</h1><div class="rule"></div>
+    <div style="display:flex;align-items:center;gap:16mm;margin:6mm 0 9mm">
+      <div style="text-align:center">
+        <img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:38mm">
+        <div style="margin-top:4mm;font-size:8.4pt;font-weight:700">Isotipo</div>
+        <small>El rayo</small>
+      </div>
+      <div style="font-size:20pt;color:#D1D7E0;font-weight:300">+</div>
+      <div style="text-align:center">
+        <div style="font-size:34pt;font-weight:900;letter-spacing:-.02em;line-height:1">Chispudo</div>
+        <div style="margin-top:4mm;font-size:8.4pt;font-weight:700">Logotipo</div>
+        <small>Inter Black, tracking -0,02 em</small>
+      </div>
+      <div style="font-size:20pt;color:#D1D7E0;font-weight:300">=</div>
+      <div style="text-align:center">
+        <img src="../logos/svg/chispudo-logo-principal.svg" style="width:78mm">
+        <div style="margin-top:4mm;font-size:8.4pt;font-weight:700">Logo principal</div>
+        <small>La firma completa</small>
+      </div>
+    </div>
+    <div class="grid3">
+      <div class="card"><h2>Un solo trazo</h2><p style="margin:0">El rayo es una sola figura cerrada con los dos quiebres mínimos
+      que necesita para leerse como rayo. Menos vértices sobreviven mejor a los 16 px de una pestaña del navegador.</p></div>
+      <div class="card"><h2>Esquinas suaves</h2><p style="margin:0">El redondeo no se dibuja vértice por vértice: viene de acompañar el relleno
+      con un trazo del mismo color y unión redondeada. Misma silueta, esquinas amables, sin complicar la figura.</p></div>
+      <div class="card"><h2>Una sola fuente</h2><p style="margin:0">La geometría del rayo vive en un único archivo del producto y de ahí
+      la toman el encabezado, el favicon, el ícono de la app y estos archivos de marca. El rayo no se vuelve a dibujar nunca.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">05</span></div>
+</div>
+
+<!-- 6 CONSTRUCTION -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">04 · Construcción</div><h1>Proporciones</h1><div class="rule"></div>
+    <p>Todo el sistema se deriva de <b>S</b>, el lado de la caja del isotipo. Nada en el lockup es un valor suelto:
+    si cambia S, todo lo demás cambia con él.</p>
+    <div style="margin:4mm 0 5mm;background:#fff;border:1px solid #E5E7EB;border-radius:5mm;padding:5mm 6mm">
+      <img src="diagrams/construccion.svg" style="width:100%">
+    </div>
+    <div class="grid4">
+      <div class="card" style="padding:4mm"><div class="mono" style="font-size:12.5pt;font-weight:700;color:#2563EB">S</div><small style="margin-top:1.5mm">Caja del isotipo. Módulo base de todo el lockup.</small></div>
+      <div class="card" style="padding:4mm"><div class="mono" style="font-size:12.5pt;font-weight:700;color:#2563EB">0,9 S</div><small style="margin-top:1.5mm">Cuerpo tipográfico del logotipo.</small></div>
+      <div class="card" style="padding:4mm"><div class="mono" style="font-size:12.5pt;font-weight:700;color:#2563EB">0,4 S</div><small style="margin-top:1.5mm">Separación entre isotipo y logotipo.</small></div>
+      <div class="card" style="padding:4mm"><div class="mono" style="font-size:12.5pt;font-weight:700;color:#2563EB">5,67 : 1</div><small style="margin-top:1.5mm">Proporción del logo horizontal. Se escala, nunca se deforma.</small></div>
+    </div>
+    <p style="margin-top:5mm;max-width:none"><b>Alineación vertical:</b> el centro de la altura de mayúscula del logotipo cae sobre el centro óptico del isotipo. No se alinea por línea base ni por caja de texto, sino por eje óptico, que es lo que el ojo lee como centrado.</p>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">06</span></div>
+</div>
+
+<!-- 7 VERSIONS -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">05 · Versiones</div><h1>Tres bloqueos, un solo sistema</h1><div class="rule"></div>
+    <div class="grid3" style="margin-top:6mm">
+      <div class="card" style="display:flex;flex-direction:column">
+        <div style="height:30mm;display:flex;align-items:center"><img src="../logos/svg/chispudo-logo-principal.svg" style="width:100%"></div>
+        <h2 style="margin-top:3mm">Horizontal</h2>
+        <p style="margin:0">La versión por defecto. Se usa siempre que haya ancho: encabezados, presentaciones, documentos, firma de correo.</p>
+        <small style="margin-top:auto;padding-top:3mm" class="mono">5,67 : 1</small>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column">
+        <div style="height:30mm;display:flex;align-items:center;justify-content:center"><img src="../logos/svg/chispudo-logo-vertical-principal.svg" style="height:26mm"></div>
+        <h2 style="margin-top:3mm">Vertical</h2>
+        <p style="margin:0">Para formatos cuadrados o angostos donde el horizontal quedaría demasiado pequeño: redes sociales, etiquetas, merchandising.</p>
+        <small style="margin-top:auto;padding-top:3mm" class="mono">1,63 : 1</small>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column">
+        <div style="height:30mm;display:flex;align-items:center;justify-content:center"><img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:24mm"></div>
+        <h2 style="margin-top:3mm">Isotipo solo</h2>
+        <p style="margin:0">Solo cuando la marca ya está identificada en el mismo espacio, o cuando no cabe el nombre: ícono de app, favicon, avatar.</p>
+        <small style="margin-top:auto;padding-top:3mm" class="mono">0,86 : 1</small>
+      </div>
+    </div>
+    <div class="card" style="margin-top:9mm;display:flex;gap:8mm;align-items:center">
+      <div style="flex:1">
+        <h2>El orden importa</h2>
+        <p style="margin:0">Ante la duda, se usa el horizontal. El isotipo solo no es una versión más corta del logo:
+        es una firma para cuando el nombre ya se dijo en otra parte. Un material donde la marca aparece por primera vez
+        lleva el nombre completo.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:5mm;padding-left:8mm;border-left:1px solid #E5E7EB">
+        <img src="../logos/svg/chispudo-logo-principal.svg" style="width:44mm">
+        <span style="color:#D1D7E0">›</span>
+        <img src="../logos/svg/chispudo-logo-vertical-principal.svg" style="height:16mm">
+        <span style="color:#D1D7E0">›</span>
+        <img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:13mm">
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">07</span></div>
+</div>
+
+<!-- 8 LOGO ON BACKGROUNDS -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">06 · El logo sobre fondos</div><h1>Dos colores, cinco archivos</h1><div class="rule"></div>
+    <p style="margin-bottom:6mm">El logo tiene dos versiones de color de pleno derecho: <b>principal</b> para fondos claros e <b>inverso</b> para fondos oscuros.
+    En ambas el rayo se queda azul, porque el azul es la marca. Las versiones de un solo color existen para cuando el azul no es posible.</p>
+    <div class="grid2" style="gap:8mm">
+      <div style="border-radius:5mm;overflow:hidden;border:1px solid #E5E7EB">
+        <div style="background:#F8F9FB;padding:11mm;display:flex;justify-content:center"><img src="../logos/svg/chispudo-logo-principal.svg" style="width:78mm"></div>
+        <div style="background:#fff;padding:4.5mm 5mm"><div class="nm" style="font-size:9pt;font-weight:700">Principal</div>
+          <small>Rayo <span class="mono">#2563EB</span> · texto <span class="mono">#111827</span>. Sobre blanco, gris muy claro o papel.</small></div>
+      </div>
+      <div style="border-radius:5mm;overflow:hidden;border:1px solid #E5E7EB">
+        <div style="background:#0A0A12;padding:11mm;display:flex;justify-content:center"><img src="../logos/svg/chispudo-logo-inverso.svg" style="width:78mm"></div>
+        <div style="background:#fff;padding:4.5mm 5mm"><div class="nm" style="font-size:9pt;font-weight:700">Inverso</div>
+          <small>Rayo <span class="mono">#2563EB</span> · texto <span class="mono">#FFFFFF</span>. Sobre fondos oscuros y modo oscuro.</small></div>
+      </div>
+    </div>
+    <h2 style="margin-top:8mm">Un solo color</h2>
+    <div class="grid3" style="margin-top:3mm">
+      <div style="border-radius:4mm;overflow:hidden;border:1px solid #E5E7EB">
+        <div style="background:#fff;padding:7mm;display:flex;justify-content:center"><img src="../logos/svg/chispudo-logo-mono-tinta.svg" style="width:100%"></div>
+        <div style="background:#F8F9FB;padding:3.5mm 4mm"><small><b style="color:#111827">Mono tinta</b> · impresión a una tinta, fax, sellos.</small></div>
+      </div>
+      <div style="border-radius:4mm;overflow:hidden;border:1px solid #E5E7EB">
+        <div style="background:#fff;padding:7mm;display:flex;justify-content:center"><img src="../logos/svg/chispudo-logo-mono-azul.svg" style="width:100%"></div>
+        <div style="background:#F8F9FB;padding:3.5mm 4mm"><small><b style="color:#111827">Mono azul</b> · cuando se necesita marca de color plano.</small></div>
+      </div>
+      <div style="border-radius:4mm;overflow:hidden;border:1px solid #E5E7EB">
+        <div style="background:#2563EB;padding:7mm;display:flex;justify-content:center"><img src="../logos/svg/chispudo-logo-mono-blanco.svg" style="width:100%"></div>
+        <div style="background:#F8F9FB;padding:3.5mm 4mm"><small><b style="color:#111827">Mono blanco</b> · sobre azul de marca, fotografía o color saturado.</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">08</span></div>
+</div>
+
+<!-- 9 CLEAR SPACE -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">07 · Aire y escala</div><h1>Área de protección</h1><div class="rule"></div>
+    <div class="grid2" style="gap:12mm">
+      <div style="display:flex">
+        <div style="background:#fff;border:1px solid #E5E7EB;border-radius:5mm;padding:6mm;display:flex;align-items:center;width:100%">
+          <img src="diagrams/area-proteccion.svg" style="width:100%">
+        </div>
+      </div>
+      <div>
+        <h2>La medida es X</h2>
+        <p><b>X equivale a la mitad de la altura del isotipo.</b> Ese margen se respeta por los cuatro lados y dentro de él
+        no entra nada: ni texto, ni otro logo, ni el borde del material, ni el filo de una fotografía.</p>
+        <p>La medida se deriva del propio logo, así que se mantiene correcta a cualquier escala sin volver a calcularla.</p>
+        <h2 style="margin-top:7mm">Tamaño mínimo</h2>
+        <table>
+          <tr><th>Versión</th><th>Digital</th><th>Impreso</th></tr>
+          <tr><td>Horizontal</td><td class="mono">120 px de ancho</td><td class="mono">30 mm</td></tr>
+          <tr><td>Vertical</td><td class="mono">64 px de ancho</td><td class="mono">18 mm</td></tr>
+          <tr><td>Isotipo</td><td class="mono">16 px de alto</td><td class="mono">5 mm</td></tr>
+        </table>
+        <small style="margin-top:3mm">Por debajo del mínimo horizontal el logotipo deja de leerse y hay que pasar al isotipo,
+        no reducir más.</small>
+      </div>
+    </div>
+    <div class="card" style="margin-top:7mm;display:flex;align-items:center;gap:9mm;background:#EFF4FF;border-color:#BFD3FF">
+      <div style="display:flex;align-items:center;gap:6mm">
+        <img src="../logos/svg/chispudo-logo-principal.svg" style="width:32mm">
+        <img src="../logos/svg/chispudo-logo-principal.svg" style="width:22mm">
+        <img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:6mm">
+        <img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:4.2mm">
+      </div>
+      <p style="margin:0;flex:1">El rayo aguanta tamaños que el nombre no. Ese es exactamente el reparto de trabajo entre las dos versiones.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">09</span></div>
+</div>
+
+<!-- 10 MISUSE -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">08 · Usos incorrectos</div><h1>Lo que nunca se hace</h1><div class="rule"></div>
+    <p style="margin-bottom:5mm">El logo se entrega listo. Cualquier ajuste que no sea escalarlo de forma proporcional lo rompe.</p>
+    <div class="grid4" style="gap:5mm">
+      <div class="dont"><div class="box"><img src="../logos/svg/chispudo-logo-principal.svg" style="width:68%;transform:scaleX(1.45)"></div><div class="lbl">No deformar ni estirar</div></div>
+      <div class="dont"><div class="box"><img src="../logos/svg/chispudo-logo-principal.svg" style="width:88%;transform:rotate(-9deg)"></div><div class="lbl">No rotar ni inclinar</div></div>
+      <div class="dont"><div class="box" style="background:#E07227"><img src="../logos/svg/chispudo-logo-principal.svg" style="width:88%"></div><div class="lbl">No sobre color que no sea de marca</div></div>
+      <div class="dont"><div class="box"><img src="../logos/svg/chispudo-logo-mono-azul.svg" style="width:100%;filter:hue-rotate(115deg) saturate(1.5)"></div><div class="lbl">No recolorear</div></div>
+      <div class="dont"><div class="box"><img src="../logos/svg/chispudo-logo-principal.svg" style="width:100%;filter:drop-shadow(2px 3px 2px rgba(0,0,0,.55))"></div><div class="lbl">No sombras, brillos ni relieves</div></div>
+      <div class="dont"><div class="box" style="gap:1.5mm"><img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:9mm"><span style="font-family:Georgia,serif;font-size:12pt">Chispudo</span></div><div class="lbl">No cambiar la tipografía</div></div>
+      <div class="dont"><div class="box" style="gap:6mm"><img src="../logos/svg/chispudo-isotipo-azul.svg" style="height:9mm"><span style="font-size:12pt;font-weight:900;letter-spacing:-.02em">Chispudo</span></div><div class="lbl">No alterar la separación</div></div>
+      <div class="dont"><div class="box" style="background:#F8F9FB"><img src="../logos/svg/chispudo-logo-mono-blanco.svg" style="width:88%"></div><div class="lbl">No usar la versión sin contraste</div></div>
+    </div>
+    <div class="grid2" style="margin-top:7mm;gap:8mm">
+      <div class="card"><h2>Tampoco</h2><p style="margin:0">Encerrarlo en una caja o en un círculo que no sea el ícono oficial de la app,
+      recortarlo, usarlo como patrón repetido, animarlo desarmando sus partes, ni ponerlo sobre una fotografía con detalle
+      detrás del texto.</p></div>
+      <div class="card" style="background:#ECFDF5;border-color:#A7F3D0"><h2 style="color:#059669">Siempre</h2><p style="margin:0">Tomar el archivo original de la carpeta de logos,
+      escalarlo desde una esquina para mantener la proporción, y elegir la versión de color según el fondo. Nada más.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">10</span></div>
+</div>
+
+<!-- 11 BRAND COLOR -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">09 · Color de marca</div><h1>Azul, tinta y dos fondos</h1><div class="rule"></div>
+    <div class="grid4" style="margin-top:4mm">
+      <div class="swatch"><div class="chip" style="background:#2563EB;height:34mm"></div><div class="meta">
+        <div class="nm">Azul Chispudo</div><div class="hx">#2563EB<br>rgb(37 99 235)</div>
+        <small style="margin-top:2mm">El color de la marca. Un solo acento, siempre el mismo.</small></div></div>
+      <div class="swatch"><div class="chip" style="background:#1D4ED8;height:34mm"></div><div class="meta">
+        <div class="nm">Azul intenso</div><div class="hx">#1D4ED8<br>rgb(29 78 216)</div>
+        <small style="margin-top:2mm">Estado presionado y hover. No se usa como color principal.</small></div></div>
+      <div class="swatch"><div class="chip" style="background:#111827;height:34mm"></div><div class="meta">
+        <div class="nm">Tinta</div><div class="hx">#111827<br>rgb(17 24 39)</div>
+        <small style="margin-top:2mm">Texto principal en claro y logotipo en la versión principal.</small></div></div>
+      <div class="swatch"><div class="chip" style="background:#0A0A12;height:34mm"></div><div class="meta">
+        <div class="nm">Noche</div><div class="hx">#0A0A12<br>rgb(10 10 18)</div>
+        <small style="margin-top:2mm">Fondo del modo oscuro, que es el modo por defecto del producto.</small></div></div>
+    </div>
+    <div class="grid2" style="margin-top:9mm;gap:11mm">
+      <div>
+        <h2>Colores de estado</h2>
+        <p style="margin-bottom:3mm">Nunca decoran: cada uno significa una cosa y solo esa.</p>
+        <table>
+          <tr><th>Color</th><th>Claro</th><th>Oscuro</th><th>Significa</th></tr>
+          <tr><td><span style="display:inline-block;width:4mm;height:4mm;border-radius:1mm;background:#059669;vertical-align:-.5mm"></span> Positivo</td><td class="mono">#059669</td><td class="mono">#34D399</td><td>Ganancia, confirmado</td></tr>
+          <tr><td><span style="display:inline-block;width:4mm;height:4mm;border-radius:1mm;background:#DC2626;vertical-align:-.5mm"></span> Negativo</td><td class="mono">#DC2626</td><td class="mono">#F87171</td><td>Pérdida, grave</td></tr>
+          <tr><td><span style="display:inline-block;width:4mm;height:4mm;border-radius:1mm;background:#D97706;vertical-align:-.5mm"></span> Atención</td><td class="mono">#D97706</td><td class="mono">#FBBF24</td><td>Revisar, reintentar</td></tr>
+        </table>
+      </div>
+      <div class="card" style="background:#FFFBEB;border-color:#FDE68A">
+        <h2 style="color:#B45309">El rojo se reserva</h2>
+        <p style="margin:0">En una aplicación de dinero, el rojo se lee como pérdida. Por eso un aviso que se reintenta solo,
+        o una sincronización que falló por horario, va en ámbar y no en rojo. El rojo queda para lo grave o lo irreversible.</p>
+        <p style="margin:3mm 0 0">Un monto negativo en un reporte impreso no va en rojo: va entre paréntesis, que es la convención
+        de un estado de cuenta y sobrevive a la impresión en blanco y negro.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">11</span></div>
+</div>
+
+<!-- 12 ASSET CLASS COLOR -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">10 · Color por clase de activo</div><h1>Seis colores que se distinguen</h1><div class="rule"></div>
+    <p style="margin-bottom:4mm">Las seis clases invertidas llevan color. Efectivo, por cobrar y otros son deliberadamente neutros, para que un vistazo separe el dinero trabajando del que solo está guardado.</p>
+    <div class="grid3" style="gap:5mm">
+      <div class="swatch"><div class="chip" style="background:#2C67DC;height:11mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm">Acciones</div><div class="hx">#2C67DC</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#08A8AF;height:11mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm">Renta fija</div><div class="hx">#08A8AF</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#B274DC;height:11mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm">Fondos</div><div class="hx">#B274DC</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#E07227;height:11mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm">Cripto</div><div class="hx">#E07227</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#00764F;height:11mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm">Bienes raíces</div><div class="hx">#00764F</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#BD2D76;height:11mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm">Alternativos</div><div class="hx">#BD2D76</div></div></div>
+    </div>
+    <div style="display:flex;gap:5mm;margin-top:4mm">
+      <div class="swatch" style="flex:1"><div class="chip" style="background:#64748B;height:8mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm" style="font-size:8pt">Bancos</div><div class="hx">#64748B</div></div></div>
+      <div class="swatch" style="flex:1"><div class="chip" style="background:#94A3B8;height:8mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm" style="font-size:8pt">Por cobrar</div><div class="hx">#94A3B8</div></div></div>
+      <div class="swatch" style="flex:1"><div class="chip" style="background:#B6BFCC;height:8mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm" style="font-size:8pt">Otros</div><div class="hx">#B6BFCC</div></div></div>
+      <div class="swatch" style="flex:1"><div class="chip" style="background:#D64545;height:8mm"></div><div class="meta" style="padding:2mm 3mm"><div class="nm" style="font-size:8pt">Deudas</div><div class="hx">#D64545</div></div></div>
+    </div>
+    <div class="grid3" style="margin-top:5mm;gap:6mm">
+      <div class="card" style="padding:4.5mm"><h2>Elegidos, no tanteados</h2><p style="margin:0">Escogida en espacio OKLCH y medida con pruebas automáticas: el par más parecido queda a distancia 18,10, sobre el piso de legibilidad.</p></div>
+      <div class="card" style="padding:4.5mm"><h2>Seis es el techo</h2><p style="margin:0">No cabe un séptimo tono sin empujar a otro debajo del piso. Lo demás se agrupa en un neutro: Otros.</p></div>
+      <div class="card" style="padding:4.5mm"><h2>El color nunca va solo</h2><p style="margin:0">En tritanopía, alternativos y fondos se acercan. Por eso junto al color siempre va el nombre de la clase.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">12</span></div>
+</div>
+
+<!-- 13 TYPOGRAPHY -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">11 · Tipografía</div><h1>Inter y JetBrains Mono</h1><div class="rule"></div>
+    <div class="grid2" style="gap:12mm">
+      <div>
+        <div style="font-size:42pt;font-weight:900;letter-spacing:-.03em;line-height:1">Aa</div>
+        <div style="font-size:11pt;font-weight:700;margin-top:1mm">Inter</div>
+        <small>Todo el texto de la marca y del producto. Regular 400, Medium 500, SemiBold 600, Bold 700 y Black 900.</small>
+        <div style="margin-top:4mm;font-size:12pt;letter-spacing:-.01em;line-height:1.5">
+          <span style="font-weight:400">Regular</span> · <span style="font-weight:500">Medium</span> ·
+          <span style="font-weight:600">SemiBold</span> · <span style="font-weight:700">Bold</span> ·
+          <span style="font-weight:900">Black</span>
+        </div>
+      </div>
+      <div>
+        <div class="mono" style="font-size:42pt;font-weight:700;line-height:1">0123</div>
+        <div style="font-size:11pt;font-weight:700;margin-top:1mm">JetBrains Mono</div>
+        <small>Solo para cifras que se comparan en columna: montos, porcentajes, fechas, códigos. Medium 500 y Bold 700.</small>
+        <table style="margin-top:4mm;font-size:10pt"><tr><td style="border:0;padding:1mm 0">Patrimonio</td><td class="mono" style="border:0;padding:1mm 0;text-align:right;font-weight:700">27,233.88</td></tr>
+        <tr><td style="border:0;padding:1mm 0">Rendimiento</td><td class="mono" style="border:0;padding:1mm 0;text-align:right;font-weight:700">+3.94%</td></tr>
+        <tr><td style="border:0;padding:1mm 0">Deuda</td><td class="mono" style="border:0;padding:1mm 0;text-align:right;font-weight:700">(8,000.00)</td></tr></table>
+      </div>
+    </div>
+    <h2 style="margin-top:5mm">Escala</h2>
+    <table class="tight" style="margin-top:2mm">
+      <tr><th style="width:26%">Uso</th><th style="width:22%">Peso</th><th style="width:22%">Tracking</th><th>Ejemplo</th></tr>
+      <tr><td>Logotipo</td><td>Black 900</td><td class="mono">-0,02 em</td><td style="font-weight:900;letter-spacing:-.02em;font-size:12pt">Chispudo</td></tr>
+      <tr><td>Título de página</td><td>Black 900</td><td class="mono">-0,025 em</td><td style="font-weight:900;letter-spacing:-.025em;font-size:12pt">Todo tu patrimonio</td></tr>
+      <tr><td>Título de tarjeta</td><td>Bold 700</td><td class="mono">-0,01 em</td><td style="font-weight:700;font-size:10.5pt">Asignación de activos</td></tr>
+      <tr><td>Texto corrido</td><td>Regular 400</td><td class="mono">0</td><td style="font-size:9.6pt">Cada retorno netea los aportes.</td></tr>
+      <tr><td>Etiqueta</td><td>Bold 700</td><td class="mono">+0,1 em</td><td style="font-weight:700;letter-spacing:.1em;font-size:8pt;text-transform:uppercase">Rendimiento</td></tr>
+      <tr><td>Cifra</td><td>Mono 500 / 700</td><td class="mono">0</td><td class="mono" style="font-weight:700;font-size:10.5pt">GTQ 500.00</td></tr>
+    </table>
+    <p style="margin-top:5mm;max-width:none"><b>Numerales tabulares, siempre.</b> Una columna de montos que no alinea no se puede leer de un vistazo.</p>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">13</span></div>
+</div>
+
+<!-- 14 SURFACES + APPLICATIONS -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">12 · Superficies y aplicaciones</div><h1>La marca aplicada</h1><div class="rule"></div>
+    <div class="grid2" style="gap:11mm">
+      <div>
+        <h2>Superficies</h2>
+        <table>
+          <tr><th style="width:46%">Elemento</th><th>Radio</th><th>Borde</th></tr>
+          <tr><td>Tarjeta</td><td class="mono">16 px</td><td class="mono">1 px</td></tr>
+          <tr><td>Modal</td><td class="mono">20 px</td><td class="mono">1 px</td></tr>
+          <tr><td>Botón y campo</td><td class="mono">12 px</td><td class="mono">1 px</td></tr>
+          <tr><td>Ícono de app</td><td class="mono">circular</td><td class="mono">sin borde</td></tr>
+        </table>
+        <small style="margin-top:3mm">Un solo tratamiento de tarjeta en todo el producto. Dos tarjetas lado a lado nunca
+        pueden tener radios ni bordes distintos.</small>
+        <h2 style="margin-top:7mm">Ícono de la aplicación</h2>
+        <div style="display:flex;align-items:flex-end;gap:6mm;margin-top:3mm">
+          <div style="width:26mm;height:26mm;border-radius:50%;background:#2563EB;display:flex;align-items:center;justify-content:center">
+            <img src="../logos/svg/chispudo-isotipo-blanco.svg" style="height:14mm"></div>
+          <div style="width:15mm;height:15mm;border-radius:50%;background:#2563EB;display:flex;align-items:center;justify-content:center">
+            <img src="../logos/svg/chispudo-isotipo-blanco.svg" style="height:8mm"></div>
+          <div style="width:8mm;height:8mm;border-radius:50%;background:#2563EB;display:flex;align-items:center;justify-content:center">
+            <img src="../logos/svg/chispudo-isotipo-blanco.svg" style="height:4.4mm"></div>
+        </div>
+        <small style="margin-top:3mm">Rayo blanco sobre azul pleno, en círculo. Es la única caja que el logo tiene permitida.</small>
+      </div>
+      <div>
+        <h2>Encabezado del producto</h2>
+        <div style="border-radius:4mm;overflow:hidden;border:1px solid #E5E7EB;margin-top:2mm">
+          <div style="background:#fff;padding:4mm 5mm;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E5E7EB">
+            <img src="../logos/svg/chispudo-logo-principal.svg" style="width:31mm">
+            <div style="display:flex;gap:2mm"><span style="width:9mm;height:5mm;border-radius:2.5mm;background:#F3F4F6"></span><span style="width:9mm;height:5mm;border-radius:2.5mm;background:#2563EB"></span></div>
+          </div>
+          <div style="background:#F8F9FB;padding:5mm">
+            <div style="background:#fff;border:1px solid #E5E7EB;border-radius:4mm;padding:4mm">
+              <div style="font-size:7.4pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6B7280">Patrimonio</div>
+              <div class="mono" style="font-size:17pt;font-weight:700;margin-top:1mm">27,233.88</div>
+              <div class="mono" style="font-size:8.4pt;color:#059669;font-weight:700">+3.94% este año</div>
+            </div>
+          </div>
+        </div>
+        <div style="border-radius:4mm;overflow:hidden;border:1px solid #E5E7EB;margin-top:5mm">
+          <div style="background:#0A0A12;padding:4mm 5mm;display:flex;justify-content:space-between;align-items:center">
+            <img src="../logos/svg/chispudo-logo-inverso.svg" style="width:31mm">
+            <div style="display:flex;gap:2mm"><span style="width:9mm;height:5mm;border-radius:2.5mm;background:rgba(255,255,255,.08)"></span><span style="width:9mm;height:5mm;border-radius:2.5mm;background:#2563EB"></span></div>
+          </div>
+          <div style="background:#0A0A12;padding:0 5mm 5mm">
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4mm;padding:4mm">
+              <div style="font-size:7.4pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(235,235,245,.55)">Patrimonio</div>
+              <div class="mono" style="font-size:17pt;font-weight:700;margin-top:1mm;color:#fff">27,233.88</div>
+              <div class="mono" style="font-size:8.4pt;color:#34D399;font-weight:700">+3.94% este año</div>
+            </div>
+          </div>
+        </div>
+        <small style="margin-top:3mm">El modo oscuro es el modo por defecto. Toda pieza de marca debe verse igual de resuelta en los dos.</small>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">14</span></div>
+</div>
+
+<!-- 15 ACCESSIBILITY -->
+<div class="page">
+  <div class="body">
+    <div class="kicker">13 · Accesibilidad</div><h1>Contraste comprobado</h1><div class="rule"></div>
+    <p style="margin-bottom:5mm">Tres niveles de texto, ni uno más. Cada uno tiene su razón de ser y su contraste medido
+    contra el fondo de su tema.</p>
+    <table>
+      <tr><th style="width:26%">Nivel</th><th style="width:24%">Uso</th><th>Oscuro</th><th>Claro</th><th style="width:22%">Muestra</th></tr>
+      <tr><td><b>Primario</b></td><td>Cifras y títulos</td><td class="mono">21.0 : 1</td><td class="mono">17.1 : 1</td><td style="color:#111827;font-weight:600">Patrimonio</td></tr>
+      <tr><td><b>Secundario</b></td><td>Texto corrido</td><td class="mono">8.8 : 1</td><td class="mono">9.8 : 1</td><td style="color:#374151">Texto corrido</td></tr>
+      <tr><td><b>Tenue</b></td><td>Notas y pies</td><td class="mono">6.7 : 1</td><td class="mono">7.2 : 1</td><td style="color:#4B5563">Nota al pie</td></tr>
+    </table>
+    <div class="grid3" style="margin-top:9mm;gap:7mm">
+      <div class="card"><h2>Ningún color solo</h2><p style="margin:0">Nada se comunica únicamente con color. Un signo, un símbolo o una palabra
+      acompañan siempre al color, para que la información sobreviva a cualquier tipo de daltonismo y a una impresión en blanco y negro.</p></div>
+      <div class="card"><h2>Área táctil de 44 px</h2><p style="margin:0">Todo control interactivo mantiene un área de toque de al menos
+      44 por 44 píxeles, aunque su parte visible sea más chica.</p></div>
+      <div class="card"><h2>Movimiento reducido</h2><p style="margin:0">Cuando el sistema pide menos movimiento, las animaciones se hacen lentas,
+      no se detienen: un indicador de carga congelado se lee como una pantalla trabada.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Chispudo · Manual de marca v1</span><span class="mono">15</span></div>
+</div>
+
+<!-- 16 CLOSING -->
+<div class="page dark" style="justify-content:space-between;padding:20mm">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <img src="../logos/svg/chispudo-isotipo-blanco.svg" style="height:20mm">
+    <div style="text-align:right;font-size:8.4pt;color:rgba(235,235,245,.55);line-height:1.7">Manual de marca<br><span class="mono">v1 · 2026</span></div>
+  </div>
+  <div>
+    <div style="font-size:8.2pt;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#60A5FA;margin-bottom:6mm">Los archivos</div>
+    <div style="font-size:30pt;font-weight:900;letter-spacing:-.028em;line-height:1.08;margin-bottom:8mm">Qué hay en esta carpeta</div>
+    <div class="grid3" style="gap:9mm">
+      <div><div class="mono" style="font-size:9.4pt;color:#60A5FA;font-weight:700">logos/svg/</div>
+        <p style="margin-top:2mm;font-size:9pt">Los originales. Vectores, fondo transparente, sin límite de tamaño. Esta es la fuente para cualquier pieza nueva.</p></div>
+      <div><div class="mono" style="font-size:9.4pt;color:#60A5FA;font-weight:700">logos/png/</div>
+        <p style="margin-top:2mm;font-size:9pt">Versiones listas para usar en alta resolución, con fondo transparente, para herramientas que no aceptan vectores.</p></div>
+      <div><div class="mono" style="font-size:9.4pt;color:#60A5FA;font-weight:700">source/</div>
+        <p style="margin-top:2mm;font-size:9pt">El código con el que se generó este manual y los diagramas. Permite regenerarlo cuando la marca cambie.</p></div>
+    </div>
+    <p style="margin-top:9mm;font-size:9.4pt;max-width:160mm">Ante una duda que este manual no resuelva, la respuesta está en el producto:
+    la aplicación es la referencia viva de la marca. Si algo se ve distinto aquí, el error está aquí.</p>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid rgba(255,255,255,.10);padding-top:6mm">
+    <img src="../logos/svg/chispudo-logo-inverso.svg" style="width:42mm">
+    <div style="text-align:right;font-size:8.6pt;color:rgba(235,235,245,.5);line-height:1.7">
+      <span class="mono">chispu.xyz</span><br>jan@chispu.xyz
+    </div>
+  </div>
+</div>
+
+</body></html>
