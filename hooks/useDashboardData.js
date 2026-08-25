@@ -10,6 +10,7 @@ import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
+import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
 import { nextFailCount, NORMAL_INTERVAL_MS } from '@/lib/ibkrRetryPolicy'
@@ -70,7 +71,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
+    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -2751,6 +2752,40 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const deleteTransactionWithReversal = useCallback(async (txId, opts) => {
     const skipBalanceReversal = !!(opts && typeof opts === 'object' && opts.skipBalanceReversal)
     const tx = transactions.find((t) => t.id === txId)
+
+    // Una TRANSFERENCIA movió los saldos de DOS cuentas al escribirse, así que
+    // borrarla sin devolverlos las deja permanentemente mal, y en silencio: ese
+    // era el bug. Va por su propio camino ATÓMICO (los dos ítems y el borrado
+    // de la fila en un solo batch) en vez del `applyDestinationDelta` de abajo,
+    // que hace un update suelto y para dos lados podría dejar la mitad hecha.
+    // Quién recibe qué lo decide `transferReversalPlan`, puro y con tests.
+    const reversal = tx && !skipBalanceReversal ? transferReversalPlan(tx, enrichedItems) : null
+    if (reversal) {
+      if (!reversalWritesSomething(reversal)) {
+        // Las dos cuentas se borraron: no hay saldo que devolver y la fila ya
+        // no explica nada. Se borra a secas, que es el comportamiento correcto
+        // y no el defecto (no queda ningún saldo mal).
+        await deleteTransaction(txId)
+        return
+      }
+      // Un lado que existe pero no se puede expresar (ítem sin ningún precio
+      // utilizable) NO se escribe como `{}`: eso es un no-op que Firestore
+      // acepta, o sea el saldo quedaría mal reportando éxito. Se rehúsa entero
+      // y se dice, que es el contrato de lib/transferFields.js.
+      if (reversal.refused.length) {
+        const err = new Error('reversal-refused')
+        err.code = 'reversal-refused'
+        err.sides = reversal.refused
+        throw err
+      }
+      await reverseTransfer({
+        fromId: reversal.from?.id || null, fromFields: reversal.from?.fields || null,
+        toId: reversal.to?.id || null, toFields: reversal.to?.fields || null,
+        txId,
+      })
+      return
+    }
+
     const credit = tx && !skipBalanceReversal && dividendCreditTarget(tx, enrichedItems)
     if (credit) {
       const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
@@ -2790,8 +2825,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     await deleteTransaction(txId)
-  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem])
+  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem, reverseTransfer])
 
+  // No hay rama TRANSFER acá, y es a propósito: el botón de editar está
+  // suprimido para las filas de transferencia (`EditAccountModal`, la condición
+  // `!incoming && !outgoing`), porque un movimiento que toca DOS cuentas no se
+  // puede corregir desde el editor de UNA. O sea no existe camino que llegue,
+  // y escribir una rama inalcanzable sería código que nadie puede probar. Si
+  // algún día se habilita editar una transferencia, el ajuste de los dos lados
+  // se arma con `transferReversalPlan` igual que el borrado.
   const updateTransactionWithReversal = useCallback(async (txId, fields) => {
     const tx = transactions.find((t) => t.id === txId)
     const newAmt = Number(fields?.totalAmount)

@@ -728,6 +728,35 @@ export function useFirestoreItems() {
     await batch.commit()
   }, [uid])
 
+  // Deshacer una transferencia: los dos saldos vuelven y la fila se va, TODO en
+  // el mismo batch.
+  //
+  // Atómico por la misma razón que `transferFunds` de arriba: escribir un lado
+  // y fallar en el otro deja dinero duplicado o desaparecido. Y el borrado va
+  // adentro para que no pueda quedar el caso peor de todos, que es revertir los
+  // saldos y dejar la fila viva: la próxima vez que alguien la borre, revierte
+  // otra vez.
+  //
+  // Un lado puede faltar legítimamente (la cuenta se borró desde entonces): su
+  // saldo ya no existe, así que se revierte el que sobrevive. Lo que NO se
+  // acepta es que no quede ninguno, porque ahí borrar la fila dejaría los dos
+  // saldos mal, que es exactamente el bug que esto arregla.
+  const reverseTransfer = useCallback(async ({ fromId, fromFields, toId, toFields, txId }) => {
+    if (!uid) throw new Error('No uid')
+    const { db, fs } = await getFirebase()
+    const from = fromId ? strip(fromFields) : null
+    const to = toId ? strip(toFields) : null
+    const writes = []
+    if (from && Object.keys(from).length) writes.push([fromId, from])
+    if (to && Object.keys(to).length) writes.push([toId, to])
+    if (!writes.length) throw new Error('Reversal would not move any balance')
+
+    const batch = fs.writeBatch(db)
+    for (const [id, fields] of writes) batch.update(fs.doc(db, `users/${uid}/items`, id), fields)
+    if (txId) batch.delete(fs.doc(db, `users/${uid}/transactions`, txId))
+    await batch.commit()
+  }, [uid])
+
   // Fully atomic sale: source item update + SELL/WITHDRAWAL txs + destination
   // credit + destination lot + source-lot FIFO close all in ONE Firestore
   // transaction. Either everything commits or nothing does — no money vanishes
@@ -1223,7 +1252,7 @@ export function useFirestoreItems() {
     deleteFinanceTransactionsByIds,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
-    transferFunds, executeSaleAtomic, executeContribution,
+    transferFunds, reverseTransfer, executeSaleAtomic, executeContribution,
     bulkImport, bulkWriting, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile, saveIncomePlan,
