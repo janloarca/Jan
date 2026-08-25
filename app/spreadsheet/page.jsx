@@ -331,6 +331,7 @@ export default function SpreadsheetPage() {
             snapshots={snapshots}
             lang={lang}
             onUpdateItem={updateItem}
+            onAddTransaction={addTransaction}
             onEditItem={(item) => setEditItem(item)}
             returnYTD={returnYTD}
             netWorth={netWorth}
