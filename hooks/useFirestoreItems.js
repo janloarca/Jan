@@ -499,8 +499,15 @@ export function useFirestoreItems() {
     const refs = [
       ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
       ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      // `_debtItemId` va en la lista porque un pago de deuda NO lleva
+      // `_linkedItemId` (lib/transferTx.js: ponerlo ahí haría que la lógica
+      // congelada F reconstruyera el pasado del préstamo al revés). Sin esta
+      // entrada, borrar la CUENTA QUE PAGA sí se llevaba sus pagos (por
+      // `_originItemId`) pero borrar el PRÉSTAMO los dejaba huérfanos, contra
+      // la regla de FASE GL: borrar una cuenta = nunca aparece en el historial.
       ...transactions.filter((t) =>
         idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
+        || idSet.has(t._debtItemId)
         || symDeletable((t.symbol || '').toUpperCase())
         || (ibkrGone && (t._source === 'ibkr' || t._source === 'inferred_flow'))
       ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
@@ -700,11 +707,30 @@ export function useFirestoreItems() {
   // never carry one, or a read path that ever spreads data before d.id (see
   // useFirestoreItems' listeners) would silently resurrect the wrong id.
   const strip = (o) => { const { id: _id, ...rest } = o || {}; return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }
-  // Deterministic id (no nonce) so retrying a failed atomic write overwrites the
-  // same transaction doc instead of creating a duplicate.
+  // Deterministic id: reintentar una escritura atómica que falló pisa el MISMO
+  // documento en vez de crear un duplicado.
+  //
+  // ⛔ PERO FECHA+SÍMBOLO+TIPO+CENTAVOS NO IDENTIFICA UNA TRANSFERENCIA. Dos
+  // transferencias reales del mismo día, entre el mismo par de cuentas y por el
+  // mismo monto colapsaban en un solo documento y la segunda se perdía en
+  // silencio; un pago de deuda y una transferencia de ese mismo monto también
+  // chocaban entre sí (los dos son `type: 'TRANSFER'` y heredan el símbolo de
+  // la cuenta que paga). `addTransaction`, veinte líneas abajo, ya fija la
+  // regla contraria para lo manual ("dos entradas idénticas del mismo día no se
+  // pueden pisar"); FASE GT creyó cerrar esto exigiendo `_source` con prefijo
+  // "manual", pero sobre el writer equivocado: una transferencia NO pasa por
+  // `addTransaction`.
+  //
+  // `_txNonce` lo estampa el constructor, UNA vez por objeto construido, o sea
+  // una vez por submit. Con eso las dos propiedades conviven: el mismo objeto
+  // reintentado da el mismo id, y dos submits distintos dan ids distintos. Un
+  // rebuild tras un fallo tampoco puede duplicar nada, porque `commit()` de un
+  // batch es atómico: si falló, no se escribió. Sin nonce (todo lo demás que
+  // pasa por acá) el id es byte-idéntico al de siempre.
   const txDocId = (tx) => {
     const amt = Math.round((tx.totalAmount || 0) * 100)
-    return `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+    const base = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
+    return tx._txNonce ? `${base}-${tx._txNonce}` : base
   }
 
   const transferFunds = useCallback(async ({ fromId, fromFields, toId, toFields, transaction }) => {
