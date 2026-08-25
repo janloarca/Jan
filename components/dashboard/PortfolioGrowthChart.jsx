@@ -180,6 +180,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const instSwitching = shownInst !== selectedInst
   const switching = modeSwitching || instSwitching
 
+  // La FORMA de la serie. Solo cambia cuando el usuario pide otra cosa
+  // (otro período, otra cuenta, otra pestaña), nunca con un tick de precios: es
+  // la `key` que hace que la línea se REDIBUJE en esos tres casos y se quede
+  // quieta en los refrescos de fondo. Redibujar la gráfica entera cada cinco
+  // minutos sería más molesto que no animar nada.
+  const shapeKey = `${shownMode}|${shownInst}|${period}`
+
   const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL', 'CUSTOM']
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -2186,8 +2193,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   if (splitIdx <= 0 || splitIdx >= geo.points.length) {
                     return (
                       <>
-                        <path d={areaPath} fill="url(#grad-value)" />
-                        <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path key={`a-${shapeKey}`} className="chart-area-fade" d={areaPath} fill="url(#grad-value)" />
+                        {/* pathLength="1" normaliza el largo del trazo, así que
+                            el dibujado no necesita medir el path con JS: el
+                            dasharray es 1 y el offset va de 1 a 0 sirva la serie
+                            que sirva. La `key` es lo que lo re-dispara. */}
+                        <path key={`l-${shapeKey}`} className="chart-line-draw" pathLength="1"
+                          d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </>
                     )
                   }
@@ -2204,9 +2216,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                       <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9">
                         {t('datos reales →', 'real data →')}
                       </text>
-                      <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
+                      {/* El tramo estimado conserva su propio dasharray (es
+                          lo que lo marca como estimado), así que ahí el
+                          dibujado no se puede usar: se desvanece. */}
+                      <path key={`e-${shapeKey}`} className="chart-area-fade" d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
                         strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" strokeOpacity="0.7" />
-                      <path d={polyline(geo.points.slice(splitIdx))} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
+                      <path key={`r-${shapeKey}`} className="chart-line-draw" pathLength="1"
+                        d={polyline(geo.points.slice(splitIdx))} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
                         strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   )

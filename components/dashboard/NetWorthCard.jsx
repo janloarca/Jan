@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import AnimatedNumber from '@/components/ui/AnimatedNumber'
 import { formatCurrency, formatDate, getBaseCurrency, getTypeCategory, getItemValue, isExcludedFromNetWorth, TYPE_COLORS, CHART_PALETTE } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
@@ -419,8 +420,17 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           (en oscuro los dos son #FFFFFF, y en claro globals.css ya remapea
           .text-white a esa misma variable), pero quita una dependencia
           implícita de un remapeo que vive en otro archivo. */}
-      <p className="min-w-0 text-[2.25rem] sm:text-[3rem] leading-none tracking-tight font-bold font-mono tabular-nums mb-1.5"
-        style={{ color: 'var(--text-primary)' }}>{formatCurrency(displayValue, displayCur)}</p>
+      {/* La cifra se MUEVE de su valor viejo al nuevo en vez de saltar. Es el
+          número que más cambia solo de toda la app (cada tick de precios lo
+          toca) y hasta hoy pasaba de A a B en un frame.
+          Las reglas de cuándo NO animar viven en lib/tween.js: no anima en el
+          primer render ni cuando el dato recién llega, así que abrir la app no
+          se convierte en un contador de cajero. */}
+      <AnimatedNumber
+        value={displayValue}
+        format={(v) => formatCurrency(v, displayCur)}
+        className="block min-w-0 text-[2.25rem] sm:text-[3rem] leading-none tracking-tight font-bold font-mono mb-1.5"
+        style={{ color: 'var(--text-primary)' }} />
 
       {/* Today + YTD, one line. Direction lives ONLY in the small arrow —
           the numbers themselves stay in plain text color, so the line reads

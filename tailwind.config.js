@@ -1,5 +1,16 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Safari en iPadOS/iOS aplica :hover al PRIMER TOQUE y lo deja pegado hasta
+  // que tocás en otro lado. Este repo tenía 311 `hover:` en JSX y UNA sola
+  // regla guardada con `@media (hover: hover)` (la de `.card-interactive`), o
+  // sea en un teléfono casi todo se quedaba resaltado después de tocarlo, y
+  // encima el toque en sí no producía ninguna respuesta.
+  //
+  // Esta bandera compila TODOS los `hover:` de Tailwind dentro de
+  // `@media (hover: hover)` de una sola vez: en un dispositivo táctil dejan de
+  // existir, que es lo correcto. Lo que reemplaza al hover en táctil es el
+  // `:active` de globals.css (la respuesta al toque).
+  future: { hoverOnlyWhenSupported: true },
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',

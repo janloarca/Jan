@@ -127,7 +127,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
                 <div className="flex items-center gap-2.5">
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-input)' }}>
                     <div
-                      className="h-full rounded-full"
+                      className="h-full rounded-full bar-fill"
                       style={{ width: `${Math.max(pctOfTotal, 2)}%`, backgroundColor: 'var(--accent-blue)' }}
                     />
                   </div>
