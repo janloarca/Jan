@@ -7,6 +7,7 @@ import { openingDepositDateFix } from '@/lib/originDeposits'
 import { debtOptions, isProperty as isPropertyItem } from '@/lib/propertyEquity'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
+import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
@@ -156,6 +157,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // remove just that one movement without leaving the modal.
   const [confirmDeleteTxId, setConfirmDeleteTxId] = useState(null)
   const [deletingTxId, setDeletingTxId] = useState(null)
+  // Mismo formato que las filas del historial de arriba ("USD 1,234.56"), para
+  // que el aviso de la confirmación no se lea como otra moneda o escala.
+  const txMoney = (amount, currency) =>
+    `${currency || form.currency} ${Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const handleDeleteTx = async (tx) => {
     if (confirmDeleteTxId !== tx.id) { setConfirmDeleteTxId(tx.id); return }
     if (!onDeleteTransaction) return
@@ -1054,7 +1059,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         )
                       }
                       return (
-                        <div key={tx.id} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-[var(--card-border,#38383A)]/30 last:border-0">
+                        <div key={tx.id} className="border-b border-[var(--card-border,#38383A)]/30 last:border-0">
+                        <div className="flex items-center justify-between gap-2 text-xs py-1">
                           <span style={{ color: 'var(--text-muted)' }}>{formatTxDate(tx.date)}</span>
                           <div className="text-right min-w-0">
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
@@ -1103,6 +1109,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                               </button>
                             )}
                           </span>
+                        </div>
+                        {/* Borrar una transferencia devuelve el dinero a las DOS
+                            cuentas, no solo quita la fila. Misma redaccion que
+                            la tarjeta de movimientos recientes, desde
+                            lib/transferReversal.js. */}
+                        {confirming && reversalLines(transferReversalPlan(tx, allItems || existingItems || []), lang, txMoney).map((line, k) => (
+                          <div key={k} className="text-[11px] pb-1" style={{ color: 'var(--text-muted)' }}>{line}</div>
+                        ))}
                         </div>
                       )
                     })}

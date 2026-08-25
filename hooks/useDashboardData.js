@@ -10,6 +10,7 @@ import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
+import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
 import { nextFailCount, NORMAL_INTERVAL_MS } from '@/lib/ibkrRetryPolicy'
@@ -29,8 +30,8 @@ import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanD
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
-import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO } from '@/lib/incomeSchedule'
-import { isDailyAccrual, accrualAnnualRate, monthlyAccrual } from '@/lib/dailyAccrual'
+import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
+import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -70,7 +71,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
+    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -701,24 +702,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // doceavo parejo. Va primero porque manda sobre cualquier otra rama
           // de tasa. De paso prorratea el mes de la compra, que el reparto
           // plano acreditaba entero por unos dias de tenencia.
-          const dailyRate = isDailyAccrual(it) ? accrualAnnualRate(it) : 0
-          if (dailyRate > 0) {
-            amount = monthlyAccrual({
-              balance, annualRatePct: dailyRate,
-              year: payYear, monthIndex: payMonth, acquisitionDay: acqDay,
-            })
-          } else if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
-            const midRate = (it.rateMin + it.rateMax) / 2
-            amount = (balance * (midRate / 100)) / (payMonths.length || 12)
-          } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
-            const annual = balance * (Math.exp(it.incomeRate / 100) - 1)
-            amount = annual / 12
-          } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-            amount = (balance * (it.incomeRate / 100)) / (payMonths.length || 12)
-          } else if (it.incomeAmount > 0) {
-            const isPerShare = /stock|etf|fund|crypto/i.test(it.type || '')
-            amount = isPerShare ? it.incomeAmount * qty : it.incomeAmount
-          }
+          // FASE KY. El monto de un pago sale de UNA sola función compartida
+          // (lib/incomeSchedule.js). Estaba escrito acá, en la vista previa del
+          // alta, en la proyección anual y en la tarjeta de próximos pagos, y
+          // las cuatro copias ya habían divergido; arreglar solo esta dejaría a
+          // las otras contradiciendo al motor sobre el mismo activo.
+          //
+          // Y prorratea el primer período: comprar el 20 de agosto con día de
+          // pago 1 acreditaba un mes COMPLETO el 1 de septiembre por once días
+          // de tenencia. Solo las ramas de TASA; un monto fijo es contractual y
+          // se paga entero (ver la cabecera de esa función).
+          amount = monthlyIncomeAmount({
+            balance, qty,
+            isPerShare: /stock|etf|fund|crypto/i.test(it.type || ''),
+            incomeMode: it.incomeMode, incomeRate: it.incomeRate, incomeAmount: it.incomeAmount,
+            rateType: it.rateType, rateMin: it.rateMin, rateMax: it.rateMax,
+            accrual: it.accrual, acquisitionDay: acqDay, payDate: dateStr,
+            incomeMonths: payMonths, incomePayDay: it.incomePayDay || 1,
+          }, payMonths.length || 12)
 
           // Net recurring fees out of each payment so the income reflects what
           // actually lands after management/expense costs.
@@ -754,7 +755,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             date: dateStr,
             type: 'DIVIDEND',
             symbol: it.symbol || it.name,
-            description: dailyRate > 0
+            // FASE KT: un devengo se ACUMULA, no se "paga", así que la
+            // descripción lo dice. Se pregunta por el activo (`isDailyAccrual`)
+            // y no por la tasa que antes se calculaba acá: es la misma
+            // condición, y ahora el monto lo resuelve `monthlyIncomeAmount`.
+            description: isDailyAccrual(it)
               ? `Accrued interest from ${it.name || it.symbol}`
               : `Dividend from ${it.name || it.symbol}`,
             totalAmount: amount,
@@ -2751,6 +2756,40 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const deleteTransactionWithReversal = useCallback(async (txId, opts) => {
     const skipBalanceReversal = !!(opts && typeof opts === 'object' && opts.skipBalanceReversal)
     const tx = transactions.find((t) => t.id === txId)
+
+    // Una TRANSFERENCIA movió los saldos de DOS cuentas al escribirse, así que
+    // borrarla sin devolverlos las deja permanentemente mal, y en silencio: ese
+    // era el bug. Va por su propio camino ATÓMICO (los dos ítems y el borrado
+    // de la fila en un solo batch) en vez del `applyDestinationDelta` de abajo,
+    // que hace un update suelto y para dos lados podría dejar la mitad hecha.
+    // Quién recibe qué lo decide `transferReversalPlan`, puro y con tests.
+    const reversal = tx && !skipBalanceReversal ? transferReversalPlan(tx, enrichedItems) : null
+    if (reversal) {
+      if (!reversalWritesSomething(reversal)) {
+        // Las dos cuentas se borraron: no hay saldo que devolver y la fila ya
+        // no explica nada. Se borra a secas, que es el comportamiento correcto
+        // y no el defecto (no queda ningún saldo mal).
+        await deleteTransaction(txId)
+        return
+      }
+      // Un lado que existe pero no se puede expresar (ítem sin ningún precio
+      // utilizable) NO se escribe como `{}`: eso es un no-op que Firestore
+      // acepta, o sea el saldo quedaría mal reportando éxito. Se rehúsa entero
+      // y se dice, que es el contrato de lib/transferFields.js.
+      if (reversal.refused.length) {
+        const err = new Error('reversal-refused')
+        err.code = 'reversal-refused'
+        err.sides = reversal.refused
+        throw err
+      }
+      await reverseTransfer({
+        fromId: reversal.from?.id || null, fromFields: reversal.from?.fields || null,
+        toId: reversal.to?.id || null, toFields: reversal.to?.fields || null,
+        txId,
+      })
+      return
+    }
+
     const credit = tx && !skipBalanceReversal && dividendCreditTarget(tx, enrichedItems)
     if (credit) {
       const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
@@ -2790,8 +2829,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     await deleteTransaction(txId)
-  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem])
+  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem, reverseTransfer])
 
+  // No hay rama TRANSFER acá, y es a propósito: el botón de editar está
+  // suprimido para las filas de transferencia (`EditAccountModal`, la condición
+  // `!incoming && !outgoing`), porque un movimiento que toca DOS cuentas no se
+  // puede corregir desde el editor de UNA. O sea no existe camino que llegue,
+  // y escribir una rama inalcanzable sería código que nadie puede probar. Si
+  // algún día se habilita editar una transferencia, el ajuste de los dos lados
+  // se arma con `transferReversalPlan` igual que el borrado.
   const updateTransactionWithReversal = useCallback(async (txId, fields) => {
     const tx = transactions.find((t) => t.id === txId)
     const newAmt = Number(fields?.totalAmount)
