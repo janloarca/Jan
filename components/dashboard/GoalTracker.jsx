@@ -137,7 +137,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
               <span className="text-xs font-bold" style={{ color: incomePct >= 75 ? 'var(--accent-green)' : incomePct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{incomePct.toFixed(0)}%</span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className="h-full rounded-full transition-all"
+              <div className="h-full rounded-full bar-fill"
                 style={{ width: `${incomePct}%`, background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-blue-soft))' }} />
             </div>
             <div className="flex justify-between mt-1">
@@ -156,7 +156,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
               <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioPct.toFixed(0)}%</span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className="h-full rounded-full transition-all"
+              <div className="h-full rounded-full bar-fill"
                 style={{ width: `${portfolioPct}%`, background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-blue-soft))' }} />
             </div>
             <div className="flex justify-between mt-1">

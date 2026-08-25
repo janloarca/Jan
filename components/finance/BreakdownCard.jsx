@@ -118,7 +118,7 @@ export default function BreakdownCard({
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
-                    <div className="h-full rounded-full" style={{ width: barWidth(g.amount), backgroundColor: color }} />
+                    <div className="h-full rounded-full bar-fill" style={{ width: barWidth(g.amount), backgroundColor: color }} />
                   </div>
                 </button>
 
@@ -156,7 +156,7 @@ export default function BreakdownCard({
                         </div>
                         {/* Misma escala que el grupo de arriba. */}
                         <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
-                          <div className="h-full rounded-full" style={{ width: barWidth(c.amount), backgroundColor: color, opacity: 0.55 }} />
+                          <div className="h-full rounded-full bar-fill" style={{ width: barWidth(c.amount), backgroundColor: color, opacity: 0.55 }} />
                         </div>
                       </li>
                     ))}

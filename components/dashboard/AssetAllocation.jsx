@@ -245,7 +245,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
                 style={{ height: 6, backgroundColor: 'var(--bg-tertiary)' }}
               >
                 <div
-                  className="h-full rounded-full transition-all duration-500 ease-out"
+                  className="h-full rounded-full bar-fill"
                   style={{
                     width: `${Math.max(seg.pct, 0.5)}%`,
                     backgroundColor: seg.color,

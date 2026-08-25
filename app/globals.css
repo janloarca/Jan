@@ -47,6 +47,30 @@
      carga fuera literalmente invisible. Este valor reproduce exacto lo que el
      tema oscuro ya renderizaba (rgb(35,35,55) al 0.7 por opacidad 0.5 = 0.35). */
   --skeleton-base: rgba(35, 35, 55, 0.35);
+
+  /* ── Movimiento ──────────────────────────────────────────────────────────
+     Antes de esto convivían CINCO duraciones escritas a mano (0.1s, 0.15s,
+     0.2s, 0.3s, 0.35s) y CERO curvas propias: toda transición caía al `ease`
+     por defecto del navegador, que acelera al empezar Y al terminar. Eso es
+     justo lo que hace que una interfaz se sienta descoordinada y barata: cada
+     control responde a un ritmo distinto y ninguno aterriza.
+
+     Tres duraciones, no cinco, y con un trabajo asignado a cada una:
+       fast  → respuesta a un toque (tiene que sentirse instantánea)
+       base  → un cambio de estado que el ojo debe seguir
+       slow  → algo que se REDIBUJA (una barra, un anillo, una serie)
+
+     Las curvas son las dos que hacen falta:
+       out  → todo lo que ENTRA o cambia sin que el usuario lo empuje: arranca
+              rápido y aterriza suave. Es la curva por defecto de esta app.
+       tap  → el rebote corto del toque, con un pelo de sobretiro al volver.
+
+     `prefers-reduced-motion` más abajo ya anula todo esto de un plumazo. */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-tap: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme="light"] {
@@ -161,14 +185,20 @@
 [data-theme="light"] .bg-theme-elevated\/30 { background-color: #F3F4F6; }
 
 /* Hover glass variants */
-.hover\:bg-theme-elevated:hover { background-color: var(--bg-card-hover); }
-.hover\:bg-theme-base:hover { background-color: var(--bg-primary); }
-.hover\:bg-theme-card:hover { background-color: var(--bg-card); }
-.hover\:bg-theme-elevated\/30:hover { background-color: rgba(35, 35, 55, 0.30); }
-[data-theme="light"] .hover\:bg-theme-elevated:hover { background-color: var(--bg-card-hover); }
-[data-theme="light"] .hover\:bg-theme-base:hover { background-color: var(--bg-primary); }
-[data-theme="light"] .hover\:bg-theme-card:hover { background-color: var(--bg-card); }
-[data-theme="light"] .hover\:bg-theme-elevated\/30:hover { background-color: rgba(255, 255, 255, 0.25); }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  .hover\:bg-theme-elevated:hover { background-color: var(--bg-card-hover); }
+  .hover\:bg-theme-base:hover { background-color: var(--bg-primary); }
+  .hover\:bg-theme-card:hover { background-color: var(--bg-card); }
+  .hover\:bg-theme-elevated\/30:hover { background-color: rgba(35, 35, 55, 0.30); }
+  [data-theme="light"] .hover\:bg-theme-elevated:hover { background-color: var(--bg-card-hover); }
+  [data-theme="light"] .hover\:bg-theme-base:hover { background-color: var(--bg-primary); }
+  [data-theme="light"] .hover\:bg-theme-card:hover { background-color: var(--bg-card); }
+  [data-theme="light"] .hover\:bg-theme-elevated\/30:hover { background-color: rgba(255, 255, 255, 0.25); }
+}
 
 /* Gradient glass variants */
 .from-theme-card { --tw-gradient-from: var(--bg-card); }
@@ -196,7 +226,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background-color var(--dur-slow) var(--ease-out), color var(--dur-slow) var(--ease-out);
   /* Tabular figures everywhere so numbers never shift width when they change */
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
@@ -280,17 +310,35 @@ textarea:focus-visible {
    light block below already remaps these; these unprefixed rules cover dark. */
 .text-blue-300, .text-blue-400, .text-blue-500, .text-blue-600 { color: var(--accent-blue); }
 .bg-blue-500, .bg-blue-600 { background-color: var(--accent-blue); }
-.hover\:bg-blue-500:hover, .hover\:bg-blue-600:hover { background-color: var(--accent-blue-strong); }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  .hover\:bg-blue-500:hover, .hover\:bg-blue-600:hover { background-color: var(--accent-blue-strong); }
+}
 .bg-blue-500\/10 { background-color: color-mix(in srgb, var(--accent-blue) 12%, transparent); }
 .bg-blue-500\/20 { background-color: color-mix(in srgb, var(--accent-blue) 20%, transparent); }
 .border-blue-400, .border-blue-500 { border-color: var(--accent-blue); }
 .border-blue-500\/50 { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
-.hover\:border-blue-500\/50:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  .hover\:border-blue-500\/50:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+}
 .focus\:border-blue-500\/50:focus { border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent); }
 /* The raw #3b82f6 arbitrary utilities (FileImportModal inputs, etc.) */
 .border-\[\#3b82f6\]\/50 { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
-.hover\:border-\[\#3b82f6\]\/50:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
-.hover\:bg-\[\#3b82f6\]\/5:hover { background-color: color-mix(in srgb, var(--accent-blue) 6%, transparent); }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  .hover\:border-\[\#3b82f6\]\/50:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+  .hover\:bg-\[\#3b82f6\]\/5:hover { background-color: color-mix(in srgb, var(--accent-blue) 6%, transparent); }
+}
 .focus\:border-\[\#3b82f6\]\/50:focus { border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent); }
 
 /* Light mode — Tailwind class overrides for semantic colors */
@@ -311,12 +359,18 @@ textarea:focus-visible {
 [data-theme="light"] .bg-black\/60 { background-color: rgba(0, 0, 0, 0.2) !important; }
 [data-theme="light"] .border-slate-600\/50 { border-color: rgba(30, 30, 50, 0.15) !important; }
 [data-theme="light"] .placeholder-slate-600::placeholder { color: rgba(30, 30, 50, 0.35) !important; }
-[data-theme="light"] .hover\:text-slate-400:hover { color: var(--text-secondary) !important; }
-[data-theme="light"] .hover\:text-slate-300:hover { color: rgba(30, 30, 50, 0.8) !important; }
-[data-theme="light"] .hover\:text-slate-200:hover { color: rgba(30, 30, 50, 0.85) !important; }
-[data-theme="light"] .hover\:bg-slate-700\/20:hover { background-color: rgba(30, 30, 50, 0.06) !important; }
-[data-theme="light"] .hover\:text-white:hover { color: var(--text-primary) !important; }
-[data-theme="light"] .hover\:border-slate-500:hover { border-color: rgba(30, 30, 50, 0.25) !important; }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  [data-theme="light"] .hover\:text-slate-400:hover { color: var(--text-secondary) !important; }
+  [data-theme="light"] .hover\:text-slate-300:hover { color: rgba(30, 30, 50, 0.8) !important; }
+  [data-theme="light"] .hover\:text-slate-200:hover { color: rgba(30, 30, 50, 0.85) !important; }
+  [data-theme="light"] .hover\:bg-slate-700\/20:hover { background-color: rgba(30, 30, 50, 0.06) !important; }
+  [data-theme="light"] .hover\:text-white:hover { color: var(--text-primary) !important; }
+  [data-theme="light"] .hover\:border-slate-500:hover { border-color: rgba(30, 30, 50, 0.25) !important; }
+}
 [data-theme="light"] .focus\:border-blue-500\/50:focus { border-color: rgba(91, 104, 232, 0.5) !important; }
 
 /* Light mode - badge colors */
@@ -339,7 +393,13 @@ textarea:focus-visible {
 [data-theme="light"] .bg-blue-400\/10 { background-color: rgba(91, 104, 232, 0.08) !important; }
 [data-theme="light"] .text-\[\#8E8E93\] { color: var(--text-secondary) !important; }
 [data-theme="light"] .text-\[\#636366\] { color: var(--text-muted) !important; }
-[data-theme="light"] .hover\:bg-blue-500:hover { background-color: var(--accent-blue-strong) !important; }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  [data-theme="light"] .hover\:bg-blue-500:hover { background-color: var(--accent-blue-strong) !important; }
+}
 [data-theme="light"] .focus\:border-blue-500\/50:focus { border-color: rgba(91, 104, 232, 0.5) !important; }
 /* Light mode — accent text colors */
 [data-theme="light"] .text-emerald-400 { color: #059669 !important; }
@@ -354,7 +414,13 @@ textarea:focus-visible {
 [data-theme="light"] .border-blue-500\/15 { border-color: rgba(91, 104, 232, 0.15) !important; }
 [data-theme="light"] .border-red-500 { border-color: #dc2626 !important; }
 [data-theme="light"] .border-red-500\/60 { border-color: rgba(220, 38, 38, 0.6) !important; }
-[data-theme="light"] .hover\:text-red-400:hover { color: #dc2626 !important; }
+/* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
+   que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
+   las alcanza: hay que guardarlas explicitamente o en un telefono se quedan pegadas
+   despues del primer toque, que es justo lo que esa bandera vino a arreglar. */
+@media (hover: hover) and (pointer: fine) {
+  [data-theme="light"] .hover\:text-red-400:hover { color: #dc2626 !important; }
+}
 [data-theme="light"] .text-cyan-400 { color: #0097A7 !important; }
 [data-theme="light"] .text-amber-400 { color: #d97706 !important; }
 [data-theme="light"] .text-purple-400 { color: #7c3aed !important; }
@@ -468,7 +534,7 @@ textarea:focus-visible {
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.08);
   border-radius: 5px;
-  transition: background 0.2s;
+  transition: background var(--dur-base) var(--ease-out);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
@@ -504,7 +570,7 @@ html.theme-transitioning *::after {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 .animate-fade-in {
-  animation: fade-in 0.2s ease-out;
+  animation: fade-in var(--dur-base) var(--ease-out);
 }
 
 /* Staggered fade-in for dashboard sections */
@@ -512,12 +578,12 @@ html.theme-transitioning *::after {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.stagger-1 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 0ms; }
-.stagger-2 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 60ms; }
-.stagger-3 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 120ms; }
-.stagger-4 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 180ms; }
-.stagger-5 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 240ms; }
-.stagger-6 { animation: stagger-fade-in 0.4s ease-out both; animation-delay: 300ms; }
+.stagger-1 { animation: stagger-fade-in var(--dur-slow) var(--ease-out) both; animation-delay: 0ms; }
+.stagger-2 { animation: stagger-fade-in var(--dur-slow) var(--ease-out) both; animation-delay: 60ms; }
+.stagger-3 { animation: stagger-fade-in var(--dur-slow) var(--ease-out) both; animation-delay: 120ms; }
+.stagger-4 { animation: stagger-fade-in var(--dur-slow) var(--ease-out) both; animation-delay: 180ms; }
+.stagger-5 { animation: stagger-fade-in var(--dur-slow) var(--ease-out) both; animation-delay: 240ms; }
+.stagger-6 { animation: stagger-fade-in var(--dur-slow) var(--ease-out) both; animation-delay: 300ms; }
 
 /* Glass shimmer for loading states */
 @keyframes glass-shimmer {
@@ -649,7 +715,7 @@ html[data-ptr="on"] body {
    prefers-reduced-motion de más abajo ya cubre esta transición. */
 @media (hover: hover) and (pointer: fine) {
   .card-interactive {
-    transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+    transition: box-shadow var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
   }
   .card-interactive:hover {
     box-shadow: var(--shadow-elevated);
@@ -705,7 +771,7 @@ html[data-ptr="on"] body {
   color: #fff;
   border: none;
   box-shadow: var(--glass-shine), 0 2px 8px rgba(37, 99, 235, 0.25);
-  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-tap);
   cursor: pointer;
 }
 .btn-primary:hover {
@@ -734,7 +800,7 @@ html[data-ptr="on"] body {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-card);
-  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-tap);
   cursor: pointer;
 }
 .btn-secondary:hover {
@@ -755,7 +821,7 @@ html[data-ptr="on"] body {
   background: transparent;
   color: var(--text-secondary);
   border: 1px solid transparent;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   cursor: pointer;
 }
 .btn-ghost:hover {
@@ -775,7 +841,7 @@ html[data-ptr="on"] body {
   background: rgba(248, 113, 113, 0.15);
   color: var(--accent-red);
   border: 1px solid rgba(248, 113, 113, 0.2);
-  transition: background-color 0.15s, transform 0.1s;
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-tap);
   cursor: pointer;
 }
 .btn-danger:hover {
@@ -787,6 +853,104 @@ html[data-ptr="on"] body {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 1px var(--accent-blue);
   outline: none;
+}
+
+/* ── TACTO: respuesta al toque ────────────────────────────────────────────
+   El diagnóstico, medido y no opinado: había 311 `hover:` en JSX y `:active`
+   en exactamente TRES clases (.btn-primary, .btn-secondary, .btn-danger). O
+   sea en escritorio casi todo respondía al puntero y en un teléfono, que es
+   donde esta app se usa, tocar una pestaña, una fila o un icono no producía
+   NADA. Un control que no acusa recibo del toque se siente muerto, y eso es
+   exactamente lo que falta cuando algo "está bien pero le falta tacto".
+
+   El truco que lo hace sentir crujiente y no elástico: BAJAR es instantáneo
+   (`transition-duration: 0s` en :active) y SUBIR es una curva con un pelo de
+   sobretiro. Si las dos direcciones se animan, el control se siente blando.
+
+   Alcance: todo lo que de verdad es un control. `[data-no-tap]` es la escotilla
+   para lo que no debe moverse (un elemento que contiene una cifra grande, por
+   ejemplo: `scale` remuestrea el texto y los numerales tabulares son lo único
+   que esta app no compromete). El blanket de prefers-reduced-motion de más
+   abajo ya anula todo esto. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+summary,
+a[href] {
+  transition: transform var(--dur-base) var(--ease-tap), opacity var(--dur-base) var(--ease-out);
+}
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active,
+summary:active,
+a[href]:active {
+  transform: scale(0.97);
+  opacity: 0.75;
+  transition-duration: 0s;
+}
+[data-no-tap]:active,
+[data-no-tap] button:active,
+[data-no-tap] a[href]:active {
+  transform: none;
+  opacity: 1;
+}
+
+/* ── Gráficas que se redibujan sin saltar ────────────────────────────────
+   Medido: NINGUNA de las barras del tablero tenía transición. Cada vez que un
+   precio se movía, que se editaba una cuenta o que se cambiaba de vista, todas
+   saltaban de un ancho al otro en un frame. Es el mismo defecto que el número
+   que salta, en la mitad visual de la card.
+
+   Una clase compartida y no una transición escrita en cada componente: con
+   quince copias, la primera que alguien cambie deja a las demás con otro
+   ritmo, y dos barras hermanas moviéndose a velocidades distintas se notan
+   aunque nadie sepa decir por qué.
+
+   `--dur-slow` porque una barra es algo que se REDIBUJA: tiene que poder
+   seguirse con el ojo, a diferencia de la respuesta a un toque. */
+.bar-fill {
+  transition: width var(--dur-slow) var(--ease-out),
+              height var(--dur-slow) var(--ease-out),
+              background-color var(--dur-base) var(--ease-out);
+}
+.ring-fill {
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-out),
+              stroke var(--dur-base) var(--ease-out);
+}
+
+/* La línea de la gráfica principal se DIBUJA en vez de aparecer entera.
+   `pathLength="1"` normaliza el largo del trazo, así que no hace falta medirlo
+   con JS: el dasharray es 1 y el offset va de 1 a 0, sirva la serie que sirva.
+   Se dispara con una `key` que solo cambia cuando la serie cambia de FORMA
+   (período, institución, pestaña), nunca con un tick de precio: redibujar la
+   gráfica entera cada cinco minutos sería peor que no animar nada. */
+@keyframes chart-draw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+.chart-line-draw {
+  stroke-dasharray: 1;
+  animation: chart-draw var(--dur-slow) var(--ease-out) both;
+}
+.chart-area-fade {
+  animation: fade-in-plain var(--dur-slow) var(--ease-out) both;
+}
+@keyframes fade-in-plain {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Un control táctil no puede quedarse con el resaltado azul del sistema
+   encima de nuestra propia respuesta: son dos señales para lo mismo. */
+button, [role="button"], summary, a[href], label, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Foco visible y CONSISTENTE. Sin esto, `outline: none` en un input suelto
+   deja a quien navega con teclado sin saber dónde está parado. Solo
+   :focus-visible, así que un toque no lo dispara. */
+:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Active/selected pill style for tabs and filters */
