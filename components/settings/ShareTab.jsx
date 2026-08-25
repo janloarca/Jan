@@ -20,6 +20,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link2, FileText } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { formatDate } from '@/components/dashboard/utils'
+import ModalMount from '@/components/ui/ModalMount'
+import useModalExit from '@/hooks/useModalExit'
 import { useInstruments } from '@/hooks/useInstruments'
 import BusyLabel from '@/components/ui/BusyLabel'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
@@ -56,6 +58,8 @@ export default function ShareTab({
   // adjuntarlas a un link. El manager las edita; acá solo se eligen.
   const { instruments, saveInstrument, deleteInstrument } = useInstruments()
   const [managerOpen, setManagerOpen] = useState(false)
+  // El gestor sobrevive su animación de salida. Ver hooks/useModalExit.js.
+  const [managerShown, managerClosing] = useModalExit(managerOpen)
 
   const shareApi = useCallback(async (payload) => {
     const res = await authFetch('/api/share', {
@@ -408,11 +412,13 @@ export default function ShareTab({
         "Links don't expire unless you pick a duration when creating them; you can revoke them anytime."
       )}</p>
 
-      {managerOpen && (
+      <ModalMount closing={managerClosing}>
+      {managerShown && (
         <InstrumentSheetsManager lang={lang} instruments={instruments}
           onSave={saveInstrument} onDelete={deleteInstrument}
           onClose={() => setManagerOpen(false)} flash={flash} />
       )}
+      </ModalMount>
     </div>
   )
 }
