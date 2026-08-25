@@ -30,8 +30,8 @@ import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanD
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
-import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO } from '@/lib/incomeSchedule'
-import { isDailyAccrual, accrualAnnualRate, monthlyAccrual } from '@/lib/dailyAccrual'
+import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
+import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -702,24 +702,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // doceavo parejo. Va primero porque manda sobre cualquier otra rama
           // de tasa. De paso prorratea el mes de la compra, que el reparto
           // plano acreditaba entero por unos dias de tenencia.
-          const dailyRate = isDailyAccrual(it) ? accrualAnnualRate(it) : 0
-          if (dailyRate > 0) {
-            amount = monthlyAccrual({
-              balance, annualRatePct: dailyRate,
-              year: payYear, monthIndex: payMonth, acquisitionDay: acqDay,
-            })
-          } else if (it.rateType === 'variable' && it.rateMin > 0 && it.rateMax > 0) {
-            const midRate = (it.rateMin + it.rateMax) / 2
-            amount = (balance * (midRate / 100)) / (payMonths.length || 12)
-          } else if (it.rateType === 'continuous' && it.incomeRate > 0) {
-            const annual = balance * (Math.exp(it.incomeRate / 100) - 1)
-            amount = annual / 12
-          } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-            amount = (balance * (it.incomeRate / 100)) / (payMonths.length || 12)
-          } else if (it.incomeAmount > 0) {
-            const isPerShare = /stock|etf|fund|crypto/i.test(it.type || '')
-            amount = isPerShare ? it.incomeAmount * qty : it.incomeAmount
-          }
+          // FASE KY. El monto de un pago sale de UNA sola función compartida
+          // (lib/incomeSchedule.js). Estaba escrito acá, en la vista previa del
+          // alta, en la proyección anual y en la tarjeta de próximos pagos, y
+          // las cuatro copias ya habían divergido; arreglar solo esta dejaría a
+          // las otras contradiciendo al motor sobre el mismo activo.
+          //
+          // Y prorratea el primer período: comprar el 20 de agosto con día de
+          // pago 1 acreditaba un mes COMPLETO el 1 de septiembre por once días
+          // de tenencia. Solo las ramas de TASA; un monto fijo es contractual y
+          // se paga entero (ver la cabecera de esa función).
+          amount = monthlyIncomeAmount({
+            balance, qty,
+            isPerShare: /stock|etf|fund|crypto/i.test(it.type || ''),
+            incomeMode: it.incomeMode, incomeRate: it.incomeRate, incomeAmount: it.incomeAmount,
+            rateType: it.rateType, rateMin: it.rateMin, rateMax: it.rateMax,
+            accrual: it.accrual, acquisitionDay: acqDay, payDate: dateStr,
+            incomeMonths: payMonths, incomePayDay: it.incomePayDay || 1,
+          }, payMonths.length || 12)
 
           // Net recurring fees out of each payment so the income reflects what
           // actually lands after management/expense costs.
@@ -755,7 +755,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             date: dateStr,
             type: 'DIVIDEND',
             symbol: it.symbol || it.name,
-            description: dailyRate > 0
+            // FASE KT: un devengo se ACUMULA, no se "paga", así que la
+            // descripción lo dice. Se pregunta por el activo (`isDailyAccrual`)
+            // y no por la tasa que antes se calculaba acá: es la misma
+            // condición, y ahora el monto lo resuelve `monthlyIncomeAmount`.
+            description: isDailyAccrual(it)
               ? `Accrued interest from ${it.name || it.symbol}`
               : `Dividend from ${it.name || it.symbol}`,
             totalAmount: amount,

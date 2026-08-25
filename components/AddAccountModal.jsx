@@ -1707,13 +1707,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   const balance = qty * price
                   // Con devengo diario cada mes vale distinto (28 dias no son
                   // 31), asi que la estimacion se hace POR FECHA en vez de una
-                  // sola para todas.
+                  // sola para todas. Y desde FASE KY el primer periodo se
+                  // prorratea, que tambien depende de la fecha: el calendario y
+                  // el dia de pago viajan para que esta vista previa diga el
+                  // MISMO numero que el motor va a escribir.
                   const estimateFor = (d) => estimateIncomeAmount({
                     balance, incomeMode: form.incomeMode, incomeRate: parseAmount(form.incomeRate) || 0,
                     incomeAmount: parseAmount(form.incomeAmount) || 0, rateType: form.rateType,
                     rateMin: parseAmount(form.rateMin) || 0, rateMax: parseAmount(form.rateMax) || 0,
                     isPerShare: false, qty,
                     accrual: form.accrual, acquisitionDay: form.acquisitionDate, payDate: d,
+                    incomeMonths: form.incomeMonths, incomePayDay: form.incomePayDay || 1,
                   }, payMonthsCount)
                   const estimate = estimateFor(pastDuePayDates[0])
                   const accrued = parseAmount(form.accruedInterestAtPurchase) || 0
