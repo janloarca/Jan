@@ -755,18 +755,64 @@ html[data-ptr="on"] body {
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: var(--glass-border);
   border-radius: 20px;
-  /* Los 21 modales de la app comparten esta clase y NINGUNO tenía animación de
-     entrada: aparecían de golpe, ya dibujados. Editar una cuenta era un corte
-     seco a la ida y otro a la vuelta.
-     Va acá y no en cada modal justamente por eso: una regla los cubre a los 21,
-     y no puede haber uno que entre distinto de sus hermanos. Sube muy poco (6px)
-     y muy corto: un modal que "vuela" desde abajo se siente lento a la segunda
-     vez que lo abrís. */
+}
+
+/* ─── ENTRADA Y SALIDA DE UN MODAL ────────────────────────────────────────
+   `.modal-anim` es SOLO el movimiento, separado a propósito del tratamiento
+   visual del panel. FASE JE2 puso la animación de entrada dentro de
+   `.modal-glass` afirmando que "una regla cubre a los 21", y eso resultó
+   FALSO: nueve modales reales traen su propio panel (AccountReviewModal,
+   BrokerCompletionModal, EnrichModal, InferredFlowsModal, LiquidYieldModal,
+   PriceAlertsModal, PrintSummary, QuarterlyHistoryModal, BlockchainSyncModal)
+   y por lo tanto nunca recibieron nada. Con la animación en su propia clase,
+   esos piden el movimiento sin heredar fondo, borde ni radio, que es lo que
+   antes hacía imposible incluirlos sin cambiarles los colores.
+
+   Sube muy poco (6px) y muy corto: un modal que "vuela" desde abajo se siente
+   lento a la segunda vez que lo abrís. */
+.modal-glass,
+.modal-anim {
   animation: modal-in var(--dur-base) var(--ease-out) both;
 }
 @keyframes modal-in {
   from { opacity: 0; transform: translateY(6px) scale(0.985); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* La salida. `[data-modal-exit]` lo pone `ModalMount` sobre el modal que se
+   está yendo (nunca sobre `<html>`: ver el comentario de ese archivo).
+
+   Son DOS piezas porque el fondo oscuro y el panel son elementos distintos:
+   el overlay (hijo directo del envoltorio) se desvanece con todo lo que
+   contiene, y el panel agrega el movimiento, espejo exacto de la entrada.
+   Sin la primera, el telón de fondo desaparecería de golpe mientras el panel
+   se va con calma, que se lee peor que el corte seco de antes.
+
+   `pointer-events: none` no es decoración: durante esos milisegundos el modal
+   sigue en el DOM, y sin esto un clic apurado dispararía una acción sobre un
+   modal que el usuario ya cerró. */
+[data-modal-exit] > * {
+  animation: modal-overlay-out var(--dur-base) var(--ease-out) both;
+  pointer-events: none;
+}
+/* El caso del portal: ahí el atributo va sobre el overlay MISMO (no sobre un
+   envoltorio que lo contenga), así que la regla de arriba no lo alcanza. La
+   clase lo distingue del propio envoltorio de `ModalMount`, que no la lleva. */
+[data-modal-exit].modal-overlay {
+  animation: modal-overlay-out var(--dur-base) var(--ease-out) both;
+  pointer-events: none;
+}
+[data-modal-exit] .modal-glass,
+[data-modal-exit] .modal-anim {
+  animation: modal-out var(--dur-base) var(--ease-out) both;
+}
+@keyframes modal-overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes modal-out {
+  from { transform: translateY(0) scale(1); }
+  to   { transform: translateY(6px) scale(0.985); }
 }
 
 /* Unified button system — 4 tiers with glass effect */
