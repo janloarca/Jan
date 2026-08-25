@@ -755,6 +755,18 @@ html[data-ptr="on"] body {
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: var(--glass-border);
   border-radius: 20px;
+  /* Los 21 modales de la app comparten esta clase y NINGUNO tenía animación de
+     entrada: aparecían de golpe, ya dibujados. Editar una cuenta era un corte
+     seco a la ida y otro a la vuelta.
+     Va acá y no en cada modal justamente por eso: una regla los cubre a los 21,
+     y no puede haber uno que entre distinto de sus hermanos. Sube muy poco (6px)
+     y muy corto: un modal que "vuela" desde abajo se siente lento a la segunda
+     vez que lo abrís. */
+  animation: modal-in var(--dur-base) var(--ease-out) both;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Unified button system — 4 tiers with glass effect */

@@ -442,7 +442,13 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             <span style={{ color: isDayPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>{isDayPositive ? '▲' : '▼'}</span>
             {' '}
             <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
-              {isDayPositive ? '+' : ''}{formatCurrency(cv(dailyChange.abs), displayCur)} ({isDayPositive ? '+' : ''}{dailyChange.pct.toFixed(2)}%)
+              {/* El signo sale del valor que se está MOSTRANDO, no de una
+                  bandera de afuera: si no, a mitad del movimiento un número que
+                  ya cruzó a negativo seguiría imprimiendo "+". */}
+              <AnimatedNumber value={cv(dailyChange.abs)} format={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(v, displayCur)}`} />
+              {' ('}
+              <AnimatedNumber value={dailyChange.pct} format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`} />
+              {')'}
             </span>
           </span>
         )}
@@ -460,14 +466,18 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 className="font-mono tabular-nums underline decoration-dotted underline-offset-4 cursor-pointer"
                 style={{ color: 'var(--text-primary)', textDecorationColor: 'var(--text-muted)' }}
                 title={lang === 'es' ? 'Ver de dónde viene este número' : 'See where this number comes from'}>
-                {ytdChange != null && isFinite(ytdChange) && `${isYTDPositive ? '+' : ''}${formatCurrency(cv(ytdChange), displayCur)} `}
-                ({isYTDPositive ? '+' : ''}{displayReturn.toFixed(2)}%)
+                {ytdChange != null && isFinite(ytdChange) && (
+                  <><AnimatedNumber value={cv(ytdChange)} format={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(v, displayCur)}`} />{' '}</>
+                )}
+                {'('}<AnimatedNumber value={displayReturn} format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`} />{')'}
                 <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>{showYTDDetail ? '▴' : '▾'}</span>
               </button>
             ) : (
               <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
-                {hasYTD && ytdChange != null && isFinite(ytdChange) && `${isYTDPositive ? '+' : ''}${formatCurrency(cv(ytdChange), displayCur)} `}
-                ({isYTDPositive ? '+' : ''}{displayReturn.toFixed(2)}%)
+                {hasYTD && ytdChange != null && isFinite(ytdChange) && (
+                  <><AnimatedNumber value={cv(ytdChange)} format={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(v, displayCur)}`} />{' '}</>
+                )}
+                {'('}<AnimatedNumber value={displayReturn} format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`} />{')'}
               </span>
             )}
             {hasYTD && <InfoTip text={lang === 'es' ? 'Year-to-Date: retorno desde el 1 de enero del año en curso. Calculado con el método Dietz Modificado, que descuenta tus depósitos y retiros para que solo cuente lo que ganaron tus inversiones (no el dinero nuevo que metiste).' : 'Year-to-Date: return since January 1st of the current year. Calculated with the Modified Dietz method, which adjusts for your deposits and withdrawals so only investment performance counts (not new money you put in).'} />}
@@ -757,7 +767,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)', opacity: 0.6 }} />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
           </span>
-          <span className="text-xs font-medium font-mono tabular-nums" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
+          <AnimatedNumber value={cv(cashTotal)} format={(v) => formatCurrency(v, displayCur)} className="text-xs font-medium font-mono" style={{ color: 'var(--accent-cyan)' }} />
         </div>
       )}
     </div>
