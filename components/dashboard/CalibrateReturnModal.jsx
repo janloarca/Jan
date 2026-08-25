@@ -1,4 +1,6 @@
 'use client'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseRate } from '@/lib/numberParse'
 
 import { useState } from 'react'
 import { Info } from 'lucide-react'
@@ -162,7 +164,11 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
     setError('')
     setDoneMsg('')
     const filled = PERIODS
-      .map((p) => ({ ...p, pct: (pcts[p.kind] ?? '').trim() === '' ? null : parseFloat(pcts[p.kind]) }))
+      // parseRate y NO parseQuantity: esa pisa los negativos en cero, y un
+      // anio perdedor se teclea con signo. Tampoco parseAmount, que leeria
+      // '7.500' como siete mil quinientos. Y el guard de '' se queda: vacio
+      // significa "no calibrar este periodo", que no es lo mismo que 0%.
+      .map((p) => ({ ...p, pct: (pcts[p.kind] ?? '').trim() === '' ? null : parseRate(pcts[p.kind]) }))
       .filter((p) => p.pct != null)
     if (filled.length === 0) {
       setError(t('Escribe al menos un porcentaje.', 'Fill in at least one percentage.'))
@@ -412,7 +418,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
                       <span style={{ color: 'var(--accent-amber, #f59e0b)' }} title={t('Ya calibrado: se reemplaza', 'Already calibrated: will be replaced')}>&#9679;</span>
                     )}
                   </span>
-                  <input type="number" step="any" value={pcts[p.kind] ?? ''}
+                  <AmountInput value={pcts[p.kind] ?? ''}
                     onChange={(e) => setPct(p.kind, e.target.value)}
                     placeholder={p.placeholder} className={inputCls} />
                 </div>

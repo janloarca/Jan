@@ -1245,12 +1245,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <div>
                   <label htmlFor="edit-installments-total" className={labelCls}>{t('Cuotas total', 'Total pmts')}</label>
                   <input id="edit-installments-total" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
-                    placeholder="24" type="number" step="1" className={inputCls} />
+                    placeholder="24" type="number" inputMode="numeric" step="1" className={inputCls} />
                 </div>
                 <div>
                   <label htmlFor="edit-installments-remaining" className={labelCls}>{t('Cuotas rest.', 'Pmts left')}</label>
                   <input id="edit-installments-remaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
-                    placeholder="18" type="number" step="1" className={inputCls} />
+                    placeholder="18" type="number" inputMode="numeric" step="1" className={inputCls} />
                 </div>
               </div>
 
@@ -1734,7 +1734,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <div>
                     <label className={labelCls}>{t('Día pago', 'Pay day')}</label>
                     <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                      type="number" min="1" max="31" className={inputCls} />
+                      type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                   </div>
                 </div>
@@ -1755,7 +1755,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <div>
                       <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                       <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                        type="number" min="1" max="31" className={inputCls} />
+                        type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   )}

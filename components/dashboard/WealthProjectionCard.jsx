@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { parseRate } from '@/lib/numberParse'
 import { ArrowRight, Repeat } from 'lucide-react'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { formatCurrency } from './utils'
@@ -109,7 +110,10 @@ export default function WealthProjectionCard({
   }), [netWorth, income, plan.savingsRate, savingsDefault, returnPct, fromMonth])
 
   const setSavingsFor = useCallback((month, value) => {
-    const pct = value === '' ? null : Math.min(100, Math.max(0, Number(value) || 0))
+    // parseRate y no Number(): Number('42,5') es NaN y caia a 0, o sea el
+    // porcentaje se perdia entero al teclear una coma. El clamp 0-100 se queda
+    // y reemplaza al min/max que el input dejo de tener al pasar a texto.
+    const pct = value === '' ? null : Math.min(100, Math.max(0, parseRate(value)))
     const next = { ...plan, savingsRate: { ...plan.savingsRate } }
     if (pct == null) delete next.savingsRate[month]
     else next.savingsRate[month] = pct
@@ -117,7 +121,7 @@ export default function WealthProjectionCard({
   }, [plan, savePlan])
 
   const applyToAll = useCallback((value) => {
-    const pct = Math.min(100, Math.max(0, Number(value) || 0))
+    const pct = Math.min(100, Math.max(0, parseRate(value)))
     savePlan({ ...plan, defaultSavingsRate: pct, savingsRate: {} })
   }, [plan, savePlan])
 
@@ -197,12 +201,12 @@ export default function WealthProjectionCard({
               <span className="text-[11px] block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento anual', 'Annual return')}</span>
               <span className="flex items-baseline gap-1">
                 <input
-                  type="number" step="0.1" inputMode="decimal"
+                  type="text" inputMode="decimal"
                   aria-label={t('Rendimiento anual esperado', 'Expected annual return')}
                   className="w-10 bg-transparent font-mono tabular-nums text-right outline-none"
                   style={{ color: 'var(--text-primary)' }}
                   value={returnPct}
-                  onChange={(e) => savePlan({ ...plan, returnRate: e.target.value === '' ? null : Number(e.target.value) })}
+                  onChange={(e) => savePlan({ ...plan, returnRate: e.target.value === '' ? null : parseRate(e.target.value) })}
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
               </span>
@@ -224,7 +228,7 @@ export default function WealthProjectionCard({
               <span className="text-[11px] block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Ahorro por defecto', 'Default savings')}</span>
               <span className="flex items-baseline gap-1">
                 <input
-                  type="number" step="1" min="0" max="100" inputMode="decimal"
+                  type="text" inputMode="decimal"
                   aria-label={t('Porcentaje de ahorro por defecto', 'Default savings percentage')}
                   className="w-10 bg-transparent font-mono tabular-nums text-right outline-none"
                   style={{ color: 'var(--text-primary)' }}
@@ -259,7 +263,7 @@ export default function WealthProjectionCard({
                     <span className="flex items-baseline gap-0.5 rounded-md border px-1.5 shrink-0"
                       style={{ borderColor: plan.savingsRate[p.month] != null ? 'var(--accent-blue)' : 'var(--card-border)' }}>
                       <input
-                        type="number" step="5" min="0" max="100" inputMode="decimal"
+                        type="text" inputMode="decimal"
                         aria-label={t(`Ahorro de ${months[p.month]}`, `${months[p.month]} savings`)}
                         data-proj-input={p.month}
                         className="w-8 bg-transparent font-mono tabular-nums text-right outline-none"

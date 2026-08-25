@@ -452,7 +452,7 @@ export default function QuarterlyHistoryModal({
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Desde año', 'From year')}</label>
               <input value={fromYear} onChange={(e) => setFromYear(e.target.value)}
-                type="number" min="2000" max={now.getFullYear()} className={inputCls} style={inputStyle} />
+                type="number" inputMode="numeric" min="2000" max={now.getFullYear()} className={inputCls} style={inputStyle} />
             </div>
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Trimestre', 'Quarter')}</label>

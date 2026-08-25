@@ -1253,12 +1253,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div>
                     <label htmlFor="add-installmentsTotal" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
                     <input id="add-installmentsTotal" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
-                      placeholder="24" type="number" step="1" className={inputCls} />
+                      placeholder="24" type="number" inputMode="numeric" step="1" className={inputCls} />
                   </div>
                   <div>
                     <label htmlFor="add-installmentsRemaining" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
                     <input id="add-installmentsRemaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
-                      placeholder="18" type="number" step="1" className={inputCls} />
+                      placeholder="18" type="number" inputMode="numeric" step="1" className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1425,7 +1425,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                         <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                          placeholder="15" type="number" min="1" max="31" className={inputCls} />
+                          placeholder="15" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                       </div>
                     </div>
@@ -1579,7 +1579,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div>
                       <label htmlFor="add-varPayDay" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                       <input id="add-varPayDay" value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                        placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                        placeholder="10" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   </div>
@@ -1611,7 +1611,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <div>
                         <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
                         <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                          placeholder="10" type="number" min="1" max="31" className={inputCls} />
+                          placeholder="10" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                         {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                       </div>
                     )}
