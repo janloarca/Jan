@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { buildErrorReport, clientErrorContext } from '@/lib/errorReport'
 
 // Lo que esta pantalla tiene que lograr: que una CAPTURA baste para diagnosticar.
 //
@@ -18,34 +19,17 @@ export default function DashboardError({ error, reset }) {
   // último que queremos: se llenan después de montar, con el resto ya visible.
   const [client, setClient] = useState(null)
 
-  const msg = typeof error?.message === 'string' && error.message ? error.message : 'Error inesperado en el dashboard.'
-  // El build que está CORRIENDO. Sin esto no se puede distinguir "el arreglo no
-  // sirvió" de "todavía corre el bundle viejo", que ya costó un día entero.
-  const build = process.env.NEXT_BUILD_ID || 'desconocido'
-  // Next le pone un digest a los errores de servidor: es la llave para buscarlo
-  // en los logs de la plataforma.
-  const digest = error?.digest || null
-
   useEffect(() => {
     console.error('[DashboardError]', error)
-    try {
-      setClient({
-        where: window.location.pathname + window.location.search,
-        when: new Date().toISOString(),
-        ua: navigator.userAgent,
-      })
-    } catch {}
+    setClient(clientErrorContext())
   }, [error])
 
-  const report = [
-    `Chispudo · error en el dashboard`,
-    `mensaje: ${msg}`,
-    digest ? `digest: ${digest}` : null,
-    `build: ${build}`,
-    client?.where ? `pantalla: ${client.where}` : null,
-    client?.when ? `cuando: ${client.when}` : null,
-    client?.ua ? `navegador: ${client.ua}` : null,
-  ].filter(Boolean).join('\n')
+  // El detalle lo arma `lib/errorReport.js`, compartido con las otras DOS
+  // pantallas de error. Estaba escrito a mano acá y las otras dos no lo tenían:
+  // el boundary raíz, que es el que atrapa lo que este no, no decía ni el
+  // mensaje ni el build, así que la captura de un usuario no permitía
+  // distinguir un bug del deploy de un teléfono pegado al bundle viejo.
+  const report = buildErrorReport(error, { context: client, title: 'Chispudo · error en el dashboard' })
 
   const copy = async () => {
     try {
