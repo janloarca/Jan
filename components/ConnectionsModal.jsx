@@ -14,6 +14,8 @@ import { getBrokerRegistry, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistr
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import { syncSkipReasonText } from '@/lib/ibkrSchedule'
 import BrokerConnectModal from '@/components/BrokerConnectModal'
+import ModalMount from '@/components/ui/ModalMount'
+import useModalExit from '@/hooks/useModalExit'
 import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
 import BusyLabel from '@/components/ui/BusyLabel'
 
@@ -64,6 +66,8 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
   const [saveStatus, setSaveStatus] = useState(null)
   const [brokerConnections, setBrokerConnections] = useState({})
   const [connectBroker, setConnectBroker] = useState(null)
+  // El wizard sobrevive su animación de salida. Ver hooks/useModalExit.js.
+  const [connectShown, connectClosing] = useModalExit(connectBroker)
   const [brokerForm, setBrokerForm] = useState({})
   const [brokerSyncing, setBrokerSyncing] = useState(null)
   const [brokerError, setBrokerError] = useState(null)
@@ -683,25 +687,27 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
       </div>
     </div>
-    {connectBroker && (
+    <ModalMount closing={connectClosing}>
+    {connectShown && (
       <BrokerConnectModal
-        broker={connectBroker}
-        howTo={getBrokerHowTo(connectBroker.id)}
+        broker={connectShown}
+        howTo={getBrokerHowTo(connectShown.id)}
         lang={lang}
         onClose={() => setConnectBroker(null)}
         onCloseAll={onClose}
         onImport={onImport}
         brokerForm={brokerForm}
         setBrokerForm={setBrokerForm}
-        onSubmitApi={connectBroker.id === 'ibkr' ? handleIbkrSave : () => handleBrokerConnect(connectBroker)}
-        isSyncing={connectBroker.id === 'ibkr' ? ibkrSaving : brokerSyncing === connectBroker.id}
-        error={connectBroker.id === 'ibkr' ? ibkrError : brokerError}
+        onSubmitApi={connectShown.id === 'ibkr' ? handleIbkrSave : () => handleBrokerConnect(connectShown)}
+        isSyncing={connectShown.id === 'ibkr' ? ibkrSaving : brokerSyncing === connectShown.id}
+        error={connectShown.id === 'ibkr' ? ibkrError : brokerError}
         ibkrToken={ibkrToken}
         setIbkrToken={setIbkrToken}
         ibkrQueryId={ibkrQueryId}
         setIbkrQueryId={setIbkrQueryId}
       />
     )}
+    </ModalMount>
     </>
   )
 }
