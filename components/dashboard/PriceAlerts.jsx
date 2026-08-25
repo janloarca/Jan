@@ -1,4 +1,6 @@
 'use client'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 import { useState } from 'react'
 import { formatCurrency } from './utils'
@@ -27,7 +29,7 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
   const submit = async (e) => {
     e.preventDefault()
     const sym = symbol.trim().toUpperCase()
-    const price = parseFloat(targetPrice)
+    const price = parseAmount(targetPrice)
     if (!sym || !isFinite(price) || price <= 0) return
     setSaving(true)
     try {
@@ -99,7 +101,7 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
             </select>
           </div>
           <div className="flex gap-2">
-            <input type="number" step="any" min="0" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
+            <AmountInput value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
               placeholder={t('Precio objetivo', 'Target price')}
               className="flex-1 min-w-0 px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
             <button type="submit" disabled={saving}

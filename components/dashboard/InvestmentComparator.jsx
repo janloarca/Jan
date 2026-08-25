@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount, parseRate } from '@/lib/numberParse'
 import { Plus, Trash2 } from 'lucide-react'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { formatCurrency, formatCompact } from './utils'
@@ -72,7 +74,22 @@ export default function InvestmentComparator({
     setEditing((cur) => Math.max(0, Math.min(cur, next.length - 1)))
   }, [scenarios, persist])
 
-  const comparison = useMemo(() => compareScenarios(scenarios), [scenarios])
+  // Los campos guardan la cadena CRUDA (para que se pueda teclear una coma sin
+  // que el input se pelee), asi que acá se convierten a numero con el lector que
+  // le toca a cada uno ANTES de entrar al motor: dinero por parseAmount, la tasa
+  // por parseRate (donde "7.500" son 7.5 y no siete mil quinientos), y el plazo
+  // por parseInt porque son enteros. `lib/investmentCompare.js` coacciona con
+  // Number(), que ante una coma daba NaN y caia a 0 en silencio.
+  const parsedScenarios = useMemo(() => scenarios.map((sc) => ({
+    ...sc,
+    initial: parseAmount(sc.initial),
+    monthly: parseAmount(sc.monthly),
+    annual: parseAmount(sc.annual),
+    ratePct: parseRate(sc.ratePct),
+    years: parseInt(sc.years, 10) || 0,
+    months: parseInt(sc.months, 10) || 0,
+  })), [scenarios])
+  const comparison = useMemo(() => compareScenarios(parsedScenarios), [parsedScenarios])
   const fmt = (v) => formatCurrency(v, baseCurrency)
 
   // Geometría de la gráfica: una polilínea por escenario sobre el mismo eje,
@@ -234,25 +251,25 @@ export default function InvestmentComparator({
             </label>
             <label>
               <span className={labelCls} style={labelStyle}>{t('Monto inicial', 'Initial amount')}</span>
-              <input type="number" inputMode="decimal" className={inputCls} style={inputStyle} value={cur.initial}
+              <AmountInput className={inputCls} style={inputStyle} value={cur.initial}
                 aria-label={t('Monto inicial', 'Initial amount')}
                 onChange={(e) => patch(editing, { initial: e.target.value })} />
             </label>
             <label>
               <span className={labelCls} style={labelStyle}>{t('Aporte mensual', 'Monthly contribution')}</span>
-              <input type="number" inputMode="decimal" className={inputCls} style={inputStyle} value={cur.monthly}
+              <AmountInput className={inputCls} style={inputStyle} value={cur.monthly}
                 aria-label={t('Aporte mensual', 'Monthly contribution')}
                 onChange={(e) => patch(editing, { monthly: e.target.value })} />
             </label>
             <label>
               <span className={labelCls} style={labelStyle}>{t('Aporte anual', 'Annual contribution')}</span>
-              <input type="number" inputMode="decimal" className={inputCls} style={inputStyle} value={cur.annual}
+              <AmountInput className={inputCls} style={inputStyle} value={cur.annual}
                 aria-label={t('Aporte anual', 'Annual contribution')}
                 onChange={(e) => patch(editing, { annual: e.target.value })} />
             </label>
             <label>
               <span className={labelCls} style={labelStyle}>{t('Tasa anual', 'Annual rate')} %</span>
-              <input type="number" step="0.1" inputMode="decimal" className={inputCls} style={inputStyle} value={cur.ratePct}
+              <AmountInput className={inputCls} style={inputStyle} value={cur.ratePct}
                 aria-label={t('Tasa anual', 'Annual rate')}
                 onChange={(e) => patch(editing, { ratePct: e.target.value })} />
             </label>

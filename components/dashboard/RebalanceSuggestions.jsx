@@ -94,7 +94,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
           {allocation.categories.map((c) => (
             <div key={c.cat} className="flex items-center gap-2">
               <span className="text-xs text-slate-300 w-24 capitalize">{c.cat}</span>
-              <input type="number" min="0" max="100" step="5"
+              <input type="number" inputMode="numeric" min="0" max="100" step="5"
                 value={form[c.cat] || 0}
                 onChange={(e) => setForm({ ...form, [c.cat]: parseInt(e.target.value) || 0 })}
                 className="w-16 px-2 py-1 text-xs bg-theme-base border border-glass-border rounded text-white text-center" />
