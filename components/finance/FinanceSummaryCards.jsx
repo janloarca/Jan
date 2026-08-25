@@ -27,6 +27,22 @@
 // situación cambie de naturaleza.
 const RATE_FLOOR = -100
 
+// Fuera del componente a propósito: definido adentro, su identidad cambia en
+// cada render y React remonta su nodo, así que un click que caiga entre el
+// down y el up se pierde (medido: 40 de 40). Lo que antes venía del closure
+// viaja como prop.
+function Delta({ pct, goodWhenDown = false, momComparable, t }) {
+  if (!momComparable || pct == null || !isFinite(pct)) return null
+  const up = pct >= 0
+  const isGood = goodWhenDown ? !up : up
+  return (
+    <span className="text-xs font-mono tabular-nums ml-2" style={{ color: Math.abs(pct) < 3 ? 'var(--text-muted)' : isGood ? 'var(--accent-green)' : 'var(--alert-warn-icon)' }}
+      title={t('vs mes pasado', 'vs last month')}>
+      {up ? '↑' : '↓'}{Math.abs(pct).toFixed(0)}%
+    </span>
+  )
+}
+
 export default function FinanceSummaryCards({
   income, expenses,
   momIncomePct = null, momExpensesPct = null, momComparable = true,
@@ -42,17 +58,6 @@ export default function FinanceSummaryCards({
   // can go negative, and `Q${v}` printed it as "Q-118,879.20".
   const money = (v) => `${v < 0 ? '-' : ''}Q${fmt(v)}`
 
-  const Delta = ({ pct, goodWhenDown = false }) => {
-    if (!momComparable || pct == null || !isFinite(pct)) return null
-    const up = pct >= 0
-    const isGood = goodWhenDown ? !up : up
-    return (
-      <span className="text-xs font-mono tabular-nums ml-2" style={{ color: Math.abs(pct) < 3 ? 'var(--text-muted)' : isGood ? 'var(--accent-green)' : 'var(--alert-warn-icon)' }}
-        title={t('vs mes pasado', 'vs last month')}>
-        {up ? '↑' : '↓'}{Math.abs(pct).toFixed(0)}%
-      </span>
-    )
-  }
 
   // Cuántas veces lo que entró: la lectura honesta cuando el porcentaje ya no
   // sirve. "Gastaste 3.5x lo que ingresó" dice lo mismo que -245% y se entiende.
@@ -64,14 +69,14 @@ export default function FinanceSummaryCards({
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Entró', 'Came in')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>
           {money(totalIncome)}
-          <Delta pct={momIncomePct} />
+          <Delta momComparable={momComparable} t={t} pct={momIncomePct} />
         </p>
       </div>
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Salió', 'Went out')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--text-negative)' }}>
           {money(expenses)}
-          <Delta pct={momExpensesPct} goodWhenDown />
+          <Delta momComparable={momComparable} t={t} pct={momExpensesPct} goodWhenDown />
         </p>
       </div>
       <div className="card p-4">
