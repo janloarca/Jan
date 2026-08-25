@@ -84,8 +84,9 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
       <div className="divide-y divide-glass-border/50">
         {data.rows.map((r) => (
           <div key={r.year}>
-            <button type="button" onClick={() => setOpenYear(openYear === r.year ? null : r.year)}
-              aria-expanded={openYear === r.year}
+            <button type="button" onClick={() => !r.empty && setOpenYear(openYear === r.year ? null : r.year)}
+              aria-expanded={r.empty ? undefined : openYear === r.year}
+              disabled={r.empty}
               className="w-full grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline py-2 cursor-pointer text-left transition-colors hover:bg-theme-tertiary/50">
               <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                 {r.year}
@@ -96,8 +97,12 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
                   </span>
                 )}
               </span>
-              <span className="text-sm font-mono tabular-nums text-right" style={{ color: 'var(--text-primary)' }}>
-                {fmt(r.invested)}
+              {/* Un año del que el archivo no tiene NADA no puede imprimir
+                  "$0.00": eso afirma que no invertiste, y lo que la app sabe es
+                  que no tiene datos. Se dice con un guión, igual que la columna
+                  de al lado. */}
+              <span className="text-sm font-mono tabular-nums text-right" style={{ color: r.empty ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                {r.empty ? '-' : fmt(r.invested)}
               </span>
               <span className="text-sm font-mono tabular-nums text-right whitespace-nowrap">
                 {r.gainAbs != null ? (
@@ -219,8 +224,8 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
 
       <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
         {t(
-          '"-" en Ganado: el archivo no tiene datos de valor suficientes de ese año para medirlo. Las ganancias nunca incluyen tus aportes.',
-          '"-" under Earned: the archive lacks enough value data from that year to measure it. Earnings never include your contributions.'
+          '"-" en Ganado: el archivo no tiene datos de valor suficientes de ese año para medirlo. Un año con "-" en las DOS columnas es un año del que el archivo no tiene nada; aparece igual para que la lista no salte años. Las ganancias nunca incluyen tus aportes.',
+          '"-" under Earned: the archive lacks enough value data from that year to measure it. A year with "-" in BOTH columns is a year the archive has nothing for; it is listed anyway so the years never skip. Earnings never include your contributions.'
         )}
         {data.unallocated != null && ' ' + t(
           'Lo "sin repartir" es lo que falta para llegar a tu patrimonio de hoy: casi todo es la ganancia de esos años.',
