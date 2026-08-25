@@ -954,11 +954,16 @@ export default function DashboardPage() {
       code: 'liquid-yield',
       severity: c.status === 'negative-residual' ? 'medium' : 'low',
       itemId: c.itemId,
+      // El aviso DICE CUÁNTO. El motor ya calculó el residuo (`c.interest`,
+      // negativo en este caso) y el hermano de al lado sí lo imprime: el mismo
+      // dato, uno lo dice y el otro lo callaba. Sin la cifra, "puede faltar un
+      // retiro" obliga a abrir el detalle solo para enterarse de la magnitud,
+      // y no deja decidir si vale la pena mirarlo ahora.
       textEs: c.status === 'negative-residual'
-        ? `${c.name}: entró más de lo que hay en la cuenta. Puede faltar un retiro.`
+        ? `${c.name}: entró ${formatCurrency(Math.abs(c.interest), c.currency)} más de lo que hay en la cuenta. Puede faltar un retiro.`
         : `${c.name}: ${formatCurrency(c.interest, c.currency)} de tu saldo no vino de ningún movimiento. Parece rendimiento de la cuenta.`,
       textEn: c.status === 'negative-residual'
-        ? `${c.name}: more went in than the account holds. A withdrawal may be missing.`
+        ? `${c.name}: ${formatCurrency(Math.abs(c.interest), c.currency)} more went in than the account holds. A withdrawal may be missing.`
         : `${c.name}: ${formatCurrency(c.interest, c.currency)} of your balance came from no movement. It looks like the account's own yield.`,
       action: { kind: 'liquid-yield' },
       suggestion: null,
