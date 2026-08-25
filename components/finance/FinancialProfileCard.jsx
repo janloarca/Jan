@@ -1,4 +1,6 @@
 'use client'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 // The financial profile used to hide in a Settings tab where nobody found it.
 // It lives HERE now, on the finances page: visible, glanceable when collapsed,
@@ -68,7 +70,10 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
       const data = {}
       Object.entries(form).forEach(([k, v]) => {
         if (k === 'riskTolerance') { data[k] = v; return }
-        if (v !== '' && v != null) data[k] = Number(v)
+        // parseAmount y no Number(): Number('8,400') es NaN, asi que un monto
+        // con coma se perdia entero. El guard de `!== ''` se queda, porque
+        // parseAmount('') devuelve 0 y un campo en blanco no es un cero.
+        if (v !== '' && v != null) data[k] = parseAmount(v)
       })
       // El reloj de frescura de ESTE perfil, movido solo por ESTE formulario.
       data.financialUpdatedAt = new Date().toISOString()
@@ -145,7 +150,7 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
             {FIELDS.map((field) => (
               <div key={field.key}>
                 <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">{field.label}</label>
-                <input type="number" value={form[field.key]} onChange={(e) => setForm((p) => ({ ...p, [field.key]: e.target.value }))}
+                <AmountInput value={form[field.key]} onChange={(e) => setForm((p) => ({ ...p, [field.key]: e.target.value }))}
                   placeholder={field.placeholder}
                   className="w-full px-3 py-2 bg-theme-base border border-glass-border/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
                 {field.hint && <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{field.hint}</p>}

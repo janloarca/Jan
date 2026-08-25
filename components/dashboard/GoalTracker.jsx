@@ -1,4 +1,6 @@
 'use client'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatCompact } from './utils'
@@ -68,8 +70,8 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   const handleSave = async () => {
     if (onSaveGoals) {
       await onSaveGoals({
-        incomeGoal: parseFloat(form.incomeGoal) || 0,
-        portfolioGoal: parseFloat(form.portfolioGoal) || 0,
+        incomeGoal: parseAmount(form.incomeGoal),
+        portfolioGoal: parseAmount(form.portfolioGoal),
         targetYear: parseInt(form.targetYear) || new Date().getFullYear() + 5,
       })
     }
@@ -101,21 +103,21 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
-              <input value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
-                type="number" step="1000" placeholder="12000"
+              <AmountInput value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
+                placeholder="12000"
                 className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
             <div>
               <label className="text-xs text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
-              <input value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
-                type="number" step="10000" placeholder="100000"
+              <AmountInput value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
+                placeholder="100000"
                 className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
             </div>
           </div>
           <div>
             <label className="text-xs text-slate-500 mb-1 block">{t('Año objetivo', 'Target year')}</label>
             <input value={form.targetYear} onChange={(e) => setForm({ ...form, targetYear: e.target.value })}
-              type="number" min={new Date().getFullYear()} max="2060" placeholder="2030"
+              type="number" inputMode="numeric" min={new Date().getFullYear()} max="2060" placeholder="2030"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <button onClick={handleSave}

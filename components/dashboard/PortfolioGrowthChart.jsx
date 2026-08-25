@@ -17,6 +17,8 @@ import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -1726,7 +1728,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     setSnapshotSaving(true)
     try {
       for (const row of valid) {
-        const raw = parseFloat(row.value)
+        // parseAmount y no parseFloat: este campo archiva un valor historico
+        // del patrimonio, asi que '25.000' leido como 25 se guarda mal para
+        // siempre en un doc de snapshot.
+        const raw = parseAmount(row.value)
         const inUSD = (baseCurrency !== 'USD' && convert) ? convert(raw, baseCurrency, 'USD') : raw
         await onSaveSnapshot({
           date: row.date,
@@ -2486,7 +2491,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
-                  <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
+                  <AmountInput value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
                     className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
                 </div>

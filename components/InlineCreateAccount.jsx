@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { currencyOptions } from '@/lib/currencies'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 
@@ -45,7 +47,9 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
     setErr('')
     setBusy(true)
     try {
-      const bal = parseFloat(balance) || 0
+      // parseAmount y no parseFloat: '12.500' son doce mil quinientos, y
+      // parseFloat los leia como 12.5, mil veces menos y en silencio.
+      const bal = parseAmount(balance)
       const inst = institution.trim()
       const newItem = {
         type: 'Bank',
@@ -98,9 +102,9 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <input value={balance} onChange={e => setBalance(e.target.value)}
+        <AmountInput value={balance} onChange={e => setBalance(e.target.value)}
           placeholder={t('Saldo de hoy (opcional)', 'Balance today (optional)')}
-          type="number" step="any" className={inputCls} />
+          className={inputCls} />
         <select value={currency} onChange={e => { setCurrency(e.target.value); setCurrencyTouched(true) }} className={inputCls}>
           {currencyOptions(currency).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -121,7 +125,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
           that really arrived months ago (e.g. an income payout routed here)
           showed as flat $0 the whole history and only jumped at the very last
           point of the chart. */}
-      {(parseFloat(balance) > 0 || sourceAcquisitionDate) && (
+      {(parseAmount(balance) > 0 || sourceAcquisitionDate) && (
         <div>
           <span className="text-xs text-[var(--text-muted,#64748b)] mb-1 block">{t('¿Desde cuándo tiene ese saldo?', 'Since when does it hold that balance?')}</span>
           <input value={acquisitionDate} onChange={e => setAcquisitionDate(e.target.value)}

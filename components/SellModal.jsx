@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import BusyLabel from '@/components/ui/BusyLabel'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount, parseQuantity } from '@/lib/numberParse'
 
 const QTY_EPSILON = 0.0001
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
@@ -34,8 +36,12 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   }, [onClose])
 
   const totalValue = (item.quantity || 0) * origPriceOf(item)
-  const qtySell = parseFloat(quantity) || 0
-  const price = parseFloat(salePrice) || 0
+  // La cantidad va por parseQuantity y el precio por parseAmount, y NO es lo
+  // mismo: para dinero "2.500" son dos mil quinientos (convención LatAm), y para
+  // una tenencia de cripto son dos y medio. Leer la cantidad como dinero
+  // multiplicaría la venta por mil. Ver lib/numberParse.js.
+  const qtySell = parseQuantity(quantity)
+  const price = parseAmount(salePrice)
   const proceeds = Math.round(qtySell * price * 100) / 100
   const otherItems = existingItems.filter((it) => it.id !== item.id)
 
@@ -184,16 +190,19 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
               <button type="button" onClick={() => setQuantity((item.quantity || 0).toString())}
                 className="text-xs text-red-400 hover:text-red-300 transition-colors">{t('Vender todo', 'Sell all')}</button>
             </div>
-            <input value={quantity} onChange={(e) => setQuantity(e.target.value)}
-              type="number" step="any" min="0" max={item.quantity || 0}
+            {/* AmountInput y NO type="number": con teclado en español el separador
+                decimal es COMA y un input numérico se vacía tecla por tecla. Es
+                el reporte literal del usuario, y con una cantidad de cripto es
+                justo donde más duele. */}
+            <AmountInput value={quantity} onChange={(e) => setQuantity(e.target.value)}
               placeholder={`${t('Max', 'Max')}: ${item.quantity || 0}`} className={inputCls} />
           </div>
 
           {/* Sale price */}
           <div>
             <label className={labelCls}>{t('Precio de venta', 'Sale price')}</label>
-            <input value={salePrice} onChange={(e) => setSalePrice(e.target.value)}
-              type="number" step="any" min="0" placeholder="0.00" className={inputCls} />
+            <AmountInput value={salePrice} onChange={(e) => setSalePrice(e.target.value)}
+              placeholder="0.00" className={inputCls} />
           </div>
 
           {/* Proceeds preview */}
