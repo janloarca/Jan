@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { formatCurrency } from './utils'
+import { monthlyIncomeAmount, acquisitionDayISO, clampPayDay, payDateFor } from '@/lib/incomeSchedule'
 
 export default function UpcomingDividends({ items, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -12,8 +13,13 @@ export default function UpcomingDividends({ items, lang }) {
   const upcoming = useMemo(() => {
     if (!items || items.length === 0) return []
     const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentDay = now.getDate()
+    // UTC, como TODO el resto del calendario de ingresos (clampPayDay,
+    // payDateFor, el motor de useDashboardData). Esta tarjeta era la única que
+    // leía local, así que al oeste de UTC podía discrepar con el motor sobre en
+    // qué día estamos y ofrecer o esconder un pago del mes en curso.
+    const currentMonth = now.getUTCMonth()
+    const currentDay = now.getUTCDate()
+    const currentYear = now.getUTCFullYear()
     const results = []
 
     items.forEach((it) => {
@@ -22,35 +28,44 @@ export default function UpcomingDividends({ items, lang }) {
       if (!it.incomeMonths || it.incomeMonths.length === 0) return
 
       const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
-      let amount = 0
-      if (hasVariableRate) {
-        const balance = (it.quantity || 1) * originalPrice
-        const payMonths = it.incomeMonths.length || 12
-        const midRate = (it.rateMin + it.rateMax) / 2
-        amount = (balance * (midRate / 100)) / payMonths
-      } else if (it.incomeMode === 'percent' && it.incomeRate > 0) {
-        const balance = (it.quantity || 1) * originalPrice
-        const payMonths = it.incomeMonths.length || 12
-        amount = (balance * (it.incomeRate / 100)) / payMonths
-      } else if (it.incomeAmount > 0) {
-        const isPerShare = /stock|etf|fund|crypto/i.test(it.type || '')
-        amount = isPerShare ? it.incomeAmount * (it.quantity || 1) : it.incomeAmount
-      }
-      if (!isFinite(amount) || amount <= 0) return
-
+      const balance = (it.quantity || 1) * originalPrice
       const payDay = it.incomePayDay || 1
+      const acqDay = acquisitionDayISO(it.acquisitionDate)
 
       for (let offset = 0; offset < 2; offset++) {
-        const checkMonth = (currentMonth + offset) % 12
+        // Con `(mes + offset) % 12` a secas, diciembre + 1 daba enero del MISMO
+        // año, o sea una fecha ya pasada. El rollover se resuelve dejando que
+        // Date normalice el mes.
+        const d = new Date(Date.UTC(currentYear, currentMonth + offset, 1))
+        const checkMonth = d.getUTCMonth()
+        const checkYear = d.getUTCFullYear()
         if (!it.incomeMonths.includes(checkMonth)) continue
-        if (offset === 0 && payDay < currentDay) continue
+        if (offset === 0 && clampPayDay(payDay, checkYear, checkMonth) < currentDay) continue
+
+        const payDate = payDateFor(checkYear, checkMonth, payDay)
+        // Un pago nunca es anterior a la compra, misma regla que el motor.
+        if (acqDay && payDate < acqDay) continue
+
+        // El MISMO monto que va a escribir el motor, incluido el prorrateo del
+        // primer período: esta tarjeta tenía su propia copia de las ramas (sin
+        // la de devengo diario) y podía ofrecer un número que el motor nunca
+        // escribiría.
+        const amount = monthlyIncomeAmount({
+          balance, qty: it.quantity || 1,
+          isPerShare: /stock|etf|fund|crypto/i.test(it.type || ''),
+          incomeMode: it.incomeMode, incomeRate: it.incomeRate, incomeAmount: it.incomeAmount,
+          rateType: it.rateType, rateMin: it.rateMin, rateMax: it.rateMax,
+          accrual: it.accrual, acquisitionDay: acqDay, payDate,
+          incomeMonths: it.incomeMonths, incomePayDay: payDay,
+        }, it.incomeMonths.length || 12)
+        if (!isFinite(amount) || amount <= 0) continue
 
         results.push({
           symbol: it.symbol,
           name: it.name || it.symbol,
           amount,
           currency: it._originalCurrency || it.currency || 'USD',
-          day: payDay,
+          day: clampPayDay(payDay, checkYear, checkMonth),
           month: checkMonth,
           monthLabel: monthNames[checkMonth],
           isThisMonth: offset === 0,
