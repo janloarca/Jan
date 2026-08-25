@@ -512,6 +512,7 @@ export default function FinancesPage() {
           onUpdateItem={updateItem}
           existingItems={items}
           lang={lang}
+          context="finance"
         />
       )}
 
