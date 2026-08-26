@@ -1007,7 +1007,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setPendingEdit({ item, oldValue, newValue: newValueOriginal })
         return
       }
-      patch = { currentPrice: price }
+      // Sin pregunta (ítem sincronizado, demo, o cambio de redondeo) se conserva
+      // el comportamiento previo a la pregunta: una cuenta líquida escribe los
+      // DOS campos (el saldo ES su costo: dejar el costo atrás inventaría una
+      // ganancia) y todo lo demás solo el valor.
+      patch = isBankLike(item) ? { currentPrice: price, purchasePrice: price } : { currentPrice: price }
     }
 
     await commitPatch(item, patch, null, null)

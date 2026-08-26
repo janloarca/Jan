@@ -1005,6 +1005,11 @@ export function entryFeeAddbacks(items, flows, { fromTs = null, toTs = null, con
   const linkedDeposit = new Set()
   ;(flows || []).forEach((tx) => {
     if ((tx?.type || '').toUpperCase() !== 'DEPOSIT' || !tx._linkedItemId) return
+    // SOLO el depósito de APERTURA desbloquea la devolución: es el único que
+    // lleva la comisión adentro (lógica congelada G). Un aporte posterior
+    // (`manual_contribution`, `manual_balance_flow`) es solo principal, y
+    // usarlo como llave devolvería una comisión que esa ventana nunca restó.
+    if (tx._source !== 'manual_new_account') return
     const ts = tx.date ? new Date(tx.date).getTime() : NaN
     if (!isFinite(ts)) return
     if (fromTs != null && ts < fromTs) return
