@@ -23,6 +23,7 @@ import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
 import InstallmentPlansCard from '@/components/finance/InstallmentPlansCard'
 import RecurringChargesCard from '@/components/finance/RecurringChargesCard'
+import YearInViewCard from '@/components/finance/YearInViewCard'
 import UnclassifiedTriage from '@/components/finance/UnclassifiedTriage'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import IncomePlanCalendar from '@/components/finance/IncomePlanCalendar'
@@ -476,6 +477,18 @@ export default function FinancesPage() {
           momTitle={momTitle}
           annualInMonth={annualInMonth}
           lang={lang} />
+
+        {/* El anio en una vista (feature 5): doce columnas REALES con el punto
+            de los pagos anuales; tocar un mes salta a el. Solo transacciones,
+            jamas el plan (regla dura de incomePlan.js). */}
+        <YearInViewCard
+          transactions={financeTransactions}
+          convert={convert}
+          year={year}
+          month={month + 1}
+          onSelectMonth={(m, y) => { setMonth(m); setYear(y) }}
+          lang={lang}
+        />
 
         {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
             eran cuatro cards dibujando el mismo dinero dos veces por lado. */}
