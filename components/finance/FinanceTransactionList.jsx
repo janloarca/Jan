@@ -35,6 +35,13 @@ function CategoryCell({ tx, i, onRecategorize, setEditing, keyOf, t }) {
     {tx._needsReview && (
       <span title={t('Revisa la categoría', 'Check the category')} style={{ color: 'var(--alert-warn-icon)' }}>?</span>
     )}
+    {tx._annualCadence === true && (
+      <span className="shrink-0 px-1 rounded text-[10px] border"
+        title={t('Marcado como pago anual o semestral', 'Marked as an annual or semiannual payment')}
+        style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
+        {t('1×/año', '1×/yr')}
+      </span>
+    )}
   </button>
 )
 }
@@ -110,7 +117,7 @@ function Description({ tx, t }) {
 )
 }
 
-export default function FinanceTransactionList({ transactions, onDelete, onRecategorize, lang = 'es' }) {
+export default function FinanceTransactionList({ transactions, onDelete, onRecategorize, onToggleAnnual = null, lang = 'es' }) {
   const [filter, setFilter] = useState('ALL')
   const [search, setSearch] = useState('')
   // Row whose category select is open. Editing inline (rather than in a modal)
@@ -280,6 +287,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
             lang={lang}
             onCancel={() => setEditing(null)}
             onApply={(category, label) => { onRecategorize(editingTx, category, label); setEditing(null) }}
+            onToggleAnnual={onToggleAnnual ? (annual) => onToggleAnnual(editingTx, annual) : null}
           />
         </div>
       )}

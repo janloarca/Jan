@@ -32,6 +32,7 @@ import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { computeMonthlyAnalysis, buildFinanceInsights } from '@/lib/financeMonth'
+import { detectRecurringCharges, annualPaymentsOfMonth } from '@/lib/recurringCharges'
 import { isTransferCategory } from '@/lib/financeCategories'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
@@ -161,6 +162,15 @@ export default function FinancesPage() {
   )
   const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
 
+  // FASE LJ. Los pagos anuales/semestrales del mes seleccionado: la union de
+  // la marca manual (_annualCadence) y la cadencia larga detectada sobre el
+  // historial COMPLETO (no el mes: la cadencia se ve entre anios). Alimenta la
+  // linea derivada del resumen; el total del mes no se toca.
+  const annualInMonth = useMemo(() => {
+    const { longCadence } = detectRecurringCharges(financeTransactions, { convert })
+    return annualPaymentsOfMonth(financeTransactions, analysis.key, { convert, longCadence })
+  }, [financeTransactions, analysis.key, convert])
+
   // El desglose por grupo (y por categoría dentro de cada grupo) sale del MISMO
   // motor que produce los totales, así que una fila desplegada siempre suma su
   // grupo y los grupos siempre suman el total. Antes la página lo armaba a mano
@@ -192,6 +202,15 @@ export default function FinancesPage() {
   // most: those rows carry `source: 'card_import'`, a different field AND a
   // different value from the Shortcut's `_source: 'auto_*'`, so correcting any
   // of the ~167 imported rows taught nothing at all.
+  // FASE LJ. La marca de pago anual/semestral, escrita desde el editor de
+  // categoria. Es una decision del usuario sobre SU fila (mismo estatus que
+  // _categorySetByUser); lo derivado (la linea "Qx son pagos anuales") se
+  // calcula al leer y nunca se escribe.
+  const handleToggleAnnual = useCallback(async (tx, annual) => {
+    if (!tx?.id) return
+    await updateFinanceTransaction(tx.id, { _annualCadence: annual === true })
+  }, [updateFinanceTransaction])
+
   const handleRecategorize = useCallback(async (tx, category, label) => {
     if (!tx?.id || !category || (category === tx.category && !label)) return
     // `_categorySetByUser` is what keeps the bulk re-read (planRecategorize)
@@ -455,6 +474,7 @@ export default function FinancesPage() {
           momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
           momComparable={analysis.momComparable}
           momTitle={momTitle}
+          annualInMonth={annualInMonth}
           lang={lang} />
 
         {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
@@ -516,6 +536,7 @@ export default function FinancesPage() {
           transactions={monthTransactions}
           onDelete={deleteFinanceTransaction}
           onRecategorize={handleRecategorize}
+          onToggleAnnual={handleToggleAnnual}
           lang={lang}
         />
         </>}

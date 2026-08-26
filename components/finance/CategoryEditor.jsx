@@ -16,9 +16,16 @@ import { suggestCategoryForLabel } from '@/lib/merchantLabels'
 // vez ese cobro entra clasificado y además se puede mostrar "DONALD · mecánico"
 // en vez de un código de banco.
 
-export default function CategoryEditor({ tx, onApply, onCancel, lang = 'es' }) {
+export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual = null, lang = 'es' }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [label, setLabel] = useState(tx?.userLabel || '')
+  // FASE LJ. La marca de pago anual/semestral. Aplica AL INSTANTE con su
+  // propio callback (no al elegir categoria): si viajara con onApply, marcar
+  // una fila sin cambiar su categoria exigiria re-elegir la misma, un paso
+  // escondido que nadie va a adivinar. Es la marca que alimenta la linea
+  // "Qx son pagos anuales" del resumen del mes; con pocos meses de historial
+  // una prima anual aparece UNA vez y ninguna deteccion de cadencia la ve.
+  const [annual, setAnnual] = useState(tx?._annualCadence === true)
   const inputRef = useRef(null)
   const boxRef = useRef(null)
 
@@ -66,6 +73,24 @@ export default function CategoryEditor({ tx, onApply, onCancel, lang = 'es' }) {
         className="w-full px-2.5 py-1.5 bg-theme-base border border-glass-border rounded-lg text-xs focus:outline-none focus:border-blue-500/50"
         style={{ color: 'var(--text-primary)' }}
       />
+
+      {tx?.type !== 'INCOME' && onToggleAnnual && (
+        <label className="flex items-start gap-2 px-2.5 py-2 rounded-lg text-xs cursor-pointer border"
+          style={{ borderColor: annual ? 'var(--accent-blue)' : 'var(--card-border)', color: 'var(--text-secondary)' }}>
+          <input
+            type="checkbox"
+            checked={annual}
+            onChange={(e) => { setAnnual(e.target.checked); onToggleAnnual(e.target.checked) }}
+            className="mt-0.5 shrink-0"
+          />
+          <span>
+            {t('Pago anual o semestral (cae 1-2 veces al año)', 'Annual or semiannual payment (lands 1-2 times a year)')}
+            <span className="block" style={{ color: 'var(--text-muted)' }}>
+              {t('El mes lo separa del gasto recurrente; el total no cambia.', 'The month separates it from recurring spend; the total does not change.')}
+            </span>
+          </span>
+        </label>
+      )}
 
       {suggestion && (
         <button
