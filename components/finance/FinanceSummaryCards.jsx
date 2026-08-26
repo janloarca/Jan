@@ -31,13 +31,13 @@ const RATE_FLOOR = -100
 // cada render y React remonta su nodo, así que un click que caiga entre el
 // down y el up se pierde (medido: 40 de 40). Lo que antes venía del closure
 // viaja como prop.
-function Delta({ pct, goodWhenDown = false, momComparable, t }) {
+function Delta({ pct, goodWhenDown = false, momComparable, momTitle, t }) {
   if (!momComparable || pct == null || !isFinite(pct)) return null
   const up = pct >= 0
   const isGood = goodWhenDown ? !up : up
   return (
     <span className="text-xs font-mono tabular-nums ml-2" style={{ color: Math.abs(pct) < 3 ? 'var(--text-muted)' : isGood ? 'var(--accent-green)' : 'var(--alert-warn-icon)' }}
-      title={t('vs mes pasado', 'vs last month')}>
+      title={momTitle || t('vs mes pasado', 'vs last month')}>
       {up ? '↑' : '↓'}{Math.abs(pct).toFixed(0)}%
     </span>
   )
@@ -46,6 +46,9 @@ function Delta({ pct, goodWhenDown = false, momComparable, t }) {
 export default function FinanceSummaryCards({
   income, expenses,
   momIncomePct = null, momExpensesPct = null, momComparable = true,
+  // Con el mes en curso la comparación es a mismo día del mes (windowDays):
+  // el tooltip tiene que decir la ventana o "↓18%" se lee como mes completo.
+  momTitle = null,
   lang = 'es',
 }) {
   const totalIncome = income
@@ -69,14 +72,14 @@ export default function FinanceSummaryCards({
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Entró', 'Came in')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>
           {money(totalIncome)}
-          <Delta momComparable={momComparable} t={t} pct={momIncomePct} />
+          <Delta momComparable={momComparable} momTitle={momTitle} t={t} pct={momIncomePct} />
         </p>
       </div>
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Salió', 'Went out')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--text-negative)' }}>
           {money(expenses)}
-          <Delta momComparable={momComparable} t={t} pct={momExpensesPct} goodWhenDown />
+          <Delta momComparable={momComparable} momTitle={momTitle} t={t} pct={momExpensesPct} goodWhenDown />
         </p>
       </div>
       <div className="card p-4">
