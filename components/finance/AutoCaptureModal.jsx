@@ -122,6 +122,24 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     }
   }
 
+  // ¿Ha llegado algo POR CORREO con este token?
+  //
+  // El atajo dispara con cada compra, así que pisa el "último uso" el mismo día
+  // y desde afuera "el reenvío nunca ha entregado nada" y "entregó y el atajo lo
+  // tapó" se ven idénticos. Esa es justo la pregunta de quien acaba de
+  // configurar la regla de reenvío, así que el uso se guarda por transporte y se
+  // dice por separado.
+  const transportUse = (tk, via) => {
+    const u = tk?.usage?.[via]
+    if (!u?.at) return null
+    const ms = Date.now() - new Date(u.at).getTime()
+    if (!isFinite(ms) || ms < 0) return null
+    const ago = ms < 3600000 ? t(`hace ${Math.max(1, Math.round(ms / 60000))} min`, `${Math.max(1, Math.round(ms / 60000))} min ago`)
+      : ms < 86400000 ? t(`hace ${Math.round(ms / 3600000)} h`, `${Math.round(ms / 3600000)} h ago`)
+        : t(`hace ${Math.round(ms / 86400000)} d`, `${Math.round(ms / 86400000)} d`)
+    return { ago, result: u.result || null }
+  }
+
   const copyIngest = (token, what, value) => {
     navigator.clipboard.writeText(value)
     setIngestCopied(`${token}:${what}`)
@@ -324,6 +342,23 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                   'Falta configurar el buzón del servidor (IMAP). Mientras tanto funcionan el atajo del iPhone y el camino de Android.',
                   'The server mailbox (IMAP) is not configured yet. Until then the iPhone shortcut and the Android path work.'
                 )}</p>
+                {/* Si el reenvío ha entregado algo alguna vez, dicho. Sin esto,
+                    "configuré la regla y no entra nada" y "entra y el atajo lo
+                    tapó en el último uso" se ven idénticos, que es la ronda de
+                    diagnóstico que esto existe para no pagar. */}
+                {emailReady && tokens.length > 0 && (() => {
+                  const seen = tokens.map((tk) => transportUse(tk, 'email')).filter(Boolean)
+                  const last = seen[0]
+                  return (
+                    <p className="text-xs mt-1.5" style={{ color: last ? 'var(--text-muted)' : 'var(--alert-warn-icon)' }}>
+                      {last
+                        ? t(`Último correo recibido ${last.ago}${last.result === 'created' ? ' · gasto registrado' : last.result ? ` · ${last.result}` : ''}`,
+                             `Last email received ${last.ago}${last.result === 'created' ? ' · expense recorded' : last.result ? ` · ${last.result}` : ''}`)
+                        : t('Todavía no ha llegado ningún correo con tu token. Si ya creaste la regla de reenvío, revisá que apunte a la dirección de arriba COMPLETA, con el +token.',
+                             'No email with your token has arrived yet. If you already created the forwarding rule, check that it points to the FULL address above, including the +token.')}
+                    </p>
+                  )
+                })()}
                 {emailReady && (
                   <button onClick={handleSyncEmail} disabled={ingestSyncing}
                     className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
