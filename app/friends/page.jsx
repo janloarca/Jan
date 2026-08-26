@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { buildFriendStats } from '@/lib/friendsStats'
+import { buildPublishStats, publishIdentity, publishDayKey, hasSomethingToPublish } from '@/lib/friendsPublish'
 import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
 import PageShell, { PageTitle } from '@/components/PageShell'
 import PullToRefresh from '@/components/ui/PullToRefresh'
@@ -64,7 +64,7 @@ function FriendsPageInner() {
 
   const {
     enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
-    dailyChange, totalAssets, profile, settings, dataLoading, saveProfile,
+    dailyChange, totalAssets, profile, settings, dataLoading, saveProfile, saveSettings,
     ytdResolved, pricesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
@@ -77,11 +77,9 @@ function FriendsPageInner() {
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
 
-  const displayName = useMemo(
-    () => profile?.name || user?.displayName || (user?.email ? user.email.split('@')[0] : 'Anónimo'),
-    [profile, user]
-  )
-  const avatar = useMemo(() => (displayName || '?').trim().charAt(0).toUpperCase(), [displayName])
+  // Misma cascada que usa el tablero al publicar, compartida para que las dos
+  // superficies no puedan mandar nombres distintos.
+  const { displayName, avatar } = useMemo(() => publishIdentity({ profile, user }), [profile, user])
 
   const hasIbkr = useMemo(() => (enrichedItems || []).some((it) => it._source === 'ibkr'), [enrichedItems])
 
@@ -97,14 +95,15 @@ function FriendsPageInner() {
   // que él contestó. Ver lib/friendsVerified.js.
   const [verified, setVerified] = useState(false)
 
-  const myStats = useMemo(() => {
-    const all = buildFriendStats({ enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets })
-    const out = { all }
-    // IBKR block uses IBKR-scoped returns (broker NAV + broker flows), not the
-    // whole-portfolio numbers — so "IBKR only" groups compare that account alone.
-    if (hasIbkr) out.ibkr = buildFriendStats({ enrichedItems, returnYTD: ibkrReturnYTD, returnMTD: ibkrReturnMTD, dailyChange: ibkrDayChange, scopeFilter: (it) => it._source === 'ibkr' })
-    return out
-  }, [enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange, dailyChange, totalAssets, hasIbkr])
+  // El payload lo arma lib/friendsPublish.js, el MISMO módulo que usa el
+  // tablero para publicar una vez por día. Dos copias de "qué se publica" es
+  // cómo la misma persona termina con dos formas de fila según por qué puerta
+  // pasó; acá vivía la única copia y por eso se compartió al agregar la segunda
+  // superficie.
+  const myStats = useMemo(() => buildPublishStats({
+    enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets,
+    ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
+  }), [enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange, dailyChange, totalAssets])
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)
@@ -245,13 +244,20 @@ function FriendsPageInner() {
     try {
       const res = await api({ action: 'sync', displayName, avatar, stats: myStats })
       setVerified(!!res?.verified)
+      // Publicar desde acá satisface la cadencia diaria del tablero: sin esto,
+      // quien entra a /friends todos los días igual dispararía la publicación de
+      // fondo la próxima vez que abra el tablero, escribiendo dos veces lo
+      // mismo. Es best-effort a propósito (un fallo del guardado no puede hacer
+      // fallar una publicación que YA salió bien): en el peor caso hay una
+      // escritura de más.
+      saveSettings({ _lastFriendsPublish: publishDayKey() }).catch(() => {})
       await refresh()
       return true
     } catch (e) {
       flash(e.message, 'warn')
       return false
     }
-  }, [api, myStats, displayName, avatar, refresh, flash])
+  }, [api, myStats, displayName, avatar, refresh, flash, saveSettings])
 
   const [refreshing, setRefreshing] = useState(false)
   const handleManualRefresh = useCallback(async () => {
@@ -262,9 +268,10 @@ function FriendsPageInner() {
   useEffect(() => {
     if (syncedRef.current) return
     if (!user || dataLoading) return
-    const nothingToPublish = !myStats.all
-      || (myStats.all.ytd == null && myStats.all.day == null && myStats.all.movers.length === 0 && (enrichedItems || []).length === 0)
-    if (nothingToPublish) {
+    // La regla de "¿hay algo que publicar?" también es compartida: el tablero
+    // la evalúa sobre los mismos datos, y con dos copias una cartera podía
+    // contar como vacía en una superficie y no en la otra.
+    if (!hasSomethingToPublish({ stats: myStats, enrichedItems })) {
       // Sin nada que publicar (cartera vacía). Se cargan los grupos igual para
       // que la pantalla no quede en blanco, pero NO se marca el ref: si más
       // adelante hay datos, esto tiene que volver a intentarlo.

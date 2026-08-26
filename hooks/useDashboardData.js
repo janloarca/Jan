@@ -33,6 +33,7 @@ import { knownContributions, computeLiquidYield, yieldSignature, supersededYield
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
+import { buildPublishPayload, publishDayKey, shouldPublishToday } from '@/lib/friendsPublish'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -63,7 +64,11 @@ export function ibkrSyncChanges(prev, next) {
 //    corra en la MISMA sesion en vez de esperar al dia siguiente.
 const BACKFILL_LOGIC_VERSION = 4
 
-export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__' }) {
+// `publishFriends` lo prende SOLO el tablero. No es un default porque /friends
+// publica por su cuenta al montar (y ahí eso es lo correcto: es el momento en
+// que estás comparando), así que con los dos activos la misma visita escribiría
+// dos veces. Ver lib/friendsPublish.js.
+export function useDashboardData({ user, lang, activePortfolio, activeEntity = '__all__', publishFriends = false }) {
   const firestoreData = useFirestoreItems()
   const {
     items, snapshots: rawSnapshots, transactions, goals, settings, profile,
@@ -2394,6 +2399,73 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     () => computeScopedReturns({ snapshots, items: enrichedItems, transactions, source: 'ibkr', convert, baseCurrency, nowTs: Date.now() }),
     [snapshots, enrichedItems, transactions, convert, baseCurrency]
   )
+
+  // ⛔ Publicar a Amigos una vez por día, desde el TABLERO.
+  //
+  // El defecto que cierra: los números de una persona solo se publicaban al
+  // abrir /friends. Quien no entra a esa pantalla deja su fila congelada en la
+  // foto de la última vez que entró, y el grupo la sigue rankeando al lado de
+  // filas de hoy sin que nada lo diga. El tablero es donde la gente sí entra a
+  // diario, así que publicar desde acá es lo que hace que todas las filas del
+  // grupo sean del mismo día.
+  //
+  // Las compuertas son las MISMAS que las de los escritores de snapshots, y por
+  // la misma razón: publicar un número EQUIVOCADO es peor que publicar uno
+  // viejo, y acá el número lo leen otras personas. En particular
+  // `ytdResolved` (el ancla del año todavía reconstruyéndose) y `ratesLoading`
+  // (sin tasas, `convert` devuelve el monto CRUDO, o sea una cartera en
+  // quetzales publicaría pesos de mover calculados 1:1, FASE JA3).
+  //
+  // La cadencia es por DÍA UTC y se persiste en settings, no en un ref: un ref
+  // solo cubre la pestaña. Se estampa DESPUÉS de que la publicación salga bien
+  // (la lección de FASE KN: estampar antes re-ejecuta este efecto, su cleanup
+  // marca `cancelled` y el resultado se tira), y el fallo se traga a propósito
+  // porque esto es trabajo de fondo: nadie pidió publicar en este instante y un
+  // aviso acá sería ruido sobre una pantalla que está haciendo otra cosa.
+  const friendsPublishRunningRef = useRef(false)
+  const friendsPublishAttemptRef = useRef({ dayKey: null, tries: 0 })
+  useEffect(() => {
+    if (!publishFriends) return
+    if (!user || settings?.friendsEnabled === false) return
+    if (friendsPublishRunningRef.current) return
+    if (!shouldPublishToday({ lastDay: settings?._lastFriendsPublish })) return
+    // Techo de intentos por día: las deps de este efecto se re-evalúan con cada
+    // tick de precios (~5 min), así que sin esto un endpoint caído se
+    // martillaría toda la sesión.
+    const dayKey = publishDayKey()
+    const att = friendsPublishAttemptRef.current
+    if (att.dayKey === dayKey && att.tries >= 3) return
+    if (dataLoading || pricesLoading || pricesFetching || ratesLoading || !ytdResolved) return
+    const payload = buildPublishPayload({
+      enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets,
+      ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
+      profile, user,
+    })
+    if (!payload) return
+    friendsPublishRunningRef.current = true
+    friendsPublishAttemptRef.current = { dayKey, tries: (att.dayKey === dayKey ? att.tries : 0) + 1 }
+    ;(async () => {
+      try {
+        const res = await authFetch('/api/friends', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync', ...payload }),
+        })
+        // authFetch NO lanza ante un 4xx/5xx (la lección de lib/ibkrVault.js):
+        // sin leer el status, un fallo del servidor estampaba el día y la fila
+        // quedaba sin publicar hasta mañana.
+        if (!res.ok) return
+        await saveSettings({ _lastFriendsPublish: dayKey })
+      } catch {
+        // Silencio a propósito: ver arriba.
+      } finally {
+        friendsPublishRunningRef.current = false
+      }
+    })()
+  }, [
+    publishFriends, user, settings?.friendsEnabled, settings?._lastFriendsPublish,
+    dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved,
+    enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, ibkrReturns, profile, saveSettings,
+  ])
 
   const annualDividends = useMemo(() => {
     // Trailing 12 months only — this figure is labeled "Dividendos/año" in the UI
