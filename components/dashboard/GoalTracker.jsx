@@ -6,6 +6,31 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, formatCompact } from './utils'
 import { runMonteCarloSimulation } from './analytics'
 
+// Rango legal del año objetivo: el input declara min/max pero un type="number"
+// no impide TECLEAR 99999, y `yearsLeft` alimenta directo al Monte Carlo
+// (años × 12 meses × 500 simulaciones): sin tope, un año basura ya guardado
+// congelaba el navegador. Se clampa al GUARDAR y también al LEER, para que un
+// dato malo ya escrito no reviente la card.
+export const GOAL_MAX_YEAR = 2060
+export function clampTargetYear(v, currentYear = new Date().getFullYear()) {
+  const n = parseInt(v)
+  if (!Number.isFinite(n)) return currentYear + 5
+  return Math.min(GOAL_MAX_YEAR, Math.max(currentYear, n))
+}
+
+// Un valor guardado se lee con coerción NUMÉRICA y default explícito, nunca con
+// `||`: un goal guardado en 0 es falsy, así que `goals.incomeGoal ||
+// form.incomeGoal` caía al STRING del formulario. Dos daños: lo
+// tecleado-y-CANCELADO se mostraba en la vista de lectura como si se hubiera
+// guardado, y con un string menor a 1000 `formatCompact` moría en
+// `'999'.toFixed is not a function` (su última rama llama .toFixed sobre el
+// valor crudo) y la card entera crasheaba.
+export function readGoal(v, dflt) {
+  if (v == null || v === '') return dflt
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : dflt
+}
+
 function compoundMonthlyNeeded(currentValue, goalValue, annualRate, years) {
   if (years <= 0 || goalValue <= currentValue) return 0
   const r = annualRate / 100 / 12
@@ -27,14 +52,19 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
 
   const t = (es, en) => lang === 'es' ? es : en
 
-  const incomeGoal = goals?.incomeGoal || form.incomeGoal
-  const portfolioGoal = goals?.portfolioGoal || form.portfolioGoal
-  const targetYear = goals?.targetYear || form.targetYear
+  // La vista de lectura sale SOLO de lo guardado (con defaults), jamás del
+  // form: ver readGoal arriba. Antes del primer guardado los defaults son los
+  // mismos que sembraban el form, así que nada cambia para una cuenta nueva.
+  const incomeGoal = readGoal(goals?.incomeGoal, 12000)
+  const portfolioGoal = readGoal(goals?.portfolioGoal, 100000)
+  const targetYear = clampTargetYear(goals?.targetYear)
   const yearsLeft = Math.max(0, targetYear - new Date().getFullYear())
 
   const effectiveIncome = Math.max(annualDividends || 0, estimatedAnnualIncome || 0)
-  const incomePct = incomeGoal > 0 ? Math.min(100, (effectiveIncome / incomeGoal) * 100) : 0
-  const portfolioPct = portfolioGoal > 0 ? Math.min(100, (netWorth / portfolioGoal) * 100) : 0
+  // Clamp por AMBOS lados: un patrimonio negativo (deuda mayor que activos)
+  // producía un "-15%" con barra invisible.
+  const incomePct = incomeGoal > 0 ? Math.max(0, Math.min(100, (effectiveIncome / incomeGoal) * 100)) : 0
+  const portfolioPct = portfolioGoal > 0 ? Math.max(0, Math.min(100, (netWorth / portfolioGoal) * 100)) : 0
 
   const scenarios = useMemo(() => {
     const rates = [
@@ -72,7 +102,9 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
       await onSaveGoals({
         incomeGoal: parseAmount(form.incomeGoal),
         portfolioGoal: parseAmount(form.portfolioGoal),
-        targetYear: parseInt(form.targetYear) || new Date().getFullYear() + 5,
+        // Clampeado al escribir además de al leer: el min/max del input no
+        // impide teclear un año fuera de rango.
+        targetYear: clampTargetYear(form.targetYear),
       })
     }
     setEditing(false)
