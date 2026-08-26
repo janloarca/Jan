@@ -31,7 +31,7 @@ function makeFirestore(over = {}) {
     alerts: [], addAlert: noop, deleteAlert: noop, updateAlert: noop,
     lots: [], addLot: noop, closeLotsFIFO: noop, transferFunds: noop,
     executeSaleAtomic: noop, executeContribution: noop, bulkImport: noop,
-    bulkWriting: false, deletionEpoch: 0,
+    bulkWriting: false, bulkWritingRef: { current: false }, deletionEpoch: 0,
     portfolios: [], addPortfolio: noop, deletePortfolio: noop,
     financeTransactions: [], addFinanceTransaction: noop, updateFinanceTransaction: noop,
     deleteFinanceTransaction: noop, deleteAllFinanceTransactions: noop,
@@ -240,5 +240,95 @@ describe('el patrimonio sale de los items ENRIQUECIDOS', () => {
     expect(result.current.netWorth).toBe(1000 - 400)
     expect(result.current.totalAssets).toBe(1000)
     unmount()
+  })
+})
+
+// ⛔ FASE LH. La carrera import ↔ auto-sync que FASE KF dejo anotada.
+//
+// handleIBKRSync corre DESPUES de una descarga del Flex de hasta ~90s. Con
+// `items` leido del CLOSURE, la reconciliacion comparaba contra la foto de
+// cuando la corrida se armo: si un import de archivo escribio posiciones en
+// el medio, el sync no las veia y las volvia a CREAR con id nuevo (posiciones
+// duplicadas, sin heal posterior: dataCompleteness excluye items de broker a
+// proposito). El cierre tiene dos mitades y las dos se fijan aca: (1) esperar
+// a que cualquier escritura masiva termine (bulkWritingRef, incluido su
+// colchon de eco), y (2) tomar la foto de itemsRef DESPUES de esperar.
+describe('handleIBKRSync: espera al import y reconcilia contra la foto fresca', () => {
+  const feedPos = () => ({
+    symbol: 'ACME', conid: 'c123', quantity: 5, currentPrice: 100,
+    purchasePrice: 90, currency: 'USD', type: 'Stock', _ibkrAccountId: 'U1',
+  })
+
+  it('control: sin escritura en curso, una posicion nueva se crea de una', async () => {
+    const bulkImport = jest.fn(async () => {})
+    const { result, unmount } = setup({ firestore: { items: [], bulkImport } })
+    await act(async () => {})
+    await act(async () => {
+      await result.current.handleIBKRSync({ items: [feedPos()] }, 'merge')
+    })
+    expect(bulkImport).toHaveBeenCalledTimes(1)
+    const payload = bulkImport.mock.calls[0][0]
+    expect(payload.items).toHaveLength(1)
+    expect(payload.updateItems).toHaveLength(0)
+    unmount()
+  })
+
+  it('una posicion creada DESPUES de armar el closure se ACTUALIZA, no se duplica', async () => {
+    const bulkImport = jest.fn(async () => {})
+    const bulkWritingRef = { current: true } // un import esta escribiendo
+    const { result, rerender, unmount } = setup({
+      firestore: { items: [], bulkImport, bulkWritingRef },
+    })
+    await act(async () => {})
+
+    // El sync arranca con el portafolio VACIO en su closure...
+    let syncDone
+    act(() => { syncDone = result.current.handleIBKRSync({ items: [feedPos()] }, 'merge') })
+
+    // ...y mientras espera al import, el import termina de escribir ESA misma
+    // posicion (el eco del listener entrega los items nuevos).
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)) })
+    expect(bulkImport).not.toHaveBeenCalled() // sigue esperando: no escribio a ciegas
+
+    fakeFirestore = makeFirestore({
+      items: [item({ id: 'imported-1', symbol: 'ACME', conid: 'c123', _source: 'ibkr', _ibkrAccountId: 'U1' })],
+      bulkImport, bulkWritingRef,
+    })
+    rerender()
+    bulkWritingRef.current = false
+
+    await act(async () => { await syncDone })
+
+    // Con el closure viejo esto salia en `items` (posicion DUPLICADA); con la
+    // foto fresca sale como update sobre la que el import acaba de crear.
+    expect(bulkImport).toHaveBeenCalledTimes(1)
+    const payload = bulkImport.mock.calls[0][0]
+    expect(payload.items).toHaveLength(0)
+    expect(payload.updateItems).toHaveLength(1)
+    expect(payload.updateItems[0].id).toBe('imported-1')
+    unmount()
+  })
+
+  it('un import COLGADO no se espera para siempre: el sync rehusa con su razon', async () => {
+    jest.useFakeTimers()
+    try {
+      const bulkImport = jest.fn(async () => {})
+      const bulkWritingRef = { current: true } // nunca se suelta
+      const { result, unmount } = setup({ firestore: { items: [], bulkImport, bulkWritingRef } })
+      await act(async () => {})
+
+      let rejection = null
+      act(() => {
+        result.current.handleIBKRSync({ items: [feedPos()] }, 'merge').catch((e) => { rejection = e })
+      })
+      await act(async () => { await jest.advanceTimersByTimeAsync(31000) })
+
+      expect(rejection).not.toBeNull()
+      expect(rejection.message).toMatch(/importaci/i)
+      expect(bulkImport).not.toHaveBeenCalled() // rehusar, jamas escribir a ciegas
+      unmount()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })

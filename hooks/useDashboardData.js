@@ -71,7 +71,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, deletionEpoch,
+    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -93,6 +93,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     () => (rawSnapshots || []).filter((s) => !(s && s._account)),
     [rawSnapshots]
   )
+
+  // ⛔ FASE LH. Espejo en ref de items/snapshots para la reconciliación de
+  // IBKR. handleIBKRSync corre DESPUÉS de una descarga de hasta ~90s, así que
+  // leer `items` de su closure significaba reconciliar contra la foto de
+  // cuando la corrida se armó: si un import escribió posiciones en el medio,
+  // el sync no las veía y las volvía a crear (posiciones duplicadas, sin
+  // heal posterior: dataCompleteness excluye los items de broker a propósito).
+  // La asignación es en render a propósito: idempotente, y siempre la foto
+  // más fresca que el cliente tiene. Tenerlas como ref además saca `items` y
+  // `snapshots` de las deps de handleIBKRSync, lo que de paso deja de
+  // re-ejecutar el efecto de auto-sync (y de CANCELAR una descarga en vuelo,
+  // tirando un sync completo en silencio) con cada eco del listener.
+  const itemsRef = useRef(items)
+  itemsRef.current = items
+  const snapshotsRef = useRef(snapshots)
+  snapshotsRef.current = snapshots
 
   const baseCurrency = settings?.baseCurrency || 'USD'
 
@@ -870,7 +886,31 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // lo haya vuelto a prender.
   const ibkrSyncRunIdRef = useRef(0)
 
+  // FASE LH. El funnel de escritura: TODA reconciliación de IBKR (auto-sync,
+  // pill manual, y los tres confirms de IBKRSyncModal llegan acá) espera a que
+  // cualquier escritura masiva en curso termine, incluido el colchón de 1500ms
+  // que deja aterrizar el eco del listener, y recién entonces toma su foto de
+  // `items`. Techo de 30s: un bulkImport colgado más allá de eso es un estado
+  // roto, y reconciliar contra una foto que se SABE vieja es exactamente el
+  // bug que esto cierra, así que ahí se rehúsa en vez de proceder.
+  const waitForBulkQuiet = useCallback(async () => {
+    if (!bulkWritingRef) return true
+    const deadline = Date.now() + 30000
+    while (bulkWritingRef.current) {
+      if (Date.now() > deadline) return false
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    return true
+  }, [bulkWritingRef])
+
   const handleIBKRSync = useCallback(async (data, mode = 'merge', onProgress) => {
+    // ⛔ FASE LH. Primero esperar, DESPUÉS tomar la foto: ese orden es lo que
+    // la hace fresca. Ver waitForBulkQuiet y el espejo itemsRef arriba.
+    const quiet = await waitForBulkQuiet()
+    if (!quiet) throw new Error('Hay una importación escribiendo posiciones; el sync se saltó para no duplicar. Intenta de nuevo en un momento.')
+    const itemsNow = itemsRef.current || []
+    const snapshotsNow = snapshotsRef.current || []
+
     const newItems = []
     const updateOps = []
     const newLots = []
@@ -884,7 +924,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
 
     if (mode === 'replace') {
-      items.filter(it =>
+      itemsNow.filter(it =>
         it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       ).forEach(it => deleteIds.push(it.id))
     }
@@ -892,7 +932,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     for (const item of data.items) {
       let existing = null
       if (mode === 'merge') {
-        existing = items.find(it => {
+        existing = itemsNow.find(it => {
           if (it.conid && it.conid === item.conid) return true
           const isIbkr = (it.institution || '').toLowerCase().includes('interactive brokers') || it._source === 'ibkr'
           if (!isIbkr) return false
@@ -947,10 +987,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // no puede volver. La conversión usa el FX actual (no hay FX histórico):
     // aproximación, pero muchísimo mejor que tratar EUR/etc. como USD.
     const toUSDFrom = (v, cur) => (cur && cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
-    const newSnaps = planEquitySnapshotWrites(data.equityHistory || [], snapshots, toUSDFrom)
+    const newSnaps = planEquitySnapshotWrites(data.equityHistory || [], snapshotsNow, toUSDFrom)
 
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
-    items.forEach(it => {
+    itemsNow.forEach(it => {
       if (deleteIds.includes(it.id)) return
       const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       if (isIbkr && (it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
@@ -964,13 +1004,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // su última cantidad y precio. Los guardas que impiden que un reporte
     // parcial vacíe la cartera viven en lib/ibkrVanishedPositions.js.
     vanishedIbkrPositionIds({
-      storedItems: items,
+      storedItems: itemsNow,
       feedItems: data.items || [],
       feedAccounts: data.accounts || [],
       hasCashSection: (data.sections?.cashReport || 0) > 0,
     }).forEach((id) => { if (!deleteIds.includes(id)) deleteIds.push(id) })
     const deleteSet = new Set(deleteIds)
-    const afterCleanup = items.filter(it => !deleteSet.has(it.id))
+    const afterCleanup = itemsNow.filter(it => !deleteSet.has(it.id))
     afterCleanup.forEach(it => {
       if (it._source === 'ibkr') return
       const sym = (it.symbol || '').toUpperCase()
@@ -1014,7 +1054,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
       saveSettings({ _ibkrLastSyncSummary: { ...nextSummary, changes: ibkrSyncChanges(settings?._ibkrLastSyncSummary, nextSummary) } })
     } catch {}
-  }, [items, snapshots, bulkImport, activePortfolio, activeEntity, saveSettings])
+    // FASE LH: items/snapshots salen de las deps a propósito (se leen de las
+    // refs de arriba, más frescas que cualquier closure). `convert` y
+    // `settings` ya se leían sin estar en deps desde antes; se conserva esa
+    // identidad estable, que es lo que mantiene quieto al efecto de auto-sync.
+  }, [waitForBulkQuiet, bulkImport, activePortfolio, activeEntity, saveSettings])
 
   useEffect(() => {
     if (dataLoading) return
@@ -1030,13 +1074,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // crear con id nuevo: posiciones duplicadas. Es la misma compuerta que los
     // cuatro escritores de snapshots ya usan (FASE GB).
     //
-    // ALCANCE, dicho de frente: cubre la ventana de ESCRITURA, no la de
-    // descarga. Un import cuyo Flex tarda un minuto en bajar todavía puede
-    // solaparse con un auto-sync que arrancó en el medio, porque `bulkWriting`
-    // solo se prende cuando empieza a escribir. Cerrar eso pide exclusión mutua
-    // de verdad entre las dos rutas (el lock de useTabCoordination es un Set
-    // sin dueño, así que no alcanza) y leer `items` de una ref en vez del
-    // closure; queda anotado, no hecho a medias.
+    // FASE LH cerró el alcance que esta compuerta dejaba abierto (la ventana
+    // de DESCARGA): handleIBKRSync ahora espera a que toda escritura masiva
+    // termine (waitForBulkQuiet, vía bulkWritingRef) y reconcilia contra la
+    // foto FRESCA de itemsRef, así que un import que aterrice a mitad de una
+    // descarga del Flex ya no puede producir posiciones duplicadas. Esta
+    // compuerta de entrada se queda igual: es más barato ni arrancar.
     if (bulkWriting) return
 
     // ⛔ FASE KN. TODA la decisión de "¿sincronizo ahora?" vive en
@@ -3062,6 +3105,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
     bulkImport,
+    // FASE LH: la señal con la que el confirm de un import rehúsa escribir
+    // encima de un sync en vuelo. `ibkrAutoSyncing` cubre descarga+escritura
+    // de A/B; `bulkWriting` cubre además el colchón de 1500ms del eco del
+    // listener tras CUALQUIER escritura masiva.
+    bulkWriting,
     saveGoals, saveSettings, saveProfile,
     // El plan de ingresos que se arma en Flujo: la proyección del tablero lo
     // LEE (y guarda ahí mismo su tasa de ahorro y de rendimiento). Sin

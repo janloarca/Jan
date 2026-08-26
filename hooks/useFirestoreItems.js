@@ -1154,10 +1154,17 @@ export function useFirestoreItems() {
   // de useDashboardData (snapshot diario, backfill, dividendos, limpieza)
   // consultan esta bandera igual que pricesFetching.
   const [bulkWriting, setBulkWriting] = useState(false)
+  // FASE LH. La MISMA bandera como ref viva. El estado de arriba gatea efectos
+  // (reactivo, con el valor de su render); esta ref la consulta código async
+  // de vida larga (el funnel de reconciliación de IBKR, cuya descarga del Flex
+  // puede tardar ~90s) en el MOMENTO de escribir, donde el valor del closure
+  // sería el de cuando la corrida arrancó. Las dos se mueven juntas, siempre.
+  const bulkWritingRef = useRef(false)
 
   const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds }, onProgress) => {
     if (!uid) throw new Error('Not authenticated')
     setBulkWriting(true)
+    bulkWritingRef.current = true
     try {
     const { db, fs } = await getFirebase()
     const now = new Date().toISOString()
@@ -1269,7 +1276,7 @@ export function useFirestoreItems() {
       // Un pequeño colchón tras el último commit: el listener de Firestore
       // entrega el estado final un instante después; soltar la bandera en el
       // mismo tick reabriría la ventana con el penúltimo estado aún en memoria.
-      setTimeout(() => setBulkWriting(false), 1500)
+      setTimeout(() => { setBulkWriting(false); bulkWritingRef.current = false }, 1500)
     }
   }, [uid, snapshots])
 
@@ -1283,7 +1290,7 @@ export function useFirestoreItems() {
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, reverseTransfer, executeSaleAtomic, executeContribution,
-    bulkImport, bulkWriting, deletionEpoch,
+    bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile, saveIncomePlan,
     saveItemSnapshots, loadItemSnapshots,
