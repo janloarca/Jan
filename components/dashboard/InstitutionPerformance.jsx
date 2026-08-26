@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { formatCurrency, formatCompact, getItemValue, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost } from './utils'
+import { formatCurrency, formatCompact, getItemValue, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getOwnReinvestedYieldByItem, getInvestedCapital, getItemPrincipalCost } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
 // Institution comparison card.
@@ -25,6 +25,9 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
     // Income that LANDED in an account here is not capital the user invested,
     // so it never belongs in the denominator (see getIncomeReceivedByItem).
     const incomeReceived = getIncomeReceivedByItem(transactions, items, convert, baseCurrency)
+    // Ni el rendimiento PROPIO de una cuenta líquida (FASE KZ3): mismo ajuste
+    // que AssetAllocation, para que las dos tarjetas no puedan divergir.
+    const ownYield = getOwnReinvestedYieldByItem(transactions, items, convert, baseCurrency)
     const map = {}
     items.forEach((it) => {
       // El MISMO filtro externo que AssetAllocation, que es lo que CLAUDE.md
@@ -50,7 +53,7 @@ export default function InstitutionPerformance({ items, lang, baseCurrency, tran
       // Gain measures against principal; the % divides by all-in cost (with
       // fees) — see getItemPrincipalCost for why the two differ.
       map[key].principal += getItemPrincipalCost(it)
-      map[key].cost += getInvestedCapital(it, incomeReceived.get(it.id))
+      map[key].cost += getInvestedCapital(it, incomeReceived.get(it.id), ownYield.get(it.id))
       map[key].income += dividendIncome.get(it.id) || 0
     })
     return Object.values(map)

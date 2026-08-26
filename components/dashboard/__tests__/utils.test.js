@@ -26,6 +26,7 @@ import {
   quarterSnapshotDate,
   getDividendIncomeByItem,
   getIncomeReceivedByItem,
+  getOwnReinvestedYieldByItem,
   getInvestedCapital,
   getItemCostBasis,
   getItemPrincipalCost,
@@ -1074,6 +1075,65 @@ describe('getIncomeReceivedByItem / getInvestedCapital', () => {
     const invested = [bond, fondo].reduce((s, it) => s + getInvestedCapital(it, received.get(it.id)), 0)
     expect(invested).toBe(6098)
     expect((240 / invested) * 100).toBeCloseTo(3.936, 2)
+  })
+})
+
+// ⛔ FASE KZ3 (extensión de la superficie congelada E, OK explícito del usuario
+// el 26 ago 2026): el rendimiento PROPIO de una cuenta líquida que reinvierte
+// tampoco es capital del usuario. El ejemplo es el LITERAL de la spec
+// (lib/assetLogic/liquidFundYield.js sección 9): aportes 500, cupones recibidos
+// 1,600, rendimiento propio 136.73, saldo tecleado 2,236.73.
+describe('getOwnReinvestedYieldByItem / capital invertido de una cuenta líquida', () => {
+  const fund = { id: 'fund', name: 'Fondo Líquido', type: 'Bank', quantity: 1, purchasePrice: 2236.73, currentPrice: 2236.73, dividendAction: 'reinvest' }
+  const bond = { id: 'bono', name: 'Bono', type: 'Bond', quantity: 1, purchasePrice: 6000, currentPrice: 6000, dividendAction: 'reinvest' }
+  const ownYield = (amount, over = {}) => ({
+    type: 'DIVIDEND', date: '2026-06-30', totalAmount: amount, currency: 'USD',
+    _linkedItemId: 'fund', _reinvested: true, _source: 'inferred_yield', ...over,
+  })
+
+  it('el caso de la spec: invertido = 2,236.73 - 1,600 - 136.73 = 500', () => {
+    const own = getOwnReinvestedYieldByItem([ownYield(136.73)], [fund], null, 'USD')
+    expect(own.get('fund')).toBeCloseTo(136.73, 9)
+    expect(getInvestedCapital(fund, 1600, own.get('fund'))).toBeCloseTo(500, 9)
+  })
+
+  it('regresion negativa: sin el tercer argumento se queda el 636.73 viejo', () => {
+    // Fija el comportamiento de los callers que no pasan el rendimiento propio:
+    // byte-identicos, que es lo que hace segura la extension.
+    expect(getInvestedCapital(fund, 1600)).toBeCloseTo(636.73, 9)
+  })
+
+  it('un BONO que reinvierte NO entra: su costo no contiene el rendimiento', () => {
+    // Reinvertir en un activo no-banco sube cantidad o valor, nunca el costo.
+    // Restar ahi quitaria capital real, que es la razon por la que
+    // getIncomeReceivedByItem salta lo _reinvested para ellos.
+    const own = getOwnReinvestedYieldByItem([ownYield(100, { _linkedItemId: 'bono' })], [bond], null, 'USD')
+    expect(own.size).toBe(0)
+  })
+
+  it('la regla canonica de reinvertido: la bandera O el dividendAction actual', () => {
+    // Un pago escrito sin bandera cuenta si la cuenta HOY reinvierte (la
+    // leccion de lib/dividendCash.js: 19 pagos reales del usuario eran asi).
+    const noFlag = ownYield(50, { _reinvested: undefined })
+    expect(getOwnReinvestedYieldByItem([noFlag], [fund], null, 'USD').get('fund')).toBe(50)
+    // Y sin bandera NI dividendAction de reinvertir, no es rendimiento propio.
+    const cashFund = { ...fund, dividendAction: 'cash' }
+    expect(getOwnReinvestedYieldByItem([noFlag], [cashFund], null, 'USD').size).toBe(0)
+  })
+
+  it('un pago RUTEADO a otra cuenta no es rendimiento propio de nadie', () => {
+    // Ese dinero no vive en este saldo, y ya lo resta getIncomeReceivedByItem
+    // del lado del destino: contarlo aca lo restaria dos veces.
+    const routed = ownYield(75, { _destinationItemId: 'otra' })
+    expect(getOwnReinvestedYieldByItem([routed], [fund], null, 'USD').size).toBe(0)
+  })
+
+  it('convierte a base con el convert del caller', () => {
+    const gtqFund = { ...fund, id: 'q' }
+    const conv = (v, from, to) => (from === 'GTQ' && to === 'USD' ? v / 8 : v)
+    const own = getOwnReinvestedYieldByItem(
+      [ownYield(80, { _linkedItemId: 'q', currency: 'GTQ' })], [gtqFund], conv, 'USD')
+    expect(own.get('q')).toBeCloseTo(10, 9)
   })
 })
 

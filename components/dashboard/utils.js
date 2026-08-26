@@ -661,13 +661,54 @@ export function getIncomeReceivedByItem(transactions, items, convert, baseTo = '
   return out
 }
 
+// El rendimiento PROPIO de una cuenta líquida, por cuenta: los DIVIDEND/INTEREST
+// reinvertidos en la MISMA cuenta bank-like que los generó (`inferred_yield`,
+// `manual_yield`, o el motor automático con dividendAction 'reinvest').
+//
+// ⛔ EXTENSIÓN de la superficie congelada E (FASE KZ3, OK explícito del usuario
+// el 26 ago 2026; el pendiente vivía escrito en lib/assetLogic/liquidFundYield.js
+// sección 9). Para una cuenta ESTÁTICA el saldo ES su costo, así que el interés
+// que la propia cuenta ganó vive dentro de `purchasePrice` igual que un cupón
+// que le llegó de otro activo: contarlo como capital del usuario infla el
+// denominador y el retorno del fondo sale subestimado (el ejemplo de la spec:
+// "invertido" leía 636.73 cuando el usuario puso 500).
+//
+// El alcance es SOLO `isBankLike`, y no es una comodidad: en un activo de
+// mercado o un bono, reinvertir sube la cantidad o el valor y el costo NO se
+// mueve, así que restar ahí quitaría capital real (la razón por la que
+// `getIncomeReceivedByItem` salta lo `_reinvested` sigue intacta para ellos).
+// La regla de "¿es reinvertido?" es la canónica de lib/dividendCash.js
+// (bandera O dividendAction actual), no una octava copia.
+export function getOwnReinvestedYieldByItem(transactions, items, convert, baseTo = 'USD') {
+  const out = new Map()
+  if (!transactions || transactions.length === 0) return out
+  const byId = new Map((items || []).map((it) => [it.id, it]))
+  for (const tx of transactions) {
+    const ty = (tx.type || '').toUpperCase()
+    if (ty !== 'DIVIDEND' && ty !== 'INTEREST') continue
+    const amtRaw = Number(tx.totalAmount ?? tx.amount ?? 0)
+    if (!(amtRaw > 0)) continue
+    // Ruteado a otra cuenta: ese dinero no vive en ESTE saldo (y ya lo resta
+    // getIncomeReceivedByItem del lado del destino).
+    if (tx._destinationItemId) continue
+    const linked = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+    if (!linked || !isBankLike(linked)) continue
+    const reinvested = tx._reinvested === true || linked.dividendAction === 'reinvest'
+    if (!reinvested) continue
+    const amount = convert ? convert(amtRaw, tx.currency || 'USD', baseTo) : amtRaw
+    out.set(linked.id, (out.get(linked.id) || 0) + amount)
+  }
+  return out
+}
+
 // What the user actually PUT IN for this item: its cost basis minus whatever
-// arrived as income from elsewhere in the portfolio. Never negative — a balance
-// smaller than the income it received (money was spent) still means zero capital
-// invested, not negative capital.
-export function getInvestedCapital(item, incomeReceived) {
+// arrived as income from elsewhere in the portfolio, minus (bank-like only) the
+// account's OWN reinvested yield — see getOwnReinvestedYieldByItem above. Never
+// negative — a balance smaller than the income it received (money was spent)
+// still means zero capital invested, not negative capital.
+export function getInvestedCapital(item, incomeReceived, ownReinvestedYield) {
   const base = getItemCostBasis(item)
-  const received = Number(incomeReceived) || 0
+  const received = (Number(incomeReceived) || 0) + (Number(ownReinvestedYield) || 0)
   if (!(received > 0)) return base
   return Math.max(0, base - received)
 }
