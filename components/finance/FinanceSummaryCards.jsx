@@ -49,6 +49,10 @@ export default function FinanceSummaryCards({
   // Con el mes en curso la comparación es a mismo día del mes (windowDays):
   // el tooltip tiene que decir la ventana o "↓18%" se lee como mes completo.
   momTitle = null,
+  // FASE LJ. Los pagos anuales/semestrales que cayeron en el mes (marca
+  // manual + cadencia detectada, lib/recurringCharges.js). Alimenta una línea
+  // DERIVADA junto al total: el número grande sigue siendo el gasto real.
+  annualInMonth = null,
   lang = 'es',
 }) {
   const totalIncome = income
@@ -81,6 +85,15 @@ export default function FinanceSummaryCards({
           {money(expenses)}
           <Delta momComparable={momComparable} momTitle={momTitle} t={t} pct={momExpensesPct} goodWhenDown />
         </p>
+        {/* La lectura que separa el ritmo de vida del calendario del seguro:
+            un mes con la prima anual adentro se lee como catástrofe sin esta
+            línea. DERIVADA y rotulada; jamás reemplaza al total. */}
+        {annualInMonth?.totalGtq > 0 && expenses > 0 && (
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {t(`${money(Math.min(annualInMonth.totalGtq, expenses))} son pagos anuales · sin ellos: ${money(Math.max(0, expenses - annualInMonth.totalGtq))}`,
+               `${money(Math.min(annualInMonth.totalGtq, expenses))} is annual payments · without them: ${money(Math.max(0, expenses - annualInMonth.totalGtq))}`)}
+          </p>
+        )}
       </div>
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Quedó', 'Left over')}</p>
