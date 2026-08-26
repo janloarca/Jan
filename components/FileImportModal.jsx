@@ -1423,6 +1423,30 @@ When done, give me the .xlsx file ready to download.`
                   ))}
                 </div>
               )}
+              {/* El crédito por intereses bonificados entra como ingreso, pero
+                  el cargo de intereses que bonifica vive en el RESUMEN del
+                  estado, no en la tabla de movimientos, y de ahí no se importa
+                  nada (leer un monto de una línea de resumen que nunca vimos
+                  entera sería inventarlo). Decirlo es la alternativa honesta:
+                  sin esta nota el mes queda con un ingreso que no tiene su
+                  gasto enfrente y nadie sabría por qué. */}
+              {biData.card && biData.card.interestRebates?.length > 0 && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  <span className="block font-medium">
+                    {(() => {
+                      const byCur = {}
+                      for (const r of biData.card.interestRebates) byCur[r.currency] = (byCur[r.currency] || 0) + r.amount
+                      const amounts = Object.entries(byCur).map(([cur, sum]) => `${cur === 'USD' ? '$' : 'Q'}${(Math.round(sum * 100) / 100).toLocaleString()}`).join(' + ')
+                      return t(`Crédito por intereses bonificados: ${amounts}`, `Interest rebate credit: ${amounts}`)
+                    })()}
+                  </span>
+                  <span className="block mt-0.5 opacity-80">
+                    {t('Entra como ingreso (Promoción de tarjeta), pero el cargo de intereses que bonifica vive en el resumen del estado y no se importa de ahí. Si quieres el neto exacto del mes, registra ese cargo de intereses a mano como gasto.',
+                       'It comes in as income (card promotion), but the interest charge it rebates lives in the statement summary and is not imported from there. For the exact monthly net, record that interest charge manually as an expense.')}
+                  </span>
+                </div>
+              )}
               {/* El pago a la tarjeta, reconocido como movimiento entre cuentas
                   propias. Se dice en la vista previa porque desde afuera "esa
                   fila no se importó" y "el importador la perdió" se ven igual. */}
