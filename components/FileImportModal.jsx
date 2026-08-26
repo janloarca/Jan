@@ -14,7 +14,7 @@ import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
-import { planCardPaymentNetting, transferDemotion } from '@/lib/cardPaymentNetting'
+import { planCardPaymentNetting, planStatementPaymentNetting } from '@/lib/cardPaymentNetting'
 import { flowSign, flowMagnitude } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
@@ -225,7 +225,15 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           // already captured these same purchases, and that cross-method case
           // needs multiplicity, currency and settled-vs-authorized amounts
           // handled. See lib/statementReconcile.js for why each one matters.
-          const match = reconcileStatement(parsed.transactions, existingFinanceTransactions)
+          // El caso espejo del neteo del pago de tarjeta: si el estado del
+          // BANCO ya se importó, su débito hacia esta tarjeta está registrado
+          // como gasto, y esta fila de pago entraría como ingreso sin que nada
+          // las empareje. Se aparta ANTES de reconciliar, igual que del otro
+          // lado. Ver lib/cardPaymentNetting.js.
+          const netting = planStatementPaymentNetting(parsed.transactions, existingFinanceTransactions)
+          const importable = parsed.transactions.filter((_, i) => !netting.rowIndexes.has(i))
+          const match = reconcileStatement(importable, existingFinanceTransactions)
+          setBiNetting(netting)
           // La moneda sale de las filas, no de una constante: un estado que
           // no sea guatemalteco se etiquetaba GTQ pase lo que pase. Gana la más
           // frecuente, que es la del cuerpo del estado (BAC imprime dos).
@@ -502,7 +510,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         // compra, que ya está registrada del lado de la tarjeta. Se aparta
         // ANTES de reconciliar para que ni siquiera sea candidato a importarse.
         const netting = planCardPaymentNetting(parsed.transactions, existingFinanceTransactions)
-        const importable = parsed.transactions.filter((_, i) => !netting.bankIndexes.has(i))
+        const importable = parsed.transactions.filter((_, i) => !netting.rowIndexes.has(i))
         // Reconcile against what's already recorded: only truly-new rows get
         // imported; re-uploading the same statement yields zero additions.
         const match = matchStatement(importable, existingFinanceTransactions)
@@ -752,10 +760,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     // verdad y borrar datos del usuario en medio de un import es peor que
     // reetiquetarlos.
     let netted = 0
-    if (!isCard && biNetting?.recordedIds?.size && onUpdateFinanceTransaction) {
-      for (const id of biNetting.recordedIds) {
+    if (biNetting?.demotions?.length && onUpdateFinanceTransaction) {
+      for (const d of biNetting.demotions) {
         try {
-          await onUpdateFinanceTransaction(id, transferDemotion())
+          await onUpdateFinanceTransaction(d.id, d.updates)
           netted++
         } catch {
           failed++
@@ -1422,12 +1430,18 @@ When done, give me the .xlsx file ready to download.`
                 <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
                   style={{ borderColor: 'var(--alert-success-border)', backgroundColor: 'var(--alert-success-bg)', color: 'var(--alert-success-icon)' }}>
                   <span className="block font-medium">
-                    {t(`${biNetting.pairs.length} pago(s) a tu tarjeta: no se importan como gasto`,
-                       `${biNetting.pairs.length} payment(s) to your card: not imported as an expense`)}
+                    {biNetting.direction === 'card'
+                      ? t(`${biNetting.pairs.length} pago(s) a esta tarjeta: no se importan como ingreso`,
+                           `${biNetting.pairs.length} payment(s) to this card: not imported as income`)
+                      : t(`${biNetting.pairs.length} pago(s) a tu tarjeta: no se importan como gasto`,
+                           `${biNetting.pairs.length} payment(s) to your card: not imported as an expense`)}
                   </span>
                   <span className="block mt-0.5 opacity-80">
-                    {t('Es dinero que se movió entre cuentas tuyas, así que el gasto ya está del lado de la tarjeta. La fila que la tarjeta registró como ingreso deja de contar también, para no sumar el mismo dinero dos veces.',
-                       'That money moved between your own accounts, so the expense is already on the card side. The row the card recorded as income stops counting too, so the same money is not added twice.')}
+                    {biNetting.direction === 'card'
+                      ? t('Es dinero que se movió entre cuentas tuyas y ya está registrado del lado del banco. Ese movimiento deja de contar como gasto también, para no sumar el mismo dinero dos veces.',
+                           'That money moved between your own accounts and is already recorded on the bank side. That movement stops counting as an expense too, so the same money is not added twice.')
+                      : t('Es dinero que se movió entre cuentas tuyas, así que el gasto ya está del lado de la tarjeta. La fila que la tarjeta registró como ingreso deja de contar también, para no sumar el mismo dinero dos veces.',
+                           'That money moved between your own accounts, so the expense is already on the card side. The row the card recorded as income stops counting too, so the same money is not added twice.')}
                   </span>
                 </div>
               )}
