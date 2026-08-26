@@ -127,7 +127,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div ref={trapRef} className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div ref={trapRef} className="modal-anim bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Progress bar */}
         <div className="px-6 pt-5 pb-2">
           <div className="flex items-center justify-between mb-2">

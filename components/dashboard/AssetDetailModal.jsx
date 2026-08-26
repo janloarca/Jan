@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { computeVentureMetrics } from '@/lib/ventureMetrics'
+import { computePropertyEquity, linkedDebtOf, isProperty } from '@/lib/propertyEquity'
 import DocumentVault from './DocumentVault'
 
 // Unified with the app-wide market whitelist (isMarketPriced) — the old local
@@ -24,7 +25,7 @@ const STAGE_LABELS = {
   buyout: { es: 'Buyout / PE', en: 'Buyout / PE' },
 }
 
-export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD' }) {
+export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD', allItems = [] }) {
   const trapRef = useFocusTrap()
   const [chartData, setChartData] = useState(null)
   const [chartError, setChartError] = useState(null)
@@ -102,6 +103,18 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   //    NOT reinvested (reinvested income stays inside the residual value;
   //    counting it as a distribution would double-count it),
   //  - residual: today's value of the position.
+  // Inmueble: el enganche, el préstamo vinculado y los costos, puestos juntos.
+  // ⛔ Solo lectura: `equity` es una cifra DERIVADA para mostrar, jamás el valor
+  // del ítem. La deuda ya resta por su cuenta como ítem propio, así que sumarla
+  // acá la contaría dos veces (lib/propertyEquity.js fija ese invariante).
+  const propertyInfo = useMemo(() => {
+    if (!item || !isProperty(item)) return null
+    const info = computePropertyEquity(item, linkedDebtOf(item, allItems), convert)
+    // Sin deuda vinculada y sin nada declarado no hay tarjeta que mostrar.
+    if (!info.hasDebt && info.downPayment == null && info.carryingAnnual == null) return null
+    return info
+  }, [item, allItems, convert])
+
   const ventureMetrics = useMemo(() => {
     if (!/alternative|alternativ/i.test(item.type || '')) return null
     const sym = (item.symbol || item.name || '').toUpperCase()
@@ -282,6 +295,86 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               capital call to measure against (ventureMetrics is null
               otherwise), so a plain Alternative with no linked flows shows
               nothing new. */}
+          {/* Inmueble: lo que el usuario pidió ver junto, cada cifra derivada de
+              un dato que ya existe (lib/propertyEquity.js). ⛔ El capital propio
+              es DERIVADO: el ítem sigue valiendo lo que vale y la deuda sigue
+              restando por su cuenta, así que el patrimonio no se mueve. */}
+          {propertyInfo && (
+            <div className="border rounded-lg p-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
+              <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                <span className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>
+                  🏠 {t('Tu inmueble', 'Your property')}
+                </span>
+                {propertyInfo.equity != null && (
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    {t('El capital propio no se suma al patrimonio: la deuda ya resta por su cuenta.',
+                       'Equity is not added to net worth: the debt already subtracts on its own.')}
+                  </span>
+                )}
+              </div>
+
+              {propertyInfo.refusal === 'currency' ? (
+                <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {t('El préstamo está en otra moneda y no tenemos tasa para convertirlo, así que no sumamos las dos cifras.',
+                     'The loan is in another currency and we have no rate to convert it, so we are not adding the two figures.')}
+                </p>
+              ) : propertyInfo.refusal ? (
+                <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {propertyInfo.refusal === 'down-exceeds-price'
+                    ? t('El enganche que pusiste es mayor a lo que pagaste por la propiedad: revisá los dos números.',
+                        'The down payment you entered is larger than what you paid for the property: check both numbers.')
+                    : t('El saldo del préstamo es mayor al préstamo original que se deduce del precio y el enganche: revisá esos números.',
+                        'The loan balance exceeds the original loan implied by the price and down payment: check those numbers.')}
+                </p>
+              ) : (
+                <>
+                  <div className={`grid grid-cols-2 ${propertyInfo.hasDebt ? 'sm:grid-cols-4' : 'sm:grid-cols-2'} gap-2`}>
+                    {propertyInfo.downPayment != null && (
+                      <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                        <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>{t('Enganche', 'Down payment')}</span>
+                        <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(propertyInfo.downPayment)}</span>
+                      </div>
+                    )}
+                    {propertyInfo.paidOnLoan != null && (
+                      <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                        <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>{t('Ya pagado', 'Paid so far')}</span>
+                        <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(propertyInfo.totalPaid)}</span>
+                      </div>
+                    )}
+                    {propertyInfo.remaining != null && (
+                      <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                        <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>{t('Falta', 'Left to pay')}</span>
+                        <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(propertyInfo.remaining)}</span>
+                      </div>
+                    )}
+                    {propertyInfo.equity != null && (
+                      <div className="rounded-md px-2 py-1.5 text-center bg-theme-base">
+                        <span className="text-[10px] uppercase tracking-wide block" style={{ color: 'var(--text-muted)' }}>{t('Capital propio', 'Equity')}</span>
+                        <span className="text-sm font-bold" style={{ color: propertyInfo.equity >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                          {formatCurrency(propertyInfo.equity)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                    {propertyInfo.monthlyPayment != null && (
+                      <>{t('Cuota', 'Payment')} {formatCurrency(propertyInfo.monthlyPayment)}/{t('mes', 'mo')}</>
+                    )}
+                    {propertyInfo.installmentsTotal != null && (
+                      <>{propertyInfo.monthlyPayment != null ? ' · ' : ''}
+                        {t(`Faltan ${propertyInfo.installmentsRemaining} de ${propertyInfo.installmentsTotal} cuotas`,
+                           `${propertyInfo.installmentsRemaining} of ${propertyInfo.installmentsTotal} payments left`)}</>
+                    )}
+                    {propertyInfo.carryingAnnual != null && (
+                      <>{(propertyInfo.monthlyPayment != null || propertyInfo.installmentsTotal != null) ? ' · ' : ''}
+                        {t('Tenerla cuesta', 'Holding it costs')} {formatCurrency(propertyInfo.carryingAnnual)}/{t('año', 'yr')}</>
+                    )}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
           {ventureMetrics && (
             <div className="border rounded-lg p-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-purple) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-purple) 5%, transparent)' }}>
               <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">

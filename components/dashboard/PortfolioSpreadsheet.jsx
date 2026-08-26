@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } fro
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
+import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
@@ -211,7 +212,7 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   )
 })
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onAddTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -870,9 +871,87 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const [editingItemId, setEditingItemId] = useState(null)
   const [blockMsg, setBlockMsg] = useState(null)
   const [saveMsg, setSaveMsg] = useState(null)
+  // La edición queda EN ESPERA hasta que el usuario diga qué significa. Ver
+  // lib/spreadsheetEdit.js: la app no puede saberlo, solo quien teclea.
+  const [pendingEdit, setPendingEdit] = useState(null)
 
   const toggleCat = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }))
   const toggleInst = (key) => setCollapsedInst(p => ({ ...p, [key]: !p[key] }))
+
+  // La escritura, compartida por la edición directa y por la respuesta a la
+  // pregunta. Confirmar DESPUÉS de que Firestore acepte, nunca antes:
+  // `updateItem` es optimista (pinta el valor nuevo, y si la escritura falla
+  // revierte y lanza), así que el banner verde en la misma vuelta síncrona
+  // hacía que el usuario leyera "guardado" y un segundo después la celda
+  // volviera sola al número viejo, indistinguible de "la app me borró la
+  // corrección".
+  const commitPatch = useCallback(async (item, patch, income, flow) => {
+    const label = item.symbol || item.name
+    try {
+      await onUpdateItem(item.id, patch)
+      // El ingreso va DESPUÉS del saldo y aparte: si falla, el saldo ya quedó
+      // bien y lo que se pierde es el registro del movimiento, no la corrección.
+      if (income && onAddTransaction) {
+        await onAddTransaction({
+          date: income.date,
+          type: income.type,
+          symbol: item.symbol || item.name || '',
+          description: `${t('Rendimiento de', 'Yield from')} ${item.name || item.symbol}`,
+          totalAmount: income.amount,
+          currency: income.currency,
+          _source: income.source,
+          _linkedItemId: item.id,
+          _reinvested: income.reinvested,
+        })
+      }
+      // El movimiento que explica de dónde salió (o a dónde fue) el dinero. Sin
+      // él, un retiro se lee como pérdida y un depósito como rendimiento.
+      if (flow && onAddTransaction) {
+        const entra = flow.type === 'DEPOSIT'
+        await onAddTransaction({
+          date: flow.date,
+          type: flow.type,
+          symbol: item.symbol || item.name || '',
+          description: `${entra ? t('Aporte a', 'Contribution to') : t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`,
+          totalAmount: flow.amount,
+          currency: flow.currency,
+          _source: flow.source,
+          _linkedItemId: item.id,
+        })
+      }
+      const extra = income
+        ? (lang === 'es' ? ' y rendimiento registrado' : ', yield recorded')
+        : flow
+          ? (flow.type === 'DEPOSIT'
+              ? (lang === 'es' ? ' y aporte registrado' : ', contribution recorded')
+              : (lang === 'es' ? ' y retiro registrado' : ', withdrawal recorded'))
+          : ''
+      setSaveMsg((lang === 'es' ? `${label}: guardado` : `${label}: saved`) + extra)
+      setTimeout(() => setSaveMsg(null), 2600)
+    } catch (e) {
+      console.error('[spreadsheet] no se pudo guardar', e)
+      setBlockMsg(lang === 'es'
+        ? `${label}: no se pudo guardar. Revisá tu conexión e intentá de nuevo.`
+        : `${label}: could not save. Check your connection and try again.`)
+      setTimeout(() => setBlockMsg(null), 6000)
+    }
+  }, [onUpdateItem, onAddTransaction, lang])
+
+  // La respuesta a la pregunta. `balanceAsOf` se estampa en las DOS ramas y no
+  // es un detalle: es el campo que le dice al motor de rendimiento deducido
+  // (lib/liquidYield.js) desde cuándo es cierto el saldo. Add/EditAccountModal
+  // ya lo estampan al guardar un estático; la Hoja, que es la tercera puerta
+  // que corrige saldos, no lo hacía, así que una corrección desde acá dejaba al
+  // motor midiendo contra una fecha vieja.
+  const answerPendingEdit = useCallback(async (answer) => {
+    if (!pendingEdit) return
+    const { item, oldValue, newValue } = pendingEdit
+    setPendingEdit(null)
+    const plan = planCellEdit({ item, oldValue, newValue, answer })
+    if (!plan) return
+    const patch = { ...plan.patch, balanceAsOf: new Date().toISOString().slice(0, 10) }
+    await commitPatch(item, patch, plan.income, plan.flow)
+  }, [pendingEdit, commitPatch])
 
   const handleValueUpdate = useCallback(async (item, newVal) => {
     if (!onUpdateItem || !item.id) return
@@ -916,33 +995,23 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         const originalVal = convert ? convert(newVal, base, cur) : newVal
         price = originalVal / qty
       }
-      // Una cuenta de banco guarda su saldo en los DOS campos (isBankLike, la
-      // regla compartida). Escribir solo `currentPrice` dejaba el costo en el
-      // valor viejo: corregir un saldo de 1,000 a 1,200 hacía que el dashboard
-      // creyera que el usuario GANÓ 200 en una cuenta de ahorro.
-      patch = isBankLike(item)
-        ? { currentPrice: price, purchasePrice: price }
-        : { currentPrice: price }
+      // ⛔ Acá vivía la decisión que el usuario nunca tomaba. Una cuenta de
+      // banco escribía los DOS campos (toda corrección = "dato equivocado", y
+      // el rendimiento real desaparecía) y un bono o un inmueble solo el valor
+      // (toda corrección = ganancia o pérdida, y un número mal tecleado se leía
+      // como pérdida). La app no puede saber cuál de las dos es: se pregunta.
+      const qtyNow = item.quantity || 1
+      const oldValue = (Number(item._originalPrice ?? item.currentPrice ?? item.purchasePrice) || 0) * qtyNow
+      const newValueOriginal = price * qtyNow
+      if (editNeedsAnswer({ item, oldValue, newValue: newValueOriginal, isMarket: false })) {
+        setPendingEdit({ item, oldValue, newValue: newValueOriginal })
+        return
+      }
+      patch = { currentPrice: price }
     }
 
-    // Confirmar DESPUÉS de que Firestore acepte, nunca antes. `updateItem` es
-    // optimista: pinta el valor nuevo, y si la escritura falla revierte y
-    // lanza. El banner verde se pintaba en la misma vuelta síncrona, así que el
-    // usuario leía "✓ guardado" y un segundo después la celda volvía sola al
-    // número viejo, indistinguible de "la app me borró la corrección".
-    const label = item.symbol || item.name
-    try {
-      await onUpdateItem(item.id, patch)
-      setSaveMsg(lang === 'es' ? `${label}: guardado` : `${label}: saved`)
-      setTimeout(() => setSaveMsg(null), 2000)
-    } catch (e) {
-      console.error('[spreadsheet] no se pudo guardar', e)
-      setBlockMsg(lang === 'es'
-        ? `${label}: no se pudo guardar. Revisá tu conexión e intentá de nuevo.`
-        : `${label}: could not save. Check your connection and try again.`)
-      setTimeout(() => setBlockMsg(null), 6000)
-    }
-  }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang])
+    await commitPatch(item, patch, null, null)
+  }, [onUpdateItem, showOriginal, convert, baseCurrency, lots, lang, commitPatch])
 
   // Un valor que el editor RECHAZA (negativo, no numérico, sobre el tope) se
   // descartaba en silencio: el popover se cerraba y el número viejo seguía ahí.
@@ -1260,6 +1329,69 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
+
+      {pendingEdit && (() => {
+        const { item, oldValue, newValue } = pendingEdit
+        const delta = newValue - oldValue
+        const cur = item._originalCurrency || item.currency || 'USD'
+        const amt = `${cur} ${Math.abs(delta).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        const subio = delta > 0
+        const liquida = accruesInBalance(item) && subio
+        const conFlujo = canRecordFlow(item)
+        return (
+          <div className="mx-4 mb-2 px-3 py-3 rounded-lg text-xs space-y-2"
+            style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+            <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+              {t(`${item.symbol || item.name}: ${subio ? 'subió' : 'bajó'} ${amt}. ¿Qué pasó?`,
+                 `${item.symbol || item.name}: ${subio ? 'went up' : 'went down'} by ${amt}. What happened?`)}
+            </p>
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {/* Entró o salió dinero: NO es ganancia ni pérdida, es capital
+                  tuyo moviéndose. Sin esta opción un retiro se registraba como
+                  pérdida y un depósito como intereses. */}
+              {conFlujo && (
+                <button type="button" onClick={() => answerPendingEdit(ANSWER_FLOW)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                  style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+                  {subio ? t('Metí dinero', 'I put money in') : t('Saqué dinero', 'I took money out')}
+                </button>
+              )}
+              <button type="button" onClick={() => answerPendingEdit(ANSWER_RETURN)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border"
+                style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+                {liquida
+                  ? t('Son intereses que ganó', 'It earned interest')
+                  : subio ? t('Ganó valor', 'It gained value') : t('Perdió valor', 'It lost value')}
+              </button>
+              <button type="button" onClick={() => answerPendingEdit(ANSWER_CORRECTION)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border"
+                style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+                {t('El número anterior estaba mal', 'The previous number was wrong')}
+              </button>
+              <button type="button" onClick={() => setPendingEdit(null)}
+                className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }}>
+                {t('Cancelar', 'Cancel')}
+              </button>
+            </div>
+            {/* Decir la consecuencia de CADA respuesta, no solo nombrarlas: sin
+                esto las dos se leen como sinónimos y la elección es un volado. */}
+            <p style={{ color: 'var(--text-muted)' }}>
+              {conFlujo && (subio
+                ? t('Meter dinero no es ganancia: se registra como aporte y no infla tu retorno. ',
+                    'Putting money in is not a gain: it is recorded as a contribution so it does not inflate your return. ')
+                : t('Sacar dinero no es pérdida: se registra como retiro y no desinfla tu retorno. ',
+                    'Taking money out is not a loss: it is recorded as a withdrawal so it does not deflate your return. '))}
+              {liquida
+                ? t('Los intereses sí se registran como ingreso y aparecen en Ingresos Pasivos. Corregir un número no mueve tu ganancia ni tu pérdida.',
+                    'Interest is recorded as income and shows up in Passive Income. Correcting a number does not move your gain or loss.')
+                : t('Un cambio de valor real sí mueve tu ganancia. Corregir un número no la mueve.',
+                    'A real change in value does move your gain. Correcting a number does not.')}
+              {!conFlujo && t(' Si metiste o sacaste dinero, registralo desde Movimiento.',
+                              ' If you added or withdrew money, record it from Movimiento.')}
+            </p>
+          </div>
+        )
+      })()}
 
       {blockMsg && (
         <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium animate-pulse"

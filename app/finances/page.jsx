@@ -12,6 +12,8 @@ const FINANCE_CURRENCY = 'GTQ'
 
 import PageShell, { PageTitle } from '@/components/PageShell'
 import PullToRefresh from '@/components/ui/PullToRefresh'
+import ModalMount from '@/components/ui/ModalMount'
+import useModalExit from '@/hooks/useModalExit'
 import { computeLoadStages } from '@/lib/loadStages'
 import MonthSelector from '@/components/finance/MonthSelector'
 import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
@@ -47,6 +49,8 @@ export default function FinancesPage() {
   const [authLoading, setAuthLoading] = useState(true)
   const [lang, setLang] = useState('es')
   const [modal, setModal] = useState(null)
+  // Los modales sobreviven su animación de salida. Ver hooks/useModalExit.js.
+  const [modalShown, modalClosing] = useModalExit(modal)
 
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
@@ -492,15 +496,18 @@ export default function FinancesPage() {
             time-sensitive — it belongs next to the money it describes. */}
         <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang} />
 
-      {modal === 'add' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'add' && (
         <AddFinanceTransactionModal
           onClose={() => setModal(null)}
           onAdd={addFinanceTransaction}
           lang={lang}
         />
       )}
+      </ModalMount>
 
-      {modal === 'import' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'import' && (
         <FileImportModal
           onClose={() => setModal(null)}
           onImportItems={addItem}
@@ -515,10 +522,13 @@ export default function FinancesPage() {
           context="finance"
         />
       )}
+      </ModalMount>
 
-      {modal === 'auto' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'auto' && (
         <AutoCaptureModal onClose={() => setModal(null)} lang={lang} />
       )}
+      </ModalMount>
     </PageShell>
   )
 }

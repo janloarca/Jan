@@ -313,7 +313,7 @@ export default function QuarterlyHistoryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div ref={trapRef} className="rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+      <div ref={trapRef} className="modal-anim rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>
 
@@ -452,7 +452,7 @@ export default function QuarterlyHistoryModal({
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Desde año', 'From year')}</label>
               <input value={fromYear} onChange={(e) => setFromYear(e.target.value)}
-                type="number" min="2000" max={now.getFullYear()} className={inputCls} style={inputStyle} />
+                type="number" inputMode="numeric" min="2000" max={now.getFullYear()} className={inputCls} style={inputStyle} />
             </div>
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Trimestre', 'Quarter')}</label>

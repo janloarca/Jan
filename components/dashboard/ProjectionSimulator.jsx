@@ -1,5 +1,7 @@
 'use client'
 
+import { parseAmount, parseRate } from '@/lib/numberParse'
+
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatCompact } from './utils'
 import { runMonteCarloSimulation } from './analytics'
@@ -150,20 +152,23 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Inversión mensual', 'Monthly investment')}</label>
-            <input value={monthly} onChange={(e) => setMonthly(parseFloat(e.target.value) || 0)}
-              type="number" step="100"
+            {/* El estado guarda un NUMERO (se parsea acá mismo), asi que lo que
+                cambia es el lector: parseAmount para el aporte, parseRate para la
+                tasa. Con parseFloat, teclear una coma daba NaN y caia a 0. */}
+            <input value={monthly} onChange={(e) => setMonthly(parseAmount(e.target.value))}
+              type="text" inputMode="decimal"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Años', 'Years')}</label>
             <input value={years} onChange={(e) => setYears(parseInt(e.target.value) || 1)}
-              type="number" min="1" max="50"
+              type="number" inputMode="numeric" min="1" max="50"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Retorno anual %', 'Annual return %')}</label>
-            <input value={rate} onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
-              type="number" step="0.5" min="0" max="30"
+            <input value={rate} onChange={(e) => setRate(parseRate(e.target.value))}
+              type="text" inputMode="decimal"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
         </div>

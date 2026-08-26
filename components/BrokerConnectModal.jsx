@@ -53,7 +53,7 @@ export default function BrokerConnectModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-4" onClick={onClose}
       role="dialog" aria-modal="true" aria-labelledby="broker-connect-title"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
-      <div ref={trapRef} className="w-full sm:max-w-lg h-full sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden sm:rounded-2xl"
+      <div ref={trapRef} className="modal-anim w-full sm:max-w-lg h-full sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden sm:rounded-2xl"
         style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--glass-border-color)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>
 

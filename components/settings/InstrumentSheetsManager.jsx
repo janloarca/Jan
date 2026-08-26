@@ -133,7 +133,7 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div ref={trapRef} onClick={(e) => e.stopPropagation()}
-        className="card max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-5">
+        className="modal-anim card max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="card-title">
             <FileText size={14} strokeWidth={2} className="mr-1.5" style={{ color: 'var(--accent-blue)' }} />

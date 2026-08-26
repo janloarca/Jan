@@ -1,4 +1,6 @@
 'use client'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 import { useState, useMemo } from 'react'
 import { formatCurrency } from './utils'
@@ -43,7 +45,7 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
   }, [recurring])
 
   const handleSave = () => {
-    const amount = parseFloat(form.amount)
+    const amount = parseAmount(form.amount)
     if (!form.name.trim() || isNaN(amount) || amount <= 0) return
 
     const entry = {
@@ -115,8 +117,8 @@ export default function RecurringTransactions({ goals, onSaveGoals, lang }) {
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder={t('Nombre', 'Name')}
               className="px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none input-focus" />
-            <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              placeholder={t('Monto', 'Amount')} type="number" step="any"
+            <AmountInput value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              placeholder={t('Monto', 'Amount')}
               className="px-3 py-2 bg-theme-card border border-glass-border rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none input-focus" />
           </div>
           <div className="grid grid-cols-2 gap-2">

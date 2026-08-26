@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
+import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 
 export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [], convert, baseCurrency }) {
   const itemName = (id) => {
@@ -237,7 +238,8 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
         <>
           <div className="space-y-0">
             {display.map((tx, i) => (
-              <div key={tx.id || i} className="group flex items-center justify-between py-2 border-b border-glass-border/30 last:border-0 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
+              <div key={tx.id || i} className="border-b border-glass-border/30 last:border-0">
+              <div className="group flex items-center justify-between py-2 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
                 <div className="flex items-center gap-3">
                   <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
@@ -303,6 +305,15 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                     </div>
                   )}
                 </div>
+              </div>
+              {/* Borrar una transferencia MUEVE DINERO en dos cuentas, no solo
+                  quita una fila del historial, asi que la confirmacion dice
+                  cuanto vuelve a cada lado. La redaccion vive en
+                  lib/transferReversal.js, compartida con el historial de la
+                  cuenta, que es la otra pantalla con este boton. */}
+              {confirmId === tx.id && reversalLines(transferReversalPlan(tx, items), lang, formatCurrency).map((line, k) => (
+                <div key={k} className="text-xs pb-2 -mt-1 pl-12" style={{ color: 'var(--text-muted)' }}>{line}</div>
+              ))}
               </div>
             ))}
           </div>

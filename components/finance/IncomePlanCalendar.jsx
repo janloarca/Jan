@@ -1,4 +1,6 @@
 'use client'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Plus, Repeat, Trash2 } from 'lucide-react'
@@ -120,7 +122,9 @@ export default function IncomePlanCalendar({
   }, [plan, currency])
 
   const saveChip = useCallback((draft) => {
-    const amount = Number(draft.amount)
+    // parseAmount y no Number(): Number('4,000') es NaN, asi que el cuadrito
+    // simplemente no se guardaba y nada decia por que.
+    const amount = parseAmount(draft.amount)
     if (!Number.isFinite(amount) || amount <= 0) return
     const chip = draft.repeat === REPEAT_MONTHLY
       ? { id: draft.id, label: draft.label, amount, currency: draft.currency, repeat: REPEAT_MONTHLY, startMonth: draft._isNew ? Math.max(fromMonth, 0) : draft.startMonth, skip: draft.skip || [] }
@@ -292,7 +296,7 @@ export default function IncomePlanCalendar({
 function ChipEditor({ draft, lang, monthsLong, fromMonth, onChange, onSave, onDelete, onClose }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const set = (patch) => onChange({ ...draft, ...patch })
-  const valid = Number(draft.amount) > 0
+  const valid = parseAmount(draft.amount) > 0
   const isMonthly = draft.repeat === REPEAT_MONTHLY
 
   useEffect(() => {
@@ -328,7 +332,7 @@ function ChipEditor({ draft, lang, monthsLong, fromMonth, onChange, onSave, onDe
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2">
               <label className={labelCls} style={labelStyle} htmlFor="chip-amount">{t('Monto', 'Amount')}</label>
-              <input id="chip-amount" type="number" inputMode="decimal" min="0" step="0.01" className={inputCls} style={inputStyle}
+              <AmountInput id="chip-amount" className={inputCls} style={inputStyle}
                 value={draft.amount} onChange={(e) => set({ amount: e.target.value })} />
             </div>
             <div>

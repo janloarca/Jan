@@ -10,6 +10,8 @@ import { computeLoadStages } from '@/lib/loadStages'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
 import PullToRefresh from '@/components/ui/PullToRefresh'
+import ModalMount from '@/components/ui/ModalMount'
+import useModalExit from '@/hooks/useModalExit'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
@@ -313,6 +315,27 @@ export default function DashboardPage() {
   const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null })
   const [showEnrich, setShowEnrich] = useState(false)
   const [brokerCompletionId, setBrokerCompletionId] = useState(null)
+
+  // ─── Salida de los modales ──────────────────────────────────────────────
+  // Cada modal sobrevive los milisegundos de su animación de despedida: la
+  // versión `*Shown` es la que manda al RENDERIZAR y `*Closing` marca ese
+  // render como el de salida. Ver hooks/useModalExit.js: abrir sigue siendo
+  // inmediato, y el retraso no existe con `prefers-reduced-motion`.
+  const [modalShown, modalClosing] = useModalExit(modal)
+  const [editShown, editClosing] = useModalExit(editItem)
+  const [sellShown, sellClosing] = useModalExit(sellItem)
+  const [detailShown, detailClosing] = useModalExit(detailItem)
+  const [reviewShown, reviewClosing] = useModalExit(showReview)
+  const [enrichShown, enrichClosing] = useModalExit(showEnrich)
+  const [brokerShown, brokerClosing] = useModalExit(brokerCompletionId)
+  const [guidedShown, guidedClosing] = useModalExit(showGuided)
+  const [tourShown, tourClosing] = useModalExit(showOnboarding)
+  // Durante la salida el modal SIGUE montado, así que su listener de Esc sigue
+  // vivo: sin este guard, un segundo Esc apurado volvería a correr el trabajo
+  // de cierre (y con un viaje de IBKR activo, eso AVANZA otro paso). El
+  // `pointer-events: none` del CSS cubre los clics, no el teclado.
+  const modalRef = useRef(null)
+  useEffect(() => { modalRef.current = modal }, [modal])
   // Snapshot of ibkrConnected the moment the IBKR modal opens, so closing it
   // can tell "just connected for the first time" apart from "just re-synced" —
   // the checklist should greet a NEW connection, not interrupt a routine sync.
@@ -577,6 +600,15 @@ export default function DashboardPage() {
   const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
   const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
   const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null }); setShowReview(true) }, [])
+  // Al cerrar el recorrido guiado: cerrar el modal y abrir el repaso en modo
+  // guiado (`onlyWithFindings`, que AccountReviewModal ya sabe hacer y ya ordena
+  // por severidad). Es la promesa de esa pantalla, cumplida: hasta hoy decía que
+  // Chispu iba a pedir lo que faltara y no había ningún camino que llevara ahí.
+  const handleGuidedComplete = useCallback(() => {
+    setShowGuided(false)
+    setReviewTarget({ itemId: null, guided: true, institution: null })
+    setShowReview(true)
+  }, [])
   const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null }); setShowReview(true) }, [])
   const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
@@ -665,6 +697,8 @@ export default function DashboardPage() {
   // vez de terminar: la única salida explícita es el botón "Salir" de la
   // barra (exitIbkrJourney, que no pasa por aquí).
   const handleCloseModal = useCallback(() => {
+    if (modalRef.current == null) return
+    modalRef.current = null
     setModal(null); setImportBrokerHint(null)
     if (ibkrJourneyRef.current != null) advanceIbkrJourney()
   }, [advanceIbkrJourney])
@@ -945,11 +979,16 @@ export default function DashboardPage() {
       code: 'liquid-yield',
       severity: c.status === 'negative-residual' ? 'medium' : 'low',
       itemId: c.itemId,
+      // El aviso DICE CUÁNTO. El motor ya calculó el residuo (`c.interest`,
+      // negativo en este caso) y el hermano de al lado sí lo imprime: el mismo
+      // dato, uno lo dice y el otro lo callaba. Sin la cifra, "puede faltar un
+      // retiro" obliga a abrir el detalle solo para enterarse de la magnitud,
+      // y no deja decidir si vale la pena mirarlo ahora.
       textEs: c.status === 'negative-residual'
-        ? `${c.name}: entró más de lo que hay en la cuenta. Puede faltar un retiro.`
+        ? `${c.name}: entró ${formatCurrency(Math.abs(c.interest), c.currency)} más de lo que hay en la cuenta. Puede faltar un retiro.`
         : `${c.name}: ${formatCurrency(c.interest, c.currency)} de tu saldo no vino de ningún movimiento. Parece rendimiento de la cuenta.`,
       textEn: c.status === 'negative-residual'
-        ? `${c.name}: more went in than the account holds. A withdrawal may be missing.`
+        ? `${c.name}: ${formatCurrency(Math.abs(c.interest), c.currency)} more went in than the account holds. A withdrawal may be missing.`
         : `${c.name}: ${formatCurrency(c.interest, c.currency)} of your balance came from no movement. It looks like the account's own yield.`,
       action: { kind: 'liquid-yield' },
       suggestion: null,
@@ -1561,6 +1600,7 @@ export default function DashboardPage() {
                 onEditItem={setEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
+                onCompleteAll={handleEnrichGuided}
                 onOpenLiquidYield={() => setModal('liquidYield')}
                 onConfirmDistinct={(f) => {
                   (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
@@ -1740,7 +1780,8 @@ export default function DashboardPage() {
       {/* El importador del tablero NO recibía las reglas aprendidas, así que el
           mismo estado de cuenta se clasificaba distinto según desde qué
           pantalla se subiera. */}
-      {modal === 'import' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'import' && (
         <FileImportModal
           onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
@@ -1753,8 +1794,10 @@ export default function DashboardPage() {
           lang={lang} brokerHint={importBrokerHint} journeyActive={ibkrJourney != null}
         />
       )}
+      </ModalMount>
 
-      {modal === 'account' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'account' && (
         <AddAccountModal
           onClose={handleCloseModal}
           onAdd={async (item) => {
@@ -1777,31 +1820,39 @@ export default function DashboardPage() {
           lang={lang}
         />
       )}
+      </ModalMount>
 
-      {modal === 'transfer' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'transfer' && (
         <TransferModal
           onClose={handleCloseModal}
           onTransfer={transferFunds}
           onAddTransaction={() => showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')}
-          existingItems={items} lang={lang}
+          existingItems={items} convert={convert} lang={lang}
         />
       )}
+      </ModalMount>
 
-      {modal === 'sellPicker' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'sellPicker' && (
         <SellPickerModal
           items={portfolioItems} onPick={handlePickSellItem} onClose={handleCloseModal}
           lang={lang} baseCurrency={baseCurrency}
         />
       )}
+      </ModalMount>
 
-      {modal === 'priceAlerts' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'priceAlerts' && (
         <PriceAlertsModal
           items={portfolioItems} alerts={alerts} marketPrices={marketPrices}
           addAlert={addAlert} deleteAlert={deleteAlert} lang={lang} onClose={handleCloseModal}
         />
       )}
+      </ModalMount>
 
-      {sellItem && (
+      <ModalMount closing={sellClosing}>
+      {sellShown && (
         <SellModal
           item={sellItem} onClose={handleCloseSell}
           onExecuteSale={executeSaleAtomic}
@@ -1809,6 +1860,7 @@ export default function DashboardPage() {
           existingItems={items} lang={lang} convert={convert}
         />
       )}
+      </ModalMount>
 
       {/* FASE GM: la barra fija del viaje continuo de IBKR, dibujada ENCIMA
           del modal del paso activo. Lleva el hilo (Paso X de 5), permite
@@ -1834,7 +1886,8 @@ export default function DashboardPage() {
         />
       )}
 
-      {modal === 'ibkr' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'ibkr' && (
         <IBKRSyncModal
           onClose={() => {
             const justConnected = !ibkrWasConnectedRef.current && ibkrConnected
@@ -1876,8 +1929,10 @@ export default function DashboardPage() {
           existingItems={enrichedItems} existingTransactions={transactions} existingSnapshots={snapshots}
         />
       )}
+      </ModalMount>
 
-      {modal === 'blockchain' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'blockchain' && (
         <BlockchainSyncModal
           onClose={handleCloseModal}
           onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
@@ -1903,8 +1958,10 @@ export default function DashboardPage() {
           onSaveCredentials={saveSettings} uid={user?.uid} lang={lang}
         />
       )}
+      </ModalMount>
 
-      {modal === 'ledger' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'ledger' && (
         <LedgerSyncModal
           onClose={handleCloseModal}
           onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
@@ -1941,8 +1998,10 @@ export default function DashboardPage() {
           lang={lang}
         />
       )}
+      </ModalMount>
 
-      {modal === 'cashflow' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'cashflow' && (
         <CashFlowModal
           onClose={handleCloseModal}
           onAddTransaction={async (tx) => {
@@ -1960,18 +2019,23 @@ export default function DashboardPage() {
           onConfirmNewMoney={(itemId) => updateItem(itemId, { _newMoneyConfirmed: true })}
           existingItems={items}
           transactions={transactions}
+          convert={convert}
           lang={lang}
           baseCurrency={baseCurrency}
           prefill={cashflowPrefill}
         />
       )}
+      </ModalMount>
 
-      {modal === 'optimize' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'optimize' && (
         <OptimizeModal items={items} onClose={handleCloseModal}
           onSave={addItem} onDelete={deleteItem} lang={lang} />
       )}
+      </ModalMount>
 
-      {modal === 'settings' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'settings' && (
         <SettingsModal
           onClose={handleCloseModal} settings={settings}
           userEmail={user?.email || ''}
@@ -2009,8 +2073,10 @@ export default function DashboardPage() {
           portfolioItems={portfolioItems}
         />
       )}
+      </ModalMount>
 
-      {modal === 'connections' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'connections' && (
         <ConnectionsModal
           onClose={handleCloseModal}
           lang={lang}
@@ -2075,8 +2141,10 @@ export default function DashboardPage() {
           }}
         />
       )}
+      </ModalMount>
 
-      {modal === 'print' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
           snapshots={augmentedSnapshots} transactions={transactions}
           returnYTD={returnYTD} ytdChange={ytdChange}
@@ -2091,8 +2159,10 @@ export default function DashboardPage() {
           profileName={profile?.name || user?.displayName || ''}
           lang={lang} onClose={handleCloseModal} />
       )}
+      </ModalMount>
 
-      {modal === 'calibrate' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'calibrate' && (
         <CalibrateReturnModal
           netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
           snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
@@ -2102,8 +2172,10 @@ export default function DashboardPage() {
           preferredAccount={ibkrJourney != null ? 'ibkr' : null}
           onSaved={() => autoAdvanceIbkrJourney(4)} />
       )}
+      </ModalMount>
 
-      {editItem && (
+      <ModalMount closing={editClosing}>
+      {editShown && (
         <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit} entities={entities}
           onSave={async (updated) => {
             const { id, ...fields } = updated
@@ -2144,13 +2216,18 @@ export default function DashboardPage() {
            * "Guardar →" y dice "Guardar", que es lo que de verdad hace.
            */ />
       )}
+      </ModalMount>
 
-      {detailItem && (
+      <ModalMount closing={detailClosing}>
+      {detailShown && (
         <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
-          transactions={transactions} convert={convert} baseCurrency={baseCurrency} />
+          transactions={transactions} convert={convert} baseCurrency={baseCurrency}
+          allItems={portfolioItems} />
       )}
+      </ModalMount>
 
-      {showReview && !editItem && (
+      <ModalMount closing={reviewClosing}>
+      {reviewShown && !editItem && (
         <AccountReviewModal
           items={portfolioItems}
           transactions={transactions}
@@ -2168,8 +2245,10 @@ export default function DashboardPage() {
           institutionFilter={reviewTarget.institution}
         />
       )}
+      </ModalMount>
 
-      {modal === 'quarterly' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'quarterly' && (
         <QuarterlyHistoryModal
           saveSnapshot={saveSnapshot}
           saveSettings={saveSettings}
@@ -2184,8 +2263,10 @@ export default function DashboardPage() {
           }}
         />
       )}
+      </ModalMount>
 
-      {showEnrich && (
+      <ModalMount closing={enrichClosing}>
+      {enrichShown && (
         <EnrichModal
           items={portfolioItems}
           findings={dataCompleteness.findings}
@@ -2199,8 +2280,10 @@ export default function DashboardPage() {
           hasBroker={portfolioItems.some((it) => it._source === 'ibkr')}
         />
       )}
+      </ModalMount>
 
-      {brokerCompletionId && (
+      <ModalMount closing={brokerClosing}>
+      {brokerShown && (
         <BrokerCompletionModal
           brokerId={brokerCompletionId}
           brokerName={brokerCompletionId === 'ibkr' ? 'Interactive Brokers' : brokerCompletionId}
@@ -2218,8 +2301,10 @@ export default function DashboardPage() {
           reconciliation={ibkrReconciliation}
         />
       )}
+      </ModalMount>
 
-      {modal === 'inferredFlows' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'inferredFlows' && (
         <InferredFlowsModal
           candidates={inferredFlowCandidates}
           reconciliation={inferredFlowReconciliation}
@@ -2232,8 +2317,10 @@ export default function DashboardPage() {
           onDismiss={dismissInferredFlow}
         />
       )}
+      </ModalMount>
 
-      {modal === 'liquidYield' && (
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'liquidYield' && (
         <LiquidYieldModal
           candidates={liquidYieldCandidates}
           lang={lang}
@@ -2303,6 +2390,7 @@ export default function DashboardPage() {
           }}
         />
       )}
+      </ModalMount>
 
       <CommandPalette open={cmdPaletteOpen} onClose={handleCloseCmdPalette}
         items={portfolioItems} lang={lang} onAction={handleCmdAction} />
@@ -2316,7 +2404,8 @@ export default function DashboardPage() {
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
-      {showOnboarding && (
+      <ModalMount closing={tourClosing}>
+      {tourShown && (
         <OnboardingTour lang={lang}
           onAction={(action) => {
             // Un usuario nuevo que dice "agregar mi primer activo" no puede
@@ -2331,8 +2420,10 @@ export default function DashboardPage() {
           demoActive={isDemoMode}
         />
       )}
+      </ModalMount>
 
-      {showGuided && (
+      <ModalMount closing={guidedClosing}>
+      {guidedShown && (
         <GuidedSetup
           initialPicked={firstRunPicked}
           onClose={() => setShowGuided(false)}
@@ -2348,9 +2439,12 @@ export default function DashboardPage() {
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           onConnectBroker={handleOpenConnections}
+          pendingCount={dataCompleteness.findings.length}
+          onCompleteData={handleGuidedComplete}
           lang={lang}
         />
       )}
+      </ModalMount>
 
       {toast && (
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"

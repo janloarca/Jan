@@ -7,6 +7,8 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useSpreadsheetContext } from '@/hooks/useSpreadsheetContext'
 import SheetTabs from '@/components/spreadsheet/SheetTabs'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
+import ModalMount from '@/components/ui/ModalMount'
+import useModalExit from '@/hooks/useModalExit'
 import { SkeletonTable } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
 import Header from '@/components/dashboard/Header'
@@ -91,6 +93,10 @@ export default function SpreadsheetPage() {
 
   const [editItem, setEditItem] = useState(null)
   const [showReview, setShowReview] = useState(false)
+  // Los modales sobreviven su animación de salida. Ver hooks/useModalExit.js.
+  const [editShown, editClosing] = useModalExit(editItem)
+  const [addShown, addClosing] = useModalExit(showAddModal)
+  const [reviewShown, reviewClosing] = useModalExit(showReview)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalDefaults, setAddModalDefaults] = useState(null)
 
@@ -325,6 +331,7 @@ export default function SpreadsheetPage() {
             snapshots={snapshots}
             lang={lang}
             onUpdateItem={updateItem}
+            onAddTransaction={addTransaction}
             onEditItem={(item) => setEditItem(item)}
             returnYTD={returnYTD}
             netWorth={netWorth}
@@ -379,7 +386,8 @@ export default function SpreadsheetPage() {
         </>
       )}
 
-      {editItem && (
+      <ModalMount closing={editClosing}>
+      {editShown && (
         // Pass editItem AS-IS — no local stripping. editItem comes from the
         // enriched array (portfolioItems/enrichedItems), whose currentPrice/
         // purchasePrice are already converted to baseCurrency; the ONLY way
@@ -403,8 +411,10 @@ export default function SpreadsheetPage() {
           onCreateDestination={addItem}
           transactions={transactions} baseCurrency={baseCurrency} convert={convert} />
       )}
+      </ModalMount>
 
-      {showAddModal && (
+      <ModalMount closing={addClosing}>
+      {addShown && (
         <AddAccountModal
           onClose={() => { setShowAddModal(false); setAddModalDefaults(null) }}
           onAdd={addItem}
@@ -414,8 +424,10 @@ export default function SpreadsheetPage() {
           defaults={addModalDefaults}
         />
       )}
+      </ModalMount>
 
-      {showReview && (
+      <ModalMount closing={reviewClosing}>
+      {reviewShown && (
         <AccountReviewModal
           items={portfolioItems || enrichedItems}
           transactions={transactions}
@@ -424,6 +436,7 @@ export default function SpreadsheetPage() {
           lang={lang}
         />
       )}
+      </ModalMount>
 
       <ChatWidget user={user} items={portfolioItems || enrichedItems} netWorth={netWorth}
         returnYTD={returnYTD} baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />

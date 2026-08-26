@@ -144,7 +144,7 @@ export default function SavingsRate({ goals, transactions, netWorth, snapshots, 
             <span className="text-white font-medium">{formatCurrency(fireNumber)}</span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-            <div className="h-full rounded-full transition-all"
+            <div className="h-full rounded-full bar-fill"
               style={{ width: `${Math.min(firePct, 100)}%`, backgroundColor: 'var(--accent-green)' }} />
           </div>
           {/* La barra estaba clampeada a 100% y el rótulo NO, así que se

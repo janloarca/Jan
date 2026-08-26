@@ -378,10 +378,10 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               <span className="text-xs text-slate-500">{new Date().getFullYear()} YTD</span>
             </div>
             <div className="relative flex items-center w-full rounded-full overflow-hidden" style={{ height: '24px' }}>
-              <div className="h-full flex items-center px-2.5" style={{ width: `${leftPct}%`, backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="h-full flex items-center px-2.5 bar-fill" style={{ width: `${leftPct}%`, backgroundColor: 'var(--bg-tertiary)' }}>
                 <span className="text-xs font-medium font-mono tabular-nums truncate" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(ly)}</span>
               </div>
-              <div className="h-full flex items-center justify-end px-2.5" style={{ width: `${rightPct}%`, backgroundColor: 'var(--accent-green)' }}>
+              <div className="h-full flex items-center justify-end px-2.5 bar-fill" style={{ width: `${rightPct}%`, backgroundColor: 'var(--accent-green)' }}>
                 <span className="text-xs font-semibold font-mono tabular-nums truncate text-white">{formatCurrency(ty)}</span>
               </div>
               {yoyComparison.growth != null && (
@@ -548,7 +548,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                 <div key={s.symbol} className="flex items-center gap-2">
                   <span className="text-xs text-white font-medium w-16 truncate">{s.symbol}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
+                    <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>
                   <span className="text-xs text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
                 </div>
@@ -570,7 +570,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                 <div key={p.symbol} className="flex items-center gap-2">
                   <span className="text-xs text-white font-medium w-16 truncate">{p.symbol}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
+                    <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>
                   <span className="text-xs text-slate-400 w-16 text-right">{formatCurrency(p.total)}</span>
                 </div>

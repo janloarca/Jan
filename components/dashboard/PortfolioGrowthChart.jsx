@@ -17,6 +17,8 @@ import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
+import AmountInput from '@/components/ui/AmountInput'
+import { parseAmount } from '@/lib/numberParse'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -179,6 +181,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
   const shownInst = useDeferredValue(selectedInst)
   const instSwitching = shownInst !== selectedInst
   const switching = modeSwitching || instSwitching
+
+  // La FORMA de la serie. Solo cambia cuando el usuario pide otra cosa
+  // (otro período, otra cuenta, otra pestaña), nunca con un tick de precios: es
+  // la `key` que hace que la línea se REDIBUJE en esos tres casos y se quede
+  // quieta en los refrescos de fondo. Redibujar la gráfica entera cada cinco
+  // minutos sería más molesto que no animar nada.
+  const shapeKey = `${shownMode}|${shownInst}|${period}`
 
   const periods = ['DAY', '1W', 'MTD', '1M', '3M', 'YTD', '1Y', 'ALL', 'CUSTOM']
   const t = (es, en) => lang === 'es' ? es : en
@@ -1719,7 +1728,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     setSnapshotSaving(true)
     try {
       for (const row of valid) {
-        const raw = parseFloat(row.value)
+        // parseAmount y no parseFloat: este campo archiva un valor historico
+        // del patrimonio, asi que '25.000' leido como 25 se guarda mal para
+        // siempre en un doc de snapshot.
+        const raw = parseAmount(row.value)
         const inUSD = (baseCurrency !== 'USD' && convert) ? convert(raw, baseCurrency, 'USD') : raw
         await onSaveSnapshot({
           date: row.date,
@@ -2186,8 +2198,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   if (splitIdx <= 0 || splitIdx >= geo.points.length) {
                     return (
                       <>
-                        <path d={areaPath} fill="url(#grad-value)" />
-                        <path d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path key={`a-${shapeKey}`} className="chart-area-fade" d={areaPath} fill="url(#grad-value)" />
+                        {/* pathLength="1" normaliza el largo del trazo, así que
+                            el dibujado no necesita medir el path con JS: el
+                            dasharray es 1 y el offset va de 1 a 0 sirva la serie
+                            que sirva. La `key` es lo que lo re-dispara. */}
+                        <path key={`l-${shapeKey}`} className="chart-line-draw" pathLength="1"
+                          d={polyline(geo.points)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </>
                     )
                   }
@@ -2204,9 +2221,13 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                       <text x={splitX + (labelOnLeft ? -4 : 4)} y={pad.top + 10} textAnchor={labelOnLeft ? 'end' : 'start'} fill="var(--text-muted)" fontSize="9">
                         {t('datos reales →', 'real data →')}
                       </text>
-                      <path d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
+                      {/* El tramo estimado conserva su propio dasharray (es
+                          lo que lo marca como estimado), así que ahí el
+                          dibujado no se puede usar: se desvanece. */}
+                      <path key={`e-${shapeKey}`} className="chart-area-fade" d={polyline(geo.points.slice(0, splitIdx + 1))} fill="none" stroke="var(--text-muted)" strokeWidth="1.5"
                         strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 4" strokeOpacity="0.7" />
-                      <path d={polyline(geo.points.slice(splitIdx))} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
+                      <path key={`r-${shapeKey}`} className="chart-line-draw" pathLength="1"
+                        d={polyline(geo.points.slice(splitIdx))} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
                         strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   )
@@ -2470,7 +2491,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
                   className="px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)] w-36" />
                 <div className="flex items-center gap-1 flex-1">
                   <span className="text-xs text-slate-500">$</span>
-                  <input type="number" value={row.value} placeholder={t('Valor total', 'Total value')}
+                  <AmountInput value={row.value} placeholder={t('Valor total', 'Total value')}
                     onChange={e => setSnapshotRows(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))}
                     className="w-full px-2 py-1 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
                 </div>
