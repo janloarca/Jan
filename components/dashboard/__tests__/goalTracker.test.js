@@ -58,3 +58,27 @@ describe('clampTargetYear', () => {
     expect(GOAL_MAX_YEAR - y).toBeLessThanOrEqual(40)
   })
 })
+
+// FASE LL — la meta tiene MONEDA propia (decision del usuario, 26 ago 2026):
+// cambiar la moneda base ya no re-interpreta la meta en silencio.
+describe('goalInBase (FASE LL)', () => {
+  const { goalInBase } = require('../GoalTracker')
+  const convert = (a, from, to) => (from === 'USD' && to === 'GTQ' ? a * 7.7 : from === 'GTQ' && to === 'USD' ? a / 7.7 : a)
+
+  it('una meta en USD leida con base GTQ se convierte: el significado no se mueve', () => {
+    expect(goalInBase(100000, 'USD', 'GTQ', convert)).toBeCloseTo(770000, 2)
+  })
+
+  it('misma moneda: identidad exacta', () => {
+    expect(goalInBase(100000, 'USD', 'USD', convert)).toBe(100000)
+  })
+
+  it('una meta VIEJA sin moneda conserva el comportamiento de siempre (se lee en la base del momento)', () => {
+    expect(goalInBase(100000, null, 'GTQ', convert)).toBe(100000)
+  })
+
+  it('sin converter (tasas frias) cae al monto crudo, nunca a NaN', () => {
+    expect(goalInBase(100000, 'USD', 'GTQ', null)).toBe(100000)
+    expect(goalInBase('basura', 'USD', 'GTQ', convert)).toBe(0)
+  })
+})
