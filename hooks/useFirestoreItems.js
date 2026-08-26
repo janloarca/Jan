@@ -11,6 +11,10 @@ import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 //   v29 (24 ago 2026): una transferencia entre monedas le acreditaba al destino
 //        el monto del ORIGEN (Q2,500 llegaban como $2,500). Los meses cacheados
 //        tienen ese paso horneado en la reconstrucción de las dos cuentas.
+//   v30 (26 ago 2026, FASE KZ3): el pago de una deuda ya rebobina el pasado del
+//        PRÉSTAMO (`indexBalanceEvents` ganó su rama para `_debtItemId`, con OK
+//        del usuario). Todo mes cacheado con un pago archivado tiene la deuda
+//        plana en su saldo de hoy, y el merge nunca lo corrige solo.
 
 let _db = null
 let _auth = null

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getOwnReinvestedYieldByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 
@@ -53,6 +53,10 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
     // adjustment InstitutionPerformance makes, so grouping by type and grouping
     // by institution can never drift apart on the same holdings.
     const incomeReceived = getIncomeReceivedByItem(transactions, items, convert, baseCurrency)
+    // Y el rendimiento PROPIO de una cuenta líquida tampoco es capital del
+    // usuario: su saldo ES su costo, así que el interés que ella misma ganó
+    // vive en purchasePrice igual que un cupón recibido (FASE KZ3).
+    const ownYield = getOwnReinvestedYieldByItem(transactions, items, convert, baseCurrency)
     const byGroup = {}
     const gainByGroup = {}
     // costByGroup, NOT total portfolio value, is the % denominator — same
@@ -82,7 +86,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
       // Gain measures against principal; the % divides by all-in cost (with
       // fees) — see getItemPrincipalCost for why the two differ.
       const principal = getItemPrincipalCost(it)
-      const invested = getInvestedCapital(it, incomeReceived.get(it.id))
+      const invested = getInvestedCapital(it, incomeReceived.get(it.id), ownYield.get(it.id))
       const income = dividendIncome.get(it.id) || 0
       byGroup[key] = (byGroup[key] || 0) + val
       gainByGroup[key] = (gainByGroup[key] || 0) + (val - principal) + income
