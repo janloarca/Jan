@@ -21,6 +21,8 @@ import BreakdownCard from '@/components/finance/BreakdownCard'
 import MonthStatusBar from '@/components/finance/MonthStatusBar'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
+import InstallmentPlansCard from '@/components/finance/InstallmentPlansCard'
+import UnclassifiedTriage from '@/components/finance/UnclassifiedTriage'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import IncomePlanCalendar from '@/components/finance/IncomePlanCalendar'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
@@ -205,6 +207,23 @@ export default function FinancesPage() {
     await learnCategory(merchant, category, label).catch(() => {})
   }, [updateFinanceTransaction, learnCategory])
 
+  // El triage por comercio: un clic clasifica TODAS las filas de ese comercio
+  // y enseña la regla (pasadas y futuras). Misma pareja escritura+aprendizaje
+  // que handleRecategorize, solo que sobre el grupo entero; las filas llevan
+  // `_categorySetByUser` porque ES una decisión del usuario aplicada al
+  // comercio, igual que en applyCategoryToMatchingRows.
+  const handleTriageApply = useCallback(async (group, category, label) => {
+    if (!group?.txIds?.length || !category) return
+    for (const id of group.txIds) {
+      const patch = { category, _needsReview: false, _categorySetByUser: true }
+      if (label) patch.userLabel = label
+      try {
+        await updateFinanceTransaction(id, patch)
+      } catch { /* una escritura fallida no debe dejar tiradas a las demás */ }
+    }
+    await learnCategory(group.merchant, category, label || null).catch(() => {})
+  }, [updateFinanceTransaction, learnCategory])
+
   // A transaction's category is frozen on the document at capture time, so
   // every improvement to the classifier is invisible on everything already
   // recorded. This offers the re-read explicitly, with the count up front, and
@@ -274,12 +293,20 @@ export default function FinancesPage() {
   // (si no, cada refresco arrancaba en un 50% que no significaba nada).
   const loadStages = computeLoadStages({ dataLoading, ratesLoading })
 
-  // Una línea corta para que la ausencia de flechas no se lea como un dato que
-  // falta. El POR QUÉ completo vive arriba, en la barra de estado, junto a los
-  // días transcurridos: ahí es donde ya se está hablando del mes en curso.
-  const deltaSilentReason = analysis.partialMonth
-    ? t('Variaciones al cerrar el mes', 'Changes once the month closes')
-    : null
+  // Con el mes en curso las flechas ya no se callan: comparan los primeros N
+  // días de este mes contra los primeros N del anterior (windowDays, ver
+  // financeMonth.js), y la nota de cabecera dice ESA ventana. La línea de "al
+  // cerrar el mes" queda solo para el caso en que la ventana no cabe en el mes
+  // anterior (los últimos 1-3 días de un mes largo contra febrero).
+  const momTitle = analysis.windowDays != null
+    ? t(`vs los primeros ${analysis.windowDays} días del mes pasado`, `vs the first ${analysis.windowDays} days of last month`)
+    : t('vs mes pasado', 'vs last month')
+  const deltaSilentReason = analysis.windowDays != null
+    ? t(`Variaciones vs los primeros ${analysis.windowDays} días del mes pasado`,
+        `Changes vs the first ${analysis.windowDays} days of last month`)
+    : analysis.partialMonth
+      ? t('Variaciones al cerrar el mes', 'Changes once the month closes')
+      : null
 
   return (
     // El armazón compartido. Antes esta página montaba a mano su propio Header,
@@ -426,6 +453,7 @@ export default function FinancesPage() {
         <FinanceSummaryCards income={income} expenses={expenses}
           momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
           momComparable={analysis.momComparable}
+          momTitle={momTitle}
           lang={lang} />
 
         {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
@@ -436,6 +464,7 @@ export default function FinancesPage() {
             groups={analysis.groups}
             total={analysis.expenses}
             silentReason={deltaSilentReason}
+            momTitle={momTitle}
             lang={lang}
           />
           <BreakdownCard
@@ -443,12 +472,35 @@ export default function FinancesPage() {
             groups={analysis.incomeGroups}
             total={analysis.income}
             silentReason={deltaSilentReason}
+            momTitle={momTitle}
             emptyText={t('Sin ingresos registrados este mes', 'No income logged this month')}
             lang={lang}
           />
         </div>
 
         <FinanceInsights insights={monthInsights} lang={lang} />
+
+        {/* Cuotas activas: sale del campo `installment` que los estados ya
+            traían. Recibe el HISTORIAL completo (los planes cruzan meses) y el
+            mes seleccionado para la línea de "cuánto de este mes son cuotas".
+            Se oculta sola sin planes. */}
+        <InstallmentPlansCard
+          transactions={financeTransactions}
+          convert={convert}
+          monthKey={analysis.key}
+          monthExpenses={analysis.expenses}
+          lang={lang}
+        />
+
+        {/* Triage de "Otros Gastos" por COMERCIO, ordenado por dinero: recibe
+            el historial completo (una regla por comercio arregla todos sus
+            meses). Se oculta sola cuando no queda nada que clasificar. */}
+        <UnclassifiedTriage
+          transactions={financeTransactions}
+          convert={convert}
+          onApply={handleTriageApply}
+          lang={lang}
+        />
 
         <FinanceTransactionList
           transactions={monthTransactions}

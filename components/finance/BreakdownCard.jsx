@@ -20,9 +20,13 @@ import { categoryLabel } from '@/lib/financeCategories'
 // se ve más corta que el grupo que la contiene, que es la verdad.
 export default function BreakdownCard({
   title, groups = [], total = 0, lang = 'es',
-  // Por qué las variaciones están calladas. Se dice UNA vez en la cabecera en
-  // lugar de dejar que cada fila parezca no tener dato.
+  // Por qué las variaciones están calladas, o contra QUÉ ventana comparan
+  // (con el mes en curso son los primeros N días de cada mes). Se dice UNA vez
+  // en la cabecera en lugar de dejar que cada fila parezca no tener dato.
   silentReason = null,
+  // Tooltip de cada flecha; el caller lo cambia cuando la comparación es a
+  // mismo día del mes.
+  momTitle = null,
   emptyText,
   accentFallback = 'var(--text-muted)',
 }) {
@@ -109,7 +113,7 @@ export default function BreakdownCard({
                           miden lo mismo: ver `isComparable` en financeMonth. */}
                       {g.comparable && g.momPct != null && (
                         <span
-                          title={t('vs mes pasado', 'vs last month')}
+                          title={momTitle || t('vs mes pasado', 'vs last month')}
                           style={{ color: g.momPct > 5 ? 'var(--alert-warn-icon)' : g.momPct < -5 ? 'var(--accent-green)' : 'var(--text-muted)' }}
                         >
                           {g.momPct >= 0 ? '↑' : '↓'}{Math.abs(g.momPct).toFixed(0)}%
