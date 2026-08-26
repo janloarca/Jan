@@ -62,6 +62,16 @@ function DeleteButton({ tx, i, onDelete, confirming, setConfirming, keyOf, t }) 
   )
 }
 
+// Sign and colour both follow the CASH FLOW, not the row's type: a refund is
+// an expense with a negative amount, so reading the type alone printed
+// "-Q-488.07" in the red of a purchase for money that came back.
+// Flujo está denominado en quetzales y sus totales suman el monto ya
+// convertido, así que ese es el número que manda. Lo que faltaba es decir
+// cuándo el cobro NO fue en quetzales: un cargo de $200 y uno de Q200 se
+// veían idénticos, con casi ocho veces de diferencia. El dato ya viajaba en
+// la fila (`_originalAmount`/`_originalCurrency`, y el CSV sí lo exporta):
+// solo la pantalla no lo miraba. Misma familia del bug que FASE FS arregló
+// en Patrimonio, en la superficie que aquella pasada no tocó.
 function Amount({ tx, t, fmt }) {
   return (
   <span className="whitespace-nowrap">
@@ -161,16 +171,6 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
 
 
 
-  // Sign and colour both follow the CASH FLOW, not the row's type: a refund is
-  // an expense with a negative amount, so reading the type alone printed
-  // "-Q-488.07" in the red of a purchase for money that came back.
-  // Flujo está denominado en quetzales y sus totales suman el monto ya
-  // convertido, así que ese es el número que manda. Lo que faltaba es decir
-  // cuándo el cobro NO fue en quetzales: un cargo de $200 y uno de Q200 se
-  // veían idénticos, con casi ocho veces de diferencia. El dato ya viajaba en
-  // la fila (`_originalAmount`/`_originalCurrency`, y el CSV sí lo exporta):
-  // solo la pantalla no lo miraba. Misma familia del bug que FASE FS arregló
-  // en Patrimonio, en la superficie que aquella pasada no tocó.
 
 
   return (

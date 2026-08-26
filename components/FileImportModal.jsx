@@ -82,7 +82,13 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false }) {
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false,
+  // Desde qué pantalla se abrió. Solo cambia el TEXTO: desde Flujo uno importa
+  // movimientos, no un portafolio, y decir lo contrario (o hablar de
+  // "posiciones" cuando un estado de tarjeta no se reconoce) manda a buscar el
+  // problema donde no está. Default 'portfolio' para que ningún otro caller
+  // cambie de comportamiento.
+  context = 'portfolio' }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -144,9 +150,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       a.precioActual ?? '', a.moneda ?? 'USD', a.institucion ?? '', a.fechaCompra ?? '', a.notas ?? '',
     ])
     if (rows.length === 0 && (data.transacciones || []).length === 0) {
-      setError(lang === 'es'
-        ? `La IA no encontró posiciones en el PDF.${data.missing ? ` Nota: ${data.missing}` : ''}`
-        : `The AI found no positions in the PDF.${data.missing ? ` Note: ${data.missing}` : ''}`)
+      // Desde Flujo, "no encontró posiciones" es una respuesta a una pregunta
+      // que nadie hizo: quien sube un estado de tarjeta no está importando un
+      // portafolio. El aviso de formato no reconocido (fingerprint) ya está
+      // arriba y dice qué mandar para que lo leamos exacto.
+      const note = data.missing ? (lang === 'es' ? ` Nota: ${data.missing}` : ` Note: ${data.missing}`) : ''
+      setError(context === 'finance'
+        ? (lang === 'es'
+          ? `No pudimos leer movimientos en este PDF.${note}`
+          : `We could not read any transactions from this PDF.${note}`)
+        : (lang === 'es'
+          ? `La IA no encontró posiciones en el PDF.${note}`
+          : `The AI found no positions in the PDF.${note}`))
       return
     }
     const transactions = (data.transacciones || [])
@@ -174,7 +189,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       ? `Chispu leyó tu PDF con IA. Revisa que cada dato esté correcto antes de importar.${data.missing ? ` La IA no encontró: ${data.missing}` : ''}`
       : `Chispu read your PDF with AI. Review every value before importing.${data.missing ? ` The AI could not find: ${data.missing}` : ''}`)
     setStep('map')
-  }, [lang])
+  }, [lang, context])
 
   const handlePdf = useCallback(async (file) => {
     // FIRST: the deterministic path. A Guatemalan credit-card statement
@@ -979,7 +994,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // formato equivocado justo arriba de una zona que pide .xml.
   const modalTitle = brokerInfo
     ? t(`Importar archivo: ${brokerInfo.name}`, `Import file: ${brokerInfo.name}`)
-    : t('Importar Portfolio', 'Import Portfolio')
+    : context === 'finance'
+      ? t('Importar movimientos', 'Import transactions')
+      : t('Importar Portfolio', 'Import Portfolio')
   // Dentro del viaje, las instrucciones que YA son pasos propios del viaje se
   // omiten (ver journeyStep en lib/brokerHowTo.js).
   const brokerSteps = (brokerInfo?.csv?.steps || []).filter((s) => !(journeyActive && s.journeyStep))
