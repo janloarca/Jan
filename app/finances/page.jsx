@@ -341,9 +341,13 @@ export default function FinancesPage() {
         },
         {
           tab: t('Flujo', 'Flow'),
-          title: t('Conectado con tu portafolio', 'Connected to your portfolio'),
-          body: t('Los dividendos e intereses que genera tu portafolio aparecen aquí automáticamente como ingreso de inversión. Así tu tasa de ahorro cuenta la historia completa. También puedes activar un recordatorio mensual por correo para no olvidar registrar tu mes.',
-                  'Dividends and interest from your portfolio show up here automatically as investment income, so your savings rate tells the full story. You can also enable a monthly email reminder so you never forget to log your month.'),
+          // ⛔ FASE JZ: Flujo y Patrimonio son segmentos SEPARADOS por decisión
+          // del usuario. Este paso PROMETÍA que los dividendos del portafolio
+          // aparecen acá solos, que es exactamente el comportamiento removido:
+          // el tour afirmaba lo contrario de lo que la app hace.
+          title: t('Separado de tu portafolio', 'Separate from your portfolio'),
+          body: t('Flujo mide el dinero que entra y sale de tu vida diaria; lo que tu portafolio genera (dividendos, intereses) se mide en Patrimonio. Un dividendo que llega a tu banco cuenta aquí solo si lo registras o lo trae tu estado de cuenta. También puedes activar un recordatorio mensual por correo para no olvidar registrar tu mes.',
+                  'Cash flow tracks the money moving through your daily life; what your portfolio generates (dividends, interest) is measured in Wealth. A dividend that lands in your bank counts here only if you record it or your statement brings it in. You can also enable a monthly email reminder so you never forget to log your month.'),
         },
       ]} />
 
