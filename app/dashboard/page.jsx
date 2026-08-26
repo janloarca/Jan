@@ -486,7 +486,11 @@ export default function DashboardPage() {
     handleIBKRSync, triggerIBKRSync,
     ibkrConnected, ibkrAutoSyncing, bulkWriting,
     ibkrSyncStatus, ibkrSyncError, ibkrSyncErrorCode, ibkrUpstreamError, ibkrSkipReason, ibkrLastSync, ibkrSyncSummary,
-  } = useDashboardData({ user, lang, activePortfolio, activeEntity })
+  // publishFriends: el tablero es la única superficie que publica a Amigos en
+  // segundo plano (una vez por día). Sin esto, la fila de quien no abre /friends
+  // se queda congelada en la foto de la última visita mientras el grupo la
+  // rankea al lado de filas de hoy. Ver lib/friendsPublish.js.
+  } = useDashboardData({ user, lang, activePortfolio, activeEntity, publishFriends: true })
 
   // Las reglas por comercio que el usuario enseñó corrigiendo categorías. El
   // MISMO hook que usa Flujo, no una segunda carga: el importador de esta
