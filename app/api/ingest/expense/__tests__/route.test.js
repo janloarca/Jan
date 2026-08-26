@@ -90,13 +90,13 @@ describe('el fallo deja rastro en el token', () => {
   test('se estampa el código del fallo', async () => {
     ingestExpense.mockRejectedValue(grpc(8, 'RESOURCE_EXHAUSTED'))
     await POST(req())
-    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), 'a'.repeat(32), 'error:quota')
+    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), 'a'.repeat(32), 'error:quota', 'shortcut')
   })
 
   test('un éxito sigue estampando su estado, como siempre', async () => {
     ingestExpense.mockResolvedValue({ status: 'created', id: 'x', transaction: {} })
     await POST(req())
-    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), 'a'.repeat(32), 'created')
+    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), 'a'.repeat(32), 'created', 'shortcut')
   })
 })
 
@@ -121,5 +121,23 @@ describe('lo que ya funcionaba no cambia', () => {
     expect(data.error).toBe('MISSING_AMOUNT')
     expect(data.message).toMatch(/a mano desde Atajos/i)
     expect(ingestExpense).not.toHaveBeenCalled()
+  })
+})
+
+describe('el transporte queda registrado', () => {
+  // El atajo dispara con cada compra, así que pisa el "último uso" el mismo día:
+  // sin guardar POR TRANSPORTE, "el correo nunca ha entregado nada" y "entregó y
+  // el atajo lo tapó" se ven idénticos, que es justo la pregunta de quien acaba
+  // de configurar el reenvío.
+  test('android se estampa como android, no como atajo', async () => {
+    ingestExpense.mockResolvedValue({ status: 'created', id: 'x', transaction: {} })
+    await POST(req({ source: 'android', title: 'Banco', text: 'Compra por Q18.00 en MCDONALDS', amount: undefined }))
+    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), 'a'.repeat(32), 'created', 'android')
+  })
+
+  test('un transporte inventado cae a la lista cerrada', async () => {
+    ingestExpense.mockResolvedValue({ status: 'created', id: 'x', transaction: {} })
+    await POST(req({ source: 'telepatia' }))
+    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), 'a'.repeat(32), 'created', 'shortcut')
   })
 })

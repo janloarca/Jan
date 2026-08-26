@@ -88,6 +88,7 @@ export async function POST(request) {
     // las dos convenciones de número de LatAm y la diferencia entre un cobro y un
     // reverso. Meterlo en Tasker o MacroDroid sería una segunda copia que se
     // queda atrás, y el usuario que la configuró no tiene cómo darse cuenta.
+    const via = sourceOf(body)
     const rawText = typeof body?.text === 'string' ? body.text : ''
     const rawTitle = typeof body?.title === 'string' ? body.title : ''
     // La hora de LLEGADA sirve como instante de la compra en los dos caminos: el
@@ -109,7 +110,7 @@ export async function POST(request) {
         text: rawText,
         receivedAt,
         defaultCurrency: base || 'GTQ',
-        source: sourceOf(body),
+        source: via,
       })
       input = out.input
       alertSkip = out.skip || null
@@ -117,7 +118,7 @@ export async function POST(request) {
       input = normalizeExpenseInput({
         receivedAt,
         ...body,
-        source: sourceOf(body),
+        source: via,
       })
     }
 
@@ -125,7 +126,7 @@ export async function POST(request) {
     // legítimos, y decirlos como error haría que el usuario persiguiera un
     // problema que no existe.
     if (alertSkip) {
-      await stampIngestResult(db, token, alertSkip)
+      await stampIngestResult(db, token, alertSkip, via)
       return NextResponse.json({ ok: true, status: 'skipped', reason: alertSkip, message: explainIngestError(alertSkip) })
     }
     // El error viaja con una frase legible además del código, porque el único
@@ -136,7 +137,7 @@ export async function POST(request) {
       // Se deja constancia también del fallo: "el atajo llegó y lo rechazamos"
       // y "el atajo nunca llegó" son diagnósticos opuestos y desde afuera se ven
       // igual (no aparece el gasto).
-      await stampIngestResult(db, token, input.error)
+      await stampIngestResult(db, token, input.error, via)
       return NextResponse.json({ error: input.error, message: explainIngestError(input.error) }, { status: 400 })
     }
 
@@ -150,7 +151,7 @@ export async function POST(request) {
       () => ingestExpense({ db, uid: resolved.uid, input, rules }),
       { label: 'ingest/write' }
     )
-    await stampIngestResult(db, token, result.status)
+    await stampIngestResult(db, token, result.status, via)
 
     return NextResponse.json({
       ok: true,
@@ -174,7 +175,7 @@ export async function POST(request) {
     //    el CÓDIGO, que en un error de Firestore es el diagnóstico entero.
     const fail = describeFirestoreFailure(err)
     console.error(`[api/ingest/expense] ${fail.kind} code=${firestoreErrorCode(err) ?? '?'}: ${err?.message}`, err?.stack)
-    await stampIngestResult(db, token, fail.code)
+    await stampIngestResult(db, token, fail.code, sourceOf(body))
     // 503 y no 500 para lo que se arregla solo (cuota, hipo de la base): es
     // "volvé a intentar", no "hay un bug". El atajo muestra el cuerpo igual.
     return NextResponse.json(
