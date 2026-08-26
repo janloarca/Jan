@@ -239,15 +239,21 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
           <div className="space-y-0">
             {display.map((tx, i) => (
               <div key={tx.id || i} className="border-b border-glass-border/30 last:border-0">
-              <div className="group flex items-center justify-between py-2 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
-                <div className="flex items-center gap-3">
+              <div className="group flex items-center justify-between gap-2 py-2 hover:bg-theme-elevated/30 transition-colors -mx-2 px-2 rounded">
+                {/* FASE LH2: min-w-0 en toda la cadena izquierda + truncate en el
+                    simbolo. Sin eso, en el estado de CONFIRMACION (que agrega dos
+                    botones al lado derecho) la fila no tenia nada que pudiera
+                    encoger y desbordaba 28px a 390px (medido en FASE KY,
+                    preexistente). El lado derecho va shrink-0: botones y monto
+                    son lo que no puede cortarse. */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={typeBadgeStyle(tx.type)}>
                     {typeIcon(tx.type)}
                   </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium">{tx.symbol || tx.description || '-'}</span>
-                      <span className="px-1.5 py-0.5 rounded text-xs font-bold uppercase" style={typeBadgeStyle(tx.type)}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-white font-medium truncate">{tx.symbol || tx.description || '-'}</span>
+                      <span className="px-1.5 py-0.5 rounded text-xs font-bold uppercase shrink-0" style={typeBadgeStyle(tx.type)}>
                         {tx.type || 'TX'}
                       </span>
                     </div>
@@ -257,7 +263,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                     </span>
                   </div>
                 </div>
-                <div className="text-right flex items-center gap-2">
+                <div className="text-right flex items-center gap-2 shrink-0">
                   {/* La × de borrar era `opacity-0 group-hover:opacity-60`. En un
                       iPad eso no es "discreto", es inalcanzable: Safari táctil o
                       no dispara `:hover` o lo deja pegado tras el primer toque,
