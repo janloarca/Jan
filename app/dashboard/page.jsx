@@ -484,7 +484,7 @@ export default function DashboardPage() {
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
     handleIBKRSync, triggerIBKRSync,
-    ibkrConnected, ibkrAutoSyncing,
+    ibkrConnected, ibkrAutoSyncing, bulkWriting,
     ibkrSyncStatus, ibkrSyncError, ibkrSyncErrorCode, ibkrUpstreamError, ibkrSkipReason, ibkrLastSync, ibkrSyncSummary,
   } = useDashboardData({ user, lang, activePortfolio, activeEntity })
 
@@ -1792,6 +1792,7 @@ export default function DashboardPage() {
           existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang} brokerHint={importBrokerHint} journeyActive={ibkrJourney != null}
+          ibkrSyncBusy={ibkrAutoSyncing || bulkWriting}
         />
       )}
       </ModalMount>

@@ -82,7 +82,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false,
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false, ibkrSyncBusy = false,
   // Desde qué pantalla se abrió. Solo cambia el TEXTO: desde Flujo uno importa
   // movimientos, no un portafolio, y decir lo contrario (o hablar de
   // "posiciones" cuando un estado de tarjeta no se reconoce) manda a buscar el
@@ -112,6 +112,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const fileRef = useRef(null)
   const [ibkrData, setIbkrData] = useState(null)
   const [ibkrImportMode, setIbkrImportMode] = useState('merge')
+  // FASE LH: true desde que el usuario elige un modo a mano; el auto-select de
+  // abajo deja de pisarlo. Se resetea al aceptar un archivo nuevo.
+  const ibkrModeTouchedRef = useRef(false)
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
 
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
@@ -352,6 +355,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     const acceptIBKR = (rawTextOrCsv) => {
       const parsed = parseIBKRFile(rawTextOrCsv)
       if (parsed._isPerformanceReport || (parsed.positions.length === 0 && parsed.cashPositions.length === 0)) { ibkrEmptyError(); return true }
+      ibkrModeTouchedRef.current = false
       setIbkrData(formatIBKRFileResult(parsed)); setStep('ibkr-preview'); return true
     }
     // A Flex Query downloaded by hand arrives as XML: the file the app's own
@@ -376,6 +380,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           : 'The Flex Query came back empty. Edit it at IBKR (Performance & Reports → Flex Queries) and check that it includes "Open Positions", "Trades", "Cash Transactions", "Cash Report" and "Net Asset Value (NAV) in Base", with "Select All" ticked in each section\'s fields: adding a section does not include its columns.')
         return true
       }
+      ibkrModeTouchedRef.current = false
       setIbkrData(data); setStep('ibkr-preview'); return true
     }
 
@@ -853,6 +858,26 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     // NAV days and trades, no current positions.
     if (!ibkrData || !ibkrData.items
       || (ibkrData.items.length === 0 && (ibkrData.transactions || []).length === 0 && (ibkrData.equityHistory || []).length === 0)) return
+    // FASE LH. Sin onBulkImport no hay a dónde escribir: el mount de Flujo no
+    // lo pasa, y sin este guard un Flex XML subido ahí reventaba con un
+    // TypeError al confirmar (llamada a undefined), con el error mudo.
+    if (!onBulkImport) {
+      setError(lang === 'es'
+        ? 'Este archivo de IBKR se importa desde Patrimonio (Nuevo → Importar), no desde Flujo.'
+        : 'This IBKR file is imported from the Wealth screen (New → Import), not from Cash flow.')
+      return
+    }
+    // FASE LH. Con una sincronización de IBKR en vuelo, confirmar reconciliaría
+    // contra una foto que el sync está por cambiar: la ventana de preview es
+    // ilimitada (el usuario decide cuándo confirmar) y la descarga del Flex
+    // dura hasta ~90s, así que el solape es realista. Rehusar CON la razón es
+    // lo honesto; el funnel de handleIBKRSync cubre la dirección contraria.
+    if (ibkrSyncBusy) {
+      setError(lang === 'es'
+        ? 'Hay una sincronización de IBKR en curso. Espera a que termine (el anillo del header) y vuelve a confirmar.'
+        : 'An IBKR sync is running. Wait for it to finish (the header ring) and confirm again.')
+      return
+    }
     setImporting(true)
     setError('')
     setImportProgress({ done: 0, total: 0 })
@@ -941,7 +966,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       setImporting(false)
       if (onImportComplete) onImportComplete({ kind: 'ibkr', summary })
     }
-  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, onImportComplete])
+  }, [ibkrData, onBulkImport, existingItems, activePortfolio, activeEntity, ibkrImportMode, onImportComplete, ibkrSyncBusy, lang])
 
   // Dry run of the enrich match, so the preview can promise a concrete outcome
   // ("21 se enlazan, 0 se duplican") instead of making the user guess which mode
@@ -961,8 +986,14 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // almost always "add the history", never "add them again", so enrich is the
   // default the moment anything matches. With no matches there is nothing to
   // enrich and plain add is correct.
+  // FASE LH. La eleccion MANUAL del usuario manda. `ibkrEnrichPreview` es un
+  // objeto nuevo cada vez que cambia la identidad de `existingItems`, y esa
+  // identidad cambia con CADA eco del listener de Firestore: sin la ref, este
+  // efecto re-decidia el modo debajo del usuario mientras miraba el preview,
+  // pisando lo que acababa de elegir con los tres botones.
   useEffect(() => {
     if (!ibkrEnrichPreview) return
+    if (ibkrModeTouchedRef.current) return
     setIbkrImportMode(ibkrEnrichPreview.matched > 0 ? 'enrich' : 'merge')
   }, [ibkrEnrichPreview])
 
@@ -1972,7 +2003,7 @@ When done, give me the .xlsx file ready to download.`
                       const active = ibkrImportMode === opt.key
                       const recommended = opt.key === (matched > 0 ? 'enrich' : 'merge')
                       return (
-                        <button key={opt.key} onClick={() => setIbkrImportMode(opt.key)}
+                        <button key={opt.key} onClick={() => { ibkrModeTouchedRef.current = true; setIbkrImportMode(opt.key) }}
                           className="w-full text-left p-3 rounded-lg border transition-colors flex items-start gap-2.5"
                           style={active
                             ? { borderColor: opt.accent, backgroundColor: `${opt.accent}14` }
