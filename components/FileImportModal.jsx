@@ -505,7 +505,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         setMapping({ symbol: 0, name: 1, type: 2, quantity: 3, purchasePrice: 4, currentPrice: 5, institution: 6, currency: 7 })
         setStep('map')
       } else if (detectBI(hdrs)) {
-        const parsed = parseBI(rows, hdrs)
+        const parsed = parseBI(rows, hdrs, { rules: ingestRules })
         // Un débito que paga tu propia tarjeta no es un gasto: el gasto fue la
         // compra, que ya está registrada del lado de la tarjeta. Se aparta
         // ANTES de reconciliar para que ni siquiera sea candidato a importarse.
