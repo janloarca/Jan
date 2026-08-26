@@ -93,12 +93,17 @@ export default function SpreadsheetPage() {
 
   const [editItem, setEditItem] = useState(null)
   const [showReview, setShowReview] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addModalDefaults, setAddModalDefaults] = useState(null)
   // Los modales sobreviven su animación de salida. Ver hooks/useModalExit.js.
+  // El ESTADO va declarado ARRIBA de estas llamadas a propósito: son llamadas
+  // que corren durante el render, así que leer aquí un `const` declarado más
+  // abajo lanza ReferenceError de temporal dead zone y tumba la pantalla
+  // entera. `useModalExit(showAddModal)` con el useState debajo dejó
+  // /spreadsheet caída para todos ("Cannot access 'ej' before initialization").
   const [editShown, editClosing] = useModalExit(editItem)
   const [addShown, addClosing] = useModalExit(showAddModal)
   const [reviewShown, reviewClosing] = useModalExit(showReview)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [addModalDefaults, setAddModalDefaults] = useState(null)
 
   const [view, setView] = useState('portfolio')
 
