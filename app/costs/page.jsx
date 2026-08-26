@@ -44,7 +44,10 @@ export default function CostsPage() {
     return () => unsubscribe()
   }, [router])
 
-  const { transactions, portfolioItems, convert, baseCurrency, settings, dataLoading } =
+  // ratesLoading también gatea el render: sin él, un portafolio multi-moneda
+  // computa los costos con el convert de la carga fría (1:1) y muestra un total
+  // equivocado durante los primeros segundos.
+  const { transactions, portfolioItems, convert, baseCurrency, settings, dataLoading, ratesLoading } =
     useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
@@ -86,7 +89,7 @@ export default function CostsPage() {
   }, [lang])
 
   // ---- render gates below every hook --------------------------------------
-  if (authLoading || (user && dataLoading)) {
+  if (authLoading || (user && (dataLoading || ratesLoading))) {
     return (
       <div className="min-h-screen bg-theme-base">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
@@ -99,13 +102,17 @@ export default function CostsPage() {
 
   const breakdown = [
     { key: 'commissions', label: t('Comisiones', 'Commissions'), value: costs.commissions, Icon: TrendingDown, hint: t('De compras y ventas', 'From buys and sells') },
-    { key: 'fees', label: t('Cargos', 'Fees'), value: costs.fees, Icon: Receipt, hint: t('Cargos del broker', 'Broker fees') },
+    { key: 'fees', label: t('Cargos', 'Fees'), value: costs.fees, Icon: Receipt, hint: t('Del broker y gastos que registraste (ej. reparaciones)', 'Broker fees and expenses you recorded (e.g. repairs)') },
     { key: 'taxes', label: t('Impuestos', 'Taxes'), value: costs.taxes, Icon: Landmark, hint: t('Retención de impuestos', 'Withholding tax') },
     { key: 'interestPaid', label: t('Intereses', 'Interest'), value: costs.interestPaid, Icon: Percent, hint: t('Interés de margen', 'Margin interest') },
     { key: 'assetCosts', label: t('Costos de cuenta', 'Account costs'), value: costs.assetCosts, Icon: Wallet, hint: t('Entrada, manejo y gastos que registraste a mano', 'Entry, management and expenses you entered by hand') },
   ].filter((b) => b.value > 0)
 
-  const maxMonth = Math.max(1, ...costs.months.map((m) => costs.byMonth[m].total))
+  // Las barras se escalan contra el máximo de los meses QUE SE DIBUJAN: con el
+  // máximo de la lista completa, un mes caro fuera de los 12 visibles achataba
+  // todas las barras en pantalla contra un tope que nadie ve.
+  const shownMonths = costs.months.slice(0, 12)
+  const maxMonth = Math.max(1, ...shownMonths.map((m) => costs.byMonth[m].total))
 
   return (
     <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
@@ -131,11 +138,26 @@ export default function CostsPage() {
         {!costs.hasData ? (
           <div className="card p-8 text-center">
             <Receipt size={36} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-            <p className="text-sm font-medium text-white mb-1">{t('Aún no hay costos registrados', 'No costs recorded yet')}</p>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-              {t('Los costos aparecen cuando tus operaciones traen comisiones, cuando importas cargos/impuestos/intereses de tu broker, o cuando le agregas "Costos y comisiones" a una cuenta manual (bono, banco) al crearla o editarla.',
-                 'Costs appear when your trades carry commissions, when you import fees/taxes/interest from your broker, or when you add "Costs & fees" to a manual account (bond, bank) when creating or editing it.')}
+            <p className="text-sm font-medium text-white mb-1">
+              {year !== 'all'
+                ? t(`Sin costos registrados en ${year}`, `No costs recorded in ${year}`)
+                : t('Aún no hay costos registrados', 'No costs recorded yet')}
             </p>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+              {year !== 'all'
+                ? t('Prueba otro año, o "Todo" para ver la historia completa.', 'Try another year, or "All" for the full history.')
+                : t('Los costos aparecen cuando tus operaciones traen comisiones, cuando importas cargos/impuestos/intereses de tu broker, o cuando le agregas "Costos y comisiones" a una cuenta manual (bono, banco) al crearla o editarla.',
+                    'Costs appear when your trades carry commissions, when you import fees/taxes/interest from your broker, or when you add "Costs & fees" to a manual account (bond, bank) when creating or editing it.')}
+            </p>
+            {/* Un interés recibido no es un costo (no enciende la pantalla),
+                pero callarlo aquí lo escondería del todo. */}
+            {costs.interestReceived > 0 && (
+              <div className="mt-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+                style={{ backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)' }}>
+                <ArrowDownRight size={13} />
+                {t('Interés recibido', 'Interest received')}: {fmt(costs.interestReceived)}
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -176,7 +198,7 @@ export default function CostsPage() {
               <div className="card p-4 sm:p-5">
                 <h2 className="card-title mb-3">{t('Por mes', 'By month')}</h2>
                 <div className="space-y-2">
-                  {costs.months.slice(0, 12).map((mk) => {
+                  {shownMonths.map((mk) => {
                     const b = costs.byMonth[mk]
                     return (
                       <div key={mk} className="flex items-center gap-3">
@@ -189,6 +211,16 @@ export default function CostsPage() {
                     )
                   })}
                 </div>
+                {/* Los costos recurrentes de cuenta (manejo, expense ratio) se
+                    prorratean por días y no tienen mes: sin esta línea, el total
+                    de arriba y la suma de las barras no cuadran y se lee como
+                    tabla rota. */}
+                {costs.undatedTotal > 0.005 && (
+                  <p className="text-micro mt-3" style={{ color: 'var(--text-muted)' }}>
+                    {t(`Los costos recurrentes de cuenta (${fmt(costs.undatedTotal)}) se prorratean por el tiempo tenido y no aparecen en las barras por mes.`,
+                       `Recurring account costs (${fmt(costs.undatedTotal)}) are prorated over holding time and do not appear in the monthly bars.`)}
+                  </p>
+                )}
               </div>
             )}
 
