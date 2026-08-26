@@ -717,7 +717,10 @@ describe('entryFeeAddbacks', () => {
   const jan1 = new Date('2026-01-01T00:00:00Z').getTime()
   const aug = new Date('2026-08-06T00:00:00Z').getTime()
   const bond = { id: 'b1', entryFee: 98, entryFeeMode: 'separate', acquisitionDate: '2026-01-06', currency: 'USD' }
-  const dep = { type: 'DEPOSIT', date: '2026-01-06', _linkedItemId: 'b1', totalAmount: 6098 }
+  // La forma REAL del depósito de apertura (AddAccountModal siempre estampa
+  // _source: 'manual_new_account'): desde FASE JJ3 es la ÚNICA llave que
+  // desbloquea el addback, porque solo ese depósito lleva la comisión adentro.
+  const dep = { type: 'DEPOSIT', date: '2026-01-06', _linkedItemId: 'b1', totalAmount: 6098, _source: 'manual_new_account' }
 
   it('modo deducted no devuelve nada: el depósito archivado ya era solo el principal', () => {
     const m = entryFeeAddbacks([{ ...bond, entryFeeMode: 'deducted' }], [dep], { fromTs: jan1, toTs: aug })
