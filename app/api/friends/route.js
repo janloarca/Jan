@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
+import { brokerVerification } from '@/lib/friendsVerified'
 
 // Social layer: friend groups + a YTD-return leaderboard. Like shareTokens, the
 // data lives in TOP-LEVEL collections that firestore.rules leaves default-deny,
@@ -21,9 +22,9 @@ const MAX_MEMBERS = 30
 const MAX_MOVERS = 5
 const GLOBAL_SCAN_CAP = 500
 const GLOBAL_TOP = 20
-// Umbral de la insignia "sincronizado". Tiene que coincidir con el que calcula
-// el cliente (app/friends/page.jsx), que es de donde sale syncedPct.
-const VERIFIED_MIN_SYNCED = 0.6
+// La insignia "sincronizado" ya NO sale de nada que mande el cliente: se deriva
+// de los vaults de broker, cuyo `lastSync` lo estampa la ruta del propio broker
+// al terminar un sync exitoso. Ver lib/friendsVerified.js.
 
 // Human-friendly invite codes: no 0/O/1/I/L to avoid transcription errors.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -114,26 +115,43 @@ export async function POST(request) {
       const all = sanitizeStatBlock(body.stats?.all)
       if (!all) return NextResponse.json({ error: 'Missing stats', code: 'missing_stats' }, { status: 400 })
       const ibkr = sanitizeStatBlock(body.stats?.ibkr)
-      const syncedPct = Math.max(0, Math.min(1, Number(body.syncedPct) || 0))
+
+      // La insignia se decide acá, con lo que el servidor SÍ es dueño de saber.
+      // Antes salía de `body.syncedPct`, o sea el cliente se la auto-otorgaba
+      // mandando un 1; y no le habla al usuario, le habla a sus amigos. Una
+      // sola lectura de la subcolección trae todos los vaults de broker de una
+      // (`settings` tiene un puñado de docs: preferences, profile, ingest y los
+      // vaults), en vez del pipeline completo que costaría recalcular el
+      // porcentaje real.
+      let verification = { verified: false }
+      try {
+        const settingsSnap = await db.collection('users').doc(uid).collection('settings').get()
+        verification = brokerVerification(settingsSnap.docs.map((d) => ({ id: d.id, data: d.data() })))
+      } catch (err) {
+        // Best-effort: un fallo de lectura no puede impedir publicar tus
+        // números. Sin insignia es el lado correcto del error.
+        console.error('[api/friends] verification read error:', err.message)
+      }
+
       const update = {
         uid,
         displayName: String(body.displayName || '').slice(0, 40) || 'Anónimo',
         avatar: String(body.avatar || '').slice(0, 8),
         stats: ibkr ? { all, ibkr } : { all },
-        // Soft trust signal: portfolio is mostly broker-synced (not hand-typed).
-        // DERIVED from syncedPct, not read from body.verified. For an honest
-        // client the result is identical (it computes the same `pct >= 0.6`),
-        // but there is no longer a second, independent input to believe: a
-        // client could previously claim verified:true while reporting a
-        // syncedPct that contradicts it. This does NOT close the hole —
-        // syncedPct is still self-reported, so the badge can be self-awarded.
-        // Verifying it for real is a separate feature.
-        verified: syncedPct >= VERIFIED_MIN_SYNCED,
-        syncedPct,
+        // Señal de confianza: tiene un broker conectado y sincronizando. Nada
+        // de esto viene del cuerpo, así que ya no se puede auto-otorgar.
+        //
+        // `syncedPct` se quita: era auto-reportado y NINGUNA superficie lo
+        // leía, o sea el patrón "se escribe y nadie lo lee" que este archivo ya
+        // documenta. Un doc viejo lo conserva hasta la próxima publicación de
+        // esa persona; no sale a ningún lado.
+        verified: verification.verified,
         updatedAt: new Date().toISOString(),
       }
       await profileRef.set(update, { merge: true })
-      return NextResponse.json({ ok: true })
+      // Se devuelve para que la pantalla muestre lo que de verdad quedó
+      // guardado, en vez de una copia local que podría no coincidir.
+      return NextResponse.json({ ok: true, verified: update.verified })
     }
 
     // ---- list: my groups + each group's leaderboard --------------------------
@@ -326,6 +344,10 @@ export async function POST(request) {
         // de un grupo, así que sin grupos nunca se veía: se leía un porcentaje
         // sin nada que dijera que es una foto quieta hasta que la republiques.
         yourUpdatedAt: mine.exists ? (mine.data().updatedAt || null) : null,
+        // Tu propia insignia, por la misma razón y al mismo costo cero: ahora
+        // la decide el servidor, así que el cliente ya no la puede derivar por
+        // su cuenta y tiene que preguntarla.
+        yourVerified: mine.exists ? !!mine.data().verified : false,
       })
     }
 

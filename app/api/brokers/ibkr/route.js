@@ -77,6 +77,30 @@ async function requestFlexReference(token, queryId) {
   return { error: classifyError('timed out') }
 }
 
+// Deja constancia de que ESTE sync sí trajo datos.
+//
+// El vault ya LEÍA `lastSync` (en get-credentials) y nadie lo escribía nunca,
+// así que ese campo era siempre null: el patrón "se lee y no se escribe", el
+// espejo del que este repo ya documenta al revés. El resto de los brokers sí lo
+// estampan (ver alpaca), así que esto además los alinea.
+//
+// Importa más allá de la prolijidad: es una marca que escribe el SERVIDOR al
+// terminar un sync real, así que es lo único de la conexión que un cliente
+// modificado no puede inventar. La insignia de Amigos se apoya justo en eso
+// (lib/friendsVerified.js).
+//
+// Best-effort: un fallo acá jamás puede tumbar un sync que sí funcionó.
+async function stampLastSync(uid) {
+  try {
+    const db = getAdminDb()
+    if (!db) return
+    await db.collection('users').doc(uid).collection('settings').doc('ibkr')
+      .set({ lastSync: new Date().toISOString() }, { merge: true })
+  } catch (err) {
+    console.error('[api/ibkr] lastSync update error:', err.message)
+  }
+}
+
 async function resolveCredentials(body, uid) {
   let { token, queryId } = body
   if (!queryId) {
@@ -176,6 +200,7 @@ export async function POST(request) {
           status: 'error',
         }, { status: 200 })
       }
+      await stampLastSync(uid)
       return NextResponse.json({ ...data, status: 'ready' })
     }
 
@@ -245,6 +270,7 @@ export async function POST(request) {
           if (data.empty) {
             return NextResponse.json({ error: 'El reporte no tiene posiciones.', errorCode: 'EMPTY_REPORT' }, { status: 200 })
           }
+          await stampLastSync(uid)
           return NextResponse.json(data)
         }
         if (fetchXml.includes('Statement generation in progress')) continue

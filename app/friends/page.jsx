@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildFriendStats } from '@/lib/friendsStats'
-import { getItemValue } from '@/components/dashboard/utils'
 import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
 import PageShell, { PageTitle } from '@/components/PageShell'
 import PullToRefresh from '@/components/ui/PullToRefresh'
@@ -17,11 +16,6 @@ import PageTour from '@/components/dashboard/PageTour'
 import YourCard from '@/components/friends/YourCard'
 import GroupCard from '@/components/friends/GroupCard'
 import GlobalBoard from '@/components/friends/GlobalBoard'
-
-// El umbral de la insignia "sincronizado". El servidor la DERIVA de syncedPct
-// con este mismo número (app/api/friends/route.js), así que los dos tienen que
-// coincidir o la insignia diría una cosa distinta de la que se calculó acá.
-const VERIFIED_MIN_SYNCED = 0.6
 
 function FriendsPageInner() {
   const router = useRouter()
@@ -91,19 +85,17 @@ function FriendsPageInner() {
 
   const hasIbkr = useMemo(() => (enrichedItems || []).some((it) => it._source === 'ibkr'), [enrichedItems])
 
-  // "Verified" = most of the portfolio value comes from a LIVE broker sync
-  // (ibkr/blockchain/ledger/API brokers), not hand-typed. Statement imports
-  // (Hapi) leave _source unset, so they honestly don't count as synced.
-  const { verified, syncedPct } = useMemo(() => {
-    const EXCLUDE = new Set(['demo', 'manual', 'hapi', 'import'])
-    let synced = 0
-    for (const it of enrichedItems || []) {
-      const v = getItemValue(it)
-      if (v > 0 && it._source && !EXCLUDE.has(it._source)) synced += v
-    }
-    const pct = totalAssets > 0 ? synced / totalAssets : 0
-    return { verified: pct >= VERIFIED_MIN_SYNCED, syncedPct: pct }
-  }, [enrichedItems, totalAssets])
+  // La insignia "sincronizado" ya NO se calcula acá.
+  //
+  // Antes esta pantalla medía qué fracción del portafolio venía de un broker en
+  // vivo y mandaba ese número al servidor, que derivaba la insignia de él. O
+  // sea era auto-reportada: un cliente modificado manda un 1 y se la otorga. Y
+  // la insignia no le habla al usuario, le habla a sus amigos.
+  //
+  // Ahora la decide el servidor con los vaults de broker, cuyo `lastSync` lo
+  // estampa la ruta del broker al terminar un sync real. Acá solo se muestra lo
+  // que él contestó. Ver lib/friendsVerified.js.
+  const [verified, setVerified] = useState(false)
 
   const myStats = useMemo(() => {
     const all = buildFriendStats({ enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets })
@@ -235,7 +227,7 @@ function FriendsPageInner() {
     let cancelled = false
     setGlobalLoading(true)
     api({ action: 'global', metric })
-      .then((gl) => { if (!cancelled) { setGlobal(gl); setGlobalError(null) } })
+      .then((gl) => { if (!cancelled) { setGlobal(gl); setVerified(!!gl?.yourVerified); setGlobalError(null) } })
       .catch((e) => { if (!cancelled) setGlobalError(e.message || 'Error') })
       .finally(() => { if (!cancelled) setGlobalLoading(false) })
     return () => { cancelled = true }
@@ -251,14 +243,15 @@ function FriendsPageInner() {
   const doSync = useCallback(async () => {
     if (!myStats.all) { await refresh(); return true }
     try {
-      await api({ action: 'sync', displayName, avatar, stats: myStats, verified, syncedPct })
+      const res = await api({ action: 'sync', displayName, avatar, stats: myStats })
+      setVerified(!!res?.verified)
       await refresh()
       return true
     } catch (e) {
       flash(e.message, 'warn')
       return false
     }
-  }, [api, myStats, displayName, avatar, verified, syncedPct, refresh, flash])
+  }, [api, myStats, displayName, avatar, refresh, flash])
 
   const [refreshing, setRefreshing] = useState(false)
   const handleManualRefresh = useCallback(async () => {
