@@ -332,3 +332,130 @@ describe('handleIBKRSync: espera al import y reconcilia contra la foto fresca', 
     }
   })
 })
+
+// ⛔ La publicación diaria a Amigos, desde el TABLERO.
+//
+// El defecto que cierra: los números de una persona solo se publicaban al abrir
+// /friends, así que quien no entra a esa pantalla deja su fila congelada en la
+// foto de la última visita mientras el grupo la rankea al lado de filas de hoy.
+// Nada en la pantalla dice que esa fila es vieja: solo se ve peor o mejor.
+//
+// Lo que estos tests fijan NO es el payload (eso vive en lib/friendsPublish.js
+// con sus propios tests) sino las COMPUERTAS, que es donde este repo ya pagó
+// caro: publicar un número equivocado es peor que publicar uno viejo, y acá el
+// número lo leen otras personas.
+describe('publicar a Amigos: una vez por día y con los datos ya asentados', () => {
+  const enriched = [item()]
+  const base = { firestore: { items: enriched }, prices: { enrichedItems: enriched }, opts: { publishFriends: true } }
+  const friendsCalls = () => authFetch.mock.calls.filter((c) => c[0] === '/api/friends')
+
+  // CONTROL POSITIVO. Sin él, cada negativo de abajo podría significar "el
+  // efecto nunca dispara por otra razón" en vez de "la compuerta lo detuvo".
+  it('con todas las compuertas abiertas SI publica, una sola vez', async () => {
+    const { unmount } = setup(base)
+    await act(async () => {})
+    const calls = friendsCalls()
+    expect(calls).toHaveLength(1)
+    const body = JSON.parse(calls[0][1].body)
+    expect(body.action).toBe('sync')
+    expect(body.stats.all).toBeTruthy()
+    unmount()
+  })
+
+  it('estampa el dia SOLO despues de que la publicacion salga bien', async () => {
+    const { unmount } = setup(base)
+    await act(async () => {})
+    const stamps = fakeFirestore.saveSettings.mock.calls.filter((c) => c[0]?._lastFriendsPublish)
+    expect(stamps).toHaveLength(1)
+    expect(stamps[0][0]._lastFriendsPublish).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    unmount()
+  })
+
+  // ⛔ authFetch NO lanza ante un 4xx/5xx (la lección de lib/ibkrVault.js). Sin
+  // leer el status, un fallo del servidor estampaba el día igual y la fila
+  // quedaba sin publicar hasta mañana, con la app creyendo que ya lo hizo.
+  it('un fallo del servidor NO estampa el dia', async () => {
+    const { unmount } = setup(base)
+    authFetch.mockImplementation(async (url) => (
+      url === '/api/friends' ? { ok: false, status: 500, json: async () => ({}) } : jsonResponse({})
+    ))
+    await act(async () => {})
+    expect(fakeFirestore.saveSettings.mock.calls.filter((c) => c[0]?._lastFriendsPublish)).toHaveLength(0)
+    unmount()
+  })
+
+  it('ya publicado HOY no vuelve a publicar', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const { unmount } = setup({
+      ...base,
+      firestore: { items: enriched, settings: { _lastFriendsPublish: today } },
+    })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+
+  it('publicado AYER si vuelve a publicar', async () => {
+    const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const { unmount } = setup({
+      ...base,
+      firestore: { items: enriched, settings: { _lastFriendsPublish: ayer } },
+    })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(1)
+    unmount()
+  })
+
+  it('con Amigos apagado NO publica nada', async () => {
+    const { unmount } = setup({
+      ...base,
+      firestore: { items: enriched, settings: { friendsEnabled: false } },
+    })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+
+  // /friends publica por su cuenta al montar; sin este gate la misma visita
+  // escribiría dos veces lo mismo.
+  it('sin publishFriends (o sea /friends) el tablero no publica', async () => {
+    const { unmount } = setup({ ...base, opts: {} })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+
+  // Las tres compuertas de "el dato todavía no es cierto". `ratesLoading` en
+  // particular: sin tasas `convert` devuelve el monto CRUDO, así que una
+  // cartera en quetzales publicaría pesos calculados 1:1 (FASE JA3).
+  it('no publica con los precios en vuelo', async () => {
+    const { unmount } = setup({ ...base, prices: { enrichedItems: enriched, isFetching: true } })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+
+  it('no publica con las tasas todavia cargando', async () => {
+    const { unmount } = setup({ ...base, rates: { loading: true } })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+
+  it('no publica mientras los datos cargan', async () => {
+    const { unmount } = setup({
+      ...base,
+      firestore: { items: enriched, loading: true },
+    })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+
+  it('una cartera vacia no publica una fila de puros guiones', async () => {
+    const { unmount } = setup({ firestore: {}, prices: { enrichedItems: [] }, opts: { publishFriends: true } })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    unmount()
+  })
+})
