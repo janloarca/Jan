@@ -31,6 +31,61 @@ const MIN_MEASURED_MONTHS = 3
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+// Control de porcentaje con − / + y tecleo directo (FASE LN, pedido del
+// usuario: "hacelo más ágil"). Lo que lo hace ágil en un teléfono:
+//   (a) − / + ajustan de un toque, sin abrir el teclado;
+//   (b) tocar el número selecciona TODO el valor, así que se teclea el nuevo
+//       encima sin borrar el viejo dígito por dígito;
+//   (c) mientras se teclea manda un BORRADOR local y se guarda al salir
+//       (Enter o blur). Antes cada tecla guardaba a Firestore Y el onChange
+//       re-parseaba el texto en caliente, o sea teclear "6.5" perdía el punto
+//       en cuanto se escribía.
+// El parseo/clamp sigue viviendo en el CALLER (onCommit recibe el string
+// crudo), para no duplicar las semánticas que ya existían: vacío en un mes
+// borra el override, vacío en la tasa vuelve a "sin configurar".
+// Vive a nivel de módulo a propósito: un componente definido dentro del
+// render se desmonta y remonta en cada render y PIERDE clics (lección FASE JF).
+function PctStepper({ value, onCommit, step, min = 0, max = 100, accent = false, ariaLabel, inputTestId = null }) {
+  const [draft, setDraft] = useState(null)
+  const shown = draft != null ? draft : String(value)
+  const bump = (delta) => {
+    const base = parseRate(shown)
+    const next = Math.min(max, Math.max(min, (Number.isFinite(base) ? base : 0) + delta))
+    setDraft(null)
+    // Redondeo al paso para que 6.5 + 1 no deje colas binarias (7.5, no 7.4999...).
+    onCommit(String(Math.round(next * 100) / 100))
+  }
+  const commitDraft = () => {
+    if (draft == null) return
+    onCommit(draft)
+    setDraft(null)
+  }
+  const btnCls = 'w-7 h-7 shrink-0 rounded-md border flex items-center justify-center text-base leading-none select-none'
+  const btnStyle = { borderColor: 'var(--card-border)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }
+  return (
+    <span className="flex items-center gap-1">
+      <button type="button" aria-label={`${ariaLabel}: -${step}`} className={btnCls} style={btnStyle} onClick={() => bump(-step)}>−</button>
+      <span className="flex items-baseline gap-0.5 rounded-md border px-1.5"
+        style={{ borderColor: accent ? 'var(--accent-blue)' : 'var(--card-border)' }}>
+        <input
+          type="text" inputMode="decimal"
+          aria-label={ariaLabel}
+          {...(inputTestId != null ? { 'data-proj-input': inputTestId } : {})}
+          className="w-9 bg-transparent font-mono tabular-nums text-center outline-none"
+          style={{ color: accent ? 'var(--accent-blue)' : 'var(--text-primary)' }}
+          value={shown}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => { const el = e.target; setTimeout(() => el.select(), 0) }}
+          onBlur={commitDraft}
+          onKeyDown={(e) => { if (e.key === 'Enter') { commitDraft(); e.currentTarget.blur() } }}
+        />
+        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>%</span>
+      </span>
+      <button type="button" aria-label={`${ariaLabel}: +${step}`} className={btnCls} style={btnStyle} onClick={() => bump(step)}>+</button>
+    </span>
+  )
+}
+
 export default function WealthProjectionCard({
   netWorth = 0, plan: rawPlan, onSavePlan, financeTransactions = [], profile,
   convert, baseCurrency = 'USD', returnSinceStart, sinceStartDate,
@@ -199,17 +254,14 @@ export default function WealthProjectionCard({
           <div className="grid grid-cols-2 gap-2 mb-3">
             <label className="rounded-lg border p-2" style={{ borderColor: 'var(--card-border)' }}>
               <span className="text-[11px] block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento anual', 'Annual return')}</span>
-              <span className="flex items-baseline gap-1">
-                <input
-                  type="text" inputMode="decimal"
-                  aria-label={t('Rendimiento anual esperado', 'Expected annual return')}
-                  className="w-10 bg-transparent font-mono tabular-nums text-right outline-none"
-                  style={{ color: 'var(--text-primary)' }}
-                  value={returnPct}
-                  onChange={(e) => savePlan({ ...plan, returnRate: e.target.value === '' ? null : parseRate(e.target.value) })}
-                />
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
-              </span>
+              <PctStepper
+                value={returnPct}
+                step={1}
+                min={0}
+                max={100}
+                ariaLabel={t('Rendimiento anual esperado', 'Expected annual return')}
+                onCommit={(raw) => savePlan({ ...plan, returnRate: raw === '' ? null : parseRate(raw) })}
+              />
               {returnHint != null ? (
                 <button type="button" onClick={() => savePlan({ ...plan, returnRate: returnHint })}
                   className="text-[10px] block mt-0.5 hover:underline text-left" style={{ color: 'var(--accent-blue)' }}>
@@ -226,17 +278,12 @@ export default function WealthProjectionCard({
 
             <label className="rounded-lg border p-2" style={{ borderColor: 'var(--card-border)' }}>
               <span className="text-[11px] block mb-1" style={{ color: 'var(--text-muted)' }}>{t('Ahorro por defecto', 'Default savings')}</span>
-              <span className="flex items-baseline gap-1">
-                <input
-                  type="text" inputMode="decimal"
-                  aria-label={t('Porcentaje de ahorro por defecto', 'Default savings percentage')}
-                  className="w-10 bg-transparent font-mono tabular-nums text-right outline-none"
-                  style={{ color: 'var(--text-primary)' }}
-                  value={savingsDefault}
-                  onChange={(e) => applyToAll(e.target.value)}
-                />
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
-              </span>
+              <PctStepper
+                value={savingsDefault}
+                step={5}
+                ariaLabel={t('Porcentaje de ahorro por defecto', 'Default savings percentage')}
+                onCommit={applyToAll}
+              />
               {savingsSource !== 'user' && (
                 <span data-savings-source={savingsSource} className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {savingsSource === 'measured'
@@ -260,19 +307,14 @@ export default function WealthProjectionCard({
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 min-w-0">
                     <span className="text-xs font-medium w-8 shrink-0" style={{ color: 'var(--text-secondary)' }}>{months[p.month]}</span>
-                    <span className="flex items-baseline gap-0.5 rounded-md border px-1.5 shrink-0"
-                      style={{ borderColor: plan.savingsRate[p.month] != null ? 'var(--accent-blue)' : 'var(--card-border)' }}>
-                      <input
-                        type="text" inputMode="decimal"
-                        aria-label={t(`Ahorro de ${months[p.month]}`, `${months[p.month]} savings`)}
-                        data-proj-input={p.month}
-                        className="w-8 bg-transparent font-mono tabular-nums text-right outline-none"
-                        style={{ color: plan.savingsRate[p.month] != null ? 'var(--accent-blue)' : 'var(--text-primary)' }}
-                        value={p.pct}
-                        onChange={(e) => setSavingsFor(p.month, e.target.value)}
-                      />
-                      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                    </span>
+                    <PctStepper
+                      value={p.pct}
+                      step={5}
+                      accent={plan.savingsRate[p.month] != null}
+                      ariaLabel={t(`Ahorro de ${months[p.month]}`, `${months[p.month]} savings`)}
+                      inputTestId={p.month}
+                      onCommit={(raw) => setSavingsFor(p.month, raw)}
+                    />
                   </span>
                   <span className="text-xs font-mono tabular-nums font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>{fmt(p.value)}</span>
                 </div>
