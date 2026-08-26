@@ -22,6 +22,7 @@ import MonthStatusBar from '@/components/finance/MonthStatusBar'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
 import InstallmentPlansCard from '@/components/finance/InstallmentPlansCard'
+import RecurringChargesCard from '@/components/finance/RecurringChargesCard'
 import UnclassifiedTriage from '@/components/finance/UnclassifiedTriage'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import IncomePlanCalendar from '@/components/finance/IncomePlanCalendar'
@@ -489,6 +490,15 @@ export default function FinancesPage() {
           convert={convert}
           monthKey={analysis.key}
           monthExpenses={analysis.expenses}
+          lang={lang}
+        />
+
+        {/* La nomina de cargos recurrentes detectada del propio historial
+            (feature 3 del plan): total mensual, alzas de precio y el cargo que
+            este mes no cayo. Describe, no presupuesta. */}
+        <RecurringChargesCard
+          transactions={financeTransactions}
+          convert={convert}
           lang={lang}
         />
 
