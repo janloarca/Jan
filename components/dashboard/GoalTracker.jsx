@@ -31,6 +31,27 @@ export function readGoal(v, dflt) {
   return Number.isFinite(n) && n >= 0 ? n : dflt
 }
 
+// FASE LL. Una meta tiene MONEDA propia (decision del usuario, 26 ago 2026):
+// antes se comparaba contra el patrimonio en la moneda base DEL MOMENTO, asi
+// que cambiar la base re-interpretaba la meta en silencio (una meta de
+// 100,000 pasaba de dolares a quetzales sin que nadie la tocara). Ahora cada
+// guardado estampa `goalCurrency` (la base que el usuario estaba viendo al
+// teclear los numeros) y el progreso CONVIERTE la meta a la base actual.
+//
+// Una meta vieja sin `goalCurrency` conserva el comportamiento de siempre
+// (se lee en la base del momento): inventarle una moneda a un dato viejo
+// seria adivinar; se estampa sola en el proximo guardado. Y sin converter
+// (tasas aun sin cargar) cae al monto crudo, el mismo respaldo del resto de
+// la app.
+export function goalInBase(amount, goalCurrency, baseCurrency, convert) {
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return 0
+  if (!goalCurrency || !baseCurrency || goalCurrency === baseCurrency) return n
+  if (typeof convert !== 'function') return n
+  const out = convert(n, goalCurrency, baseCurrency)
+  return Number.isFinite(out) ? out : n
+}
+
 function compoundMonthlyNeeded(currentValue, goalValue, annualRate, years) {
   if (years <= 0 || goalValue <= currentValue) return 0
   const r = annualRate / 100 / 12
@@ -42,8 +63,13 @@ function compoundMonthlyNeeded(currentValue, goalValue, annualRate, years) {
   return (gap * r) / (Math.pow(1 + r, n) - 1)
 }
 
-export default function GoalTracker({ netWorth, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang }) {
+export default function GoalTracker({ netWorth, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null }) {
   const [editing, setEditing] = useState(false)
+  // El form trabaja SIEMPRE en la base actual: lo guardado se siembra ya
+  // convertido (si la meta vivia en otra moneda) para que lo que se ve, lo que
+  // se edita y lo que se estampa (goalCurrency = base actual) signifiquen lo
+  // mismo. Se siembra al ABRIR la edicion, no al montar, para no sembrar con
+  // las tasas aun frias.
   const [form, setForm] = useState({
     incomeGoal: goals?.incomeGoal || 12000,
     portfolioGoal: goals?.portfolioGoal || 100000,
@@ -55,8 +81,11 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   // La vista de lectura sale SOLO de lo guardado (con defaults), jamás del
   // form: ver readGoal arriba. Antes del primer guardado los defaults son los
   // mismos que sembraban el form, así que nada cambia para una cuenta nueva.
-  const incomeGoal = readGoal(goals?.incomeGoal, 12000)
-  const portfolioGoal = readGoal(goals?.portfolioGoal, 100000)
+  // FASE LL: la meta guardada se convierte a la base ACTUAL para comparar y
+  // mostrar; su significado vive en goalCurrency y ya no se mueve con la base.
+  const goalCurrency = goals?.goalCurrency || null
+  const incomeGoal = goalInBase(readGoal(goals?.incomeGoal, 12000), goalCurrency, baseCurrency, convert)
+  const portfolioGoal = goalInBase(readGoal(goals?.portfolioGoal, 100000), goalCurrency, baseCurrency, convert)
   const targetYear = clampTargetYear(goals?.targetYear)
   const yearsLeft = Math.max(0, targetYear - new Date().getFullYear())
 
@@ -105,6 +134,9 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
         // Clampeado al escribir además de al leer: el min/max del input no
         // impide teclear un año fuera de rango.
         targetYear: clampTargetYear(form.targetYear),
+        // FASE LL: los numeros tecleados significan la moneda que el usuario
+        // estaba viendo. Sin base conocida no se estampa nada (legacy intacto).
+        ...(baseCurrency ? { goalCurrency: baseCurrency } : {}),
       })
     }
     setEditing(false)
@@ -159,6 +191,14 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
         </div>
       ) : (
         <div className="space-y-4">
+          {/* La meta vive en OTRA moneda que la base actual: decirlo es lo que
+              hace visible que cambiar la base ya no la re-interpreta. */}
+          {goalCurrency && baseCurrency && goalCurrency !== baseCurrency && (
+            <p className="text-[11px] -mb-2" style={{ color: 'var(--text-muted)' }}>
+              {t(`Meta fijada en ${goalCurrency}; se muestra convertida a ${baseCurrency}.`,
+                 `Goal set in ${goalCurrency}; shown converted to ${baseCurrency}.`)}
+            </p>
+          )}
           {/* Income goal */}
           <div>
             <div className="flex items-center justify-between mb-1">
