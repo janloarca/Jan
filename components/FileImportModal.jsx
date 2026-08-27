@@ -748,9 +748,14 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       ]
       for (const u of toUpdate) {
         if (!u.match?.id || !u.updates || Object.keys(u.updates).length === 0) continue
+        // `onUpdateFinanceTransaction` NO lanza: atrapa su error, lo loguea y
+        // devuelve false, igual que `addFinanceTransaction` treinta lineas mas
+        // abajo. Este `catch` nunca corria y el retorno no se leia, asi que una
+        // escritura caida se contaba como exito. Mismo arreglo que aquel.
         try {
-          await onUpdateFinanceTransaction(u.match.id, u.updates)
-          updated++
+          const ok = await onUpdateFinanceTransaction(u.match.id, u.updates)
+          if (ok === false) failed++
+          else updated++
         } catch {
           failed++
         }
@@ -767,9 +772,14 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     let netted = 0
     if (biNetting?.demotions?.length && onUpdateFinanceTransaction) {
       for (const d of biNetting.demotions) {
+        // Mismo caso que el bucle de enriquecimiento: si esta escritura falla y
+        // se cuenta como exito, el pago de tarjeta sigue contado como ingreso
+        // mientras su mitad ya fue apartada del import, o sea el mes queda con
+        // un ingreso que no le corresponde a nada y la pantalla dice que neteo.
         try {
-          await onUpdateFinanceTransaction(d.id, d.updates)
-          netted++
+          const ok = await onUpdateFinanceTransaction(d.id, d.updates)
+          if (ok === false) failed++
+          else netted++
         } catch {
           failed++
         }

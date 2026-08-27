@@ -506,7 +506,7 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
     const startVal = cv(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0)
     if (!(startVal > 0)) return null
     const { pct } = computeModifiedDietz({ startValue: startVal, endValue, startTs, endTs, transactions: flows, convert, baseCurrency })
-    return Math.max(-200, Math.min(200, pct))
+    return pct
   }
   const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
   const mtd = at(findMonthStartAnchor(snaps, year, month), Date.UTC(year, month, 1))
@@ -517,12 +517,20 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
   // entered today, and netting deposits by date does not save it when the
   // purchase is backfilled to an earlier date. This number is published to
   // friends, so it has to be the same number the card shows.
+  //
+  // FASE LO: los tres valores salen SIN saturar a la banda de +-200. Saturarlos
+  // aca anulaba a `boundedPct` (lib/friendsStats.js), que existe justamente para
+  // que un porcentaje fuera de banda se publique como null en vez de como un
+  // +200.00% exacto que encabeza el ranking con cara de campeon (FASE JA5). Al
+  // recibir un valor ya saturado nunca podia ver uno fuera de banda, o sea ese
+  // arreglo estaba escrito y no corria. Nada MUESTRA estos tres numeros: su
+  // unico consumidor es el camino de publicacion, que aplica la banda al final.
   const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const scopedDay = computeDayChange({
     items: scopedItems, transactions: flows, netWorth: endValue,
     convert, baseCurrency, today: todayKey,
   })
-  const day = scopedDay ? Math.max(-200, Math.min(200, scopedDay.pct)) : null
+  const day = scopedDay ? scopedDay.pct : null
   return { ytd, mtd, day }
 }
 

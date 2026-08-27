@@ -1571,7 +1571,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [accountCalibrations, snapshots, portfolioItems, convert])
 
-  const { returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
+  const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
@@ -1766,7 +1766,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // SAME quantities instead of rebuilding its own version of them (which is
     // how it ended up contradicting this very number). No value computed above
     // is touched; nothing here alters the frozen YTD formula.
-    return { returnYTD: clampedPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows }
+    // FASE LO: `returnYTDRaw` es el MISMO numero sin saturar a la banda de
+    // +-200. `returnYTD` (clampeado) se sigue MOSTRANDO en el tablero; lo que
+    // se PUBLICA a Amigos tiene que ser el crudo, porque `boundedPct`
+    // (lib/friendsStats.js) decide ahi que fuera de banda no es medible y
+    // publica null. Recibiendo un valor ya saturado nunca veia uno fuera de
+    // banda, asi que el YTD mas roto se publicaba como +200.00% exacto y
+    // encabezaba el ranking (el defecto que FASE JA5 vino a cerrar).
+    return { returnYTD: clampedPct, returnYTDRaw: effPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows }
   }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
@@ -2375,7 +2382,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
   // the prior month-end snapshot; null when there's no reliable month anchor.
-  const returnMTD = useMemo(() => {
+  const returnMTDRaw = useMemo(() => {
     const now = new Date()
     const year = now.getUTCFullYear()
     const month = now.getUTCMonth()
@@ -2389,8 +2396,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       transactions: (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? transactions : dietzTransactions,
       convert, baseCurrency,
     })
-    return Math.max(-200, Math.min(200, pct))
+    // Crudo: la banda la aplica `boundedPct` al publicar (ver returnYTDRaw).
+    // Quien lo MUESTRA lo clampea abajo.
+    return pct
   }, [netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+
+  // Lo que se MUESTRA: el mismo MTD acotado a la banda representable.
+  const returnMTD = useMemo(
+    () => (returnMTDRaw == null ? null : Math.max(-200, Math.min(200, returnMTDRaw))),
+    [returnMTDRaw]
+  )
 
   // IBKR-only returns (Modified Dietz over the raw broker NAV + broker flows) for
   // the Friends "IBKR only" leaderboard scope. Uses RAW snapshots (not augmented,
@@ -2437,7 +2452,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (att.dayKey === dayKey && att.tries >= 3) return
     if (dataLoading || pricesLoading || pricesFetching || ratesLoading || !ytdResolved) return
     const payload = buildPublishPayload({
-      enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets,
+      // Los CRUDOS, no los que muestra el tablero: la banda la aplica
+      // `boundedPct` al publicar, y saturarlos antes la dejaba sin trabajo.
+      enrichedItems, returnYTD: returnYTDRaw, returnMTD: returnMTDRaw, dailyChange, totalAssets,
       ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
       profile, user,
     })
@@ -3203,7 +3220,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, returnSinceStart, sinceStartDate, returnMTD, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved,
+    returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, returnMTD, returnMTDRaw, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved,
     // El valor con el que arrancó el año, o sea contra QUÉ se midió returnYTD.
     // Adición pura: ya se calculaba acá dentro (alimenta el desglose por
     // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
