@@ -107,8 +107,14 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
         </h3>
         <span className="text-xs px-2 py-1 rounded-full font-medium"
           style={{ color: scoreColor, backgroundColor: 'color-mix(in srgb, currentColor 12%, transparent)' }}
-          title={t('Qué tan completos están tus datos: historia, fechas, monedas, destinos de ingresos.', 'How complete your data is: history, dates, currencies, income destinations.')}>
-          {t('Datos', 'Data')} {globalScore}% {t('completos', 'complete')}
+          title={t('El porcentaje pesa cada cuenta por su saldo, así que una cuenta chica con huecos casi no lo mueve. El conteo de al lado dice cuántos huecos hay, sin importar el tamaño de la cuenta.', 'The percentage weighs each account by its balance, so a small account with gaps barely moves it. The count next to it says how many gaps there are, regardless of account size.')}>
+          {/* El porcentaje pondera por SALDO, así que una cuenta chica con
+              varios huecos casi no lo baja: el chip llegaba a decir "99%
+              completos" justo encima de una lista de siete pendientes, o sea la
+              card se contradecía a sí misma en dos centímetros. El conteo va al
+              lado porque es lo que la lista de abajo de verdad muestra; el
+              porcentaje conserva su significado y deja de ser la única cifra. */}
+          {t('Datos', 'Data')} {globalScore}% · {visible.length} {t(visible.length === 1 ? 'pendiente' : 'pendientes', visible.length === 1 ? 'gap' : 'gaps')}
         </span>
       </div>
 
