@@ -6,6 +6,7 @@ import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyB
 import { buildMonthlyBriefForUser, buildAnnualBriefForUser, monthRefFor } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 import { makeContextCache } from '@/lib/briefContext'
+import { buildFriendsWeeklyForUser } from '@/lib/friendsWeeklyBuilder'
 import { sweepInbox } from '@/lib/emailIngest'
 
 export const dynamic = 'force-dynamic'
@@ -31,15 +32,19 @@ export const maxDuration = 300
 //   CRON_SECRET, SMTP_HOST / SMTP_USER / SMTP_PASS, IMAP_HOST / IMAP_USER / IMAP_PASS
 //
 // Suscripciones: users/{uid}/settings/preferences con notifyWeekly /
-// notifyMonthly = true. Cada cadencia es independiente: elegir una no
-// condiciona a las otras, y un domingo que cae en día 1 manda AMBOS correos
-// (contenidos distintos, decisión del usuario).
+// notifyMonthly / notifyAnnual / notifyFriendsWeekly = true. Cada cadencia es
+// independiente: elegir una no condiciona a las otras, y un domingo que cae en
+// día 1 manda AMBOS correos (contenidos distintos, decisión del usuario).
 
 // Qué cadencias corresponden a una fecha dada. Exportada y pura para poder
 // probarla: es la única lógica del cron que decide si alguien recibe correo.
 export function dueCadences(date) {
   const out = []
   if (date.getUTCDay() === 0) out.push('weekly')
+  // El domingo salen los DOS correos semanales: el de tu portafolio y el de tus
+  // grupos. Son contenidos distintos y suscripciones independientes (uno habla
+  // de vos, el otro de otras personas), así que uno no condiciona al otro.
+  if (date.getUTCDay() === 0) out.push('friendsWeekly')
   if (date.getUTCDate() === 1) out.push('monthly')
   // El 1 de enero salen AMBOS: el mensual cubre diciembre y el anual el año
   // entero. Son contenidos distintos, y las cadencias son independientes por
@@ -71,6 +76,17 @@ const CADENCES = {
     marketOpts: MARKET_WINDOWS.monthly,
     build: buildMonthlyBriefForUser,
   },
+  // El único que NO lee el portafolio: sus cifras son porcentajes que cada
+  // persona ya publicó a su grupo. Por eso no lleva `marketOpts` (el estado del
+  // mercado no dice nada sobre una tabla de posiciones) ni usa el caché de
+  // contexto, y por eso una cadencia más sale barata.
+  friendsWeekly: {
+    flag: 'notifyFriendsWeekly',
+    dedupField: '_lastFriendsWeekly',
+    dedupKey: (now) => now.toISOString().slice(0, 10),
+    marketOpts: null,
+    build: buildFriendsWeeklyForUser,
+  },
   annual: {
     flag: 'notifyAnnual',
     // La clave es el AÑO CUBIERTO (el de ayer), por la misma razón que el
@@ -97,7 +113,33 @@ const CADENCES = {
 // El fallback SOLO se usa cuando la consulta FALLA, nunca cuando devuelve
 // vacío: "nadie suscrito" es una respuesta legítima y barrer a todos los
 // usuarios para confirmarla sería gastar lecturas por nada.
-export async function findSubscribers(db, flag) {
+
+// El barrido completo de docs de preferencias, reutilizable entre cadencias de
+// la MISMA corrida. Sin esto, un domingo (dos cadencias) barría a todos los
+// usuarios dos veces, y el 1 de enero cuatro: el barrido es SERIAL, así que ese
+// costo se paga en segundos de función. La consulta de grupo no se puede
+// compartir (es por bandera), pero el barrido lee los mismos documentos para
+// todas.
+export function makeSubscriberScanCache() {
+  return { promise: null }
+}
+
+async function scanAllPrefs(db, cache) {
+  if (cache && cache.promise) return cache.promise
+  const run = (async () => {
+    const userRefs = await db.collection('users').listDocuments()
+    const out = []
+    for (const userRef of userRefs) {
+      const prefs = await userRef.collection('settings').doc('preferences').get()
+      if (prefs.exists) out.push(prefs)
+    }
+    return out
+  })()
+  if (cache) cache.promise = run
+  return run
+}
+
+export async function findSubscribers(db, flag, scanCache = null) {
   try {
     const snap = await db.collectionGroup('settings').where(flag, '==', true).get()
     return { docs: snap.docs, via: 'collectionGroup', error: null }
@@ -105,14 +147,8 @@ export async function findSubscribers(db, flag) {
     const reason = e?.message || String(e)
     console.error(`[cron/notifications] collectionGroup(${flag}) failed, falling back:`, reason)
     try {
-      const userRefs = await db.collection('users').listDocuments()
-      const docs = []
-      for (const userRef of userRefs) {
-        const prefsRef = userRef.collection('settings').doc('preferences')
-        const prefs = await prefsRef.get()
-        if (prefs.exists && prefs.data()?.[flag] === true) docs.push(prefs)
-      }
-      return { docs, via: 'userScan', error: reason }
+      const all = await scanAllPrefs(db, scanCache)
+      return { docs: all.filter((d) => d.data()?.[flag] === true), via: 'userScan', error: reason }
     } catch (e2) {
       console.error(`[cron/notifications] user scan also failed:`, e2?.message)
       return { docs: [], via: 'failed', error: `${reason} | scan: ${e2?.message}` }
@@ -185,25 +221,29 @@ export async function GET(request) {
   // Vive solo lo que dura esta petición, así que ningún correo puede salir con
   // datos de otra corrida.
   const ctxCache = makeContextCache()
+  const scanCache = makeSubscriberScanCache()
   const report = {}
   for (const cadence of cadences) {
     const cfg = CADENCES[cadence]
     if (!cfg) continue
     let sent = 0, skipped = 0, failed = 0, optedIn = 0, via = null, lookupError = null
     try {
-      const found = await findSubscribers(db, cfg.flag)
+      const found = await findSubscribers(db, cfg.flag, scanCache)
       const docs = found.docs
       via = found.via
       lookupError = found.error
       optedIn = docs.length
       if (docs.length > 0) {
         // El brief de mercado es el MISMO para todos los usuarios de la
-        // cadencia: se arma una sola vez por corrida, con SU ventana.
+        // cadencia: se arma una sola vez por corrida, con SU ventana. Una
+        // cadencia sin `marketOpts` (la de grupos) no sale a la red por él.
         let market = null
-        try {
-          market = await buildMarketBrief({ fetchSeries: makeBriefFetcher(cfg.marketOpts.fetcher), ...cfg.marketOpts.brief })
-        } catch (e) {
-          console.error(`[cron/notifications] ${cadence} market brief failed:`, e.message)
+        if (cfg.marketOpts) {
+          try {
+            market = await buildMarketBrief({ fetchSeries: makeBriefFetcher(cfg.marketOpts.fetcher), ...cfg.marketOpts.brief })
+          } catch (e) {
+            console.error(`[cron/notifications] ${cadence} market brief failed:`, e.message)
+          }
         }
 
         const dedupKey = cfg.dedupKey(now)

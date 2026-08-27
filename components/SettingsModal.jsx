@@ -126,6 +126,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEs: 'El cierre del año, con su reporte y el spreadsheet completo. 1 de enero.',
       descEn: 'The year close, with its report and the full-year spreadsheet. January 1st.',
       ready: true },
+    // El único que habla de OTRAS personas y no de vos, por eso es una
+    // suscripción aparte y no una sección del semanal: querer ver cómo va el
+    // grupo no implica querer el reporte del propio portafolio.
+    { key: 'notifyFriendsWeekly', es: 'Posiciones de tus grupos', en: 'Group standings',
+      descEs: 'Cómo va cada grupo de Amigos y en qué puesto quedaste. Domingos.',
+      descEn: 'How each of your friend groups is doing and where you placed. Sundays.',
+      ready: true },
   ]
   const [emailPrefs, setEmailPrefs] = useState(() =>
     Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
@@ -819,6 +826,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
                         style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
                         {testingEmail === 'annual' ? t('Enviando...', 'Sending...') : t('Probar anual', 'Test annual')}
+                      </button>
+                      <button type="button" onClick={() => handleTestEmail('friendsWeekly')} disabled={!!testingEmail}
+                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
+                        {testingEmail === 'friendsWeekly' ? t('Enviando...', 'Sending...') : t('Probar grupos', 'Test groups')}
                       </button>
                     </div>
                     <div>
