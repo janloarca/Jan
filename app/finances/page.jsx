@@ -23,6 +23,7 @@ import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
 import InstallmentPlansCard from '@/components/finance/InstallmentPlansCard'
 import RecurringChargesCard from '@/components/finance/RecurringChargesCard'
+import DebtAgingCard from '@/components/finance/DebtAgingCard'
 import YearInViewCard from '@/components/finance/YearInViewCard'
 import UnclassifiedTriage from '@/components/finance/UnclassifiedTriage'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
@@ -532,6 +533,15 @@ export default function FinancesPage() {
         <RecurringChargesCard
           transactions={financeTransactions}
           convert={convert}
+          lang={lang}
+        />
+
+        {/* Cuanto tardas en pagar lo que gastas con la tarjeta: cada pago ataca
+            el gasto mas viejo que sigue sin pagar (FIFO). Recibe el historial
+            COMPLETO, no el mes: un cargo puede tardar varios meses en pagarse y
+            recortarlo al mes seleccionado cortaria la cola a la mitad. */}
+        <DebtAgingCard
+          transactions={financeTransactions}
           lang={lang}
         />
 
