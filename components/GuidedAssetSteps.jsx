@@ -22,7 +22,16 @@ import { parseAmount, parseQuantity } from '@/lib/numberParse'
  * calendario de pagos, fiscal, custodia) se queda con los defaults del
  * formulario y lo reclama después Enrich Data (lib/dataCompleteness.js), que
  * para eso existe y ya trae el botón "Usar esto".
+ *
+ * La MONEDA es la excepción a ese "se queda con el default": un saldo en el
+ * banco equivocado no es un hueco que se pueda rellenar después sin que el
+ * patrimonio mienta mientras tanto (una cuenta guatemalteca leída como USD
+ * infla el total ~7,7x). Por eso este archivo detecta la moneda desde la
+ * institución con el MISMO helper que el formulario largo, en vez de dejar
+ * USD fijo.
  */
+
+import { detectCurrency } from '@/lib/institutionCurrency'
 
 const FIELD_SEQUENCES = {
   market: ['symbol', 'quantity', 'institution'],
@@ -86,6 +95,15 @@ export default function GuidedAssetSteps({ ctx }) {
   // `parseFloat` no entiende la coma decimal, que es lo que teclea medio LatAm,
   // y los inputs de abajo son de texto justo para que el navegador ya no borre
   // lo que no puede parsear. Las dos mitades tienen que ir juntas.
+  // Misma regla que el formulario largo (AddAccountModal): la institución
+  // sugiere la moneda, y solo pisa el valor mientras siga siendo el default.
+  // Si el usuario ya eligió una moneda a mano, no se le toca.
+  const applyInstitution = (value) => {
+    set('institution', value)
+    const hint = detectCurrency(value)
+    if (hint && form.currency === 'USD') set('currency', hint)
+  }
+
   const price = parseAmount(form.purchasePrice)
   const qty = parseQuantity(form.quantity)
   const liveTotal = price > 0 && qty > 0 ? qty * price : 0
@@ -270,7 +288,7 @@ export default function GuidedAssetSteps({ ctx }) {
         <div className="relative">
           <input
             value={form.institution}
-            onChange={e => { set('institution', e.target.value); setShowInstSuggestions(true) }}
+            onChange={e => { applyInstitution(e.target.value); setShowInstSuggestions(true) }}
             onFocus={() => setShowInstSuggestions(true)}
             placeholder={isBank ? t('Banco Industrial', 'Chase') : t('Interactive Brokers, Binance...', 'Interactive Brokers, Binance...')}
             className={inputCls}
@@ -286,7 +304,7 @@ export default function GuidedAssetSteps({ ctx }) {
               style={{ background: 'var(--bg-card-hover,#1c1c24)', border: '1px solid var(--card-border,#38383A)' }}>
               {filteredInstitutions.map(inst => (
                 <button key={inst} type="button"
-                  onClick={() => { set('institution', inst); setShowInstSuggestions(false) }}
+                  onClick={() => { applyInstitution(inst); setShowInstSuggestions(false) }}
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-black/20 transition-colors"
                   style={{ color: 'var(--text-primary,white)' }}>
                   {inst}
