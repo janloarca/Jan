@@ -63,7 +63,7 @@ function FriendsPageInner() {
   }, [router, loginHref])
 
   const {
-    enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
+    enrichedItems, returnYTDRaw, returnMTDRaw, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
     dailyChange, totalAssets, profile, settings, dataLoading, saveProfile, saveSettings,
     ytdResolved, pricesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
@@ -100,10 +100,14 @@ function FriendsPageInner() {
   // cómo la misma persona termina con dos formas de fila según por qué puerta
   // pasó; acá vivía la única copia y por eso se compartió al agregar la segunda
   // superficie.
+  // Los retornos CRUDOS (sin saturar a +-200): la banda la aplica `boundedPct`
+  // dentro de `buildFriendStats`, que fuera de banda publica null en vez de un
+  // +200.00% exacto. Pasarle el valor que MUESTRA el tablero lo dejaba sin
+  // trabajo (FASE LO).
   const myStats = useMemo(() => buildPublishStats({
-    enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets,
+    enrichedItems, returnYTD: returnYTDRaw, returnMTD: returnMTDRaw, dailyChange, totalAssets,
     ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
-  }), [enrichedItems, returnYTD, returnMTD, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange, dailyChange, totalAssets])
+  }), [enrichedItems, returnYTDRaw, returnMTDRaw, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange, dailyChange, totalAssets])
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)
