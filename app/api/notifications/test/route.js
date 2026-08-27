@@ -7,6 +7,7 @@ import { buildMarketBrief, MARKET_WINDOWS } from '@/lib/marketBrief'
 import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyBriefBuilder'
 import { buildMonthlyBriefForUser, buildAnnualBriefForUser } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
+import { buildFriendsWeeklyForUser } from '@/lib/friendsWeeklyBuilder'
 import { findSubscribers } from '@/app/api/cron/notifications/route'
 
 // Qué se prueba por cadencia: el MISMO builder y la MISMA ventana de mercado
@@ -16,6 +17,10 @@ const TESTABLE = {
   weekly: { build: buildWeeklyBriefForUser, marketOpts: MARKET_WINDOWS.weekly },
   monthly: { build: buildMonthlyBriefForUser, marketOpts: MARKET_WINDOWS.monthly },
   annual: { build: buildAnnualBriefForUser, marketOpts: MARKET_WINDOWS.annual },
+  // Sin ventana de mercado: el correo de grupos no la lleva (una tabla de
+  // posiciones no dice nada del S&P). `flag` va explícito porque este ya no
+  // se puede derivar de una cadena de ternarios.
+  friendsWeekly: { build: buildFriendsWeeklyForUser, marketOpts: null, flag: 'notifyFriendsWeekly' },
 }
 
 export const dynamic = 'force-dynamic'
@@ -77,15 +82,25 @@ export async function POST(request) {
     const prefs = prefsDoc.exists ? prefsDoc.data() : {}
 
     let market = null
-    try {
-      market = await buildMarketBrief({ fetchSeries: makeBriefFetcher(cfg.marketOpts.fetcher), ...cfg.marketOpts.brief })
-    } catch (e) {
-      console.error('[notifications/test] market brief failed:', e.message)
+    if (cfg.marketOpts) {
+      try {
+        market = await buildMarketBrief({ fetchSeries: makeBriefFetcher(cfg.marketOpts.fetcher), ...cfg.marketOpts.brief })
+      } catch (e) {
+        console.error('[notifications/test] market brief failed:', e.message)
+      }
     }
 
     const mail = await cfg.build({ db, uid, prefs, market })
     if (!mail) {
-      return NextResponse.json({ error: 'Add some holdings first', errorCode: 'NO_DATA' }, { status: 400 })
+      // Cada cadencia tiene su propia razón de no tener nada que mandar, y
+      // decir "agregá posiciones" sobre un correo de grupos manda a arreglar
+      // lo que no está roto.
+      return NextResponse.json({
+        error: cadence === 'friendsWeekly'
+          ? 'No group has two people publishing yet'
+          : 'Add some holdings first',
+        errorCode: 'NO_DATA',
+      }, { status: 400 })
     }
 
     await mailer.transport.sendMail({
@@ -105,7 +120,7 @@ export async function POST(request) {
     // de ser un misterio que solo los logs de la plataforma pueden resolver.
     let cronLookup = null
     try {
-      const flag = cadence === 'weekly' ? 'notifyWeekly' : cadence === 'monthly' ? 'notifyMonthly' : 'notifyAnnual'
+      const flag = cfg.flag || (cadence === 'weekly' ? 'notifyWeekly' : cadence === 'monthly' ? 'notifyMonthly' : 'notifyAnnual')
       const found = await findSubscribers(db, flag)
       cronLookup = {
         flag,

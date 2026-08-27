@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
+import { statsForScope, groupStandings } from '@/lib/friendsGroups'
 import { brokerVerification } from '@/lib/friendsVerified'
 
 // Social layer: friend groups + a YTD-return leaderboard. Like shareTokens, the
@@ -82,11 +83,10 @@ function sanitizeStatBlock(raw) {
 // que aceptó al entrar a un grupo cuyo rótulo prometía que solo se comparte la
 // cuenta del broker. Sin bloque para el alcance del grupo no se publica nada:
 // la fila queda sin cifras y la tarjeta dice por qué.
-function statsForScope(profile, scope) {
-  const stats = profile?.stats || {}
-  if (scope === 'ibkr') return stats.ibkr || null
-  return stats.all || null
-}
+// `statsForScope` y el armado de la tabla viven en lib/friendsGroups.js: desde
+// FASE LR el correo semanal del grupo produce la MISMA tabla, y dos copias es
+// como el correo del domingo y la pantalla del lunes terminan ordenando
+// distinto sobre los mismos perfiles.
 
 async function readGroup(db, groupId) {
   const doc = await db.collection('friendGroups').doc(groupId).get()
@@ -170,50 +170,18 @@ export async function POST(request) {
         const profs = memberUids.length === 0
           ? []
           : await db.getAll(...memberUids.map((m) => db.collection('friendProfiles').doc(m)))
-        const rows = profs.filter((p) => p.exists).map((p) => {
-          const prof = p.data()
-          const scoped = statsForScope(prof, g.scope)
-          const st = scoped || {}
-          return {
-            uid: p.id,
-            isYou: p.id === uid,
-            displayName: prof.displayName || 'Anónimo',
-            avatar: prof.avatar || '',
-            verified: !!prof.verified,
-            // Sin datos para el alcance del grupo: la fila existe (la persona
-            // ESTÁ en el grupo) pero no tiene cifras, y hay que decir por qué o
-            // se lee igual que una tarjeta rota. Nunca se sustituye por el
-            // portafolio completo, ver statsForScope.
-            outOfScope: !scoped,
-            ytd: st.ytd ?? null,
-            mtd: st.mtd ?? null,
-            day: st.day ?? null,
-            // Se limpia también al LEER, no solo al escribir. Todo perfil ya
-            // publicado tiene `impactPct` guardado, y devolverlo tal cual
-            // dejaría la fuga abierta hasta que cada persona vuelva a publicar
-            // por su cuenta: un arreglo que solo cambia lo que se escribe de
-            // aquí en adelante no cierra nada hoy. El campo viejo se queda en
-            // Firestore hasta el próximo sync de esa persona, pero ya no sale.
-            movers: publicMovers(st.movers),
-            // FASE KO: de qué sesión son `day` y `movers` de ESTA persona. Dos
-            // miembros del mismo grupo pueden tenerla distinta (quien solo tiene
-            // cripto mide 24 h rodantes y nunca queda congelado; quien tiene
-            // acciones sí), así que viaja por fila, no por grupo.
-            dayAsOf: st.dayAsOf || null,
-            updatedAt: st.updatedAt || prof.updatedAt || null,
-          }
-        }).sort((a, b) => (b.ytd ?? -Infinity) - (a.ytd ?? -Infinity))
+        // La tabla la arma el módulo compartido (rows ordenadas, `outOfScope`,
+        // `pendingCount`, los movers ya saneados). Acá solo se le agrega lo que
+        // es propio de ESTA pantalla y que el correo no necesita: el código de
+        // invitación y si sos el dueño.
+        const { memberCount, pendingCount, rows } = groupStandings({
+          group: { ...g, memberUids }, viewerUid: uid,
+          profiles: profs.filter((p) => p.exists).map((p) => ({ uid: p.id, profile: p.data() })),
+        })
         groups.push({
           id: g.id, name: g.name, scope: g.scope || 'all',
           inviteCode: g.inviteCode, isOwner: g.ownerUid === uid,
-          memberCount: memberUids.length,
-          // Cuántos entraron al grupo y todavía no publican nada. `rows` sale de
-          // los perfiles que EXISTEN, así que la tarjeta decía "5 miembros" y
-          // mostraba 3 sin explicar los otros dos: desde afuera, una fila que
-          // falta y una tarjeta rota se ven igual. Con el número dicho, es un
-          // dato ("2 aún no publican") en vez de un hueco.
-          pendingCount: Math.max(0, memberUids.length - rows.length),
-          rows,
+          memberCount, pendingCount, rows,
         })
       }
       groups.sort((a, b) => a.name.localeCompare(b.name))
