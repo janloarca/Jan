@@ -1969,8 +1969,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       let toKey = null
       let cur = tx.currency || 'USD'
       if (type === 'TRANSFER') {
-        fromKey = tx._originItemId ? accountOf.get(tx._originItemId) : null
-        toKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null
+        // FASE LT: los dos lados de deuda. Un pago lleva el préstamo en
+        // `_debtItemId` (destino del dinero) y el desembolso de un préstamo
+        // nuevo lo lleva en `_loanItemId` (origen del dinero): sin esto, la
+        // cuenta que paga su hipoteca leía el pago como pérdida en su fila y
+        // la cuenta del préstamo como ganancia, ±B sumando cero.
+        fromKey = tx._originItemId ? accountOf.get(tx._originItemId)
+          : tx._loanItemId ? accountOf.get(tx._loanItemId) : null
+        toKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId)
+          : tx._debtItemId ? accountOf.get(tx._debtItemId) : null
       } else if (type === 'DIVIDEND') {
         // The shared rule for "did this payment move another account's balance,
         // and whose?" -- the same one the delete/edit reversal path uses, so the

@@ -1211,6 +1211,11 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     // deposit into another account never shows as invested capital here.
     const txEvents = (scopedTransactions || [])
       .filter(tx => flowTypes[tx.type] != null)
+      // FASE LT: el registro del dinero de un préstamo no es capital invertido
+      // (pedir prestado no es invertir). SOLO se excluye de esta LÍNEA de
+      // display: como flujo del TWR/MWR sí cuenta, que es lo que hace que
+      // registrar una deuda nueva no se dibuje como pérdida.
+      .filter(tx => tx._source !== 'manual_loan_proceeds')
       .map(tx => {
         const amt = tx.totalAmount || tx.amount || 0
         const convertedAmt = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt

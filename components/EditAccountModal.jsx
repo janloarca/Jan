@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { openingDepositDateFix } from '@/lib/originDeposits'
 import { debtOptions, isProperty as isPropertyItem } from '@/lib/propertyEquity'
+import DebtBreakdownPreview from './DebtBreakdownPreview'
 import { validateItem } from '@/lib/validation'
 import { buildContributionFields } from '@/lib/contributions'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
@@ -131,6 +132,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     ownershipPct: item.ownershipPct?.toString() || '',
     committedCapital: item.committedCapital?.toString() || '',
     interestRate: item.interestRate?.toString() || '',
+    ratePeriod: item.ratePeriod === 'monthly' ? 'monthly' : 'annual',
+    debtScheme: item.debtScheme || '',
+    originalPrincipal: item.originalPrincipal?.toString() || '',
     minimumPayment: item.minimumPayment?.toString() || '',
     debtTerm: item.debtTerm || '',
     installmentsTotal: item.installmentsTotal?.toString() || '',
@@ -621,6 +625,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           updated.isReceivable = false
         }
         updated.interestRate = parseAmount(form.interestRate) || 0
+        // FASE LT: sin período, una tasa mensual se lee como anual (12x menos
+        // interés). Ver lib/debtMath.js.
+        updated.ratePeriod = form.ratePeriod === 'monthly' ? 'monthly' : 'annual'
+        if (form.debtScheme) updated.debtScheme = form.debtScheme
+        if (form.originalPrincipal) updated.originalPrincipal = parseAmount(form.originalPrincipal) || 0
         updated.minimumPayment = parseAmount(form.minimumPayment) || 0
         updated.monthlyPayment = parseAmount(form.monthlyPayment) || 0
         updated.debtTerm = form.debtTerm || ''
@@ -1231,8 +1240,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="edit-interest-rate" className={labelCls}>{t('Tasa interés %', 'Interest rate %')}</label>
-                  <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
-                    placeholder="7.5" type="text" inputMode="decimal" className={inputCls} />
+                  <div className="flex gap-2">
+                    <input id="edit-interest-rate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
+                      placeholder="7.5" type="text" inputMode="decimal" className={inputCls} />
+                    <select aria-label={t('Período de la tasa', 'Rate period')} value={form.ratePeriod} onChange={e => set('ratePeriod', e.target.value)} className={inputCls} style={{ maxWidth: '7.5rem' }}>
+                      <option value="annual">{t('% anual', '% yearly')}</option>
+                      <option value="monthly">{t('% mensual', '% monthly')}</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="edit-debt-term" className={labelCls}>{t('Plazo', 'Term')}</label>
@@ -1280,6 +1295,42 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     type="date" className={inputCls} />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="edit-debt-scheme" className={labelCls}>{t('¿Cómo se paga?', 'How is it paid?')}</label>
+                  <select id="edit-debt-scheme" value={form.debtScheme} onChange={e => set('debtScheme', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Automático --', '-- Automatic --')}</option>
+                    <option value="amortizing">{t('Cuota fija (banco)', 'Fixed installment (bank)')}</option>
+                    <option value="interest_only">{t('Interés sobre saldo, capital libre', 'Interest on balance, principal free')}</option>
+                    <option value="revolving">{t('Revolvente (tarjeta)', 'Revolving (card)')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="edit-original-principal" className={labelCls}>{t('Monto original (opcional)', 'Original amount (optional)')}</label>
+                  <input id="edit-original-principal" value={form.originalPrincipal} onChange={e => set('originalPrincipal', e.target.value)}
+                    placeholder="50000" type="text" inputMode="decimal" className={inputCls} />
+                </div>
+              </div>
+
+              {!form.isReceivable && (
+                <DebtBreakdownPreview
+                  lang={lang}
+                  currency={form.currency || 'USD'}
+                  balance={parseAmount(form.currentPrice) || parseAmount(form.purchasePrice) || 0}
+                  draft={{
+                    isDebt: true,
+                    subtype: item.subtype,
+                    interestRate: parseAmount(form.interestRate) || 0,
+                    ratePeriod: form.ratePeriod,
+                    debtScheme: form.debtScheme || undefined,
+                    monthlyPayment: parseAmount(form.monthlyPayment) || 0,
+                    minimumPayment: parseAmount(form.minimumPayment) || 0,
+                    installmentsRemaining: parseInt(form.installmentsRemaining) || 0,
+                    maturityDate: form.maturityDate || '',
+                  }}
+                />
+              )}
 
               {isCreditCard && (
                 <div className="border-t border-red-500/10 pt-3 space-y-3">
