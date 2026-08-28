@@ -7,6 +7,7 @@ import { buildMonthlyBriefForUser, buildAnnualBriefForUser, monthRefFor } from '
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 import { makeContextCache } from '@/lib/briefContext'
 import { buildFriendsWeeklyForUser } from '@/lib/friendsWeeklyBuilder'
+import { snapshotAllGroups } from '@/lib/friendsHistoryStore'
 import { sweepInbox } from '@/lib/emailIngest'
 
 export const dynamic = 'force-dynamic'
@@ -186,11 +187,33 @@ export async function GET(request) {
     emailIngest = { error: err?.message || 'sweep failed' }
   }
 
-  const mailer = makeMailer(nodemailer)
-  if (!mailer) return NextResponse.json({ ok: true, emailIngest, skipped: 'SMTP not configured' })
-
   const now = new Date()
   const cadences = dueCadences(now)
+
+  // FASE LS. La foto semanal de cada grupo, ANTES del corte por SMTP y de las
+  // cadencias, por dos razones distintas:
+  //
+  //   1. No es un correo. Una semana de historia perdida porque el SMTP estaba
+  //      caído no se recupera nunca: la foto describe un instante que ya pasó.
+  //   2. Recorre TODOS los grupos, no solo los de quien recibe el correo. Si
+  //      dependiera de la suscripción, la historia tendría huecos justo para
+  //      quien la active más adelante.
+  //
+  // Que corra antes que el correo NO afecta el movimiento que ese correo
+  // reporta: `readRecentHistory` excluye la semana en curso a propósito, así
+  // que el resultado no depende del orden de las dos pasadas.
+  let friendsHistory = null
+  if (cadences.includes('friendsWeekly')) {
+    try {
+      friendsHistory = await snapshotAllGroups({ db, now })
+    } catch (err) {
+      console.error('[cron/notifications] friends history failed:', err?.message)
+      friendsHistory = { error: err?.message || 'snapshot failed' }
+    }
+  }
+
+  const mailer = makeMailer(nodemailer)
+  if (!mailer) return NextResponse.json({ ok: true, emailIngest, friendsHistory, skipped: 'SMTP not configured' })
 
   // FASE IF2. Deja constancia de CADA corrida, incluidas las que no mandan
   // nada. Cuando un correo no llega, la primera pregunta es "¿el cron llegó a
@@ -204,6 +227,7 @@ export async function GET(request) {
         lastRunAt: now.toISOString(),
         cadences,
         emailIngest,
+        friendsHistory,
         ...extra,
       }, { merge: true })
     } catch (e) {
@@ -213,7 +237,7 @@ export async function GET(request) {
 
   if (cadences.length === 0) {
     await stamp({ lastResult: 'nothing-due' })
-    return NextResponse.json({ ok: true, emailIngest, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
+    return NextResponse.json({ ok: true, emailIngest, friendsHistory, skipped: `nothing due on ${now.toISOString().slice(0, 10)}` })
   }
 
   // Un mismo usuario puede recibir dos cadencias en la misma corrida (el día 1,
@@ -286,5 +310,5 @@ export async function GET(request) {
 
   mailer.transport.close()
   await stamp({ lastResult: 'ran', report })
-  return NextResponse.json({ ok: true, cadences, report })
+  return NextResponse.json({ ok: true, cadences, report, friendsHistory })
 }
