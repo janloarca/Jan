@@ -99,7 +99,7 @@ function LoginForm() {
         // estado del round-trip y no a un permiso mal puesto. Sin este caso, un
         // viaje que no produce nada se ve idéntico a no haber intentado.
         if (!res && cameBackFromGoogle) {
-          setError('Volviste de Google pero la sesión no llegó. Intenta de nuevo.')
+          setError('You came back from Google but the session never arrived. Please try again.')
           setCheckingAuth(false)
         }
       }).catch((err) => {
@@ -109,7 +109,7 @@ function LoginForm() {
         // credencial contra Identity Toolkit, así que un rechazo de aquí SÍ es
         // una respuesta de servidor y suele traer su razón adentro.
         console.error('[google-redirect]', err.code, err.message)
-        setError('No pudimos completar el inicio con Google. Intenta de nuevo.')
+        setError('We could not finish signing you in with Google. Please try again.')
         setCheckingAuth(false)
       })
       unsub = onAuthStateChanged(auth, async (u) => {
@@ -150,15 +150,15 @@ function LoginForm() {
       setCheckingAuth(true)
       setTimeout(() => { window.location.href = redirectTo }, 1500)
     } catch (err) {
-      const msg = err.code === 'auth/wrong-password' ? 'Contraseña incorrecta'
-        : err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
-        : err.code === 'auth/email-already-in-use' ? 'Ese email ya está registrado'
-        : err.code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres'
-        : err.code === 'auth/invalid-email' ? 'Email inválido'
-        : err.code === 'auth/invalid-credential' ? 'Email o contraseña incorrectos'
-        : err.code === 'auth/network-request-failed' ? 'Error de red. Verifica tu conexión.'
-        : err.code === 'auth/too-many-requests' ? 'Demasiados intentos. Espera un momento.'
-        : err.code === 'auth/internal-error' ? 'Error interno. Intenta de nuevo.'
+      const msg = err.code === 'auth/wrong-password' ? 'Wrong password'
+        : err.code === 'auth/user-not-found' ? 'There is no account with that email'
+        : err.code === 'auth/email-already-in-use' ? 'That email is already registered'
+        : err.code === 'auth/weak-password' ? 'Your password needs at least 6 characters'
+        : err.code === 'auth/invalid-email' ? 'Invalid email'
+        : err.code === 'auth/invalid-credential' ? 'Wrong email or password'
+        : err.code === 'auth/network-request-failed' ? 'Network error. Check your connection.'
+        : err.code === 'auth/too-many-requests' ? 'Too many attempts. Wait a moment.'
+        : err.code === 'auth/internal-error' ? 'Something went wrong. Please try again.'
         : err.message
       setError(msg)
     } finally {
@@ -226,8 +226,8 @@ function LoginForm() {
       // con un test que la fija, así que mostrar códigos crudos en la pantalla
       // de login solo asusta a quien se topa con un bache de red.
       setError(err.code === 'auth/network-request-failed'
-        ? 'Error de red. Verifica tu conexión.'
-        : 'No pudimos conectar con Google. Intenta de nuevo.')
+        ? 'Network error. Check your connection.'
+        : 'We could not connect to Google. Please try again.')
       // Etiquetada como IDA: si el fallback por redirect hubiera arrancado, esta
       // pestaña ya se habría ido a Google y este banner no existiría.
     } finally {
@@ -236,7 +236,7 @@ function LoginForm() {
   }
 
   const handleResetPassword = async () => {
-    if (!email) { setError('Ingresa tu email primero'); return }
+    if (!email) { setError('Enter your email first'); return }
     setError('')
     setLoading(true)
     try {
@@ -245,8 +245,8 @@ function LoginForm() {
       await sendPasswordResetEmail(auth, email)
       setResetSent(true)
     } catch (err) {
-      const msg = err.code === 'auth/user-not-found' ? 'No existe una cuenta con ese email'
-        : err.code === 'auth/invalid-email' ? 'Email inválido'
+      const msg = err.code === 'auth/user-not-found' ? 'There is no account with that email'
+        : err.code === 'auth/invalid-email' ? 'Invalid email'
         : err.message
       setError(msg)
     } finally {
@@ -257,7 +257,7 @@ function LoginForm() {
   if (checkingAuth) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
-        <ChispudoLoader mode="inline" size="medium" state="initial-loading" message="Verificando sesión..." showLabel />
+        <ChispudoLoader mode="inline" size="medium" state="initial-loading" message="Checking your session..." showLabel />
       </div>
     )
   }
@@ -269,7 +269,7 @@ function LoginForm() {
           <div className="inline-flex mb-2">
             <Logo size={32} as="h1" />
           </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Tu control financiero personal</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Your whole portfolio, in one place</p>
         </div>
 
         {/* Era `rounded-xl` (12px) contra los 16px de toda card de la app, más un
@@ -281,7 +281,7 @@ function LoginForm() {
             que `.card-hero`. */}
         <div className="card p-6" style={{ boxShadow: 'var(--shadow-elevated)' }}>
           <h2 className="text-h2 text-center mb-5" style={{ color: 'var(--text-primary)' }}>
-            {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
+            {isSignUp ? 'Create account' : 'Log in'}
           </h2>
 
           {inAppBrowser && (
@@ -289,11 +289,11 @@ function LoginForm() {
                aviso ya existen y su valor OSCURO es exactamente el que estaba
                escrito acá a mano, así que en tema oscuro no cambia nada. */
             <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
-              Para mejor experiencia, abre en tu navegador:
+              For the best experience, open this in your browser:
               <a href={typeof window !== 'undefined' ? window.location.href : '#'}
                 target="_blank" rel="noopener noreferrer"
                 className="block mt-1 underline font-medium" style={{ color: 'var(--accent-blue)' }}>
-                Abrir en Safari / Chrome
+                Open in Safari / Chrome
               </a>
             </div>
           )}
@@ -312,7 +312,7 @@ function LoginForm() {
                 type="email"
                 inputMode="email"
                 autoComplete="email"
-                placeholder="tu@email.com"
+                placeholder="you@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg text-white placeholder-slate-600 focus:outline-none text-base"
@@ -339,14 +339,14 @@ function LoginForm() {
               disabled={loading}
               className="btn-primary w-full py-3 rounded-lg disabled:opacity-50 transition-colors font-medium text-base"
             >
-              {loading ? 'Cargando...' : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
+              {loading ? 'Loading...' : (isSignUp ? 'Create account' : 'Log in')}
             </button>
           </form>
 
           {!isSignUp && !showReset && (
             <button onClick={() => setShowReset(true)}
               className="w-full mt-2 text-xs transition-colors text-center" style={{ color: 'var(--text-secondary)' }}>
-              ¿Olvidaste tu contraseña?
+              Forgot your password?
             </button>
           )}
 
@@ -354,15 +354,15 @@ function LoginForm() {
             <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)' }}>
               {resetSent ? (
                 <p className="text-sm text-center" style={{ color: 'var(--accent-green)' }}>
-                  Revisa tu email para restablecer tu contraseña.
+                  Check your email to reset your password.
                 </p>
               ) : (
                 <>
-                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Ingresa tu email arriba y presiona:</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Enter your email above and press:</p>
                   <button onClick={handleResetPassword} disabled={loading}
                     className="w-full py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
                     style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: 'var(--glass-border)' }}>
-                    {loading ? 'Enviando...' : 'Enviar enlace de recuperación'}
+                    {loading ? 'Sending...' : 'Send reset link'}
                   </button>
                 </>
               )}
@@ -373,7 +373,7 @@ function LoginForm() {
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
-              <span className="bg-theme-card px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>o</span>
+              <span className="bg-theme-card px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>or</span>
             </div>
           </div>
 
@@ -385,17 +385,17 @@ function LoginForm() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            {googleLoading ? 'Conectando...' : 'Continuar con Google'}
+            {googleLoading ? 'Connecting...' : 'Continue with Google'}
           </button>
           </>)}
 
           <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {isSignUp ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
+            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError(''); setShowReset(false); setResetSent(false) }}
               className="font-medium" style={{ color: 'var(--accent-blue)' }}
             >
-              {isSignUp ? 'Inicia sesión' : 'Regístrate'}
+              {isSignUp ? 'Log in' : 'Sign up'}
             </button>
           </p>
         </div>
@@ -407,7 +407,7 @@ function LoginForm() {
             ("al continuar aceptas..."), que es lo que un aviso legal tiene que
             hacer, y porque también cubre la Política de Privacidad. */}
         <p className="text-center text-xs mt-5" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          Al continuar aceptas los <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Términos</a> y la <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Política de Privacidad</a>
+          By continuing you accept the <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Terms</a> and the <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Privacy Policy</a>
         </p>
         <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Powered by Chispudo
