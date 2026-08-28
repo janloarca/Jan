@@ -31,6 +31,7 @@ import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLi
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
+import { zeroQuantityBalanceFixes } from '@/lib/zeroQuantityHeal'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
@@ -546,13 +547,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     async function addToDestination(dest, amount, sourceCurrency) {
       const cat = getTypeCategory(dest)
       if (cat === 'stocks' || cat === 'crypto' || cat === 'funds') return
-      const { newPrice } = creditDestinationBalance(destRunningBalances, dest, amount, sourceCurrency, convert)
+      const { newPrice, newQuantity } = creditDestinationBalance(destRunningBalances, dest, amount, sourceCurrency, convert)
       // Banks track their balance in purchasePrice; for bonds/alternatives purchasePrice
       // is the cost basis and must survive income payments
       const isBankDest = isBankLike(dest)
-      await updateItem(dest.id, isBankDest
-        ? { currentPrice: newPrice, purchasePrice: newPrice }
-        : { currentPrice: newPrice })
+      await updateItem(dest.id, {
+        ...(isBankDest
+          ? { currentPrice: newPrice, purchasePrice: newPrice }
+          : { currentPrice: newPrice }),
+        // Ver creditDestinationBalance: con cantidad 0 el saldo acreditado se
+        // lee como CERO por más que el precio quede bien escrito.
+        ...(newQuantity != null ? { quantity: newQuantity } : {}),
+      })
     }
 
     async function processDividends() {
@@ -2775,6 +2781,33 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return () => { cancelled = true }
   }, [transactions, ibkrRealCoverage, deleteTransaction])
 
+  // Cuentas de saldo cuya CANTIDAD quedó en cero, así que valen 0 para toda la
+  // app mientras su precio guarda el saldo real (el cupón de XOCHI que el
+  // usuario vio archivado y con la Hoja en 0.00). Ver lib/zeroQuantityHeal.js:
+  // ahí está por qué el alcance `isBankLike` es lo que lo hace seguro. Esto sana
+  // lo YA escrito; que no vuelva a escribirse lo cierra creditDestinationBalance.
+  //
+  // El ref lleva los ids YA sanados y no un booleano de sesión a propósito: si
+  // un camino de escritura deja una cuenta en ese estado a mitad de la sesión
+  // (agregar dinero a una cuenta vacía escribe el precio y no la cantidad), esto
+  // lo corrige en el acto en vez de esperar a la próxima recarga. Un id sanado
+  // no se vuelve a escribir, así que no hay lazo posible.
+  const zeroQtyHealedRef = useRef(new Set())
+  useEffect(() => {
+    if (dataLoading || bulkWriting || !updateItem) return
+    const ids = zeroQuantityBalanceFixes(portfolioItems).filter((id) => !zeroQtyHealedRef.current.has(id))
+    if (ids.length === 0) return
+    ids.forEach((id) => zeroQtyHealedRef.current.add(id))
+    let cancelled = false
+    ;(async () => {
+      for (const id of ids) {
+        if (cancelled) return
+        try { await updateItem(id, { quantity: 1 }) } catch (e) { console.error('[zero-qty-heal]', e.message) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [portfolioItems, dataLoading, bulkWriting, updateItem])
+
   // FASE HV2 self-heal: pagos automáticos escritos con un día que no existe
   // ("2026-02-31", reportado por el usuario con captura). El motor ya dejó de
   // producirlos (clampPayDay), pero las filas viejas se quedan desbordando al
@@ -2914,8 +2947,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const applyDestinationDelta = useCallback(async (dest, delta, currency) => {
     if (delta === 0) return
     const isBankDest = isBankLike(dest)
-    const { newPrice } = creditDestinationBalance({}, dest, delta, currency, convert)
-    await updateItem(dest.id, isBankDest ? { currentPrice: newPrice, purchasePrice: newPrice } : { currentPrice: newPrice })
+    const { newPrice, newQuantity } = creditDestinationBalance({}, dest, delta, currency, convert)
+    await updateItem(dest.id, {
+      ...(isBankDest ? { currentPrice: newPrice, purchasePrice: newPrice } : { currentPrice: newPrice }),
+      ...(newQuantity != null ? { quantity: newQuantity } : {}),
+    })
   }, [updateItem, convert])
 
   // Fechas ya marcadas como "ese mes no pagó" durante esta sesión, por activo.

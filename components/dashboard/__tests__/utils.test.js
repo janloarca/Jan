@@ -6,6 +6,7 @@ import {
   getItemValue,
   getItemPrice,
   isBankLike,
+  itemLabel,
   getEffectiveYield,
   projectItemAnnualIncome,
   formatCurrency,
@@ -1159,5 +1160,41 @@ describe('isBankLike: una sola definición de "el saldo ES el costo"', () => {
     expect(isBankLike({})).toBe(false)
     expect(isBankLike(null)).toBe(false)
     expect(isBankLike(undefined)).toBe(false)
+  })
+})
+
+// El reporte del usuario (28 ago 2026): "Hice en el spreadsheet el cambio de RV4
+// a Milésimo, en la pestaña de patrimonio no cambió". Las dos superficies
+// estaban bien escritas y decían cosas distintas: la Hoja imprime
+// `name || symbol` y la tarjeta de Ingresos Pasivos imprimía `symbol || name`.
+describe('itemLabel', () => {
+  it('un activo NO de mercado se llama por su NOMBRE, que es lo que el usuario teclea', () => {
+    // El caso exacto: el símbolo de un bono manual lo ARMA el alta a partir del
+    // nombre original, así que se queda viejo cuando el nombre cambia.
+    const bono = { type: 'Bono', name: 'Milésimo', symbol: 'RV4' }
+    expect(itemLabel(bono)).toBe('Milésimo')
+  })
+
+  it('un activo de MERCADO se llama por su SÍMBOLO: es su identidad y cabe en la columna', () => {
+    const accion = { type: 'Stock', symbol: 'NVO', name: 'NOVO-NORDISK A/S-SPONS ADR' }
+    expect(itemLabel(accion)).toBe('NVO')
+  })
+
+  it('cae al otro campo cuando el suyo falta, nunca a vacío teniendo con qué', () => {
+    expect(itemLabel({ type: 'Stock', name: 'Solo nombre' })).toBe('Solo nombre')
+    expect(itemLabel({ type: 'Bono', symbol: 'SOLO-SIM' })).toBe('SOLO-SIM')
+  })
+
+  it('sin nada que decir devuelve cadena vacía, jamás revienta', () => {
+    expect(itemLabel(null)).toBe('')
+    expect(itemLabel(undefined)).toBe('')
+    expect(itemLabel({})).toBe('')
+  })
+
+  it('coincide con lo que la Hoja imprime para un activo manual', () => {
+    // La Hoja renderiza `item.name || item.symbol`. Este test fija que las dos
+    // superficies no puedan volver a divergir sobre el caso que las separó.
+    const it = { type: 'Cuenta bancaria', name: 'FONDO LÍQUIDO Q', symbol: 'FLQ' }
+    expect(itemLabel(it)).toBe(it.name || it.symbol)
   })
 })

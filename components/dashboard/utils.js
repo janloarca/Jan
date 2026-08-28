@@ -210,6 +210,26 @@ export function getItemValue(item) {
   return val
 }
 
+// Cómo se llama un activo EN PANTALLA, una sola definición.
+//
+// El caso que lo obligó: el usuario renombró un bono de "RV4" a "Milésimo" en
+// la Hoja y la tarjeta de Ingresos Pasivos siguió diciendo "RV4". Las dos
+// superficies estaban bien escritas y decían cosas distintas: la Hoja imprime
+// `name || symbol` y esa tarjeta imprimía `symbol || name`. Desde afuera eso no
+// se lee como "dos campos", se lee como "renombré y no se guardó".
+//
+// La regla, y por qué no es "siempre el nombre": para un activo de MERCADO el
+// símbolo ES la identidad (AAPL, NVO), es lo que el usuario reconoce y además
+// es lo único que cabe en una columna angosta; su `name` es "NOVO-NORDISK
+// A/S-SPONS ADR". Para todo lo demás el símbolo es SINTÉTICO (lo arma el alta a
+// partir del nombre, ver AddAccountModal) y el nombre es lo que el usuario
+// tecleó, así que es lo que tiene que ganar.
+export function itemLabel(item) {
+  if (!item) return ''
+  if (isMarketPriced(item)) return item.symbol || item.name || ''
+  return item.name || item.symbol || ''
+}
+
 export function isExcludedFromNetWorth(item) {
   return !!(item.isReceivable && !item.countInNetWorth)
 }
