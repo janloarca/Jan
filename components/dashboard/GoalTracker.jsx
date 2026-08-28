@@ -2,9 +2,10 @@
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { formatCurrency, formatCompact } from './utils'
 import { runMonteCarloSimulation } from './analytics'
+import { monthsUntilGoal, monthlyNeeded, measuredMonthlyContribution } from '@/lib/goalProjection'
 
 // Rango legal del año objetivo: el input declara min/max pero un type="number"
 // no impide TECLEAR 99999, y `yearsLeft` alimenta directo al Monte Carlo
@@ -52,18 +53,21 @@ export function goalInBase(amount, goalCurrency, baseCurrency, convert) {
   return Number.isFinite(out) ? out : n
 }
 
-function compoundMonthlyNeeded(currentValue, goalValue, annualRate, years) {
-  if (years <= 0 || goalValue <= currentValue) return 0
-  const r = annualRate / 100 / 12
-  const n = years * 12
-  if (r === 0) return (goalValue - currentValue) / n
-  const fvCurrent = currentValue * Math.pow(1 + r, n)
-  const gap = goalValue - fvCurrent
-  if (gap <= 0) return 0
-  return (gap * r) / (Math.pow(1 + r, n) - 1)
+// ⛔ Una meta de "Tamaño de portfolio" se mide contra los ACTIVOS, no contra el
+// patrimonio neto. Con una deuda viva las dos cifras difieren, y contra el neto
+// pagar la deuda contaría como crecimiento del portafolio (y pedir prestado como
+// encogimiento) sin que un solo activo se hubiera movido: la misma distinción
+// que FASE LU/LV fijó para el rendimiento, acá para la meta. `netWorth` se
+// conserva como respaldo para un caller que no pase activos, y sin deuda las dos
+// son la misma cifra.
+function portfolioValue(totalAssets, netWorth) {
+  const a = Number(totalAssets)
+  if (Number.isFinite(a) && a !== 0) return a
+  const n = Number(netWorth)
+  return Number.isFinite(n) ? n : 0
 }
 
-export default function GoalTracker({ netWorth, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null }) {
+export default function GoalTracker({ netWorth, totalAssets = null, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null, transactions = null, items = null }) {
   const [editing, setEditing] = useState(false)
   // El form trabaja SIEMPRE en la base actual: lo guardado se siembra ya
   // convertido (si la meta vivia en otra moneda) para que lo que se ve, lo que
@@ -87,13 +91,16 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
   const incomeGoal = goalInBase(readGoal(goals?.incomeGoal, 12000), goalCurrency, baseCurrency, convert)
   const portfolioGoal = goalInBase(readGoal(goals?.portfolioGoal, 100000), goalCurrency, baseCurrency, convert)
   const targetYear = clampTargetYear(goals?.targetYear)
-  const yearsLeft = Math.max(0, targetYear - new Date().getFullYear())
+  // Meses, no años enteros: ver monthsUntilGoal. El horizonte se endurece solo
+  // mes a mes en vez de quedarse quieto doce meses y caer de golpe en enero.
+  const monthsLeft = monthsUntilGoal(targetYear)
 
+  const portfolioNow = portfolioValue(totalAssets, netWorth)
   const effectiveIncome = Math.max(annualDividends || 0, estimatedAnnualIncome || 0)
   // Clamp por AMBOS lados: un patrimonio negativo (deuda mayor que activos)
   // producía un "-15%" con barra invisible.
   const incomePct = incomeGoal > 0 ? Math.max(0, Math.min(100, (effectiveIncome / incomeGoal) * 100)) : 0
-  const portfolioPct = portfolioGoal > 0 ? Math.max(0, Math.min(100, (netWorth / portfolioGoal) * 100)) : 0
+  const portfolioPct = portfolioGoal > 0 ? Math.max(0, Math.min(100, (portfolioNow / portfolioGoal) * 100)) : 0
 
   const scenarios = useMemo(() => {
     const rates = [
@@ -106,25 +113,49 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
     ]
     return rates.map((s) => ({
       ...s,
-      monthly: compoundMonthlyNeeded(netWorth, portfolioGoal, s.rate, yearsLeft),
+      monthly: monthlyNeeded(portfolioNow, portfolioGoal, s.rate, monthsLeft),
     }))
-  }, [netWorth, portfolioGoal, yearsLeft, lang])
+  }, [portfolioNow, portfolioGoal, monthsLeft, lang])
 
-  const goalProbability = useMemo(() => {
-    if (yearsLeft <= 0 || portfolioGoal <= 0 || netWorth <= 0) return null
-    const baseMonthly = scenarios.find((s) => s.key === 'base')?.monthly || 0
+  // Lo que el usuario aporta DE VERDAD, medido de sus propios movimientos.
+  const contribution = useMemo(
+    () => measuredMonthlyContribution({ transactions, items, convert, baseCurrency }),
+    [transactions, items, convert, baseCurrency],
+  )
+
+  // ⛔ La simulación corre con el aporte MEDIDO, jamás con el "necesario": ver
+  // lib/goalProjection.js. Con el necesario la pregunta era circular y la
+  // respuesta salía ~50% aunque la meta fuera imposible.
+  //
+  // Sin aporte medible NO se muestra probabilidad: inventarle un ritmo de
+  // aporte a alguien que nunca capturó su historia es afirmar algo sobre su
+  // conducta que nadie dijo, y es justo lo que hacía la versión vieja.
+  //
+  // Corre en un EFECTO y jamás durante el render, aunque un useMemo pareciera
+  // lo natural: la simulación usa `Math.random()`, así que el servidor y el
+  // cliente producen números DISTINTOS y React descarta el árbol servido
+  // (errores de hidratación #418/#423/#425, medidos en el navegador; el defecto
+  // venía de antes de esta pasada). Es la misma lección que la fecha de corte
+  // del link compartido y la de la pantalla de error: lo que no puede dar el
+  // mismo resultado en los dos lados se calcula después de montar.
+  const [goalProbability, setGoalProbability] = useState(null)
+  useEffect(() => {
+    if (monthsLeft <= 0 || portfolioGoal <= 0 || portfolioNow <= 0 || !contribution.measurable) {
+      setGoalProbability(null)
+      return
+    }
     const vol = volatility ? volatility / 100 : 0.15
     const result = runMonteCarloSimulation({
-      startValue: netWorth,
-      monthlyContribution: baseMonthly,
-      years: yearsLeft,
+      startValue: portfolioNow,
+      monthlyContribution: contribution.monthly,
+      years: monthsLeft / 12,
       expectedReturn: 0.07,
       volatility: vol,
       numSimulations: 500,
       goalValue: portfolioGoal,
     })
-    return result.goalProbability
-  }, [netWorth, portfolioGoal, yearsLeft, volatility, scenarios])
+    setGoalProbability(result.goalProbability)
+  }, [portfolioNow, portfolioGoal, monthsLeft, volatility, contribution])
 
   const handleSave = async () => {
     if (onSaveGoals) {
@@ -150,9 +181,14 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
           {t('METAS FINANCIERAS', 'FINANCIAL GOALS')}
         </h3>
         <div className="flex items-center gap-2">
+          {/* En MESES cuando faltan menos de tres años: es un conteo regresivo y
+              tiene que verse bajar. En años enteros se quedaba quieto doce meses
+              seguidos y despues caia de golpe. */}
           {!editing && (
             <span className="text-xs text-slate-500 bg-theme-base px-2 py-0.5 rounded">
-              {t(`Meta: ${targetYear}`, `Target: ${targetYear}`)} · {yearsLeft}{t(' años', 'y')}
+              {t(`Meta: ${targetYear}`, `Target: ${targetYear}`)} · {monthsLeft < 36
+                ? `${monthsLeft}${t(' meses', 'mo')}`
+                : `${Math.round(monthsLeft / 12)}${t(' años', 'y')}`}
             </span>
           )}
           <button onClick={() => { setEditing(!editing); if (!editing) setForm({ incomeGoal, portfolioGoal, targetYear }) }}
@@ -232,7 +268,7 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 style={{ width: `${portfolioPct}%`, background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-blue-soft))' }} />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-xs text-slate-500">{formatCurrency(netWorth)}</span>
+              <span className="text-xs text-slate-500">{formatCurrency(portfolioNow)}</span>
               <span className="text-xs text-slate-500">{formatCurrency(portfolioGoal)}</span>
             </div>
           </div>
@@ -258,8 +294,12 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
                 <div>
                   <span className="text-sm font-semibold text-white block">{t('Probabilidad de éxito', 'Probability of success')}</span>
                   <span className="text-xs font-medium mt-0.5 block" style={{ color: probColor }}>{probLabel}</span>
+                  {/* Decir CON QUÉ APORTE se corrió es la mitad del dato: sin
+                      eso, un 12% se lee como "la meta es mala" cuando lo que
+                      dice es "a este ritmo de aporte no llegas". */}
                   <span className="text-xs text-slate-600 mt-1 block">
-                    {t('Monte Carlo · 500 simulaciones · supone retorno 7%/año', 'Monte Carlo · 500 simulations · assumes 7%/yr return')}
+                    {t(`Monte Carlo · 500 simulaciones · con tu aporte medido de ${formatCurrency(contribution.monthly)}/mes y retorno 7%/año`,
+                       `Monte Carlo · 500 simulations · with your measured ${formatCurrency(contribution.monthly)}/mo contribution and 7%/yr return`)}
                     {volatility ? '' : t(' y volatilidad 15%', ' and 15% volatility')}
                   </span>
                 </div>
@@ -268,22 +308,61 @@ export default function GoalTracker({ netWorth, annualDividends, estimatedAnnual
           })()}
 
           {/* Scenario-based monthly needed */}
-          {yearsLeft > 0 && portfolioGoal > netWorth && (
-            <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-              <span className="text-xs text-slate-400 mb-2 block">{t('Inversión mensual necesaria', 'Monthly investment needed')}</span>
-              <div className="space-y-1.5">
-                {scenarios.map((s) => (
-                  <div key={s.key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium" style={{ color: s.color }}>{s.label}</span>
-                      <span className="text-xs text-slate-600">{s.rate}%/yr</span>
+          {monthsLeft > 0 && portfolioGoal > portfolioNow && (() => {
+            const base = scenarios.find((s) => s.key === 'base')
+            const gap = contribution.measurable && base ? contribution.monthly - base.monthly : null
+            return (
+              <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
+                <span className="text-xs text-slate-400 mb-2 block">
+                  {t(`Inversión mensual necesaria · ${monthsLeft} meses`, `Monthly investment needed · ${monthsLeft} months`)}
+                </span>
+                <div className="space-y-1.5">
+                  {scenarios.map((s) => (
+                    <div key={s.key} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: s.color }}>{s.label}</span>
+                        <span className="text-xs text-slate-600">{s.rate}%/yr</span>
+                      </div>
+                      {/* Un "$0.00/mes" es cierto (a esa tasa el crecimiento
+                          solo ya llega) pero se lee como "no se sabe": se dice
+                          con palabras. */}
+                      {s.monthly > 0 ? (
+                        <span className="text-sm font-bold text-white">{formatCurrency(s.monthly)}<span className="text-xs text-slate-500 font-normal">/{t('mes', 'mo')}</span></span>
+                      ) : (
+                        <span className="text-xs font-semibold" style={{ color: 'var(--accent-green)' }}>{t('sin aportar nada', 'no contributions needed')}</span>
+                      )}
                     </div>
-                    <span className="text-sm font-bold text-white">{formatCurrency(s.monthly)}<span className="text-xs text-slate-500 font-normal">/{t('mes', 'mo')}</span></span>
+                  ))}
+                </div>
+                {/* La comparación que de verdad contesta "¿voy bien?": lo que
+                    hace falta contra lo que estás aportando. Sale de tus propios
+                    movimientos, así que solo se dibuja cuando se pudo medir. */}
+                {gap != null && (
+                  <div className="mt-2.5 pt-2.5 border-t flex items-center justify-between" style={{ borderColor: 'var(--card-border)' }}>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {t('Estás aportando', 'You are contributing')}
+                    </span>
+                    <span className="text-xs font-semibold" style={{ color: gap >= 0 ? 'var(--accent-green)' : 'var(--alert-warn-icon)' }}>
+                      {formatCurrency(contribution.monthly)}/{t('mes', 'mo')}
+                      {' · '}
+                      {gap >= 0
+                        ? t(`${formatCurrency(gap)} de sobra`, `${formatCurrency(gap)} to spare`)
+                        : t(`faltan ${formatCurrency(-gap)}`, `${formatCurrency(-gap)} short`)}
+                    </span>
                   </div>
-                ))}
+                )}
+                {!contribution.measurable && (
+                  <p className="text-xs mt-2.5 pt-2.5 border-t" style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
+                    {contribution.reason === 'too-short'
+                      ? t('Todavía no hay suficiente historial para medir cuánto aportas al mes, así que no se estima probabilidad de éxito.',
+                          'Not enough history yet to measure your monthly contribution, so no probability of success is estimated.')
+                      : t('No hay movimientos registrados de los cuales medir cuánto aportas al mes, así que no se estima probabilidad de éxito. Registra tus aportes y aparece sola.',
+                          'No recorded movements to measure your monthly contribution from, so no probability of success is estimated. Record your contributions and it shows up on its own.')}
+                  </p>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
         </div>
       )}
     </div>
