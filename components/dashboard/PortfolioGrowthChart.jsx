@@ -9,6 +9,7 @@ import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
+import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { staticValueAt } from '@/lib/staticOverlay'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -118,7 +119,28 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
 // sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
 // dato real se lean como cubiertas. Sin estos props el comportamiento es el de
 // antes.
-export default function PortfolioGrowthChart({ items, lots, snapshots, transactions, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null }) {
+export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null }) {
+  // ⛔ FASE LU (extensión de la superficie congelada D, decisión del usuario,
+  // 28 ago 2026): la gráfica mide tus ACTIVOS. La deuda no es una inversión,
+  // así que sale del universo entero de esta card: de la línea, de los chips
+  // de institución, del % del período y de TWR/MWR. El patrimonio NETO (con
+  // deuda) sigue viviendo en la tarjeta de patrimonio y en la Hoja. Los
+  // movimientos llegan por assetOnlyFlows: un pago de deuda desde una cuenta
+  // es un WITHDRAWAL de esa cuenta (marcador "Salió dinero", y se netea del
+  // retorno) y el desembolso de un préstamo es un DEPOSIT en la que lo
+  // recibió; los vinculados a la deuda misma no existen acá. La membresía va
+  // por FIRMA de contenido y no por la identidad de los props (que se rehacen
+  // con cada tick de precios): sin deudas, `transactions` conserva la MISMA
+  // identidad y el guard del caché de historial no se invalida jamás.
+  // `repairItems` queda CRUDO a propósito: el reparador archiva netWorthUSD
+  // (activos − deuda) y necesita conocer la deuda para restarla.
+  const debtIdsSig = (itemsProp || []).filter((it) => it?.isDebt && it.id).map((it) => it.id).sort().join('|')
+  const debtIds = useMemo(() => new Set(debtIdsSig ? debtIdsSig.split('|') : []), [debtIdsSig])
+  const items = useMemo(
+    () => (debtIds.size === 0 ? (itemsProp || []) : (itemsProp || []).filter((it) => !it?.isDebt)),
+    [itemsProp, debtIds]
+  )
+  const transactions = useMemo(() => assetOnlyFlows(transactionsProp, debtIds), [transactionsProp, debtIds])
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -408,16 +430,10 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         else apiPeriod = 'ALL'
       }
       // Assets only — the API has no isDebt notion and would sum a debt as a
-      // POSITIVE holding (the backfill path already filters this way). Excluded
-      // receivables are dropped to match the snapshot/net-worth baseline. Debt is
-      // held flat and subtracted from the returned points below, like backfill.
+      // POSITIVE holding. FASE LU: la deuda ya ni siquiera llega acá (sale del
+      // universo de la card en el tope del componente), así que tampoco se
+      // resta held-flat de los puntos devueltos: la serie ES de activos.
       const chartItems = scopedItems.filter(it => !it.isDebt && !isExcludedFromNetWorth(it))
-      const debtUSD = scopedItems.reduce((s, it) => {
-        if (!it.isDebt) return s
-        const cur = it._originalCurrency || it.currency || 'USD'
-        const v = (it.quantity || 0) * (it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0)
-        return s + Math.abs(convert ? convert(v, cur, 'USD') : v)
-      }, 0)
       const scopedSymbols = new Set(chartItems.map(it => (it.symbol || '').toUpperCase()).filter(Boolean))
       const instFilter = shownInst === 'ALL' ? null : shownInst
       const allLots = (lots || []).filter(l =>
@@ -547,8 +563,6 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
       if (data) {
         if (!mountedRef.current || gen !== fetchGenRef.current) return
         let pts = data.dataPoints || []
-        // Net worth semantics: subtract held-flat debt (same as the backfill path)
-        if (debtUSD > 0) pts = pts.map(dp => ({ ...dp, total: dp.total - debtUSD }))
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
         }
@@ -632,7 +646,9 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
     const bc = baseCurrency || 'USD'
     const convertVal = (s) => {
       if (s._source === 'manual' && s._rawValue != null && s._rawCurrency === bc) return s._rawValue
-      return convert ? convert(s.netWorthUSD ?? s.totalActivosUSD ?? 0, 'USD', bc) : (s.netWorthUSD ?? s.totalActivosUSD ?? 0)
+      // FASE LU: el valor SOLO-ACTIVOS del doc. En docs sin noción de deuda
+      // (NAV de broker, eras sin deuda) es la lectura de siempre.
+      return convert ? convert(snapshotAssetsUSD(s), 'USD', bc) : snapshotAssetsUSD(s)
     }
 
     if (period === 'DAY') {
@@ -1106,7 +1122,7 @@ export default function PortfolioGrowthChart({ items, lots, snapshots, transacti
         const anchorVal = anchorSnap
           ? (anchorSnap._source === 'manual' && anchorSnap._rawValue != null && anchorSnap._rawCurrency === bc
             ? anchorSnap._rawValue
-            : (convert ? convert(anchorSnap.netWorthUSD ?? anchorSnap.totalActivosUSD ?? 0, 'USD', bc) : (anchorSnap.netWorthUSD ?? anchorSnap.totalActivosUSD ?? 0)))
+            : (convert ? convert(snapshotAssetsUSD(anchorSnap), 'USD', bc) : snapshotAssetsUSD(anchorSnap)))
           : null
         pts.unshift({ ts: yearStart, date: new Date(yearStart), value: anchorVal > 0 ? anchorVal : pts[0].value })
       }

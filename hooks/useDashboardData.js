@@ -33,6 +33,7 @@ import { knownContributions, computeLiquidYield, yieldSignature, supersededYield
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
+import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { buildPublishPayload, publishDayKey, shouldPublishToday } from '@/lib/friendsPublish'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
@@ -1571,6 +1572,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [accountCalibrations, snapshots, portfolioItems, convert])
 
+  // ── FASE LU: el RENDIMIENTO mide activos, la deuda queda fuera ────────────
+  // ⛔ Decisión del usuario (28 ago 2026): "la deuda tampoco debería de afectar
+  // el YTD". Ver lib/assetReturns.js. La membresía viaja como FIRMA de
+  // contenido y nunca como la identidad de portfolioItems (que se rehace con
+  // cada tick de precios: la enfermedad de FASE DW/DY); sin deudas,
+  // assetOnlyFlows devuelve la MISMA lista, así que un portafolio sin deuda
+  // conserva identidades byte-idénticas aguas abajo.
+  const debtIdsSig = useMemo(
+    () => (portfolioItems || []).filter((it) => it?.isDebt && it.id).map((it) => it.id).sort().join('|'),
+    [portfolioItems]
+  )
+  const debtIds = useMemo(() => new Set(debtIdsSig ? debtIdsSig.split('|') : []), [debtIdsSig])
+  const assetTransactions = useMemo(() => assetOnlyFlows(transactions, debtIds), [transactions, debtIds])
+  const assetDietzTransactions = useMemo(() => assetOnlyFlows(dietzTransactions, debtIds), [dietzTransactions, debtIds])
+
   const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
@@ -1597,7 +1613,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // Dietz badge and the chart never start the year from different values.
       const bestSnap = findYearStartAnchor(augmentedSnapshots, year)
       if (bestSnap) {
-        anchorUSD = bestSnap.netWorthUSD ?? bestSnap.totalActivosUSD ?? 0
+        // FASE LU: el ancla del año en SOLO-ACTIVOS. El campo lleva ahí
+        // desde siempre (el escritor diario y el backfill guardan
+        // totalActivosUSD/totalDebtUSD junto a netWorthUSD), así que no
+        // hay que reescribir historia: solo dejar de leer el neto.
+        anchorUSD = snapshotAssetsUSD(bestSnap)
         startVal = convertSnapshot(anchorUSD)
         // FASE GE: un doc 'backfill' TRANSACCIONAL (rebobinado a través del
         // ledger real de depósitos/trades, ver el efecto de backfill) refleja
@@ -1645,9 +1665,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const sorted = [...augmentedSnapshots]
         .filter(s => s.date)
         .sort((a, b) => new Date(a.date) - new Date(b.date))
-      const first = sorted.find(s => (s.netWorthUSD ?? s.totalActivosUSD ?? 0) > 0)
+      const first = sorted.find(s => snapshotAssetsUSD(s) > 0)
       if (first) {
-        const firstUSD = first.netWorthUSD ?? first.totalActivosUSD ?? 0
+        const firstUSD = snapshotAssetsUSD(first)
         let firstVal = convertSnapshot(firstUSD)
         let firstFlowAware = REAL_SNAPSHOT_SOURCES.includes(first._source) || !!first._transactional
         // Same per-account swap for the since-inception anchor.
@@ -1663,12 +1683,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             firstFlowAware = true
           }
         }
-        if (firstVal > 0 && netWorth > 0) {
+        if (firstVal > 0 && totalAssets > 0) {
           const firstTs = new Date(first.date).getTime()
           const { pct, abs } = computeModifiedDietz({
-            startValue: firstVal, endValue: netWorth,
+            startValue: firstVal, endValue: totalAssets,
             startTs: firstTs, endTs: Date.now(),
-            transactions: firstFlowAware ? transactions : dietzTransactions,
+            transactions: firstFlowAware ? assetTransactions : assetDietzTransactions,
             convert, baseCurrency,
           })
           returnSinceStart = Math.max(-200, Math.min(200, pct))
@@ -1686,7 +1706,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     const calibrated = ytdCalApplied || anchorCalibrated
     if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdStartSrc: null, ytdFlowsUsed: null }
-    let ytdFlows = flowAware ? transactions : dietzTransactions
+    // FASE LU: la lista viene del universo de ACTIVOS (lib/assetReturns.js):
+    // los flujos de una deuda no entran, y los que cruzan la frontera (pago
+    // desde una cuenta, desembolso hacia una cuenta) entran como el flujo
+    // externo que son. Sin deudas, es la lista de siempre, byte-idéntica.
+    let ytdFlows = flowAware ? assetTransactions : assetDietzTransactions
     // Denominator override: stays null unless the anchor moved and the capital
     // that created it was larger than the value it bought (see below).
     // ⛔ LÓGICA CONGELADA (C). Este bloque (jan1Ts + ytdCostBase) es la version
@@ -1725,7 +1749,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     const endTsNow = Date.now()
     const { pct, abs, weightedCapital } = computeModifiedDietz({
-      startValue: startVal, endValue: netWorth,
+      startValue: startVal, endValue: totalAssets,
       startTs, endTs: endTsNow,
       transactions: ytdFlows, convert, baseCurrency,
     })
@@ -1774,7 +1798,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // banda, asi que el YTD mas roto se publicaba como +200.00% exacto y
     // encabezaba el ranking (el defecto que FASE JA5 vino a cerrar).
     return { returnYTD: clampedPct, returnYTDRaw: effPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows }
-  }, [jan1Value, jan1Ts, jan1Transactional, netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
+  }, [jan1Value, jan1Ts, jan1Transactional, totalAssets, assetTransactions, assetDietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
   // reconstruction -- the engine (lib/historicalValues.js) the user validated as
@@ -1825,6 +1849,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // holds those flat when it has no price and flags the value
           // `estimated`, and taking that flat figure as the year-start made
           // LEGDER (crypto) read -$40 against its own chart's -$667.
+          // FASE LU: una deuda no entra al universo del rendimiento, así
+          // que su columna de diciembre tampoco es un arranque del año.
+          if (owner.isDebt) return
           if (isMarketPriced(owner) || v?.estimated) return
           const raw = Number(v?.value) || 0
           const val = (savedCur && savedCur !== baseCurrency && convert)
@@ -1873,6 +1900,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const accountOf = new Map()
     const nameOf = new Map()
     ;(portfolioItems || []).forEach((it) => {
+      // FASE LU: la deuda queda FUERA del universo del rendimiento (decisión
+      // del usuario), así que no tiene fila ni cuenta acá. Sus flujos ya
+      // llegan transformados en ytdFlowsUsed (lib/assetReturns.js): el pago
+      // desde una cuenta es un WITHDRAWAL de esa cuenta y el desembolso de un
+      // préstamo es un DEPOSIT en la que lo recibió.
+      if (it.isDebt) return
       const k = accountKeyOfItem(it)
       if (!k) return
       accountOf.set(it.id, k)
@@ -1969,15 +2002,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       let toKey = null
       let cur = tx.currency || 'USD'
       if (type === 'TRANSFER') {
-        // FASE LT: los dos lados de deuda. Un pago lleva el préstamo en
-        // `_debtItemId` (destino del dinero) y el desembolso de un préstamo
-        // nuevo lo lleva en `_loanItemId` (origen del dinero): sin esto, la
-        // cuenta que paga su hipoteca leía el pago como pérdida en su fila y
-        // la cuenta del préstamo como ganancia, ±B sumando cero.
-        fromKey = tx._originItemId ? accountOf.get(tx._originItemId)
-          : tx._loanItemId ? accountOf.get(tx._loanItemId) : null
-        toKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId)
-          : tx._debtItemId ? accountOf.get(tx._debtItemId) : null
+        // FASE LU (reemplaza el neteo interno de deuda de FASE LT): con la
+        // deuda fuera del universo, un TRANSFER que la cruza ya NO es interno:
+        // es un flujo externo de la cuenta visible, y llega como el
+        // DEPOSIT/WITHDRAWAL sintético de ytdFlowsUsed (lib/assetReturns.js),
+        // atribuido arriba por _linkedItemId como cualquier otro flujo. Acá
+        // solo se netean traspasos entre dos cuentas de ACTIVOS.
+        fromKey = tx._originItemId ? accountOf.get(tx._originItemId) : null
+        toKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null
       } else if (type === 'DIVIDEND') {
         // The shared rule for "did this payment move another account's balance,
         // and whose?" -- the same one the delete/edit reversal path uses, so the
@@ -2393,20 +2425,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const now = new Date()
     const year = now.getUTCFullYear()
     const month = now.getUTCMonth()
-    if (netWorth <= 0) return null
+    if (totalAssets <= 0) return null
     const anchor = findMonthStartAnchor(augmentedSnapshots, year, month)
-    let startVal = anchor ? convertSnapshot(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0) : null
+    // FASE LU: mismo universo que el YTD, solo activos (se publica a Amigos).
+    let startVal = anchor ? convertSnapshot(snapshotAssetsUSD(anchor)) : null
     if (startVal == null || startVal <= 0) return null
     const { pct } = computeModifiedDietz({
-      startValue: startVal, endValue: netWorth,
+      startValue: startVal, endValue: totalAssets,
       startTs: Date.UTC(year, month, 1), endTs: Date.now(),
-      transactions: (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? transactions : dietzTransactions,
+      transactions: (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? assetTransactions : assetDietzTransactions,
       convert, baseCurrency,
     })
     // Crudo: la banda la aplica `boundedPct` al publicar (ver returnYTDRaw).
     // Quien lo MUESTRA lo clampea abajo.
     return pct
-  }, [netWorth, transactions, dietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
+  }, [totalAssets, assetTransactions, assetDietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot])
 
   // Lo que se MUESTRA: el mismo MTD acotado a la banda representable.
   const returnMTD = useMemo(

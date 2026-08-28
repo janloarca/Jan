@@ -459,3 +459,68 @@ describe('publicar a Amigos: una vez por día y con los datos ya asentados', () 
     unmount()
   })
 })
+
+// ⛔ FASE LU. "La deuda tampoco debería de afectar el YTD" (decisión del
+// usuario, 28 ago 2026): el retorno mide ACTIVOS. El caso real: crear una
+// deuda de 4,000 escribía un DEPOSIT vinculado a ella y el Dietz daba
+// (−4,000 de patrimonio) − (+4,000 de flujo) = −8,000 de pérdida inventada
+// (el −24.13% de la captura). Estos tests fijan la propiedad de punta a punta
+// con el hook REAL: agregar una deuda, con su DEPOSIT envenenado incluido, no
+// mueve returnYTD ni ytdChange ni un centavo — y el patrimonio NETO sí baja,
+// porque esto cambia qué mide el rendimiento, nunca cuánto tienes.
+describe('FASE LU: el YTD mide activos, la deuda no lo mueve', () => {
+  const bank = () => item({ id: 'b1', symbol: 'BANK1', type: 'Bank', quantity: 1, currentPrice: 11000, purchasePrice: 10000 })
+  const debt = () => item({ id: 'd9', symbol: 'AIXEN', type: 'Deuda', isDebt: true, quantity: 1, currentPrice: 4000, purchasePrice: 4000, acquisitionDate: '2026-08-25', createdAt: '2026-08-25' })
+  const yr = new Date().getUTCFullYear()
+  const snaps = [
+    { id: `${yr}-01-01`, date: `${yr}-01-01`, netWorthUSD: 10000, totalActivosUSD: 10000, totalDebtUSD: 0, _source: 'daily' },
+    { id: `${yr}-06-01`, date: `${yr}-06-01`, netWorthUSD: 10500, totalActivosUSD: 10500, totalDebtUSD: 0, _source: 'daily' },
+  ]
+
+  async function run(items, transactions = []) {
+    const { result, unmount } = setup({
+      firestore: { items, transactions, snapshots: snaps },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      returnYTD: result.current.returnYTD,
+      ytdChange: result.current.ytdChange,
+      netWorth: result.current.netWorth,
+      totalAssets: result.current.totalAssets,
+    }
+    unmount()
+    return out
+  }
+
+  it('línea base: banco 10,000 → 11,000 desde el ancla de enero = +10%', async () => {
+    const base = await run([bank()])
+    expect(base.ytdChange).toBeCloseTo(1000, 6)
+    expect(base.returnYTD).toBeCloseTo(10, 6)
+  })
+
+  it('agregar la deuda CON su DEPOSIT envenenado no mueve el YTD un centavo', async () => {
+    const base = await run([bank()])
+    const withDebt = await run(
+      [bank(), debt()],
+      [{ id: 'tx1', type: 'DEPOSIT', _linkedItemId: 'd9', totalAmount: 4000, currency: 'USD', date: `${yr}-08-25`, _source: 'manual_new_account' }],
+    )
+    expect(withDebt.returnYTD).toBeCloseTo(base.returnYTD, 10)
+    expect(withDebt.ytdChange).toBeCloseTo(base.ytdChange, 10)
+    // El patrimonio NETO sí la resta: el valor no miente, el retorno no la mide.
+    expect(withDebt.netWorth).toBeCloseTo(base.netWorth - 4000, 6)
+    expect(withDebt.totalAssets).toBeCloseTo(base.totalAssets, 6)
+  })
+
+  it('pagar la deuda desde el banco tampoco lo mueve: el WITHDRAWAL sintético netea la bajada', async () => {
+    const base = await run([bank()])
+    const paidBank = item({ id: 'b1', symbol: 'BANK1', type: 'Bank', quantity: 1, currentPrice: 10678.64, purchasePrice: 10000 })
+    const after = await run(
+      [paidBank, debt()],
+      [{ id: 'tx2', type: 'TRANSFER', _debtItemId: 'd9', _originItemId: 'b1', _toAmount: 321.36, totalAmount: 321.36, currency: 'USD', date: `${yr}-08-27`, _source: 'manual_debt_payment' }],
+    )
+    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida.
+    expect(after.ytdChange).toBeCloseTo(base.ytdChange, 4)
+    expect(after.returnYTD).toBeCloseTo(base.returnYTD, 2)
+  })
+})

@@ -331,22 +331,33 @@ export function augmentSnapshots(snapshots, items, convert) {
   if (kept.length === 0) return kept
   const nonIbkr = list
     .filter(it => it._source !== 'ibkr' && !isExcludedFromNetWorth(it))
-    .map(it => ({ usd: itemValueUSD(it, convert), acqTs: effectiveAcqTs(it) }))
+    .map(it => ({ usd: itemValueUSD(it, convert), acqTs: effectiveAcqTs(it), isDebt: !!it.isDebt }))
     .filter(x => x.usd)
   if (nonIbkr.length === 0) return kept
+  // FASE LU: el addend se parte en ACTIVOS y DEUDA. `netWorthUSD` del doc
+  // aumentado queda byte-idéntico (assets − debt ES la suma firmada de antes),
+  // pero `totalActivosUSD` y `totalDebtUSD` pasan a decir la verdad por
+  // separado: el retorno mide solo activos (lib/assetReturns.js) y leía este
+  // campo con la deuda restada adentro. El asset base es el NAV confiable
+  // (`netWorthUSD`), nunca el `totalActivosUSD` crudo del doc de broker, que
+  // FASE FX documenta como posiblemente duplicando el efectivo.
   const manualAt = (ts) => {
-    let sum = 0
-    for (const x of nonIbkr) if (x.acqTs == null || x.acqTs <= ts) sum += x.usd
-    return sum
+    let assets = 0, debt = 0
+    for (const x of nonIbkr) {
+      if (x.acqTs != null && x.acqTs > ts) continue
+      if (x.isDebt) debt += Math.abs(x.usd)
+      else assets += x.usd
+    }
+    return { assets, debt }
   }
   return kept.map(s => {
     if (!s || !BROKER_NAV_SOURCES.includes(s._source) || !s.date) return s
     const ts = new Date(s.date).getTime()
     if (isNaN(ts)) return s
-    const add = manualAt(ts)
-    if (!add) return s
+    const { assets, debt } = manualAt(ts)
+    if (!assets && !debt) return s
     const nav = s.netWorthUSD ?? s.totalActivosUSD ?? 0
-    return { ...s, netWorthUSD: nav + add, totalActivosUSD: (s.totalActivosUSD ?? nav) + add }
+    return { ...s, netWorthUSD: nav + assets - debt, totalActivosUSD: nav + assets, totalDebtUSD: debt }
   })
 }
 
