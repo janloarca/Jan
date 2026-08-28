@@ -358,7 +358,14 @@ function HeroCard() {
 export default function Home() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
-  const [lang] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('chispudo-lang') === 'en' ? 'en' : 'es'))
+  // El default se invierte respecto al resto de la app, y es a proposito: esta
+  // pagina es de IDIOMA FIJO en ingles, igual que es de paleta fija (ver arriba).
+  // Su unico uso de `lang` es la pantalla de carga que la precede, asi que con
+  // el default 'es' del resto de la app un visitante nuevo leia "Cargando tu
+  // portafolio" un segundo antes de una pagina entera en ingles. Una preferencia
+  // YA elegida sigue mandando: quien puso espanol es alguien con sesion, que en
+  // un instante se va al tablero, que si es bilingue.
+  const [lang] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('chispudo-lang') === 'es' ? 'es' : 'en'))
 
   useEffect(() => {
     let cancelled = false
