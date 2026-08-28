@@ -2602,13 +2602,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // volatilidad salía 116.4% anualizada sobre un portafolio con drawdown
     // real de -5.6%. computePeriodicReturns además resuelve por día y excluye
     // anclas de calibración por su cuenta (defensa para cualquier caller).
-    const returns = computePeriodicReturns(augmentedSnapshots, transactions, convert, baseCurrency)
+    // FASE LV: mismos universos que el YTD (FASE LU): retornos y riesgo
+    // miden activos, con la lista de flujos del universo de activos.
+    const returns = computePeriodicReturns(augmentedSnapshots, assetTransactions, convert, baseCurrency)
     const ppy = inferPeriodsPerYear(augmentedSnapshots)
     const sharpeResult = computeSharpeRatio({ returns, periodsPerYear: ppy })
     const vol = computeVolatility({ returns, periodsPerYear: ppy })
     const valueSeries = (augmentedSnapshots || [])
       .filter((s) => !s._calibrated && !s._account)
-      .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
+      .map((s) => ({ ts: new Date(s.date).getTime(), value: snapshotAssetsUSD(s) }))
       .filter((p) => !isNaN(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))
@@ -2616,7 +2618,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // (pairPortfolioWithBenchmark, compartido): el reporte lo imprime.
     const { beta } = pairPortfolioWithBenchmark(filterValueSpikes(valueSeries), benchmarkData)
     return { sharpe: sharpeResult.sharpe, volatility: vol, maxDrawdown: drawdown.maxDrawdownPct, beta }
-  }, [augmentedSnapshots, transactions, convert, baseCurrency, benchmarkData])
+  }, [augmentedSnapshots, assetTransactions, convert, baseCurrency, benchmarkData])
 
   // ── Inferred deposits/withdrawals (FASE DQ) ──────────────────────────────
   // Fills the ONE gap real data can't reach: the quarterly-transcribed stretch
@@ -2661,10 +2663,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [ibkrRealSnapshots])
   const ibkrVolatility = useMemo(() => {
     if (ibkrRealSnapshots.length < 3) return null
-    const returns = computePeriodicReturns(ibkrRealSnapshots, transactions, convert, 'USD')
+    const returns = computePeriodicReturns(ibkrRealSnapshots, assetTransactions, convert, 'USD')
     const ppy = inferPeriodsPerYear(ibkrRealSnapshots)
     return computeVolatility({ returns, periodsPerYear: ppy })
-  }, [ibkrRealSnapshots, transactions, convert])
+  }, [ibkrRealSnapshots, assetTransactions, convert])
 
   // Candidates only ever surface for review — never written on their own. See
   // acceptInferredFlow/dismissInferredFlow below for the write path.
@@ -3260,7 +3262,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, returnMTD, returnMTDRaw, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved,
+    returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, returnMTD, returnMTDRaw, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved, assetTransactions,
     // El valor con el que arrancó el año, o sea contra QUÉ se midió returnYTD.
     // Adición pura: ya se calculaba acá dentro (alimenta el desglose por
     // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por

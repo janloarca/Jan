@@ -479,7 +479,7 @@ export default function DashboardPage() {
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, ytdStartValue, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
     annualDividends, estimatedAnnualIncome,
-    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts,
+    netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
     benchmarkSymbol, benchmarkData, benchmarkReturn, benchmarkName, benchmarkLoading,
@@ -1637,7 +1637,7 @@ export default function DashboardPage() {
                       tasa se está convirtiendo). Se oculta sola cuando el
                       portafolio tiene una sola moneda. */}
                   <CardBoundary id="FX-01"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>
-                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
                 </div>
                 <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
                   {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
@@ -1650,7 +1650,7 @@ export default function DashboardPage() {
                   <CardBoundary id="AN-00">
                     <AnalysisTabs
                       lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-                      snapshots={augmentedSnapshots} lots={lots} transactions={transactions}
+                      snapshots={augmentedSnapshots} lots={lots} transactions={assetTransactions}
                       convert={convert} baseCurrency={baseCurrency} rates={rates}
                       benchmarkData={benchmarkData} benchmarkName={benchmarkName}
                       benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}

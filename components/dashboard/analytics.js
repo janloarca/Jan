@@ -1,4 +1,5 @@
 import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getItemPrincipalCost, getDividendIncomeByItem } from './utils'
+import { snapshotAssetsUSD } from '@/lib/assetReturns'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 
 function mean(arr) {
@@ -412,8 +413,10 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
   })
   const returns = []
   for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1].netWorthUSD ?? sorted[i - 1].totalActivosUSD ?? 0
-    const curr = sorted[i].netWorthUSD ?? sorted[i].totalActivosUSD ?? 0
+    // FASE LV: solo-activos (lib/assetReturns.js), la decisión de FASE LU:
+    // volatilidad, Sharpe y drawdown miden las inversiones, no la deuda.
+    const prev = snapshotAssetsUSD(sorted[i - 1])
+    const curr = snapshotAssetsUSD(sorted[i])
     if (prev > 0) {
       let r
       if (transactions && convert) {
