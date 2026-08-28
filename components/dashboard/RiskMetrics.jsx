@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, pairPortfolioWithBenchmark, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
+import { snapshotAssetsUSD } from '@/lib/assetReturns'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
   const metrics = useMemo(() => {
@@ -13,7 +14,10 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
 
     const valueSeries = (snapshots || [])
       .filter((s) => s.date)
-      .map((s) => ({ ts: new Date(s.date).getTime(), value: s.netWorthUSD ?? s.totalActivosUSD ?? 0 }))
+      // FASE LV: solo-activos, el mismo universo del YTD (FASE LU). La lista
+      // de transacciones que llega ya es la de activos (page.jsx pasa
+      // assetTransactions a AnalysisTabs).
+      .map((s) => ({ ts: new Date(s.date).getTime(), value: snapshotAssetsUSD(s) }))
       .filter((p) => !isNaN(p.ts) && isFinite(p.ts) && p.value > 0)
       .sort((a, b) => a.ts - b.ts)
     const drawdown = computeMaxDrawdown(filterValueSpikes(valueSeries))

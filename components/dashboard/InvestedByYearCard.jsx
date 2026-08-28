@@ -29,21 +29,25 @@ import { computeInvestedByYear } from '@/lib/investedByYear'
 //    hoy, exacto por construcción. Antes el total imprimía "-" y tiraba a la
 //    basura tanto la suma de los años medidos como el residuo, que es un
 //    número real y calculable.
-export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es' }) {
+export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, totalAssets = null, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es' }) {
+  // FASE LV: la identidad del pie cierra contra los ACTIVOS (el universo del
+  // rendimiento, FASE LU); sin el prop, netWorth: en un portafolio sin deuda
+  // son el mismo número y nada cambia.
+  const assetsToday = totalAssets != null && isFinite(totalAssets) && totalAssets > 0 ? totalAssets : netWorth
   const t = (es, en) => (lang === 'es' ? es : en)
   const [openYear, setOpenYear] = useState(null)
 
   const data = useMemo(() => {
     const series = buildReportSeries(snapshots, { convert, baseCurrency })
-    return computeInvestedByYear({ transactions, items, series, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth })
-  }, [transactions, items, snapshots, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth])
+    return computeInvestedByYear({ transactions, items, series, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth, totalAssets })
+  }, [transactions, items, snapshots, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth, totalAssets])
 
   if (!data.hasData) return null
 
   const fmt = (n) => formatCurrency(n, baseCurrency)
   const signFmt = (n) => `${n >= 0 ? '+' : ''}${fmt(n)}`
   const gainColor = (n) => (n >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')
-  const ratio = data.totalInvested > 0 && netWorth > 0 ? netWorth / data.totalInvested : null
+  const ratio = data.totalInvested > 0 && assetsToday > 0 ? assetsToday / data.totalInvested : null
 
   // Mismo marco y mismo encabezado que AssetAllocation / InstitutionPerformance
   // (p-4, punto + título en mayúsculas + InfoTip): las cuatro cards de esta
@@ -208,17 +212,17 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
 
       {/* El ejercicio patrimonio contra invertido. mt-auto lo ancla al fondo
           cuando la card estira para igualar el alto de la columna vecina. */}
-      {netWorth > 0 && (
+      {assetsToday > 0 && (
         <div className="flex items-baseline justify-between gap-2 mt-auto pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            {t('Patrimonio hoy', 'Net worth today')}
+            {t('Tus activos hoy', 'Your assets today')}
             {ratio != null && (
               <span className="ml-1.5" style={{ color: 'var(--text-muted)' }}>
                 · {ratio.toFixed(2)}x {t('lo invertido', 'invested')}
               </span>
             )}
           </span>
-          <span className="text-xs font-mono tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>{fmt(netWorth)}</span>
+          <span className="text-xs font-mono tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>{fmt(assetsToday)}</span>
         </div>
       )}
 
@@ -228,8 +232,8 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
           '"-" under Earned: the archive lacks enough value data from that year to measure it. A year with "-" in BOTH columns is a year the archive has nothing for; it is listed anyway so the years never skip. Earnings never include your contributions.'
         )}
         {data.unallocated != null && ' ' + t(
-          'Lo "sin repartir" es lo que falta para llegar a tu patrimonio de hoy: casi todo es la ganancia de esos años.',
-          'The "not attributed" line is what is left to reach today\'s net worth: almost all of it is the gain of those years.'
+          'Lo "sin repartir" es lo que falta para llegar a tus activos de hoy: casi todo es la ganancia de esos años.',
+          'The "not attributed" line is what is left to reach today\'s assets: almost all of it is the gain of those years.'
         )}
       </p>
     </div>
