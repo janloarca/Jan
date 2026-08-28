@@ -31,7 +31,7 @@ import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLi
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
-import { zeroQuantityBalanceFixes } from '@/lib/zeroQuantityHeal'
+import { zeroQuantityBalanceFixes, resurrectedBalanceFixes } from '@/lib/zeroQuantityHeal'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
@@ -2795,14 +2795,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const zeroQtyHealedRef = useRef(new Set())
   useEffect(() => {
     if (dataLoading || bulkWriting || !updateItem) return
-    const ids = zeroQuantityBalanceFixes(portfolioItems).filter((id) => !zeroQtyHealedRef.current.has(id))
-    if (ids.length === 0) return
-    ids.forEach((id) => zeroQtyHealedRef.current.add(id))
+    // Las dos caras del mismo hueco: una cuenta con saldo que la app lee como
+    // cero (cantidad 0), y una cuenta vaciada cuyo saldo RESUCITA por un
+    // residuo en price/cost. La cantidad que se escribe es la contraria en cada
+    // caso, así que se resuelven por separado y jamás pueden solaparse (una
+    // pide cantidad 0 y la otra cantidad > 0).
+    const fixes = [
+      ...zeroQuantityBalanceFixes(portfolioItems).map((id) => ({ id, quantity: 1 })),
+      ...resurrectedBalanceFixes(portfolioItems).map((id) => ({ id, quantity: 0 })),
+    ].filter((f) => !zeroQtyHealedRef.current.has(f.id))
+    if (fixes.length === 0) return
+    fixes.forEach((f) => zeroQtyHealedRef.current.add(f.id))
     let cancelled = false
     ;(async () => {
-      for (const id of ids) {
+      for (const f of fixes) {
         if (cancelled) return
-        try { await updateItem(id, { quantity: 1 }) } catch (e) { console.error('[zero-qty-heal]', e.message) }
+        try { await updateItem(f.id, { quantity: f.quantity }) } catch (e) { console.error('[zero-qty-heal]', e.message) }
       }
     })()
     return () => { cancelled = true }
