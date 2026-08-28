@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { formatCurrency, getTypeCategory, projectItemAnnualIncome } from './utils'
+import { formatCurrency, getTypeCategory, projectItemAnnualIncome, itemLabel } from './utils'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 
 // Subtítulo de grupo. La card llevaba ONCE bloques bajo un solo título, así que
@@ -112,7 +112,6 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     const sources = []
 
     items.forEach((it) => {
-      const sym = it.symbol || it.name || ''
       const cur = it._originalCurrency || it.currency || 'USD'
       const qty = it.quantity || 1
       const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
@@ -126,7 +125,13 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
       const cat = getTypeCategory(it.type)
       const incomeType = cat === 'bonds' ? 'coupon' : cat === 'banks' ? 'interest' : 'dividend'
-      sources.push({ symbol: sym, annual: converted, months, payDay, currency: cur, incomeType })
+      // El rótulo sale de `itemLabel`, la MISMA regla que usa la Hoja: para un
+      // activo de mercado manda el símbolo (es su identidad y cabe en la
+      // columna), para todo lo demás manda el nombre. Esta card leía
+      // `symbol || name`, o sea al revés, así que renombrar un bono de "RV4" a
+      // "Milésimo" en la Hoja no cambiaba nada acá: dos pantallas nombrando el
+      // mismo activo distinto.
+      sources.push({ id: it.id, label: itemLabel(it), annual: converted, months, payDay, currency: cur, incomeType })
     })
 
     const upcoming = []
@@ -150,7 +155,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           next12[offset].value += perPayment
           if (offset < 3) {
             const y = now.getFullYear() + (currentMonth + offset >= 12 ? 1 : 0)
-            upcoming.push({ symbol: s.symbol, amount: perPayment, month: m, year: y, day: s.payDay })
+            upcoming.push({ id: s.id, label: s.label, amount: perPayment, month: m, year: y, day: s.payDay })
           }
         }
       }
@@ -239,8 +244,24 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     }
     const maxBar12 = Math.max(...monthly12.map((b) => b.value), 1)
 
+    // Un pago se agrupa por SÍMBOLO (es lo único que toda fila trae), pero se
+    // MUESTRA con el rótulo del activo que lo generó, para que esta lista y la
+    // Hoja nombren lo mismo. Solo cuando el símbolo resuelve a UN activo: con
+    // dos activos compartiendo símbolo, el monto agregado no le pertenece a
+    // ninguno de los dos en particular y ponerle el nombre de uno sería mentir.
+    const labelBySymbol = {}
+    ;(items || []).forEach((it) => {
+      const sym = it?.symbol
+      if (!sym) return
+      if (Object.prototype.hasOwnProperty.call(labelBySymbol, sym)) {
+        labelBySymbol[sym] = null // ambiguo
+        return
+      }
+      labelBySymbol[sym] = itemLabel(it) || null
+    })
+
     const topPayers = Object.entries(bySymbol)
-      .map(([symbol, total]) => ({ symbol, total }))
+      .map(([symbol, total]) => ({ symbol, label: labelBySymbol[symbol] || symbol, total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5)
 
@@ -454,7 +475,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <div className="space-y-1">
             {projected.upcoming.map((u, i) => (
               <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-theme-base/60">
-                <span className="text-slate-400 font-medium w-16 truncate">{u.symbol}</span>
+                <span className="text-slate-400 font-medium w-16 truncate" title={u.label}>{u.label}</span>
                 <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
                 <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(u.amount)}</span>
               </div>
@@ -544,9 +565,12 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <div className="space-y-1.5">
             {projected.sources.slice(0, 5).map((s) => {
               const pct = estAnnual > 0 ? (s.annual / estAnnual) * 100 : 0
+              // La llave es el id y no el rótulo: dos activos pueden llamarse
+              // igual (dos fondos "FONDO LÍQUIDO" en instituciones distintas) y
+              // ahí React vería dos hijos con la misma llave.
               return (
-                <div key={s.symbol} className="flex items-center gap-2">
-                  <span className="text-xs text-white font-medium w-16 truncate">{s.symbol}</span>
+                <div key={s.id || s.label} className="flex items-center gap-2">
+                  <span className="text-xs text-white font-medium w-16 truncate" title={s.label}>{s.label}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>
@@ -568,7 +592,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               const pct = stats.totalAll > 0 ? (p.total / stats.totalAll) * 100 : 0
               return (
                 <div key={p.symbol} className="flex items-center gap-2">
-                  <span className="text-xs text-white font-medium w-16 truncate">{p.symbol}</span>
+                  <span className="text-xs text-white font-medium w-16 truncate" title={p.label}>{p.label}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>

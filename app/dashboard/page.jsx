@@ -1859,9 +1859,9 @@ export default function DashboardPage() {
       <ModalMount closing={sellClosing}>
       {sellShown && (
         <SellModal
-          item={sellItem} onClose={handleCloseSell}
+          item={sellShown} onClose={handleCloseSell}
           onExecuteSale={executeSaleAtomic}
-          onSold={() => showToast(lang === 'es' ? `${sellItem.symbol} vendido` : `${sellItem.symbol} sold`)}
+          onSold={() => showToast(lang === 'es' ? `${sellShown.symbol} vendido` : `${sellShown.symbol} sold`)}
           existingItems={items} lang={lang} convert={convert}
         />
       )}
@@ -2181,10 +2181,10 @@ export default function DashboardPage() {
 
       <ModalMount closing={editClosing}>
       {editShown && (
-        <EditAccountModal key={editItem.id} item={editItem} onClose={handleCloseEdit} entities={entities}
+        <EditAccountModal key={editShown.id} item={editShown} onClose={handleCloseEdit} entities={entities}
           onSave={async (updated) => {
             const { id, ...fields } = updated
-            await updateItem(editItem.id, fields)
+            await updateItem(editShown.id, fields)
             showToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved')
           }}
           onDelete={async (id) => {
@@ -2225,7 +2225,7 @@ export default function DashboardPage() {
 
       <ModalMount closing={detailClosing}>
       {detailShown && (
-        <AssetDetailModal item={detailItem} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
+        <AssetDetailModal item={detailShown} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
           transactions={transactions} convert={convert} baseCurrency={baseCurrency}
           allItems={portfolioItems} />
       )}
@@ -2290,12 +2290,12 @@ export default function DashboardPage() {
       <ModalMount closing={brokerClosing}>
       {brokerShown && (
         <BrokerCompletionModal
-          brokerId={brokerCompletionId}
-          brokerName={brokerCompletionId === 'ibkr' ? 'Interactive Brokers' : brokerCompletionId}
+          brokerId={brokerShown}
+          brokerName={brokerShown === 'ibkr' ? 'Interactive Brokers' : brokerShown}
           lang={lang}
           onClose={() => { setBrokerCompletionId(null); setIbkrJourney(null) }}
           completionState={brokerCompletionState}
-          progress={brokerCompletionId === 'ibkr' ? ibkrProgress : null}
+          progress={brokerShown === 'ibkr' ? ibkrProgress : null}
           onOpenStep={openIbkrJourneyStep}
           onConnect={() => setModal('ibkr')}
           onImportHistory={() => handleOpenImport('ibkr')}

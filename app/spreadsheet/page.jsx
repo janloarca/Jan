@@ -405,10 +405,10 @@ export default function SpreadsheetPage() {
         // wrote that wrong number back as the item's real GTQ price (XOCHI,
         // FASE EK). app/dashboard/page.jsx never had this bug: it always
         // passed editItem straight through.
-        <EditAccountModal key={editItem.id} item={editItem} onClose={() => setEditItem(null)}
+        <EditAccountModal key={editShown.id} item={editShown} onClose={() => setEditItem(null)}
           onSave={async (updated) => {
             const { id, ...fields } = updated
-            await updateItem(editItem.id, fields)
+            await updateItem(editShown.id, fields)
           }}
           onDelete={deleteItem} existingItems={items} lang={lang}
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
