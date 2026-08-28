@@ -5,6 +5,7 @@ import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-re
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
+import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
 import { buildSheetDebtPaymentTransaction } from '@/lib/transferTx'
 import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
 import { InfoTip } from '../ui/Tooltip'
@@ -876,6 +877,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // La edición queda EN ESPERA hasta que el usuario diga qué significa. Ver
   // lib/spreadsheetEdit.js: la app no puede saberlo, solo quien teclea.
   const [pendingEdit, setPendingEdit] = useState(null)
+  // El diagnóstico de campos: por qué existe está en lib/balanceDiagnostic.js.
+  // Tres rondas sobre la MISMA cuenta se fueron en deducir los campos guardados
+  // desde capturas; esto los deja leer.
+  const [showDiag, setShowDiag] = useState(false)
+  const [diagCopied, setDiagCopied] = useState(false)
+  const diagRows = useMemo(() => (showDiag ? balanceDiagnostic(items) : []), [showDiag, items])
 
   const toggleCat = (key) => setCollapsed(p => ({ ...p, [key]: !p[key] }))
   const toggleInst = (key) => setCollapsedInst(p => ({ ...p, [key]: !p[key] }))
@@ -1339,6 +1346,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               <RefreshCw size={13} strokeWidth={2} className={recalculating ? 'animate-spin' : undefined} />
               {recalculating ? t('Recalculando...', 'Recomputing...') : t('Recalcular', 'Recompute')}
             </button>
+            <button onClick={() => setShowDiag((v) => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter]"
+              style={{ color: showDiag ? 'var(--accent-blue)' : 'var(--text-muted)' }}
+              title={t('Ver qué hay guardado en cada cuenta de saldo',
+                       'See what is actually stored in each balance account')}>
+              {t('Diagnóstico', 'Diagnostic')}
+            </button>
           </div>
           {loadingHistory && (
             <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)]">
@@ -1350,6 +1364,53 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Click para editar', 'Click to edit')}</span>
         </div>
       </div>
+
+      {showDiag && (
+        <div className="mb-3 rounded-lg border p-3 overflow-x-auto"
+          style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--card-border)' }}>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+              {t('Qué hay guardado en cada cuenta de saldo', 'What is stored in each balance account')}
+            </span>
+            <button
+              onClick={async () => {
+                const build = typeof window !== 'undefined' ? window.__CHISPU_BUILD : null
+                try {
+                  await navigator.clipboard.writeText(balanceDiagnosticText(diagRows, { build, lang }))
+                  setDiagCopied(true)
+                  setTimeout(() => setDiagCopied(false), 2200)
+                } catch (e) { console.error('[diag] copy', e) }
+              }}
+              className="text-xs px-2 py-0.5 rounded border shrink-0"
+              style={{ borderColor: 'var(--card-border)', color: 'var(--accent-blue)' }}>
+              {diagCopied ? t('Copiado', 'Copied') : t('Copiar para reportar', 'Copy to report')}
+            </button>
+          </div>
+          {diagRows.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {t('No hay cuentas de saldo en este portafolio.', 'No balance accounts in this portfolio.')}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {diagRows.map((r) => (
+                <div key={r.id} className="text-xs">
+                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{r.label}</span>
+                  {r.institution ? <span style={{ color: 'var(--text-muted)' }}> · {r.institution}</span> : null}
+                  <div className="font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {Object.entries(r.fields).map(([k, v]) => `${k}=${v}`).join(' · ') || t('sin campos numéricos', 'no numeric fields')}
+                  </div>
+                  <div className="font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    {t('precio leído', 'read price')}={r.price} · {t('VALOR', 'VALUE')}={r.value}
+                  </div>
+                  {r.verdict && (
+                    <div style={{ color: 'var(--alert-warn-icon)' }}>⚠ {lang === 'es' ? r.verdict.es : r.verdict.en}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {pendingEdit && pendingEdit.item.isDebt && (() => {
         // Una DEUDA que bajó no "perdió valor" ni le "sacaste dinero": o
