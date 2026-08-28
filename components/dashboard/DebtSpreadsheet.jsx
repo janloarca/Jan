@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Fragment } from 'react'
 import { getItemValue, getTypeCategory } from './utils'
+import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
 
 const DEBT_TERM_LABELS = {
   '3m': '3 meses', '6m': '6 meses', '12m': '12 meses',
@@ -43,9 +44,17 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
         const rate = it.interestRate || 0
         const monthly = it.monthlyPayment || it.minimumPayment || 0
         const remaining = it.installmentsRemaining || 0
-        const totalRemaining = remaining > 0 && monthly > 0 ? remaining * monthly : balance
-        const monthlyInterest = balance * (rate / 100 / 12)
-        return { ...it, balance, rate, monthly, remaining, totalRemaining, monthlyInterest }
+        // FASE LT: el interés del mes salía SIEMPRE de rate/12, así que una
+        // tasa MENSUAL (el 1.5% del préstamo familiar del caso real) se leía
+        // como anual y el interés aparecía 12x menor. lib/debtMath.js lee el
+        // período. `rateAnnualEq` es la tasa comparable ENTRE deudas (una
+        // 1.5% mensual es MÁS cara que una 15% anual): ordena, promedia y
+        // decide avalanche; la tecleada se muestra con su período al lado.
+        const monthlyRate = debtMonthlyRate(it)
+        const rateAnnualEq = monthlyRate * 12 * 100
+        const monthlyInterest = balance * monthlyRate
+        const bd = debtBreakdown(it, { balance })
+        return { ...it, balance, rate, rateAnnualEq, monthly, remaining, monthlyInterest, bd }
       })
   }, [items])
 
@@ -54,7 +63,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
     arr.sort((a, b) => {
       let va, vb
       if (sortBy === 'balance') { va = a.balance; vb = b.balance }
-      else if (sortBy === 'rate') { va = a.rate; vb = b.rate }
+      else if (sortBy === 'rate') { va = a.rateAnnualEq; vb = b.rateAnnualEq }
       else if (sortBy === 'monthly') { va = a.monthly; vb = b.monthly }
       else if (sortBy === 'remaining') { va = a.remaining; vb = b.remaining }
       else { va = a.balance; vb = b.balance }
@@ -67,8 +76,10 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
     const totalBalance = debts.reduce((s, d) => s + d.balance, 0)
     const totalMonthly = debts.reduce((s, d) => s + d.monthly, 0)
     const totalInterest = debts.reduce((s, d) => s + d.monthlyInterest, 0)
+    // Promediar la tasa TECLEADA mezclaba mensuales con anuales (1.5 y 7.5
+    // promediados a secas no significan nada): se pondera la anual equivalente.
     const avgRate = debts.length > 0
-      ? debts.reduce((s, d) => s + d.rate * d.balance, 0) / (totalBalance || 1)
+      ? debts.reduce((s, d) => s + d.rateAnnualEq * d.balance, 0) / (totalBalance || 1)
       : 0
     return { totalBalance, totalMonthly, totalInterest, avgRate }
   }, [debts])
@@ -86,7 +97,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
   // Avalanche vs Snowball recommendation
   const avalancheFirst = useMemo(() => {
     if (debts.length < 2) return null
-    const byRate = [...debts].sort((a, b) => b.rate - a.rate)
+    const byRate = [...debts].sort((a, b) => b.rateAnnualEq - a.rateAnnualEq)
     const byBalance = [...debts].sort((a, b) => a.balance - b.balance)
     return {
       avalanche: byRate[0],
@@ -129,7 +140,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
           <p className="text-xl font-bold text-amber-600 mt-1">${fmt(totals.totalInterest)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Tasa Promedio', 'Avg Rate')}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">{t('Tasa Promedio (anual equiv.)', 'Avg Rate (annual eq.)')}</p>
           <p className="text-xl font-bold text-slate-800 mt-1">{pctFmt(totals.avgRate)}</p>
         </div>
       </div>
@@ -141,7 +152,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
               <p className="text-blue-500 font-medium">Avalanche ({t('menos interés', 'less interest')})</p>
-              <p className="text-slate-600">{t('Paga primero', 'Pay first')}: <strong>{avalancheFirst.avalanche.name || avalancheFirst.avalanche.symbol}</strong> ({pctFmt(avalancheFirst.avalanche.rate)})</p>
+              <p className="text-slate-600">{t('Paga primero', 'Pay first')}: <strong>{avalancheFirst.avalanche.name || avalancheFirst.avalanche.symbol}</strong> ({pctFmt(avalancheFirst.avalanche.rateAnnualEq)} {t('anual equiv.', 'annual eq.')})</p>
             </div>
             <div>
               <p className="text-blue-500 font-medium">Snowball ({t('motivación', 'motivation')})</p>
@@ -206,8 +217,8 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         <span className="font-mono text-sm text-red-600 font-medium">${fmt(debt.balance)}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className={`font-mono text-sm ${debt.rate > 20 ? 'font-semibold' : ''}`} style={{ color: debt.rate > 20 ? 'var(--text-negative)' : debt.rate > 0 ? '#d97706' : 'var(--text-muted)' }}>
-                          {debt.rate > 0 ? pctFmt(debt.rate) : '-'}
+                        <span className={`font-mono text-sm ${debt.rateAnnualEq > 20 ? 'font-semibold' : ''}`} style={{ color: debt.rateAnnualEq > 20 ? 'var(--text-negative)' : debt.rate > 0 ? '#d97706' : 'var(--text-muted)' }}>
+                          {debt.rate > 0 ? `${pctFmt(debt.rate)}${debt.ratePeriod === 'monthly' ? t(' mens.', ' mo.') : ''}` : '-'}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
@@ -233,6 +244,23 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         </div>
                       </td>
                     </tr>
+                    {/* FASE LT: el desglose que faltaba. La tabla mostraba el
+                        saldo NETO y nada más: ni cuánto se debe CON intereses
+                        ni si el pago configurado siquiera cubre el interés. */}
+                    {debt.bd && (debt.bd.totalToPay != null || debt.bd.paymentTooSmall) && (
+                      <tr className="bg-slate-50/50">
+                        <td colSpan={9} className="px-8 py-1.5">
+                          <span className="text-xs text-slate-400">
+                            {debt.bd.totalToPay != null && (
+                              <>{t('Total a pagar con intereses', 'Total to pay with interest')}: ~${fmt(debt.bd.totalToPay)} ({t('intereses', 'interest')} ~${fmt(debt.bd.totalInterestRemaining)}{debt.bd.months != null ? ` · ~${debt.bd.months} ${t('meses', 'months')}` : ''})</>
+                            )}
+                            {debt.bd.paymentTooSmall && (
+                              <span className="text-amber-600"> ⚠ {t('el pago no cubre ni el interés del mes: así la deuda no baja', 'the payment does not even cover monthly interest: the debt cannot shrink')}</span>
+                            )}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
                     {/* Credit card reward row */}
                     {isCC && debt.rewardBalance > 0 && (
                       <tr className="bg-slate-50/50">

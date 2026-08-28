@@ -423,6 +423,8 @@ export default function SpreadsheetPage() {
         <AddAccountModal
           onClose={() => { setShowAddModal(false); setAddModalDefaults(null) }}
           onAdd={addItem}
+          onAddTransaction={addTransaction}
+          onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           existingItems={items}
           lang={lang}

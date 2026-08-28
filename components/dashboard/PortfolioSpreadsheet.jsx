@@ -5,6 +5,8 @@ import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-re
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
+import { buildSheetDebtPaymentTransaction } from '@/lib/transferTx'
+import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
@@ -885,10 +887,19 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // hacía que el usuario leyera "guardado" y un segundo después la celda
   // volviera sola al número viejo, indistinguible de "la app me borró la
   // corrección".
-  const commitPatch = useCallback(async (item, patch, income, flow) => {
+  const commitPatch = useCallback(async (item, patch, income, flow, debtPayment) => {
     const label = item.symbol || item.name
     try {
       await onUpdateItem(item.id, patch)
+      // Un pago de deuda registrado desde la celda (FASE LT): la forma
+      // compartida de lib/transferTx.js, sin cuenta origen porque una celda no
+      // sabe de dónde salió el dinero. El historial del préstamo lo rebobina
+      // (indexBalanceEvents) y se borra con reversa, igual que un pago hecho
+      // desde Movimiento.
+      if (debtPayment && onAddTransaction) {
+        const tx = buildSheetDebtPaymentTransaction({ debtItem: item, amount: debtPayment.amount, date: debtPayment.date })
+        if (tx) await onAddTransaction(tx)
+      }
       // El ingreso va DESPUÉS del saldo y aparte: si falla, el saldo ya quedó
       // bien y lo que se pierde es el registro del movimiento, no la corrección.
       if (income && onAddTransaction) {
@@ -921,11 +932,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }
       const extra = income
         ? (lang === 'es' ? ' y rendimiento registrado' : ', yield recorded')
-        : flow
-          ? (flow.type === 'DEPOSIT'
-              ? (lang === 'es' ? ' y aporte registrado' : ', contribution recorded')
-              : (lang === 'es' ? ' y retiro registrado' : ', withdrawal recorded'))
-          : ''
+        : debtPayment
+          ? (lang === 'es' ? ' y pago registrado' : ', payment recorded')
+          : flow
+            ? (flow.type === 'DEPOSIT'
+                ? (lang === 'es' ? ' y aporte registrado' : ', contribution recorded')
+                : (lang === 'es' ? ' y retiro registrado' : ', withdrawal recorded'))
+            : ''
       setSaveMsg((lang === 'es' ? `${label}: guardado` : `${label}: saved`) + extra)
       setTimeout(() => setSaveMsg(null), 2600)
     } catch (e) {
@@ -950,7 +963,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     const plan = planCellEdit({ item, oldValue, newValue, answer })
     if (!plan) return
     const patch = { ...plan.patch, balanceAsOf: new Date().toISOString().slice(0, 10) }
-    await commitPatch(item, patch, plan.income, plan.flow)
+    await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment)
   }, [pendingEdit, commitPatch])
 
   const handleValueUpdate = useCallback(async (item, newVal) => {
@@ -1007,11 +1020,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setPendingEdit({ item, oldValue, newValue: newValueOriginal })
         return
       }
-      // Sin pregunta (ítem sincronizado, demo, o cambio de redondeo) se conserva
-      // el comportamiento previo a la pregunta: una cuenta líquida escribe los
+      // Sin pregunta (ítem sincronizado, demo, cambio de redondeo, o una DEUDA
+      // que SUBE: intereses acumulados, más préstamo o corrección escriben lo
+      // mismo, así que preguntar sería una elección falsa) se conserva el
+      // comportamiento previo a la pregunta: una cuenta líquida escribe los
       // DOS campos (el saldo ES su costo: dejar el costo atrás inventaría una
-      // ganancia) y todo lo demás solo el valor.
-      patch = isBankLike(item) ? { currentPrice: price, purchasePrice: price } : { currentPrice: price }
+      // ganancia), una deuda también (no tiene ganancia que preservar y un
+      // purchasePrice viejo solo es un campo mintiendo), y todo lo demás solo
+      // el valor.
+      patch = (isBankLike(item) || item.isDebt) ? { currentPrice: price, purchasePrice: price } : { currentPrice: price }
     }
 
     await commitPatch(item, patch, null, null)
@@ -1334,7 +1351,55 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         </div>
       </div>
 
-      {pendingEdit && (() => {
+      {pendingEdit && pendingEdit.item.isDebt && (() => {
+        // Una DEUDA que bajó no "perdió valor" ni le "sacaste dinero": o
+        // hiciste un pago o el número estaba mal (FASE LT). Y es el lugar del
+        // desglose que faltaba: cuánto del mes es interés, para que "el saldo
+        // bajó X" y "pagué X" dejen de confundirse cuando el pago traía
+        // intereses encima.
+        const { item, oldValue, newValue } = pendingEdit
+        const delta = newValue - oldValue
+        const cur = item._originalCurrency || item.currency || 'USD'
+        const fmtC = (v) => `${cur} ${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        const amt = fmtC(delta)
+        const rMonthly = debtMonthlyRate(item)
+        const interesMes = oldValue * rMonthly
+        return (
+          <div className="mx-4 mb-2 px-3 py-3 rounded-lg text-xs space-y-2"
+            style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)' }}>
+            <p className="font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+              {t(`${item.symbol || item.name}: la deuda bajó ${amt}. ¿Qué pasó?`,
+                 `${item.symbol || item.name}: the debt went down by ${amt}. What happened?`)}
+            </p>
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              <button type="button" onClick={() => answerPendingEdit(ANSWER_FLOW)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>
+                {t('Hice un pago', 'I made a payment')}
+              </button>
+              <button type="button" onClick={() => answerPendingEdit(ANSWER_CORRECTION)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border"
+                style={{ color: 'var(--text-secondary)', borderColor: 'var(--card-border)' }}>
+                {t('El número anterior estaba mal', 'The previous number was wrong')}
+              </button>
+              <button type="button" onClick={() => setPendingEdit(null)}
+                className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }}>
+                {t('Cancelar', 'Cancel')}
+              </button>
+            </div>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {t('Un pago queda registrado en el historial del préstamo (y se puede borrar). ',
+                 'A payment is recorded in the loan history (and can be deleted). ')}
+              {interesMes > 0.005 && t(
+                `Ojo: lo que bajó es CAPITAL. Al ${item.interestRate}% ${item.ratePeriod === 'monthly' ? 'mensual' : 'anual'}, el interés del mes sobre ${fmtC(oldValue)} es ~${fmtC(interesMes)}: si también lo pagaste, tu pago total fue ~${fmtC(Math.abs(delta) + interesMes)}. `,
+                `Note: what went down is PRINCIPAL. At ${item.interestRate}% ${item.ratePeriod === 'monthly' ? 'monthly' : 'yearly'}, this month's interest on ${fmtC(oldValue)} is ~${fmtC(interesMes)}: if you paid it too, your total payment was ~${fmtC(Math.abs(delta) + interesMes)}. `)}
+              {t('Si el pago salió de una de tus cuentas registradas, mejor usa Movimiento → Pago de deuda, para que esa cuenta también baje.',
+                 'If the payment came from one of your tracked accounts, use Movement → Debt payment instead, so that account goes down too.')}
+            </p>
+          </div>
+        )
+      })()}
+      {pendingEdit && !pendingEdit.item.isDebt && (() => {
         const { item, oldValue, newValue } = pendingEdit
         const delta = newValue - oldValue
         const cur = item._originalCurrency || item.currency || 'USD'
@@ -1744,21 +1809,46 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               )
                             })}
                           </tr>
-                          {(item.isDebt || item.isReceivable) && (item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (
+                          {(item.isDebt || item.isReceivable) && (item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (() => {
+                            // El desglose que faltaba (FASE LT): la fila decía
+                            // "1.5% int." y el saldo NETO, sin decir nunca
+                            // cuánto interés genera el mes ni cuánto se debe
+                            // CON intereses. El saldo va en la moneda ORIGINAL
+                            // del ítem (los enriquecidos traen el precio
+                            // convertido a base, `_originalPrice` es el crudo).
+                            const rawBalance = item.isDebt
+                              ? Math.abs((Number(item._originalPrice ?? item.currentPrice ?? item.purchasePrice) || 0) * (Number(item.quantity) || 1))
+                              : 0
+                            const bd = item.isDebt ? debtBreakdown(item, { balance: rawBalance }) : null
+                            const dCur = item._originalCurrency || item.currency || 'USD'
+                            const fmtD = (v) => `${dCur} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            return (
                             <tr className="bg-theme-tertiary border-t-0">
                               <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-theme-tertiary z-10`} colSpan={2 + (showOriginal ? 1 : 0) + months.length}>
-                                <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
                                   {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
-                                  {item.interestRate > 0 && <span>{item.interestRate}% {t('int.', 'int.')}</span>}
+                                  {item.interestRate > 0 && <span>{item.interestRate}% {item.ratePeriod === 'monthly' ? t('mensual', 'monthly') : t('anual', 'yearly')}</span>}
                                   {item.monthlyPayment > 0 && <span>${item.monthlyPayment.toLocaleString()}/{t('mes', 'mo')}</span>}
                                   {item.installmentsRemaining > 0 && (
                                     <span>{item.installmentsRemaining} {t('cuotas rest.', 'pmts left')}</span>
                                   )}
                                   {item.maturityDate && <span>{t('Vence', 'Due')}: {item.maturityDate}</span>}
+                                  {bd && bd.monthlyInterest > 0.005 && (
+                                    <span>{t('interés', 'interest')} ~{fmtD(bd.monthlyInterest)}/{t('mes', 'mo')}</span>
+                                  )}
+                                  {bd && bd.totalToPay != null && (
+                                    <span>{t('total c/intereses', 'total w/interest')} ~{fmtD(bd.totalToPay)}</span>
+                                  )}
+                                  {bd && bd.paymentTooSmall && (
+                                    <span style={{ color: 'var(--alert-warn-icon)' }}>
+                                      ⚠ {t('el pago no cubre ni el interés del mes', 'the payment does not even cover monthly interest')}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                             </tr>
-                          )}
+                            )
+                          })()}
                           </Fragment>
                         )
                       })}

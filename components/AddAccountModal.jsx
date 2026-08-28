@@ -8,6 +8,9 @@ import InlineCreateAccount from './InlineCreateAccount'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
+import DebtBreakdownPreview from './DebtBreakdownPreview'
+import { buildLoanProceedsTransaction, buildLoanProceedsOutsideTransaction } from '@/lib/transferTx'
+import { buildContributionFields, isBankLikeItem } from '@/lib/contributions'
 import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import { InfoTip } from './ui/Tooltip'
 import { DEBT_CLARIFICATION } from './dashboard/utils'
@@ -95,7 +98,7 @@ const GUIDED_SUBTYPE = {
   Bank: 'savings', RealEstate: 'property', Alternative: 'other', Debt: 'other',
 }
 
-export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
+export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, onExecuteContribution, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
   // ---- Modo guiado (onboarding de usuario nuevo) ----
   // guidedType fija el tipo y cambia SOLO el render: una pregunta por pantalla
   // en vez del formulario de 2 pasos. El estado, la búsqueda de símbolo y
@@ -139,6 +142,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     safeCap: '', safeDiscount: '', safeType: 'post_money',
     investmentStage: '', roundValuation: '', ownershipPct: '', committedCapital: '',
     interestRate: '', minimumPayment: '',
+    // FASE LT: el período de la tasa (en LatAm los préstamos se cotizan al mes:
+    // 1.5% mensual NO es 1.5% anual, es 12x), el esquema de pago y el monto
+    // original del préstamo. Ver lib/debtMath.js.
+    ratePeriod: 'annual', debtScheme: '', originalPrincipal: '',
     // Inmueble: el enganche, el préstamo que lo financia, y los dos costos
     // fijos de tenerlo. Ver lib/propertyEquity.js: de estos cuatro más la deuda
     // vinculada salen "cuánto llevas pagado", "cuánto falta" y el capital
@@ -150,6 +157,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     accruedInterestAtPurchase: '',
   })
   const [isNewMoney, setIsNewMoney] = useState(true)
+  // FASE LT: a dónde llegó el dinero de un préstamo nuevo. 'outside' de
+  // default (ya está contado en un activo, o se usó fuera de la app): escribe
+  // el registro que hace que pedir prestado no se lea como pérdida. El alta
+  // guiada no muestra la pregunta y hereda este default.
+  const [loanProceeds, setLoanProceeds] = useState('outside')
   // Pay dates the schedule implies already happened (acquisitionDate + months
   // configured are in the past) that the user says they did NOT actually
   // receive. Everything else in that list is assumed received by default —
@@ -642,6 +654,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.isDebt = true
         }
         if (form.interestRate) item.interestRate = parseAmount(form.interestRate) || 0
+        // El período viaja SIEMPRE que hay tasa: una tasa sin período es la
+        // ambigüedad exacta que dejó un préstamo al 1.5% mensual leyéndose
+        // como 1.5% anual (12x menos interés). FASE LT.
+        if (form.interestRate) item.ratePeriod = form.ratePeriod === 'monthly' ? 'monthly' : 'annual'
+        if (form.debtScheme) item.debtScheme = form.debtScheme
+        if (form.originalPrincipal) item.originalPrincipal = parseAmount(form.originalPrincipal) || 0
         if (form.minimumPayment) item.minimumPayment = parseAmount(form.minimumPayment) || 0
         if (form.monthlyPayment) item.monthlyPayment = parseAmount(form.monthlyPayment) || 0
         if (form.debtTerm) item.debtTerm = form.debtTerm
@@ -778,7 +796,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           ? 0
           : (parseAmount(form.entryFee) || 0)
         const singleDeposit = (isMerge ? lotQty * lotCost : (item.quantity || 1) * (item.purchasePrice || 0)) + feeOnEntry
-        if (isNewMoney && onAddTransaction && singleDeposit > 0) {
+        // ⛔ FASE LT: `!item.isDebt` no es un detalle. Este bloque NO tenía
+        // guard de deuda, así que crear un préstamo escribía un DEPOSIT de
+        // "dinero nuevo" por el saldo COMPLETO de la deuda: para el Dietz eso
+        // es patrimonio que bajó B con un flujo de +B, o sea una "pérdida" de
+        // 2B (crear una deuda de 4,000 se leía como perder 8,000, medido en el
+        // YTD real del usuario). Una deuda registra su lado del dinero abajo,
+        // con la pregunta de a dónde llegó el préstamo.
+        if (isNewMoney && !item.isDebt && onAddTransaction && singleDeposit > 0) {
           await onAddTransaction({
             type: 'DEPOSIT', symbol: item.symbol || '',
             description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}${feeOnEntry > 0 ? ` (${t('incl. corretaje', 'incl. brokerage')})` : ''}`,
@@ -788,6 +813,29 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
             _source: 'manual_new_account',
           })
+        }
+      }
+
+      // FASE LT: el lado del DINERO de un préstamo nuevo. Pedir prestado no
+      // puede leerse como pérdida: o el dinero llegó a una cuenta registrada
+      // (se acredita ahí y el registro es un TRANSFER, neto cero) o quedó
+      // fuera del perímetro (un WITHDRAWAL lo dice y el Dietz queda en cero).
+      // 'none' es la escotilla explícita: no registrar nada.
+      if (item.isDebt && !duplicateWarning) {
+        const debtAmt = (item.quantity || 1) * (item.purchasePrice || 0)
+        const debtForTx = { ...item, id: itemId }
+        const proceedsDate = item.acquisitionDate || new Date().toISOString().split('T')[0]
+        if (debtAmt > 0 && itemId && onAddTransaction && loanProceeds !== 'none') {
+          const destAcct = loanProceeds !== 'outside' ? existingItems.find(it => it.id === loanProceeds) : null
+          if (destAcct && onExecuteContribution) {
+            const { itemFields } = buildContributionFields({ item: destAcct, amount: debtAmt, date: proceedsDate, isAdd: true, currency: item.currency || 'USD' })
+            await onExecuteContribution({ itemId: destAcct.id, itemFields })
+            const tx = buildLoanProceedsTransaction({ debtItem: debtForTx, toItem: destAcct, amount: debtAmt, date: proceedsDate })
+            if (tx) await onAddTransaction({ ...tx, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+          } else {
+            const tx = buildLoanProceedsOutsideTransaction({ debtItem: debtForTx, amount: debtAmt, date: proceedsDate })
+            if (tx) await onAddTransaction({ ...tx, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+          }
         }
       }
 
@@ -1232,8 +1280,33 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                   <div>
                     <label htmlFor="add-interestRate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa de interés %', 'Interest rate %')}</label>
-                    <input id="add-interestRate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
-                      placeholder="7.5" type="text" inputMode="decimal" className={inputCls} />
+                    <div className="flex gap-2">
+                      <input id="add-interestRate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
+                        placeholder="7.5" type="text" inputMode="decimal" className={inputCls} />
+                      {/* El período NO es decoración: un préstamo familiar al
+                          1.5% MENSUAL leído como anual calcula 12x menos
+                          interés. FASE LT. */}
+                      <select aria-label={t('Período de la tasa', 'Rate period')} value={form.ratePeriod} onChange={e => set('ratePeriod', e.target.value)} className={inputCls} style={{ maxWidth: '7.5rem' }}>
+                        <option value="annual">{t('% anual', '% yearly')}</option>
+                        <option value="monthly">{t('% mensual', '% monthly')}</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-debtScheme" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Cómo se paga?', 'How is it paid?')}</label>
+                    <select id="add-debtScheme" value={form.debtScheme} onChange={e => set('debtScheme', e.target.value)} className={inputCls}>
+                      <option value="">{t('-- Automático --', '-- Automatic --')}</option>
+                      <option value="amortizing">{t('Cuota fija (banco)', 'Fixed installment (bank)')}</option>
+                      <option value="interest_only">{t('Interés sobre saldo, capital libre', 'Interest on balance, principal free')}</option>
+                      <option value="revolving">{t('Revolvente (tarjeta)', 'Revolving (card)')}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="add-originalPrincipal" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto original (opcional)', 'Original amount (optional)')}</label>
+                    <input id="add-originalPrincipal" value={form.originalPrincipal} onChange={e => set('originalPrincipal', e.target.value)}
+                      placeholder="50000" type="text" inputMode="decimal" className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1273,6 +1346,24 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       type="date" className={inputCls} />
                   </div>
                 </div>
+                {subtype !== 'receivable' && (
+                  <DebtBreakdownPreview
+                    lang={lang}
+                    currency={form.currency || 'USD'}
+                    balance={parseAmount(form.purchasePrice) || 0}
+                    draft={{
+                      isDebt: true,
+                      subtype,
+                      interestRate: parseAmount(form.interestRate) || 0,
+                      ratePeriod: form.ratePeriod,
+                      debtScheme: form.debtScheme || undefined,
+                      monthlyPayment: parseAmount(form.monthlyPayment) || 0,
+                      minimumPayment: parseAmount(form.minimumPayment) || 0,
+                      installmentsRemaining: parseInt(form.installmentsRemaining) || 0,
+                      maturityDate: form.maturityDate || '',
+                    }}
+                  />
+                )}
                 {subtype === 'credit_card' && (
                   <div className="border-t pt-3 space-y-3" style={{ borderColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)' }}>
                     <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
@@ -2132,7 +2223,36 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               </div>
             )}
 
+            {/* FASE LT: para una DEUDA la pregunta correcta no es "¿es dinero
+                nuevo?" sino "¿a dónde llegó el dinero del préstamo?". Sin
+                registro, el Dietz lee el alta como pérdida (el patrimonio baja
+                por el saldo de la deuda sin ningún flujo que lo netee). */}
+            {isDebt && subtype !== 'receivable' && !duplicateWarning && (
+              <div className="px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg space-y-1.5">
+                <label htmlFor="add-loan-proceeds" className="text-xs font-medium block" style={{ color: 'var(--text-primary)' }}>
+                  {t('¿A dónde llegó el dinero del préstamo?', 'Where did the loan money go?')}
+                </label>
+                <select id="add-loan-proceeds" value={loanProceeds} onChange={e => setLoanProceeds(e.target.value)} className={inputCls}>
+                  <option value="outside">{t('Ya está contado, o lo usé fuera de la app', 'Already counted, or used outside the app')}</option>
+                  {onExecuteContribution && existingItems
+                    .filter(it => it?.id && !it.isDebt && !it.isReceivable && isBankLikeItem(it)
+                      && String(it.currency || 'USD').toUpperCase() === String(form.currency || 'USD').toUpperCase())
+                    .map(it => (
+                      <option key={it.id} value={it.id}>
+                        {t('Acaba de llegar a', 'It just arrived in')}: {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
+                      </option>
+                    ))}
+                  <option value="none">{t('No registrar nada', 'Record nothing')}</option>
+                </select>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {t('Pedir prestado no es perder dinero: este registro evita que tu retorno del año lea la deuda nueva como pérdida. Si llegó a una cuenta registrada, esa cuenta sube y todo queda neto.',
+                     'Borrowing is not losing money: this record keeps your yearly return from reading the new debt as a loss. If it arrived in a tracked account, that account goes up and everything nets out.')}
+                </p>
+              </div>
+            )}
+
             {/* New money toggle */}
+            {!(isDebt && subtype !== 'receivable') && (
             <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
               <button type="button" onClick={() => setIsNewMoney(!isNewMoney)}
                 className="w-8 h-4 rounded-full transition-colors relative"
@@ -2146,6 +2266,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </p>
               </div>
             </div>
+            )}
 
             {!isNewMoney && (
               <div>

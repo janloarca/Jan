@@ -1818,7 +1818,7 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
             return id
           }}
-          onAddTransaction={addTransaction} onAddLot={addLot}
+          onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
@@ -2439,7 +2439,7 @@ export default function DashboardPage() {
             showToast(lang === 'es' ? `${item.symbol || item.name} agregado` : `${item.symbol || item.name} added`)
             return id
           }}
-          onAddTransaction={addTransaction} onAddLot={addLot}
+          onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
