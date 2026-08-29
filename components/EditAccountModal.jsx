@@ -7,7 +7,8 @@ import { openingDepositDateFix } from '@/lib/originDeposits'
 import { debtOptions, isProperty as isPropertyItem } from '@/lib/propertyEquity'
 import DebtBreakdownPreview from './DebtBreakdownPreview'
 import { validateItem } from '@/lib/validation'
-import { buildContributionFields } from '@/lib/contributions'
+import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
+import { getItemValue } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
@@ -459,6 +460,30 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         subtype: form.subtype || '',
         quantity: parseQuantity(form.quantity),
         purchasePrice: parseAmount(form.purchasePrice),
+        // ⛔ Guardar una cuenta de SALDO no puede dejarla ilegible.
+        //
+        // En una cuenta de saldo el campo de cantidad NO se muestra (hay un
+        // solo campo, el saldo, y su onChange ya normaliza la cantidad a 1),
+        // así que el usuario no tiene forma de expresar una cantidad: no hay
+        // intención que pisar. Pero el formulario se siembra con la cantidad
+        // GUARDADA, así que abrir la cuenta y presionar Guardar sin tocar el
+        // saldo reescribía ese cero tal cual, y el saldo seguía leyéndose como
+        // 0.00 en la Hoja y en el patrimonio.
+        //
+        // Ese era un callejón sin salida documentado: el editor es la única
+        // pantalla donde uno intentaría arreglar un saldo a mano, y era
+        // justamente la que no podía. Ahora abrir y guardar REPARA la cuenta.
+        //
+        // Misma definición compartida que usan las cuatro ramas de
+        // `planCellEdit` y el motor de aportes: solo se escribe 1 cuando la
+        // cantidad guardada NO SIRVE, una legítima distinta de 1 se deja
+        // intacta, y un saldo en cero apaga la cantidad.
+        ...(isBankLike
+          ? balanceQuantityPatch(
+              { quantity: parseQuantity(form.quantity) },
+              parseAmount(form.currentPrice) || parseAmount(form.purchasePrice)
+            )
+          : {}),
         institution: form.institution.trim(),
         // null (not undefined) clears the field on merge — the item goes back
         // to Personal; every entity filter treats null as 'default'.
@@ -1966,9 +1991,38 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 const total = qty * price
                 const isDebtType = /debt|deuda/i.test(form.type)
                 const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                // Lo que la app lee HOY para este ítem, con la MISMA función que
+                // usan la Hoja, el patrimonio y los reportes. El número de
+                // arriba es una vista previa de lo que se va a GUARDAR (cae a
+                // cantidad 1 en una cuenta de saldo, que es lo que el guardado
+                // ahora de verdad escribe); si el guardado todavía no ocurrió y
+                // lo almacenado se lee distinto, hay que DECIRLO: que estas dos
+                // superficies se contradijeran en silencio es lo que hizo
+                // indiagnosticable este caso durante cuatro rondas.
+                const stored = getItemValue(item)
+                const drift = Math.abs(stored - total) > 0.005
                 if (total > 0) return (
-                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
-                    {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
+                      {isDebtType ? t('Deuda', 'Debt') : ''} {form.currency} {fmt(total)}
+                    </span>
+                    {drift && (
+                      <span className="text-[11px]" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {t(
+                          `Hoy la app lo lee como ${form.currency} ${fmt(stored)}. Guardá para corregirlo.`,
+                          `The app currently reads it as ${form.currency} ${fmt(stored)}. Save to fix it.`
+                        )}
+                      </span>
+                    )}
+                  </span>
+                )
+                // Un saldo en CERO se dice, no se esconde: sin esto, "esta
+                // cuenta vale cero" y "no hay nada que mostrar" se veían igual,
+                // que es justo lo que el usuario viene a confirmar cuando acaba
+                // de vaciar una cuenta.
+                if (isBank && !isDebtType) return (
+                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--text-muted)', backgroundColor: 'color-mix(in srgb, var(--text-muted) 10%, transparent)' }}>
+                    {form.currency} {fmt(0)}
                   </span>
                 )
                 return null
