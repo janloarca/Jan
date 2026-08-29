@@ -1403,7 +1403,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     {t('precio leído', 'read price')}={r.price} · {t('VALOR', 'VALUE')}={r.value}
                   </div>
                   {r.verdict && (
-                    <div style={{ color: 'var(--alert-warn-icon)' }}>⚠ {lang === 'es' ? r.verdict.es : r.verdict.en}</div>
+                    <div style={{ color: r.verdict.ok ? 'var(--accent-green)' : 'var(--alert-warn-icon)' }}>
+                      {r.verdict.ok ? '✓' : '⚠'} {lang === 'es' ? r.verdict.es : r.verdict.en}
+                    </div>
                   )}
                 </div>
               ))}
