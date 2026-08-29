@@ -478,12 +478,6 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         // `planCellEdit` y el motor de aportes: solo se escribe 1 cuando la
         // cantidad guardada NO SIRVE, una legítima distinta de 1 se deja
         // intacta, y un saldo en cero apaga la cantidad.
-        ...(isBankLike
-          ? balanceQuantityPatch(
-              { quantity: parseQuantity(form.quantity) },
-              parseAmount(form.currentPrice) || parseAmount(form.purchasePrice)
-            )
-          : {}),
         institution: form.institution.trim(),
         // null (not undefined) clears the field on merge — the item goes back
         // to Personal; every entity filter treats null as 'default'.
@@ -495,6 +489,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
       if (form.currentPrice && !isMarket) updated.currentPrice = parseAmount(form.currentPrice)
       if (isBank) updated.currentPrice = parseAmount(form.purchasePrice)
+
+      // ⛔ Va DESPUES de que el saldo quedo resuelto, y esa posicion es el
+      // arreglo, no un detalle.
+      //
+      // En una cuenta de saldo el usuario ve UN solo campo (el saldo) que
+      // escribe `form.purchasePrice`; `currentPrice` se DERIVA de el, dos
+      // lineas arriba. Leer `form.currentPrice` para decidir la cantidad
+      // agarraba el valor VIEJO: teclear 0 dejaba `form.currentPrice` en 240,
+      // asi que la cantidad se juzgaba contra 240, se conservaba en 1, y la
+      // cuenta se guardaba con los dos precios en cero y cantidad 1. Con eso
+      // `getItemPrice` cae en cascada a `price`/`cost` y un residuo ahi la
+      // RESUCITA: exactamente el saldo que volvia a 240 despues de vaciarla.
+      //
+      // Se juzga contra `updated.currentPrice`, que es el saldo que de verdad
+      // se va a guardar, asi que no puede volver a desincronizarse.
+      if (isBankLike) Object.assign(updated, balanceQuantityPatch({ quantity: updated.quantity }, updated.currentPrice))
 
       // FASE HV. Desde cuándo es cierto el saldo guardado. Se sella en CADA
       // guardado de un activo que no cotiza, no solo cuando el número cambia:
