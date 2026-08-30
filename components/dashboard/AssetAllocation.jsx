@@ -143,12 +143,21 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
           <InfoTip text={t(
-            'El % junto al monto es el retorno propio de ese grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambiá la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte.',
-            'The % next to the amount is that group\'s own return: gain ÷ what you invested in it (includes entry costs, excludes new capital). Switch the view to group the same holdings by type, institution, maturity and more: the total never changes, only how it is split.'
+            'El % junto al monto es el retorno propio de ese grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambiá la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte. Tus deudas no entran acá: se restan en el patrimonio de arriba.',
+            'The % next to the amount is that group\'s own return: gain ÷ what you invested in it (includes entry costs, excludes new capital). Switch the view to group the same holdings by type, institution, maturity and more: the total never changes, only how it is split. Your debts are not in here: they subtract in the net worth above.'
           )} />
         </h3>
-        <span className="text-sm font-bold text-white font-mono tabular-nums">
-          {formatCurrency(totalValue)}
+        {/* El total de esta card son ACTIVOS (isDebt se filtra arriba) y el
+            hero muestra el patrimonio NETO: difieren por la deuda y nada lo
+            decia. La caption solo existe cuando hay deudas; sin ellas las dos
+            cifras coinciden y el rotulo seria ruido. */}
+        <span className="text-right">
+          <span className="text-sm font-bold text-white font-mono tabular-nums block">
+            {formatCurrency(totalValue)}
+          </span>
+          {items.some((it) => it.isDebt) && (
+            <span className="text-[10px] block" style={{ color: 'var(--text-muted)' }}>{t('solo activos', 'assets only')}</span>
+          )}
         </span>
       </div>
 
