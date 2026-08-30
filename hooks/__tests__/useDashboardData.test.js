@@ -540,3 +540,64 @@ describe('FASE LU: el YTD mide activos, la deuda no lo mueve', () => {
     expect(after.returnYTD).toBeLessThanOrEqual(base.returnYTD + 0.4)
   })
 })
+
+// ⛔ FASE ML. "Aportado / Retirado" es una pregunta de FLUJOS, así que tiene que
+// vivir en el MISMO universo solo-activos que el resto del rendimiento (FASE
+// LU). Con la lista cruda una deuda envenenaba las DOS cifras: el DEPOSIT de
+// apertura de una deuda vieja contaba como capital aportado, y el WITHDRAWAL de
+// `manual_loan_proceeds` (el que netea el Dietz cuando el préstamo se fue fuera
+// de la app) se mostraba como "Retirado" en ROJO, dinero que nadie sacó.
+//
+// El NETO salía bien por casualidad, porque los dos errores se cancelan: es el
+// caso de "el total correcto con las partes equivocadas", y por eso las
+// aserciones son sobre las cifras BRUTAS y no sobre el neto.
+describe('FASE ML: Aportado/Retirado no cuenta la deuda', () => {
+  const bank = () => item({ id: 'b1', symbol: 'BANK1', type: 'Bank', quantity: 1, currentPrice: 10000, purchasePrice: 10000 })
+  const debt = () => item({ id: 'd9', symbol: 'AIXEN', type: 'Deuda', isDebt: true, quantity: 1, currentPrice: 4000, purchasePrice: 4000 })
+
+  async function run(items, transactions = []) {
+    const { result, unmount } = setup({
+      firestore: { items, transactions },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = { ...result.current.contributionsSummary }
+    unmount()
+    return out
+  }
+
+  const aporteReal = { id: 't0', type: 'DEPOSIT', totalAmount: 10000, currency: 'USD', date: '2026-01-05', _linkedItemId: 'b1' }
+
+  it('línea base: un aporte real de 10,000 y nada retirado', async () => {
+    const r = await run([bank()], [aporteReal])
+    expect(r.totalContributed).toBeCloseTo(10000, 6)
+    expect(r.totalWithdrawn).toBeCloseTo(0, 6)
+  })
+
+  it('el DEPOSIT envenenado de una deuda vieja NO es capital aportado', async () => {
+    const r = await run([bank(), debt()], [
+      aporteReal,
+      { id: 't1', type: 'DEPOSIT', totalAmount: 4000, currency: 'USD', date: '2026-08-25', _linkedItemId: 'd9', _source: 'manual_new_account' },
+    ])
+    expect(r.totalContributed).toBeCloseTo(10000, 6)
+  })
+
+  it('un préstamo que se fue FUERA de la app no se muestra como Retirado', async () => {
+    const r = await run([bank(), debt()], [
+      aporteReal,
+      { id: 't2', type: 'WITHDRAWAL', totalAmount: 4000, currency: 'USD', date: '2026-08-25', _linkedItemId: 'd9', _loanItemId: 'd9', _source: 'manual_loan_proceeds' },
+    ])
+    expect(r.totalWithdrawn).toBeCloseTo(0, 6)
+    expect(r.totalContributed).toBeCloseTo(10000, 6)
+  })
+
+  // Control POSITIVO: un retiro REAL sigue contando, o si no "retirado 0"
+  // pasaría por haber dejado de contar retiros del todo.
+  it('control: un retiro real del banco SÍ cuenta', async () => {
+    const r = await run([bank()], [
+      aporteReal,
+      { id: 't3', type: 'WITHDRAWAL', totalAmount: 500, currency: 'USD', date: '2026-08-26', _linkedItemId: 'b1' },
+    ])
+    expect(r.totalWithdrawn).toBeCloseTo(500, 6)
+  })
+})
