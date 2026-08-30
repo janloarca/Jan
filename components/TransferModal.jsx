@@ -6,6 +6,7 @@ import { buildTransferTransaction } from '@/lib/transferTx'
 import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
 import { parseAmount } from '@/lib/numberParse'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { todayLocalISO } from '@/lib/localDate'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], convert, lang = 'es' }) {
   const trapRef = useFocusTrap()
@@ -14,7 +15,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const [amount, setAmount] = useState('')
   const [toAmount, setToAmount] = useState('')
   const [toTouched, setToTouched] = useState(false)
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(todayLocalISO())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // El comprobante de lo que la app ACABA de escribir. Una transferencia que se

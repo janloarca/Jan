@@ -10,6 +10,7 @@ import { currencyOptions } from '@/lib/currencies'
 import { parseAmount } from '@/lib/numberParse'
 import { debtOptions, debtBalance as debtBalanceOf } from '@/lib/propertyEquity'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { todayLocalISO } from '@/lib/localDate'
 
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], convert, lang = 'es', baseCurrency = 'USD', prefill = null }) {
@@ -62,7 +63,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // Backfill prefills ("Capturar historia") start with an EMPTY date: the whole
   // point is recording WHEN the money arrived — defaulting to today would stamp
   // past history with the wrong date.
-  const [date, setDate] = useState(prefill?.date ?? (prefill?.alreadyReflected ? '' : new Date().toISOString().split('T')[0]))
+  const [date, setDate] = useState(prefill?.date ?? (prefill?.alreadyReflected ? '' : todayLocalISO()))
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -71,7 +72,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const [toAmount, setToAmount] = useState('')
   const [toTouched, setToTouched] = useState(false)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocalISO()
   const prefilledItem = prefill?.linkedId ? existingItems.find((i) => i.id === prefill.linkedId) : null
 
   // Las deudas se filtran de TODO menos del pago de deuda: sin esto una deuda
