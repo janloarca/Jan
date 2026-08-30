@@ -35,3 +35,20 @@ operativo, instalado vía `apt-get install ffmpeg`, que sí trae libx264. El mp4
 de acá se codificó con el segundo. Si se regenera en un entorno nuevo sin
 ffmpeg del sistema, instalarlo primero o el build de Playwright no va a poder
 producir un `.mp4`.
+
+## Posts #2 y #3 de la serie
+
+Mismo lenguaje visual que el #1 (fondo claro, tinta, los colores reales de las
+clases de activo, cortes rectos, sin texto), regenerables con
+`build_post_images_23.py`:
+
+- `chispudo-post-registro.png` / `.svg` — post #2 (gastos automáticos):
+  fragmentos dispersos a la izquierda, el rayo en el medio, y los MISMOS
+  colores ya alineados como filas de una lista a la derecha. El desorden que
+  se vuelve registro sin que nadie teclee.
+- `chispudo-post-privado.png` / `.svg` — post #3 (comparar sin montos): tres
+  barras de alturas distintas sobre una línea de tinta (los rendimientos, lo
+  único que viaja) y debajo sus bases disolviéndose (los montos, que nunca
+  salen de tu cuenta).
+- `post-02-gastos.md` / `post-03-amigos.md` — el texto de cada post, con su
+  nota de precisión sobre qué afirma y por qué se puede afirmar.
