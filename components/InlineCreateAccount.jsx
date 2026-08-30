@@ -6,6 +6,7 @@ import { currencyOptions } from '@/lib/currencies'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { todayLocalISO } from '@/lib/localDate'
 
 
 const SUBTYPES = [
@@ -129,7 +130,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
         <div>
           <span className="text-xs text-[var(--text-muted,#64748b)] mb-1 block">{t('¿Desde cuándo tiene ese saldo?', 'Since when does it hold that balance?')}</span>
           <input value={acquisitionDate} onChange={e => setAcquisitionDate(e.target.value)}
-            type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+            type="date" max={todayLocalISO()} className={inputCls} />
           {sourceAcquisitionDate ? (
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#64748b)' }}>
               {t('Prellenada con la fecha del activo que la usa: cámbiala si esta cuenta ya existía antes.', 'Prefilled with the date of the asset using it: change it if this account existed before that.')}

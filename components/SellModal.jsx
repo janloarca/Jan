@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
+import { todayLocalISO } from '@/lib/localDate'
 
 const QTY_EPSILON = 0.0001
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
@@ -18,7 +19,7 @@ const origPriceOf = (it) => it._originalPrice ?? it.currentPrice ?? it._original
 export default function SellModal({ item, onClose, onExecuteSale, onSold, existingItems = [], lang = 'es', convert }) {
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocalISO()
   const origCur = item._originalCurrency || item.currency || 'USD'
 
   const [quantity, setQuantity] = useState('')
