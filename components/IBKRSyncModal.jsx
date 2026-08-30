@@ -617,6 +617,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       ...preview,
       items: preview.items.filter(it => !it._ibkrAccountId || activeAccounts.includes(it._ibkrAccountId)),
       transactions: preview.transactions.filter(tx => !tx._ibkrAccountId || activeAccounts.includes(tx._ibkrAccountId)),
+      // ⛔ `accounts` TIENE que filtrarse junto con los items, y no es cosmético:
+      // es lo que `vanishedIbkrPositionIds` usa como "qué cuentas cubre ESTE
+      // reporte" (su GUARDA 4). Con la lista completa, deseleccionar una cuenta
+      // le decía a la limpieza "el reporte cubre U2" mientras sus items venían
+      // filtrados fuera, o sea se leían como posiciones que ya no existen y se
+      // BORRABAN. Reproducido con la función real: deseleccionar U2 devolvía sus
+      // dos posiciones para borrar; con la lista filtrada devuelve ninguna.
+      accounts: activeAccounts,
     } : preview
 
     const totalItems = dataToImport.items.length + dataToImport.transactions.length + (dataToImport.equityHistory || []).length
@@ -1336,6 +1344,19 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {t('Selecciona qué cuentas importar. Cada cuenta se mantiene separada.',
                        'Select which accounts to import. Each account is kept separate.')}
                   </p>
+                  {/* El historial de valor viene YA sumado entre cuentas desde el
+                      parser (FASE KB lo agrega a propósito), así que filtrar acá
+                      no lo separa. Decirlo es la mitad honesta: un total que
+                      incluye una cuenta cuyas posiciones no se importaron hace
+                      que la gráfica muestre dinero que el portafolio no tiene, y
+                      callarlo es justo la degradación muda que este repo prohíbe. */}
+                  {selectedAccounts && activeAccounts.length < accounts.length
+                    && (preview.equityHistory || []).length > 1 && (
+                    <p className="text-xs mt-2" style={{ color: 'var(--alert-warn-icon)' }}>
+                      {t('Ojo: el historial de valor que IBKR manda viene sumado entre todas tus cuentas, así que incluye las que no seleccionaste.',
+                         'Heads up: the value history IBKR sends is summed across all your accounts, so it includes the ones you did not select.')}
+                    </p>
+                  )}
                 </div>
               )}
 
