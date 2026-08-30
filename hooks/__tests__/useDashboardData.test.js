@@ -515,12 +515,28 @@ describe('FASE LU: el YTD mide activos, la deuda no lo mueve', () => {
   it('pagar la deuda desde el banco tampoco lo mueve: el WITHDRAWAL sintético netea la bajada', async () => {
     const base = await run([bank()])
     const paidBank = item({ id: 'b1', symbol: 'BANK1', type: 'Bank', quantity: 1, currentPrice: 10678.64, purchasePrice: 10000 })
+    // El pago se fecha a MITAD de la ventana YTD y no en un día del calendario
+    // escrito a mano: con una fecha fija su peso Dietz cambia cada día que pasa
+    // (y en enero del año siguiente queda en el FUTURO), o sea el test medía
+    // distinto según el día en que se corriera.
+    const anchorMs = Date.UTC(yr, 0, 1)
+    const payDate = new Date(anchorMs + (Date.now() - anchorMs) / 2).toISOString().slice(0, 10)
     const after = await run(
       [paidBank, debt()],
-      [{ id: 'tx2', type: 'TRANSFER', _debtItemId: 'd9', _originItemId: 'b1', _toAmount: 321.36, totalAmount: 321.36, currency: 'USD', date: `${yr}-08-27`, _source: 'manual_debt_payment' }],
+      [{ id: 'tx2', type: 'TRANSFER', _debtItemId: 'd9', _originItemId: 'b1', _toAmount: 321.36, totalAmount: 321.36, currency: 'USD', date: payDate, _source: 'manual_debt_payment' }],
     )
-    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida.
+    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida. La
+    // GANANCIA vuelve a 1,000 exactos, y esa es la propiedad de FASE LU: sin el
+    // WITHDRAWAL sintético serían 678.64, o sea el pago se leería como pérdida.
     expect(after.ytdChange).toBeCloseTo(base.ytdChange, 4)
-    expect(after.returnYTD).toBeCloseTo(base.returnYTD, 2)
+    // El PORCENTAJE no puede ser idéntico al de la línea base, y eso es
+    // CORRECTO: Modified Dietz pondera el retiro por el tiempo que ese dinero
+    // ya no estuvo invertido, así que el capital promedio del período es algo
+    // menor que 10,000 y el mismo 1,000 de ganancia rinde un pelo más. El techo
+    // de ese efecto es un retiro fechado en el ancla misma (peso 1):
+    // 1000/(10000−321.36) = 10.332%. El bug cae del OTRO lado (678.64/10000 =
+    // 6.79%), así que el piso es lo que de verdad tiene dientes.
+    expect(after.returnYTD).toBeGreaterThanOrEqual(base.returnYTD - 1e-9)
+    expect(after.returnYTD).toBeLessThanOrEqual(base.returnYTD + 0.4)
   })
 })
