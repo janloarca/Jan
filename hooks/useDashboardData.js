@@ -2590,9 +2590,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   // Full summary (gross in / gross out / net) — the UI used to surface only the
   // net, leaving no way to see how much was actually deposited vs withdrawn.
+  // ⛔ FASE ML. Sobre `assetTransactions`, NUNCA sobre la lista cruda. "Aportado
+  // / Retirado" es una pregunta de FLUJOS, así que vive en el mismo universo
+  // solo-activos que el resto del rendimiento (FASE LU) y no en uno propio.
+  //
+  // Con la lista cruda una deuda envenenaba las DOS cifras: el DEPOSIT de
+  // apertura de una deuda vieja (anterior al guard `!item.isDebt` de FASE LT)
+  // contaba como capital aportado, y el WITHDRAWAL de `manual_loan_proceeds`
+  // (el que netea el Dietz cuando el préstamo se fue fuera de la app) se
+  // mostraba como "Retirado" en ROJO: dinero que el usuario nunca sacó.
+  // Medido con las funciones reales sobre un aporte de 10,000 y una deuda de
+  // 4,000: "aportado 14,000 · retirado 4,000" contra "10,000 · 0".
+  //
+  // El NETO salía bien por casualidad, porque los dos errores se cancelan, y
+  // por eso nadie lo notaba: es el caso de "el total correcto con las partes
+  // equivocadas" que este repo ya encontró varias veces.
   const contributionsSummary = useMemo(() => {
-    return computeNetContributions(transactions, convert, baseCurrency)
-  }, [transactions, convert, baseCurrency])
+    return computeNetContributions(assetTransactions, convert, baseCurrency)
+  }, [assetTransactions, convert, baseCurrency])
   const netContributions = contributionsSummary.netContributions
 
   const cashTotal = useMemo(() => {
