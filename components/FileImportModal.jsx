@@ -836,8 +836,23 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     // conocimiento que se guarda tiene que ser el de lo que de verdad se
     // importó. Best-effort a propósito: una regla que no se pudo guardar no
     // puede hacer fallar un import de movimientos reales que ya se escribieron.
+    //
+    // ⛔ FASE MK. SIN el gate de `isCard`. El desplegable de categoría existe
+    // igual en la vista previa de un estado de BANCO (opera sobre
+    // `biMatch.newTxs`, que las dos rutas tienen), así que ahí el usuario podía
+    // corregir y la corrección se aplicaba a las filas de ESE import y no se
+    // enseñaba nunca: el mes siguiente el mismo comercio volvía a "Otros
+    // Gastos". Y la app se contradecía consigo misma, porque corregir ESA MISMA
+    // fila desde la lista de Flujo sí enseña (`isMachineDescribed` acepta
+    // `bi_import` desde FASE LB): el conocimiento dependía de por qué puerta
+    // pasaras, que es la enfermedad de las dos copias otra vez.
+    //
+    // No hay riesgo de ensuciar la tabla con texto que no nombra un comercio:
+    // `learnablesFrom` solo mira filas con `_categorySetByUser`, o sea las que
+    // el usuario tocó a mano, y `isTeachableRow` ya descarta pagos, promociones
+    // y cuotas.
     let learned = 0
-    if (isCard && onLearnCategories) {
+    if (onLearnCategories) {
       const toLearn = learnablesFrom(toImport)
       if (toLearn.length > 0) {
         try {
