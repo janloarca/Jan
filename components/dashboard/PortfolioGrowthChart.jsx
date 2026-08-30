@@ -1910,7 +1910,19 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         style={switching ? { opacity: 0.45 } : undefined}>
       {shownMode === 'value' ? (
         <div className="mb-3">
-          <p className="text-3xl font-bold text-white font-mono tabular-nums">{formatCurrency(hd ? hd.value : currentTotal)}</p>
+          {/* Desde FASE LU esta serie mide SOLO ACTIVOS (la deuda salio del
+              universo entero), mientras el hero de arriba muestra el patrimonio
+              NETO: dos cifras grandes a una pantalla de distancia que difieren
+              por la deuda, sin que nada dijera por que. El rotulo solo aparece
+              cuando HAY deudas; sin ellas los dos universos son identicos y la
+              aclaracion seria ruido. Mismo criterio que el rotulo de aportes de
+              FASE IX2: cero contacto con el numero. */}
+          <p className="text-3xl font-bold text-white font-mono tabular-nums">
+            {formatCurrency(hd ? hd.value : currentTotal)}
+            {debtIds.size > 0 && (
+              <span className="text-xs text-slate-500 font-sans font-normal ml-2">{t('solo activos', 'assets only')}</span>
+            )}
+          </p>
           <p className="text-sm mt-0.5" style={{ color: displayAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
             <span className="font-mono tabular-nums">
               {displayAbs >= 0 ? '+' : ''}{formatCurrency(displayAbs)}
