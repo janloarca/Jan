@@ -188,10 +188,26 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
   return (
     <>
       {/* Floating button */}
+      {/* CERRADO va en fantasma (fondo de card + borde + icono secundario) y
+          solo ABIERTO se pinta de azul. Antes era un circulo azul solido
+          permanente flotando a centimetros del "+" azul del nav: dos circulos
+          azules compitiendo por la misma esquina, y el que competia era el
+          secundario. Ademas flota SOBRE el contenido, y en una app de dinero la
+          esquina inferior derecha es donde viven los montos: cuanto menos grite
+          mientras nadie lo usa, mejor. 44px en movil (el minimo tactil de iOS),
+          48 en desktop como siempre. */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
-        style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
+        style={open
+          ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff', boxShadow: 'var(--shadow-elevated)' }
+          // --bg-primary y NO --bg-card: bg-card es TRANSLUCIDO en tema oscuro
+          // (rgba .6) y este boton flota sobre contenido, o sea dejaria leer el
+          // dinero de abajo borroso, que es peor que taparlo limpio (la trampa
+          // que FASE IA documento para los toasts). Un color-mix tampoco sirve:
+          // interpola el alfa en vez de componerlo, y el disco quedaba al 76%.
+          // bg-primary es hex opaco en los dos temas.
+          : { backgroundColor: 'var(--bg-primary)', color: 'var(--text-secondary)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-card)' }}
         title={t('Asistente AI', 'AI Assistant')}
         aria-label={open ? t('Cerrar asistente', 'Close assistant') : t('Abrir asistente', 'Open assistant')}
       >

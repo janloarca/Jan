@@ -2199,14 +2199,31 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
                 {/* Drawdown shaded zone. En neutro, no en rojo: la banda marca
                     DÓNDE ocurrió la mayor caída, que es orientación, y pintarla
                     del color de error decía que ese tramo está mal. */}
-                {drawdown && geo.points[drawdown.start] && geo.points[drawdown.end] && (
-                  <rect
-                    x={geo.points[drawdown.start].x}
-                    y={pad.top}
-                    width={geo.points[drawdown.end].x - geo.points[drawdown.start].x}
-                    height={chartHeight - pad.top - pad.bottom}
-                    fill="var(--text-muted)" opacity="0.07" rx="2" />
-                )}
+                {drawdown && geo.points[drawdown.start] && geo.points[drawdown.end] && (() => {
+                  const bx = geo.points[drawdown.start].x
+                  const bw = geo.points[drawdown.end].x - geo.points[drawdown.start].x
+                  return (
+                    <>
+                      <rect
+                        x={bx}
+                        y={pad.top}
+                        width={bw}
+                        height={chartHeight - pad.top - pad.bottom}
+                        fill="var(--text-muted)" opacity="0.07" rx="2" />
+                      {/* La banda sin rotulo se leia como un glitch de render: la
+                          unica conexion con la linea "Mayor caida del periodo"
+                          de arriba era deducirla de las fechas. Mismo lenguaje
+                          que el rotulo "datos reales" del tramo estimado; solo
+                          cuando la banda es lo bastante ancha para que quepa. */}
+                      {bw >= 64 && (
+                        <text x={bx + bw / 2} y={chartHeight - pad.bottom - 6} textAnchor="middle"
+                          fill="var(--text-muted)" fontSize="9" opacity="0.9">
+                          {t('mayor caída', 'max drawdown')}
+                        </text>
+                      )}
+                    </>
+                  )
+                })()}
 
                 {/* Main value area + line. When part of the curve is a reconstruction
                     (today's positions projected backwards), that stretch gets a flat

@@ -64,8 +64,8 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
           {t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
         </h3>
         <InfoTip text={t(
-          'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). El % es el RENDIMIENTO del año: se mide contra el valor con el que arrancaste ese año, no contra lo que invertiste en él. Toca un año para ver ese valor de arranque y el detalle.',
-          'Invested = that year\'s deposits minus withdrawals across all your accounts, entry fees discounted. No gains or interest, and money moved between your own accounts does not count. Earned = what your investments returned that year, net of your contributions (Dietz method, same as the YTD). The % is the year\'s RETURN: measured against the value you started that year with, not against what you invested during it. Tap a year to see that starting value and the detail.'
+          'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). El % es el RENDIMIENTO del año: se mide contra el valor con el que arrancaste ese año, no contra lo que invertiste en él. Un "-" en Ganado significa que el archivo no tiene datos de valor suficientes de ese año para medirlo; un año con "-" en las dos columnas es un año del que el archivo no tiene nada, y aparece igual para que la lista no salte años. La fila "Sin repartir por año" es lo que falta para llegar a tus activos de hoy: casi todo es la ganancia de esos años. Toca un año para ver su valor de arranque y el detalle.',
+          'Invested = that year\'s deposits minus withdrawals across all your accounts, entry fees discounted. No gains or interest, and money moved between your own accounts does not count. Earned = what your investments returned that year, net of your contributions (Dietz method, same as the YTD). The % is the year\'s RETURN: measured against the value you started that year with, not against what you invested during it. A "-" under Earned means the archive lacks enough value data from that year to measure it; a year with "-" in both columns is one the archive has nothing for, listed anyway so the years never skip. The "Not attributed to a year" row is what is left to reach today\'s assets: almost all of it is the gain of those years. Tap a year to see its starting value and the detail.'
         )} />
       </div>
 
@@ -226,15 +226,15 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
         </div>
       )}
 
+      {/* La explicacion completa del "-" y del "sin repartir" vive en el
+          InfoTip del encabezado: eran ~4 lineas de gris siempre visibles al pie
+          de la card, o sea ruido permanente para explicar un caso que no
+          siempre esta en pantalla. Aca queda UNA linea, porque quien se topa
+          con el guion lo ve en la tabla y no va a adivinar que el (i) de
+          arriba lo explica. */}
       <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-        {t(
-          '"-" en Ganado: el archivo no tiene datos de valor suficientes de ese año para medirlo. Un año con "-" en las DOS columnas es un año del que el archivo no tiene nada; aparece igual para que la lista no salte años. Las ganancias nunca incluyen tus aportes.',
-          '"-" under Earned: the archive lacks enough value data from that year to measure it. A year with "-" in BOTH columns is a year the archive has nothing for; it is listed anyway so the years never skip. Earnings never include your contributions.'
-        )}
-        {data.unallocated != null && ' ' + t(
-          'Lo "sin repartir" es lo que falta para llegar a tus activos de hoy: casi todo es la ganancia de esos años.',
-          'The "not attributed" line is what is left to reach today\'s assets: almost all of it is the gain of those years.'
-        )}
+        {t('"-" = sin datos suficientes de ese año para medirlo. Detalle en el (i).',
+           '"-" = not enough data from that year to measure it. Details under the (i).')}
       </p>
     </div>
   )

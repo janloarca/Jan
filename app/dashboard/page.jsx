@@ -235,8 +235,13 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
               <button key={v.key} onClick={() => setTab(v.key)}
                 aria-pressed={on}
                 className="px-2.5 min-h-[28px] text-caption rounded-md transition-colors"
+                // Mismo idioma de "seleccionado" que SegmentedTabs (pastilla
+                // neutra rellena + tinta primaria), un nivel mas liviano: el
+                // relleno es el gris del riel, plano, en vez de la pastilla
+                // blanca elevada. Antes iba en tinte azul + texto azul, o sea
+                // dos gramaticas distintas de seleccion apiladas a 8px.
                 style={on
-                  ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', fontWeight: 600 }
+                  ? { color: 'var(--text-primary)', backgroundColor: 'var(--bg-tertiary)', fontWeight: 600 }
                   : { color: 'var(--text-muted)' }}>
                 {v.label}
               </button>
@@ -1422,7 +1427,12 @@ export default function DashboardPage() {
         )
       })()}
 
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      {/* pb-20 solo en movil: la burbuja del chat flota por encima del spacer
+          de la nav, asi que sin este colchon el ultimo renglon de la ultima
+          card (que casi siempre es un monto, alineado a la derecha) queda
+          debajo de ella incluso con el scroll al fondo. En sm+ la burbuja vive
+          en bottom-6 y no compite con el contenido. */}
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 sm:py-6 space-y-4 sm:space-y-6">
         {/* Demo mode: the exit must always be obvious, even after the tour ends */}
         {isDemoMode && (
           <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"

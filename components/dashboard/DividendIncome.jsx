@@ -370,18 +370,24 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         {t('INGRESOS PASIVOS', 'PASSIVE INCOME')}
       </h3>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div>
-          <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
-          <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(estAnnual)}</span>
-        </div>
-        <div className="text-center">
-          <span className="text-xs text-slate-500 block">{t('Rendimiento', 'Yield')}</span>
-          <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{portfolioYield.toFixed(2)}%</span>
-        </div>
-        <div className="text-right">
-          <span className="text-xs text-slate-500 block">YTD {t('recibido', 'received')}</span>
-          <span className="text-h1 text-white font-mono tabular-nums">{formatCurrency(stats.totalYTD)}</span>
+      {/* Jerarquia del hero (una cifra primaria + secundarias en linea), en vez
+          de tres cifras del mismo tamano donde ninguna era la principal. La
+          primaria va en TINTA y no en verde: es una estimacion, no dinero
+          cobrado, y el verde de esta card queda reservado para lo que YA entro
+          (el YTD de aca abajo, el historial, el YoY), igual que el hero lo
+          reserva para los deltas. */}
+      <div className="mb-4">
+        <span className="text-xs text-slate-500 block">{t('Ingreso anual est.', 'Est. Annual Income')}</span>
+        <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(estAnnual)}</span>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 mt-1">
+          <span className="text-xs text-slate-500">
+            {t('Rendimiento', 'Yield')}{' '}
+            <span className="text-sm font-semibold font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{portfolioYield.toFixed(2)}%</span>
+          </span>
+          <span className="text-xs text-slate-500">
+            YTD {t('recibido', 'received')}{' '}
+            <span className="text-sm font-semibold font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalYTD)}</span>
+          </span>
         </div>
       </div>
 
@@ -445,10 +451,14 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
       <Group>{t('Lo que viene', 'What is coming')}</Group>
 
+      {/* Vive bajo "Lo que viene" y es estAnnual/12, o sea una proyeccion igual
+          que sus dos vecinas: iba en gris neutro junto a dos tiles azules, tres
+          naturalezas aparentes para la misma clase de numero. El azul-proyectado
+          se aplica parejo. */}
       <div className="grid grid-cols-1 gap-3 mb-4">
-        <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-          <span className="text-xs text-slate-500">{t('Mensual est.', 'Monthly est.')}</span>
-          <span className="text-sm font-semibold text-white block">{formatCurrency(estAnnual / 12)}</span>
+        <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }}>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Mensual est.', 'Monthly est.')}</span>
+          <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(estAnnual / 12)}</span>
         </div>
       </div>
 
@@ -473,11 +483,17 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         <div className="mb-4">
           <span className="text-xs text-slate-500 mb-2 block">{t('Próximos pagos esperados', 'Upcoming expected payments')}</span>
           <div className="space-y-1">
+            {/* El nombre se lleva el flex: con `w-16` fijo, dos cuentas
+                "ClubCas..." eran indistinguibles entre si mientras las columnas
+                cortas (fecha y monto) regalaban espacio. Y el monto va en AZUL:
+                es dinero esperado, no cobrado, la misma semantica que los tiles
+                proyectados y la tira azul de aca abajo; el verde de esta card
+                es solo para lo que ya entro. */}
             {projected.upcoming.map((u, i) => (
-              <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-theme-base/60">
-                <span className="text-slate-400 font-medium w-16 truncate" title={u.label}>{u.label}</span>
-                <span className="text-slate-500">{monthName(u.month)} {u.day}</span>
-                <span className="font-medium" style={{ color: 'var(--accent-green)' }}>{formatCurrency(u.amount)}</span>
+              <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-theme-base/60">
+                <span className="text-slate-400 font-medium flex-1 min-w-0 truncate" title={u.label}>{u.label}</span>
+                <span className="text-slate-500 shrink-0">{monthName(u.month)} {u.day}</span>
+                <span className="font-medium font-mono tabular-nums shrink-0" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(u.amount)}</span>
               </div>
             ))}
           </div>
@@ -511,12 +527,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
             {incomeCalendar.map((amt, m) => {
               const paid = amt > 0
+              // Azul y no verde: este calendario sale del CALENDARIO configurado
+              // de cada fuente, o sea es proyeccion igual que la tira "Mes a
+              // mes" de arriba; el verde de la card es solo para lo cobrado.
               return (
                 <div key={m} className="text-center p-1.5 rounded-lg border transition-transform hover:scale-[1.03]" style={paid
-                  ? { backgroundColor: 'var(--alert-success-bg)', borderColor: 'var(--alert-success-border)' }
+                  ? { backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }
                   : { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: 'var(--card-border)' }}>
                   <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{monthName(m)}</span>
-                  <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                  <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
                     {paid ? formatCurrency(amt) : '-'}
                   </span>
                 </div>
@@ -570,7 +589,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               // ahí React vería dos hijos con la misma llave.
               return (
                 <div key={s.id || s.label} className="flex items-center gap-2">
-                  <span className="text-xs text-white font-medium w-16 truncate" title={s.label}>{s.label}</span>
+                  <span className="text-xs text-white font-medium w-24 truncate" title={s.label}>{s.label}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>
@@ -592,7 +611,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               const pct = stats.totalAll > 0 ? (p.total / stats.totalAll) * 100 : 0
               return (
                 <div key={p.symbol} className="flex items-center gap-2">
-                  <span className="text-xs text-white font-medium w-16 truncate" title={p.label}>{p.label}</span>
+                  <span className="text-xs text-white font-medium w-24 truncate" title={p.label}>{p.label}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>
