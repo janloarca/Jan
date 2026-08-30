@@ -7,6 +7,7 @@ import { openingDepositDateFix } from '@/lib/originDeposits'
 import { debtOptions, isProperty as isPropertyItem } from '@/lib/propertyEquity'
 import DebtBreakdownPreview from './DebtBreakdownPreview'
 import { validateItem } from '@/lib/validation'
+import { toRawItem } from '@/lib/rawItem'
 import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
 import { getItemValue } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
@@ -26,13 +27,8 @@ const ACCOUNT_TYPES = [
 // Items opened from the dashboard are enriched: display-only fields plus
 // currentPrice/purchasePrice already converted to baseCurrency. Strip the
 // display fields and restore original-currency values before any Firestore write.
-function stripEnriched(item) {
-  const { _originalPrice, _originalPurchasePrice, _originalCurrency, _displayCurrency, totalValue, percentOfPortfolio, change1d, change7d, change30d, pnlPercent, marketCurrency, _category, ...rawItem } = item
-  if (_originalPrice != null) rawItem.currentPrice = _originalPrice
-  if (_originalPurchasePrice != null) rawItem.purchasePrice = _originalPurchasePrice
-  if (_originalCurrency != null) rawItem.currency = _originalCurrency
-  return rawItem
-}
+// UNA sola definicion, compartida con la celda de la Hoja: ver lib/rawItem.js.
+const stripEnriched = toRawItem
 
 // Some numeric fields arrive with float-math noise (a NAV/unit derived from
 // reinvested dividends can read "1.018837890625"). Nobody edits a form by
