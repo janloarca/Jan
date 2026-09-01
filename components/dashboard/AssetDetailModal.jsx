@@ -143,7 +143,13 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
       distributions: dists,
       residualValue: totalValue,
       nowTs: Date.now(),
-      committedCapital: item.committedCapital > 0 ? item.committedCapital : undefined,
+      // FASE ME2: los capital calls de arriba se convierten a base y este se
+      // pasaba CRUDO en la moneda del ítem: con base != moneda del ítem, el
+      // PIC % salía mal (contrato de lib/ventureMetrics: "callers convert
+      // every amount to ONE currency before building flows").
+      committedCapital: item.committedCapital > 0
+        ? (convert ? convert(item.committedCapital, item.currency || baseCurrency, baseCurrency) : item.committedCapital)
+        : undefined,
     })
   }, [transactions, item, convert, baseCurrency, totalValue])
 
@@ -284,7 +290,9 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             <div className="text-xs" style={{ color: 'var(--accent-purple)' }}>
               🚀 {[
                 item.investmentStage ? (STAGE_LABELS[item.investmentStage]?.[lang] || STAGE_LABELS[item.investmentStage]?.es || item.investmentStage) : null,
-                item.roundValuation > 0 ? `${t('valuación', 'valuation')} ${formatCurrency(item.roundValuation)}` : null,
+                // roundValuation se captura en la moneda del ítem y nadie lo
+                // convierte: formatearlo en base leía Q40M como "$40M".
+                item.roundValuation > 0 ? `${t('valuación', 'valuation')} ${formatCurrency(item.roundValuation, item.currency)}` : null,
                 item.ownershipPct > 0 ? `${item.ownershipPct}% ${t('de la empresa', 'of the company')}` : null,
               ].filter(Boolean).join(' · ')}
             </div>

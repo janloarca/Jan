@@ -1103,8 +1103,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <div className="flex items-center justify-between gap-2 text-xs py-1">
                           <span style={{ color: 'var(--text-muted)' }}>{formatTxDate(tx.date)}</span>
                           <div className="text-right min-w-0">
+                            {/* FASE ME2: el monto va en ABSOLUTO porque el signo lo pone
+                                isPositive. Sin el abs, un totalAmount negativo (corrección,
+                                reversa) imprimía "-Q-488.07": el doble negativo que
+                                lib/financeAmount.js:9 nombra literalmente. */}
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                              {isPositive ? '+' : '-'}{tx.currency || form.currency} {(tx.totalAmount || 0).toLocaleString()}
+                              {isPositive ? '+' : '-'}{tx.currency || form.currency} {Math.abs(tx.totalAmount || 0).toLocaleString()}
                             </span>
                             {incoming && (
                               <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
