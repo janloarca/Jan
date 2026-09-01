@@ -1,57 +1,19 @@
 'use client'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
+import { clampTargetYear, readGoal, goalInBase } from '@/lib/goalFields'
 
 import { useState, useMemo, useEffect } from 'react'
 import { formatCurrency, formatCompact } from './utils'
 import { runMonteCarloSimulation } from './analytics'
 import { monthsUntilGoal, monthlyNeeded, measuredMonthlyContribution } from '@/lib/goalProjection'
 
-// Rango legal del año objetivo: el input declara min/max pero un type="number"
-// no impide TECLEAR 99999, y `yearsLeft` alimenta directo al Monte Carlo
-// (años × 12 meses × 500 simulaciones): sin tope, un año basura ya guardado
-// congelaba el navegador. Se clampa al GUARDAR y también al LEER, para que un
-// dato malo ya escrito no reviente la card.
-export const GOAL_MAX_YEAR = 2060
-export function clampTargetYear(v, currentYear = new Date().getFullYear()) {
-  const n = parseInt(v)
-  if (!Number.isFinite(n)) return currentYear + 5
-  return Math.min(GOAL_MAX_YEAR, Math.max(currentYear, n))
-}
-
-// Un valor guardado se lee con coerción NUMÉRICA y default explícito, nunca con
-// `||`: un goal guardado en 0 es falsy, así que `goals.incomeGoal ||
-// form.incomeGoal` caía al STRING del formulario. Dos daños: lo
-// tecleado-y-CANCELADO se mostraba en la vista de lectura como si se hubiera
-// guardado, y con un string menor a 1000 `formatCompact` moría en
-// `'999'.toFixed is not a function` (su última rama llama .toFixed sobre el
-// valor crudo) y la card entera crasheaba.
-export function readGoal(v, dflt) {
-  if (v == null || v === '') return dflt
-  const n = Number(v)
-  return Number.isFinite(n) && n >= 0 ? n : dflt
-}
-
-// FASE LL. Una meta tiene MONEDA propia (decision del usuario, 26 ago 2026):
-// antes se comparaba contra el patrimonio en la moneda base DEL MOMENTO, asi
-// que cambiar la base re-interpretaba la meta en silencio (una meta de
-// 100,000 pasaba de dolares a quetzales sin que nadie la tocara). Ahora cada
-// guardado estampa `goalCurrency` (la base que el usuario estaba viendo al
-// teclear los numeros) y el progreso CONVIERTE la meta a la base actual.
-//
-// Una meta vieja sin `goalCurrency` conserva el comportamiento de siempre
-// (se lee en la base del momento): inventarle una moneda a un dato viejo
-// seria adivinar; se estampa sola en el proximo guardado. Y sin converter
-// (tasas aun sin cargar) cae al monto crudo, el mismo respaldo del resto de
-// la app.
-export function goalInBase(amount, goalCurrency, baseCurrency, convert) {
-  const n = Number(amount)
-  if (!Number.isFinite(n)) return 0
-  if (!goalCurrency || !baseCurrency || goalCurrency === baseCurrency) return n
-  if (typeof convert !== 'function') return n
-  const out = convert(n, goalCurrency, baseCurrency)
-  return Number.isFinite(out) ? out : n
-}
+// Los tres helpers de meta (rango del año, lectura de un valor guardado y
+// conversión a la base) viven en `lib/goalFields.js`: los necesita también el
+// perfil financiero de Flujo, y dos copias de la misma regla es exactamente
+// cómo nació el duplicado que ese módulo existe para cerrar. Se re-exportan
+// porque el test de esta card los importa desde acá.
+export { GOAL_MAX_YEAR, clampTargetYear, readGoal, goalInBase } from '@/lib/goalFields'
 
 // ⛔ Una meta de "Tamaño de portfolio" se mide contra los ACTIVOS, no contra el
 // patrimonio neto. Con una deuda viva las dos cifras difieren, y contra el neto

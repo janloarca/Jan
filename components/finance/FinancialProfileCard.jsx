@@ -1,6 +1,10 @@
 'use client'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
+import InlineNotice from '@/components/ui/InlineNotice'
+import {
+  legacyProfileGoals, goalAdoptionPatch, goalsDiffer, goalsMigratedStamp, goalInBase, readGoal,
+} from '@/lib/goalFields'
 
 // The financial profile used to hide in a Settings tab where nobody found it.
 // It lives HERE now, on the finances page: visible, glanceable when collapsed,
@@ -22,11 +26,18 @@ function profileAge(updatedAt, t) {
   return t(`actualizado hace ${months} meses`, `updated ${months} months ago`)
 }
 
-export default function FinancialProfileCard({ profile, onSaveProfile, analysis, lang = 'es' }) {
+export default function FinancialProfileCard({
+  profile, onSaveProfile, analysis, lang = 'es',
+  // La meta es UNA sola y vive en `settings/goals`, la misma que mide el
+  // tablero. Este formulario tenía sus propios `incomeGoal`/`portfolioGoal`/
+  // `targetYear`, que solo se mostraban a sí mismos: ver lib/goalFields.js.
+  goals = null, onSaveGoals = null, convert = null, baseCurrency = null,
+}) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
+  const [resolvingGoals, setResolvingGoals] = useState(false)
   const [form, setForm] = useState({
     monthlyIncome: profile?.monthlyIncome || '',
     monthlyExpenses: profile?.monthlyExpenses || '',
@@ -34,9 +45,6 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
     age: profile?.age || '',
     retirementAge: profile?.retirementAge || '',
     emergencyMonths: profile?.emergencyMonths || 6,
-    incomeGoal: profile?.incomeGoal || '',
-    portfolioGoal: profile?.portfolioGoal || '',
-    targetYear: profile?.targetYear || '',
     riskTolerance: profile?.riskTolerance || 'moderate',
   })
 
@@ -56,6 +64,37 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
     ? Date.now() - new Date(financialTs).getTime() > 90 * 86400000
     : false
   const isEmpty = !profile?.monthlyIncome && !profile?.monthlyExpenses
+
+  // La meta canónica, convertida a la base actual igual que la muestra el
+  // tablero: una sola cifra, un solo significado.
+  const canonicalGoal = goalInBase(readGoal(goals?.portfolioGoal, 0), goals?.goalCurrency || null, baseCurrency, convert)
+  const fmtGoal = (n) => {
+    try {
+      return new Intl.NumberFormat(lang === 'es' ? 'es-GT' : 'en-US', {
+        style: 'currency', currency: baseCurrency || 'USD', maximumFractionDigits: 0,
+      }).format(n)
+    } catch { return `${baseCurrency || ''} ${Math.round(n).toLocaleString()}` }
+  }
+
+  // Las metas que quedaron guardadas en ESTE perfil, de cuando el formulario
+  // tenía sus propios campos. Solo se pregunta cuando de verdad dicen algo
+  // distinto de lo que el tablero ya mide; si coinciden, la marca se estampa
+  // sola y nadie ve nada.
+  const legacyGoals = legacyProfileGoals(profile)
+  const legacyPatch = legacyGoals ? goalAdoptionPatch(legacyGoals, { baseCurrency, convert }) : null
+  const legacyConflict = !!legacyGoals && goalsDiffer(legacyGoals, goals, { baseCurrency, convert })
+
+  const resolveLegacyGoals = async (adopt) => {
+    if (resolvingGoals) return
+    setResolvingGoals(true)
+    try {
+      if (adopt && onSaveGoals && legacyPatch) await onSaveGoals({ ...(goals || {}), ...legacyPatch })
+      // La marca se estampa en los DOS casos: lo que no puede pasar es que la
+      // pregunta vuelva en cada carga.
+      if (onSaveProfile) await onSaveProfile(goalsMigratedStamp())
+    } catch { /* se deja la pregunta abierta: nada se perdió */ }
+    setResolvingGoals(false)
+  }
 
   const RISK_LABEL = {
     conservative: t('Conservador', 'Conservative'),
@@ -92,9 +131,6 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
     { key: 'age', label: t('Edad', 'Age'), placeholder: '30' },
     { key: 'retirementAge', label: t('Edad de retiro', 'Retirement age'), placeholder: '60' },
     { key: 'emergencyMonths', label: t('Meses de emergencia', 'Emergency months'), placeholder: '6' },
-    { key: 'incomeGoal', label: t('Meta ingreso pasivo/mes', 'Passive income goal/mo'), placeholder: '2000' },
-    { key: 'portfolioGoal', label: t('Meta de portafolio', 'Portfolio goal'), placeholder: '500000' },
-    { key: 'targetYear', label: t('Año objetivo', 'Target year'), placeholder: '2030' },
   ]
 
   return (
@@ -120,6 +156,38 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
         </button>
       </div>
 
+      {/* La meta estaba guardada en dos lados y decían cosas distintas. Se
+          muestran las DOS, ya convertidas, y elige el usuario: pisar una en
+          silencio sería elegir por él sobre su propia meta. */}
+      {legacyConflict && (
+        <div className="mt-3">
+          <InlineNotice tone="warn">
+            <span data-legacy-goals>
+              {t('Esta pantalla guardaba su propia meta, distinta de la que mide el tablero.',
+                 'This screen kept its own goal, different from the one the dashboard measures.')}
+              {' '}
+              <strong>{t('Acá', 'Here')}: {legacyPatch?.portfolioGoal > 0 ? fmtGoal(legacyPatch.portfolioGoal) : '-'}</strong>
+              {legacyGoals?.targetYear ? ` · ${legacyGoals.targetYear}` : ''}
+              {' · '}
+              <strong>{t('Tablero', 'Dashboard')}: {canonicalGoal > 0 ? fmtGoal(canonicalGoal) : '-'}</strong>
+              {goals?.targetYear ? ` · ${goals.targetYear}` : ''}
+            </span>
+            <span className="flex items-center gap-2 ml-auto">
+              <button type="button" data-adopt-goal disabled={resolvingGoals}
+                onClick={() => resolveLegacyGoals(true)}
+                className="font-medium underline disabled:opacity-50" style={{ color: 'var(--accent-blue)' }}>
+                {t('Usar la de acá', 'Use this one')}
+              </button>
+              <button type="button" data-keep-goal disabled={resolvingGoals}
+                onClick={() => resolveLegacyGoals(false)}
+                className="font-medium underline disabled:opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                {t('Quedarme con la del tablero', 'Keep the dashboard one')}
+              </button>
+            </span>
+          </InlineNotice>
+        </div>
+      )}
+
       {/* Collapsed glance: the numbers that matter, no clicks needed */}
       {!open && !isEmpty && (
         <div className="flex flex-wrap gap-2 mt-3">
@@ -133,9 +201,9 @@ export default function FinancialProfileCard({ profile, onSaveProfile, analysis,
               💳 {fmtQ(profile.monthlyExpenses)}/{t('mes', 'mo')}
             </span>
           )}
-          {profile?.portfolioGoal > 0 && (
+          {canonicalGoal > 0 && (
             <span className="text-xs px-2 py-1 rounded-lg bg-theme-base border border-glass-border/60 font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>
-              🎯 {fmtQ(profile.portfolioGoal)}{profile?.targetYear ? ` · ${profile.targetYear}` : ''}
+              🎯 {fmtGoal(canonicalGoal)}{goals?.targetYear ? ` · ${goals.targetYear}` : ''}
             </span>
           )}
           <span className="text-xs px-2 py-1 rounded-lg bg-theme-base border border-glass-border/60" style={{ color: 'var(--text-secondary)' }}>
