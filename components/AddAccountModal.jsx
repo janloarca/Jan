@@ -19,6 +19,7 @@ import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { debtOptions } from '@/lib/propertyEquity'
 import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
+import { todayLocalISO } from '@/lib/localDate'
 
 
 const TYPES = [
@@ -532,7 +533,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // de los cupones posteriores). `balanceAsOf` responde la pregunta exacta:
       // desde cuándo es cierto lo que está guardado. Se sella al teclearlo, o
       // sea hoy, que es lo que el usuario pidió.
-      if (!isMarketAsset) item.balanceAsOf = new Date().toISOString().slice(0, 10)
+      // ⛔ FASE MS. El DIA LOCAL, nunca `toISOString()`, que devuelve el dia
+      // UTC. La spec dice literal que este sello significa "hoy: el usuario
+      // esta mirando el campo y apretando Guardar", y eso es el dia que el
+      // usuario esta viviendo. En Guatemala (UTC-6) el dia UTC rota a las 6pm,
+      // asi que guardar un saldo de noche lo sellaba con la fecha de MAÑANA, y
+      // la regla del saldo es "HASTA balanceAsOf manda el saldo": un cupon del
+      // dia siguiente quedaba dentro de la foto y NO se acreditaba nunca.
+      // Reproducido: guardar a las 7pm del 31 de agosto sellaba 2026-09-01.
+      if (!isMarketAsset) item.balanceAsOf = todayLocalISO()
 
       // Income config
       if (showIncome && !isMarketAsset && (form.incomeAmount || form.incomeRate || form.rateMin || form.rateType === 'continuous')) {

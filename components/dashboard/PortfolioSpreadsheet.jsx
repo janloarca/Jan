@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { todayLocalISO } from '@/lib/localDate'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
@@ -977,7 +978,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // Q849.35. Ver lib/rawItem.js.
     const plan = planCellEdit({ item: toRawItem(item), oldValue, newValue, answer })
     if (!plan) return
-    const patch = { ...plan.patch, balanceAsOf: new Date().toISOString().slice(0, 10) }
+    // ⛔ FASE MS. El DIA LOCAL, la misma regla que las otras dos puertas que
+    // sellan este campo: `toISOString()` devuelve el dia UTC, que en Guatemala
+    // rota a las 6pm, asi que corregir un saldo de noche lo sellaba con la
+    // fecha de MAÑANA y un cupon del dia siguiente quedaba "dentro de la foto".
+    const patch = { ...plan.patch, balanceAsOf: todayLocalISO() }
     await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment)
   }, [pendingEdit, commitPatch])
 
