@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
+import { transactionDocId } from '@/lib/transactionDocId'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 // Historial de bumps de SNAPSHOT_VERSION (el número vive en lib/snapshotVersion.js
@@ -1199,11 +1200,11 @@ export function useFirestoreItems() {
     }
 
     for (const tx of (newTxs || [])) {
-      const amt = Math.round((tx.totalAmount || tx.amount || 0) * 100)
-      // Append a broker-provided transaction id when present (IBKR cash flows) so
-      // two same-day/same-amount deposits don't collapse into one doc.
-      const base = `${tx.date || 'nodate'}-${(tx.symbol || 'nosym').toUpperCase()}-${tx.type || 'tx'}-${amt}`
-      const id = tx._ibkrTxnId ? `${base}-${tx._ibkrTxnId}` : base
+      // ⛔ FASE MO. La llave vive en `lib/transactionDocId.js`, con la razón de
+      // cada campo escrita ahí. Se extrajo porque el sanador de la transición
+      // (`detectAccountQualifiedIdDuplicates`) tiene que reconocer la versión
+      // VIEJA de un documento, y con dos copias de la regla una se queda atrás.
+      const id = transactionDocId(tx)
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/transactions`, id), data: strip({ ...tx, createdAt: now }) })
     }
 
