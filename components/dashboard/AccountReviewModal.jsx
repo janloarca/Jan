@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { getItemValue, getTypeCategory, formatCurrency } from './utils'
+import { getItemValue, getTypeCategory, formatCurrency, formatDate } from './utils'
 
 const CATEGORY_LABELS = {
   banks: { es: 'Banco', en: 'Bank' },
@@ -127,16 +127,21 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div ref={trapRef} className="modal-anim bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      {/* FASE ME: era un panel `bg-white` fijo con tokens de tema ENCIMA, así que en
+          tema oscuro (el default) --text-primary resolvía a blanco sobre blanco: la
+          cifra de la cuenta que estabas revisando medía 1.00:1. Ahora es el panel
+          canónico (.modal-glass) y TODO el texto interior sale de tokens, así que
+          se lee en los dos temas. */}
+      <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Progress bar */}
         <div className="px-6 pt-5 pb-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-slate-400 font-medium">
               {index + 1} / {totalCount} · {reviewedCount} {t('revisados', 'reviewed')}
             </span>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">&times;</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
           </div>
-          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-theme-tertiary rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all duration-300"
               style={{ backgroundColor: 'var(--accent-blue)', width: `${((index + 1) / totalCount) * 100}%` }} />
           </div>
@@ -157,9 +162,9 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
         <div className="px-6 py-4">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">{item.name || item.symbol}</h2>
+              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{item.name || item.symbol}</h2>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{catLabel}</span>
+                <span className="text-xs bg-theme-tertiary text-slate-500 px-2 py-0.5 rounded-full">{catLabel}</span>
                 {item.institution && <span className="text-xs text-slate-400">{item.institution}</span>}
                 {reviewed[item.id] && <span className="text-xs" style={{ color: 'var(--accent-green)' }}>&#10003;</span>}
               </div>
@@ -168,7 +173,9 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
               <p className="text-2xl font-bold font-mono tabular-nums" style={{ color: val < 0 ? 'var(--text-negative)' : 'var(--text-primary)' }}>
                 {formatCurrency(val)}
               </p>
-              <p className="text-xs text-slate-400">{item.currency || 'USD'}</p>
+              {/* La cifra de arriba está en la moneda BASE (los items llegan
+                  enriquecidos/convertidos): etiquetarla con item.currency la
+                  contradecía. La moneda de la CUENTA vive en la fila "Moneda". */}
             </div>
           </div>
 
@@ -177,18 +184,24 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
             <DetailRow label={t('Tipo', 'Type')} value={item.type} />
             <DetailRow label={t('Moneda', 'Currency')} value={item.currency || 'USD'} />
             <DetailRow label={t('Cantidad', 'Quantity')} value={item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 }) || '-'} />
-            <DetailRow label={t('Precio compra', 'Buy price')} value={item.purchasePrice ? `$${item.purchasePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'} />
-            <DetailRow label={t('Precio actual', 'Current price')} value={item.currentPrice ? `$${item.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'} />
-            <DetailRow label={t('Fecha compra', 'Buy date')} value={item.acquisitionDate || '-'} />
-            {item.maturityDate && <DetailRow label={t('Vencimiento', 'Maturity')} value={item.maturityDate} />}
+            {/* Los precios llegan CONVERTIDOS a la moneda base (useDashboardData los
+                enriquece antes de montarnos): un `$` fijo vestía Q500 de $500,
+                contradiciendo la fila "Moneda" de al lado. formatCurrency sin
+                moneda formatea en base, que es lo que estos valores SON.
+                entryFee es la excepción: nadie lo convierte, va en la moneda
+                del ítem. Fechas por formatDate (UTC-safe), nunca el ISO crudo. */}
+            <DetailRow label={t('Precio compra', 'Buy price')} value={item.purchasePrice ? formatCurrency(item.purchasePrice) : '-'} />
+            <DetailRow label={t('Precio actual', 'Current price')} value={item.currentPrice ? formatCurrency(item.currentPrice) : '-'} />
+            <DetailRow label={t('Fecha compra', 'Buy date')} value={item.acquisitionDate ? formatDate(item.acquisitionDate) : '-'} />
+            {item.maturityDate && <DetailRow label={t('Vencimiento', 'Maturity')} value={formatDate(item.maturityDate)} />}
             {item.incomeRate && <DetailRow label={t('Tasa de interés', 'Interest rate')} value={`${item.incomeRate}%`} />}
             {item.managementFee && <DetailRow label={t('Comisión gestión', 'Mgmt fee')} value={`${item.managementFee}%`} />}
-            {item.entryFee && <DetailRow label={t('Costo entrada', 'Entry fee')} value={`$${item.entryFee}`} />}
+            {item.entryFee && <DetailRow label={t('Costo entrada', 'Entry fee')} value={formatCurrency(item.entryFee, item.currency)} />}
           </div>
 
           {/* P&L */}
           {item.purchasePrice > 0 && item.currentPrice > 0 && (
-            <div className="bg-slate-50 rounded-lg p-3 mb-4">
+            <div className="bg-theme-tertiary rounded-lg p-3 mb-4">
               {(() => {
                 const cost = (item.quantity || 1) * item.purchasePrice
                 const current = (item.quantity || 1) * item.currentPrice
@@ -289,9 +302,9 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
 
           {/* Notes */}
           {item.notes && (
-            <div className="bg-slate-50 rounded-lg p-3 mb-4">
+            <div className="bg-theme-tertiary rounded-lg p-3 mb-4">
               <p className="text-xs text-slate-400 mb-1">{t('Notas', 'Notes')}</p>
-              <p className="text-sm text-slate-700">{item.notes}</p>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{item.notes}</p>
             </div>
           )}
         </div>
@@ -299,7 +312,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
         {/* Actions */}
         <div className="px-6 pb-5 flex items-center gap-2">
           <button onClick={goPrev} disabled={index === 0} aria-label={t('Anterior', 'Previous')}
-            className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-glass-border rounded-lg hover:bg-theme-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             &#8592;
           </button>
           <button onClick={handleEdit}
@@ -314,7 +327,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
           </button>
           {index === sorted.length - 1 && reviewedCount >= totalCount - 1 && (
             <button onClick={onClose}
-              className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+              className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-glass-border rounded-lg hover:bg-theme-elevated transition-colors">
               {t('Cerrar', 'Close')}
             </button>
           )}
@@ -328,7 +341,7 @@ function DetailRow({ label, value }) {
   return (
     <div>
       <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-slate-700 font-medium">{value}</p>
+      <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{value}</p>
     </div>
   )
 }
