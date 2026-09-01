@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem } from './utils'
 import { computeHHI, computeHHIByDimension } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
+import SegmentedTabs from '../ui/SegmentedTabs'
 
 export default function ConcentrationRisk({ items, lang }) {
   // Default to the per-position lens — that's the one concentration view no other
@@ -94,20 +95,11 @@ export default function ConcentrationRisk({ items, lang }) {
         </span>
       </div>
 
-      <div className="inline-flex items-center gap-0.5 p-1 rounded-[10px] mb-3 max-w-full overflow-x-auto" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        {dims.map((d) => {
-          const active = dimension === d.key
-          return (
-            <button key={d.key} onClick={() => setDimension(d.key)}
-              className="px-2.5 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap"
-              style={active
-                ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
-                : { color: 'var(--text-muted)' }}>
-              {d.label}
-            </button>
-          )
-        })}
-      </div>
+      {/* FASE ME8: era la firma de SegmentedTabs escrita a mano (sin
+          role=tablist, sin difuminado de borde, objetivos de 24px): el
+          primitivo existe justo para que esto no diverja. */}
+      <SegmentedTabs tabs={dims} value={dimension} onChange={setDimension}
+        ariaLabel={t('Dimensión de concentración', 'Concentration dimension')} className="mb-3" deps={[lang]} />
 
       <div className="flex items-center gap-3 mb-3 px-2 py-1.5 bg-theme-base rounded-lg border border-glass-border/50">
         <span className="text-xs text-slate-500">HHI<InfoTip text={t('Índice Herfindahl-Hirschman. Mide la concentración del portafolio. Bajo 1500 = diversificado, 1500-2500 = moderado, arriba de 2500 = concentrado.', 'Herfindahl-Hirschman Index. Measures portfolio concentration. Below 1500 = diversified, 1500-2500 = moderate, above 2500 = concentrated.')} /></span>
@@ -123,7 +115,7 @@ export default function ConcentrationRisk({ items, lang }) {
       <div className="space-y-2">
         {data.groups.slice(0, 8).map((row, i) => (
           <div key={row.name} className="flex items-center gap-3">
-            <span className="text-xs text-white font-medium w-24 capitalize truncate">{row.name}</span>
+            <span className="text-xs text-white font-medium w-24 truncate">{row.name}</span>
             <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full transition-all" style={{
                 width: `${row.pct}%`,

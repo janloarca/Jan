@@ -408,7 +408,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
             <RefreshCw size={20} style={{ color: 'var(--text-secondary)' }} />
             {t('Conexiones y Sync', 'Connections & Sync')}
             {connectedCount > 0 && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.12)' }}>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 12%, transparent)' }}>
                 {connectedCount} {connectedCount === 1 ? t('activa', 'active') : t('activas', 'active')}
               </span>
             )}
@@ -417,7 +417,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
 
         {saveStatus && (
-          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
+          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: saveStatus.type === 'ok' ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'rgba(239,68,68,0.15)' }}>
             {saveStatus.msg}
           </div>
         )}

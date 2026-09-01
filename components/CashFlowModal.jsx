@@ -438,7 +438,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                   ? 'border-2'
                   : 'bg-theme-base text-slate-400 border-2 border-glass-border hover:border-slate-500'
               }`}
-              style={flowType === 'DEPOSIT' ? { color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.2)', borderColor: 'rgba(52,211,153,0.5)' } : undefined}>
+              style={flowType === 'DEPOSIT' ? { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-green) 50%, transparent)' } : undefined}>
               <span className="text-lg">+</span> {t('Depósito', 'Deposit')}
             </button>
             <button type="button" onClick={() => { setFlowType('WITHDRAWAL'); setOrigin('external') }}

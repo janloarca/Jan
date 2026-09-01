@@ -74,9 +74,9 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
         {step === 'config' && (
           <div className="p-6 space-y-4">
-            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(37,99,235,0.1)', borderColor: 'rgba(37,99,235,0.2)' }}>
+            <div className="border rounded-lg p-3" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)' }}>
               <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
-              <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'rgba(147,197,253,0.8)' }}>
+              <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'var(--text-secondary)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
                 <li>{t('Settings → API Management', 'Settings → API Management')}</li>
                 <li>{t('Crea una nueva API Key (solo lectura)', 'Create a new API Key (read-only)')}</li>
@@ -92,7 +92,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
             </div>
 
             {error && (
-              <div className="p-3 border rounded-lg text-xs whitespace-pre-wrap" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--text-negative)' }}>
+              <div className="p-3 border rounded-lg text-xs whitespace-pre-wrap" style={{ backgroundColor: 'var(--alert-error-bg)', borderColor: 'var(--alert-error-border)', color: 'var(--text-negative)' }}>
                 {error}
               </div>
             )}
@@ -109,9 +109,9 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
 
         {step === 'preview' && preview && (
           <div className="p-6 space-y-4">
-            <div className="border rounded-lg p-3" style={{ backgroundColor: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)' }}>
+            <div className="border rounded-lg p-3" style={{ backgroundColor: 'var(--alert-success-bg)', borderColor: 'var(--alert-success-border)' }}>
               <p className="text-sm font-medium" style={{ color: 'var(--accent-green)' }}>{t('Sincronización exitosa', 'Sync successful')}</p>
-              <p className="text-xs mt-1" style={{ color: 'rgba(110,231,183,0.7)' }}>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                 {preview.items.length} {t('posiciones', 'positions')} · {preview.transactions.length} {t('transacciones', 'transactions')}
               </p>
             </div>
@@ -142,13 +142,13 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'merge' ? { backgroundColor: 'rgba(37,99,235,0.2)', color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'merge' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Fusionar', 'Merge')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>
                 <button onClick={() => setSyncMode('replace')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'replace' ? { backgroundColor: 'rgba(245,158,11,0.2)', color: 'var(--alert-warn-icon)', borderColor: 'rgba(245,158,11,0.4)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'replace' ? { backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)', borderColor: 'var(--alert-warn-border)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Reemplazar', 'Replace')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Borra todo de Blockchain.com', 'Delete all from Blockchain.com')}</span>
                 </button>

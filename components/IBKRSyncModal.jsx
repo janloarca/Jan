@@ -859,7 +859,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     tratamiento pasa a ámbar y el rótulo dice lo que de verdad
                     describe. El caso sano no cambia. */}
                 <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: error ? 'var(--alert-warn-bg)' : 'rgba(52,211,153,0.15)' }}>
+                  style={{ backgroundColor: error ? 'var(--alert-warn-bg)' : 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}>
                   <CheckCircle size={20} style={{ color: error ? 'var(--alert-warn-icon)' : 'var(--accent-green)' }} />
                 </div>
                 <p className="text-sm text-white font-medium">

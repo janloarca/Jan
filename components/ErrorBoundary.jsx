@@ -21,7 +21,7 @@ export default class ErrorBoundary extends Component {
     if (this.state.hasError) {
       const lang = this.props.lang || 'es'
       return (
-        <div className="card p-4 text-center" style={{ borderColor: 'rgba(248,113,113,0.15)' }}>
+        <div className="card p-4 text-center" style={{ borderColor: 'color-mix(in srgb, var(--accent-red) 15%, transparent)' }}>
           <p className="text-sm" style={{ color: 'var(--accent-red)' }}>
             {lang === 'es' ? 'Algo salió mal en esta sección' : 'Something went wrong in this section'}
           </p>

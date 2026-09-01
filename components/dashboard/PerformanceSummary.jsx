@@ -126,7 +126,7 @@ export default function PerformanceSummary({ items, lots, transactions, convert,
 
   if (periods.length === 0 && !loading) return (
     <div className="bg-theme-card/40 rounded-xl border border-glass-border/30 p-4 text-center">
-      <p className="text-sm" style={{ color: fetchError ? 'rgba(248,113,113,0.7)' : 'var(--text-muted)' }}>
+      <p className="text-sm" style={{ color: fetchError ? 'color-mix(in srgb, var(--accent-red) 70%, transparent)' : 'var(--text-muted)' }}>
         {fetchError || (lang === 'es' ? 'Sin datos de rendimiento aún' : 'No performance data yet')}
       </p>
     </div>
