@@ -526,6 +526,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     )
     if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
 
+    // ⛔ FASE MU. Este reloj es UTC y `balanceAsOf` es LOCAL (FASE MS: un día
+    // calendario que el usuario vivió). En Guatemala las dos convenciones
+    // discrepan entre las 6pm y la medianoche, así que la VÍSPERA de cada día
+    // de pago acá ya llegó el día mientras el calendario del usuario dice ayer.
+    //
+    // Que `balanceAsOf` sea LOCAL es lo que hace que los dos lectores de abajo
+    // acierten en esa ventana, y NO al revés: con el sello UTC viejo la foto
+    // del saldo quedaba fechada MAÑANA, así que un pago del día de pago caía
+    // "dentro" de un saldo que todavía no lo contenía. Medido con este mismo
+    // motor: en reinvest el pago no se escribía nunca (el guard vuelve a dar lo
+    // mismo en cada corrida), y con destino se escribía con
+    // `_destinationCredited: false`, o sea el cupón existía como historia sin
+    // mover el saldo de la cuenta que lo recibió, de forma permanente. Fijado
+    // en useDashboardData.test.js (FASE MU) con sus dos regresiones negativas.
+    //
+    // ANOTADO y NO hecho, con su razón: en esa misma ventana el pago se
+    // ESCRIBE hasta 6 horas antes de que su día llegue localmente. Va fechado
+    // bien (`dateStr` sale del calendario de pago, no del reloj), así que todo
+    // consumidor que lee por fecha lo ve en su día y ninguna cifra queda mal;
+    // lo único raro es verlo aparecer esa noche. Mover este reloj a local
+    // arrastra `getEffectivePayDay`, el bucle de meses y la cadencia de
+    // `todayKey` (que sí es una frontera de sistema y debe seguir en UTC), o
+    // sea es una pasada propia sobre el motor más delicado del archivo, por una
+    // ventana cosmética.
     const todayDay = now.getUTCDate()
     const currentMonth = now.getUTCMonth()
 

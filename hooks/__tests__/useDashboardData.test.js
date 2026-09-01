@@ -755,3 +755,117 @@ describe('FASE MT: el YTD mide desde donde arranca su ancla', () => {
     expect(ytd).toBeLessThan(6)
   })
 })
+
+// ⛔ FASE MU. La frontera donde el `balanceAsOf` LOCAL de FASE MS se encuentra
+// con el reloj UTC del motor de dividendos.
+//
+// El motor deriva "hoy" de UTC (`now.getUTCDate()`, `now.getUTCMonth()`) y
+// `balanceAsOf` es un día CALENDARIO que el usuario vivió, o sea LOCAL. En
+// Guatemala (UTC-6) las dos convenciones discrepan entre las 6pm y la
+// medianoche, así que la VÍSPERA de cada día de pago el motor ya cree que el
+// día de pago llegó mientras el calendario del usuario todavía dice ayer.
+//
+// Los dos lectores de `balanceAsOf` deciden ahí cosas que cuestan dinero, y
+// con el sello UTC viejo las dos salían mal:
+//   · reinvest → `dateStr <= balanceAsOf` saltaba el pago, y lo seguía
+//     saltando en cada corrida posterior: el pago no se escribía NUNCA.
+//   · destino  → `dateStr > balanceAsOf` decidía NO acreditar, y estampaba
+//     `_destinationCredited: false`, que es permanente: el cupón queda como
+//     historia sin mover el saldo de la cuenta que lo recibió.
+// Con el sello LOCAL las dos hacen lo correcto, porque la foto del saldo está
+// fechada el día que el usuario de verdad la tecleó.
+//
+// Esta suite existe porque unificar `balanceAsOf` a UTC se ve como una
+// prolijidad (dos fechas con la misma forma, una de ellas "rara") y vuelve a
+// tragarse un cupón en silencio.
+describe('FASE MU: balanceAsOf LOCAL contra el reloj UTC del motor', () => {
+  // La víspera del día de pago, de noche en Guatemala: UTC ya dice 1 de
+  // septiembre, el calendario del usuario todavía dice 31 de agosto.
+  const BORDE = '2026-09-01T01:00:00Z'
+  const LOCAL = '2026-08-31' // lo que escribe FASE MS
+  const UTC = '2026-09-01'   // lo que escribía el código viejo
+
+  afterEach(() => jest.useRealTimers())
+
+  // META-TEST. En UTC las dos fechas coinciden y TODO lo de abajo pasaría sin
+  // probar nada. La suite corre fijada en America/Guatemala (jest.config.js).
+  it('meta: la suite corre en una zona al oeste de UTC', () => {
+    const d = new Date(BORDE)
+    expect(d.getUTCDate()).toBe(1)
+    expect(d.getDate()).toBe(31) // local
+  })
+
+  const fondo = (over = {}) => item({
+    id: 'f1', name: 'Fondo', symbol: 'FONDO', type: 'Bank',
+    quantity: 1, currentPrice: 5000, purchasePrice: 5000, _originalPrice: 5000,
+    currency: 'USD', _originalCurrency: 'USD',
+    acquisitionDate: '2026-06-15', createdAt: '2026-06-15',
+    incomeMode: 'percent', incomeRate: 12, incomePayDay: 1,
+    incomeMonths: [0,1,2,3,4,5,6,7,8,9,10,11], incomeMonthsExplicit: true,
+    ...over,
+  })
+
+  async function pagosEscritos({ items, at = BORDE }) {
+    jest.useFakeTimers().setSystemTime(new Date(at))
+    const { unmount } = setup({ firestore: { items }, prices: { enrichedItems: items } })
+    for (let i = 0; i < 20; i++) await act(async () => { await Promise.resolve() })
+    // El efecto puede correr más de una vez por re-render; el id del documento
+    // es determinístico, así que en producción es UN documento. Se dedupe por
+    // fecha para afirmar sobre el HECHO y no sobre el conteo de llamadas.
+    const porFecha = new Map()
+    for (const [tx] of fakeFirestore.addTransaction.mock.calls) porFecha.set(tx.date, tx)
+    unmount()
+    return porFecha
+  }
+
+  it('reinvest: con el sello LOCAL el pago del día se escribe', async () => {
+    const pagos = await pagosEscritos({
+      items: [fondo({ dividendAction: 'reinvest', balanceAsOf: LOCAL })],
+    })
+    expect(pagos.get('2026-09-01')?.totalAmount).toBeCloseTo(50, 6)
+  })
+
+  // REGRESIÓN NEGATIVA: el comportamiento viejo, fijado. El pago no se escribe,
+  // y como el guard vuelve a dar lo mismo en cada corrida, no se escribe nunca.
+  it('reinvest: con el sello UTC el pago se pierde para siempre', async () => {
+    const pagos = await pagosEscritos({
+      items: [fondo({ dividendAction: 'reinvest', balanceAsOf: UTC })],
+    })
+    expect(pagos.has('2026-09-01')).toBe(false)
+  })
+
+  const caja = (asOf) => item({
+    id: 'd1', name: 'Caja', symbol: 'CAJA', type: 'Bank',
+    quantity: 1, currentPrice: 1000, purchasePrice: 1000, _originalPrice: 1000,
+    currency: 'USD', acquisitionDate: '2026-06-15', createdAt: '2026-06-15',
+    balanceAsOf: asOf,
+  })
+
+  it('destino: con el sello LOCAL el cupón SÍ acredita la cuenta que lo recibe', async () => {
+    const pagos = await pagosEscritos({
+      items: [fondo({ dividendAction: 'cash', incomeDestination: 'd1' }), caja(LOCAL)],
+    })
+    expect(pagos.get('2026-09-01')?._destinationCredited).toBe(true)
+  })
+
+  // REGRESIÓN NEGATIVA, y esta es la que cuesta dinero: el cupón se escribe
+  // como historia pero jamás mueve el saldo del destino, y el flag es
+  // permanente.
+  it('destino: con el sello UTC el cupón queda escrito y sin acreditar', async () => {
+    const pagos = await pagosEscritos({
+      items: [fondo({ dividendAction: 'cash', incomeDestination: 'd1' }), caja(UTC)],
+    })
+    expect(pagos.get('2026-09-01')?._destinationCredited).toBe(false)
+  })
+
+  // Control POSITIVO. Lejos de la frontera las dos convenciones coinciden y el
+  // comportamiento es el de siempre: sin esto, "el sello LOCAL escribe el pago"
+  // podría pasar por haber dejado de respetar `balanceAsOf` del todo.
+  it('control: a mediodía el saldo del propio día sigue bloqueando su pago', async () => {
+    const pagos = await pagosEscritos({
+      items: [fondo({ dividendAction: 'reinvest', balanceAsOf: '2026-09-01' })],
+      at: '2026-09-01T18:00:00Z', // mediodía en Guatemala, ya es 1 de septiembre
+    })
+    expect(pagos.has('2026-09-01')).toBe(false)
+  })
+})
