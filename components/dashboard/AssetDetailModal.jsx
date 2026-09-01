@@ -207,8 +207,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   }, [isStatic, assetIncome, item, convert, baseCurrency])
 
   const renderPts = isStatic ? staticPoints : points
-  const isPositive = renderPts ? renderPts[renderPts.length - 1].close >= renderPts[0].close : pnl >= 0
-  const lineColor = isPositive ? 'var(--accent-green)' : 'var(--text-negative)'
+  // FASE ME4: la línea iba verde/roja según los EXTREMOS de la ventana visible,
+  // mientras el P&L de al lado mide desde la compra: una línea verde encima de
+  // un P&L rojo era la tarjeta contradiciéndose. La dirección ya la dibuja la
+  // FORMA de la línea; el color es identidad de serie, como en la gráfica
+  // principal del tablero.
+  const lineColor = 'var(--accent-blue)'
 
   // Straight segments keep bond interest step-ups crisp (vs the smoothed curve).
   function linePath(pts) {

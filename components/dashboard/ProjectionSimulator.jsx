@@ -142,7 +142,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
             </button>
           </div>
           <button onClick={() => setExpanded(!expanded)}
-            className="text-xs transition-colors" style={{ color: 'var(--accent-green)' }}>
+            className="text-xs transition-colors" style={{ color: 'var(--accent-blue)' }}>
             {expanded ? t('Cerrar', 'Close') : t('Ajustar', 'Adjust')}
           </button>
         </div>
@@ -179,11 +179,14 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Mediana (p50)', 'Median (p50)')}</span>
-            <span className="text-base font-bold" style={{ color: 'var(--accent-green)' }}>{formatCompact(mcResult.medianFinal)}</span>
+            {/* FASE ME4: la cifra p50 va del MISMO morado que su propia línea,
+                etiqueta final y punto de leyenda: el mismo número en dos colores
+                dentro de la misma vista se lee como dos datos. */}
+            <span className="text-base font-bold" style={{ color: 'var(--accent-purple)' }}>{formatCompact(mcResult.medianFinal)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('90% prob ≥', '90% prob ≥')}</span>
-            <span className="text-base font-bold text-amber-400">{formatCompact(mcResult.p10Final)}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-orange)' }}>{formatCompact(mcResult.p10Final)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('10% prob ≥', '10% prob ≥')}</span>
@@ -194,7 +197,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Valor futuro', 'Future value')}</span>
-            <span className="text-base font-bold" style={{ color: 'var(--accent-green)' }}>{formatCompact(finalBalance)}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-blue)' }}>{formatCompact(finalBalance)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
@@ -202,7 +205,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Ganancias', 'Gains')}</span>
-            <span className="text-base font-bold" style={{ color: 'var(--accent-cyan)' }}>{formatCompact(totalGains)}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-blue)' }}>{formatCompact(totalGains)}</span>
           </div>
         </div>
       )}
@@ -211,12 +214,12 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="contribGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--text-muted)" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="var(--text-muted)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
 
@@ -238,16 +241,16 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
               fill="url(#projGrad)" />
             <path d={`${linePath(contribPts)} L ${contribPts[contribPts.length-1].x} ${pad.top + ch} L ${contribPts[0].x} ${pad.top + ch} Z`}
               fill="url(#contribGrad)" />
-            <path d={linePath(balancePts)} fill="none" stroke="var(--accent-green)" strokeWidth="2" />
+            <path d={linePath(balancePts)} fill="none" stroke="var(--accent-blue)" strokeWidth="2" />
           </>
         )}
 
         {/* Invested capital line (both modes) */}
-        <path d={linePath(contribPts)} fill="none" stroke="var(--accent-blue)" strokeWidth="1.5" strokeDasharray="4 3" />
+        <path d={linePath(contribPts)} fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeDasharray="4 3" />
 
         {/* Deterministic dashed line in MC mode for reference */}
         {mode === 'montecarlo' && (
-          <path d={linePath(balancePts)} fill="none" stroke="var(--accent-green)" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.5" />
+          <path d={linePath(balancePts)} fill="none" stroke="var(--accent-blue)" strokeWidth="1" strokeDasharray="3 3" strokeOpacity="0.5" />
         )}
 
         {/* X labels */}
@@ -268,7 +271,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           </text>
         ) : (
           <text x={balancePts[balancePts.length-1].x - 4} y={balancePts[balancePts.length-1].y - 8}
-            textAnchor="end" fill="var(--accent-green)" fontSize="10" fontWeight="bold">
+            textAnchor="end" fill="var(--accent-blue)" fontSize="10" fontWeight="bold">
             {formatCompact(finalBalance)}
           </text>
         )}
@@ -280,12 +283,12 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           <>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} /> p50 ({t('mediana', 'median')})</span>
             <span className="flex items-center gap-1"><span className="w-3 h-2 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 20%, transparent)' }} /> p10-p90</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 50%, transparent)' }} /> {t('Determinista', 'Deterministic')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 50%, transparent)' }} /> {t('Determinista', 'Deterministic')}</span>
           </>
         ) : (
           <>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-green)' }} /> {t('Valor proyectado', 'Projected value')}</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} /> {t('Capital invertido', 'Invested capital')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue)' }} /> {t('Valor proyectado', 'Projected value')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} /> {t('Capital invertido', 'Invested capital')}</span>
           </>
         )}
         <span>{formatCurrency(monthly)}/{t('mes', 'mo')} · {rate}% · {years}{t(' años', 'y')}</span>
