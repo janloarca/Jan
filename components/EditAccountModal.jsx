@@ -310,6 +310,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // `_outgoingTo` and, like incoming rows, read-only here: editing a transfer
   // means touching both accounts' balances, which this single-account editor
   // isn't set up to do safely.
+  //
+  // Y una TERCERA vez lo mismo, cerrada abajo: un gasto sobre otro activo
+  // pagado desde esta cuenta (`_paidFromItemId`). Cuando el mismo punto ciego
+  // aparece tres veces, la regla que queda escrita es que toda fila que MUEVE
+  // el saldo de esta cuenta tiene que verse acá, sin importar contra qué activo
+  // esté archivada.
   const linkedTransactions = useMemo(() => {
     const sym = (item.symbol || '').toUpperCase()
     const pool = allItems || existingItems || []
@@ -331,6 +337,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         } else if (tx._originItemId === item.id) {
           const dest = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
           outgoing.push({ ...tx, _outgoingTo: dest ? (dest.name || dest.symbol) : null })
+        }
+        return
+      }
+      // Un GASTO sobre otro activo, pagado desde esta cuenta: reparar el techo
+      // de un inmueble baja el saldo de la cuenta que lo pagó (FASE KW), pero
+      // la fila se archiva contra el INMUEBLE (`_linkedItemId`), así que acá no
+      // aparecía nada. Es el MISMO punto ciego que ya se cerró para el dinero
+      // entrante (un cupón que cae en otra cuenta) y para una transferencia
+      // saliente, una tercera vez: el saldo bajaba y no había forma de ver por
+      // qué. `_paidFromItemId` es el campo que ya se escribía justo para esto y
+      // que hasta hoy no leía nadie. Read-only igual que los otros dos: el
+      // movimiento vive en el activo al que se le gastó.
+      if (tx.type === 'FEE') {
+        if (tx._paidFromItemId === item.id) {
+          const on = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+          outgoing.push({ ...tx, _outgoingTo: on ? (on.name || on.symbol) : null, _outgoingIsExpense: true })
         }
         return
       }
@@ -1125,8 +1147,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             {outgoing && (
                               <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
                                 style={{ color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
-                                title={t('Este dinero salió hacia otro activo. El movimiento vive en ambas cuentas: aquí solo se ve salir.', 'This money left for another asset. The record lives on both accounts: here you only see it go out.')}>
-                                {tx._outgoingTo ? t(`hacia ${tx._outgoingTo}`, `to ${tx._outgoingTo}`) : t('transferido', 'transferred')}
+                                title={tx._outgoingIsExpense
+                                  ? t('Un gasto sobre otro activo, pagado desde esta cuenta. El movimiento vive en ese activo: aquí solo se ve salir.', 'An expense on another asset, paid from this account. The record lives on that asset: here you only see it go out.')
+                                  : t('Este dinero salió hacia otro activo. El movimiento vive en ambas cuentas: aquí solo se ve salir.', 'This money left for another asset. The record lives on both accounts: here you only see it go out.')}>
+                                {tx._outgoingIsExpense
+                                  ? (tx._outgoingTo ? t(`gasto en ${tx._outgoingTo}`, `expense on ${tx._outgoingTo}`) : t('gasto', 'expense'))
+                                  : (tx._outgoingTo ? t(`hacia ${tx._outgoingTo}`, `to ${tx._outgoingTo}`) : t('transferido', 'transferred'))}
                               </span>
                             )}
                             {!incoming && !outgoing && !tx._linkedItemId && (

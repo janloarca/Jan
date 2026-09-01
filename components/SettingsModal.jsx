@@ -234,9 +234,19 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         // no distingue entre un cron que nunca se ejecutó y uno que sí corrió
         // pero no envió (FASE IF2).
         const lr = data?.lastCronRun
+        // QUÉ cadencia tocaba esa corrida. El cron ya lo escribía y el
+        // diagnóstico lo descartaba, así que "corrió y no me llegó el mensual"
+        // no se distinguía de "corrió y el mensual no tocaba ese día": son dos
+        // conclusiones opuestas. Una lista vacía SÍ es una respuesta, y por eso
+        // se dice en vez de omitirse.
+        const cad = Array.isArray(lr?.cadences)
+          ? (lr.cadences.length
+            ? t(` Tocaba: ${lr.cadences.join(', ')}.`, ` Due: ${lr.cadences.join(', ')}.`)
+            : t(' Ese día no tocaba ninguna cadencia.', ' No cadence was due that day.'))
+          : ''
         const runMsg = lr?.at
           ? t(` Última corrida automática: ${new Date(lr.at).toLocaleString()} (${lr.result || 'sin detalle'}).`,
-              ` Last scheduled run: ${new Date(lr.at).toLocaleString()} (${lr.result || 'no detail'}).`)
+              ` Last scheduled run: ${new Date(lr.at).toLocaleString()} (${lr.result || 'no detail'}).`) + cad
           : t(' El envío automático NUNCA ha corrido todavía.', ' The scheduled send has NEVER run yet.')
         setTestResult({
           ok: !cl || cl.includesYou,
