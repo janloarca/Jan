@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED } from '@/lib/financeCategories'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
+import { todayLocalISO } from '@/lib/localDate'
 
 export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -12,7 +13,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
     amount: '',
     category: 'Otros Gastos',
     description: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayLocalISO(),
     currency: 'GTQ',
   })
   const [saving, setSaving] = useState(false)

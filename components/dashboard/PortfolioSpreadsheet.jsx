@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } fro
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
+import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
 import { buildSheetDebtPaymentTransaction } from '@/lib/transferTx'
@@ -967,7 +968,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     if (!pendingEdit) return
     const { item, oldValue, newValue } = pendingEdit
     setPendingEdit(null)
-    const plan = planCellEdit({ item, oldValue, newValue, answer })
+    // ⛔ CRUDO, no el enriquecido. `planCellEdit` y `buildContributionFields`
+    // suman el delta (que viene en moneda ORIGINAL, porque `oldValue`/
+    // `newValue` salen de `_originalPrice`) sobre los campos de precio del
+    // item. En el enriquecido esos campos ya estan convertidos a moneda BASE,
+    // asi que sumarlos mezcla dos monedas y ESCRIBE el resultado como si fuera
+    // crudo: con base USD, teclear Q5,200 sobre una cuenta de Q5,000 guardaba
+    // Q849.35. Ver lib/rawItem.js.
+    const plan = planCellEdit({ item: toRawItem(item), oldValue, newValue, answer })
     if (!plan) return
     const patch = { ...plan.patch, balanceAsOf: new Date().toISOString().slice(0, 10) }
     await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment)

@@ -1,6 +1,7 @@
 'use client'
 
 import { parseAmount } from '@/lib/numberParse'
+import { todayLocalISO } from '@/lib/localDate'
 
 // Repeating date+amount rows for capturing HOW an account reached its value
 // ("Dec 2024: +10,000 · Feb 2025: +5,000 …"). Pure controlled component: the
@@ -15,7 +16,7 @@ const fmtNum = (n) => (Number(n) || 0).toLocaleString(undefined, { maximumFracti
 
 export default function TimelineEditor({ rows, onChange, total, currency = 'USD', requireExact = false, lang = 'es' }) {
   const t = (es, en) => lang === 'es' ? es : en
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocalISO()
 
   const sum = rows.reduce((s, r) => s + (parseAmount(r.amount)), 0)
   const totalNum = Number(total) || 0
@@ -102,7 +103,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
 // Validation helper for parents: returns an error string or null.
 export function validateTimelineRows(rows, total, { requireExact = false, lang = 'es' } = {}) {
   const t = (es, en) => lang === 'es' ? es : en
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocalISO()
   const clean = rows.filter((r) => (parseAmount(r.amount)) > 0 && r.date)
   if (clean.length === 0) return t('Agrega al menos un aporte con fecha y monto.', 'Add at least one dated contribution.')
   if (clean.some((r) => r.date > today)) return t('Las fechas no pueden ser futuras.', 'Dates cannot be in the future.')

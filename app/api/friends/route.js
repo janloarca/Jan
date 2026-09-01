@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { FieldValue } from 'firebase-admin/firestore'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
@@ -137,7 +138,14 @@ export async function POST(request) {
         uid,
         displayName: String(body.displayName || '').slice(0, 40) || 'Anónimo',
         avatar: String(body.avatar || '').slice(0, 8),
-        stats: ibkr ? { all, ibkr } : { all },
+        // ⛔ `set(..., {merge:true})` arma su mascara con rutas HOJA, asi que
+        // omitir `ibkr` NO lo borra: el bloque viejo sobrevive para siempre.
+        // Quien desconecta su broker deja de mandarlo (buildPublishStats solo
+        // lo emite si hay items `_source:'ibkr'`) y el servidor lo dejaba
+        // intacto, o sea seguia publicando el retorno Y LOS SIMBOLOS de una
+        // cuenta que ya no tiene, rankeando con una cifra fosil en los grupos
+        // "Solo IBKR". Se borra EXPLICITAMENTE, que es lo unico que lo quita.
+        stats: ibkr ? { all, ibkr } : { all, ibkr: FieldValue.delete() },
         // Señal de confianza: tiene un broker conectado y sincronizando. Nada
         // de esto viene del cuerpo, así que ya no se puede auto-otorgar.
         //
@@ -330,7 +338,15 @@ export async function POST(request) {
         if (g.ownerUid === uid) patch.ownerUid = members[0]
         return gd.ref.update(patch)
       }))
-      await profileRef.delete().catch(() => {})
+      // ⛔ SIN `.catch(() => {})`. Este es el unico borrado que cumple la
+      // promesa de privacidad de la pantalla ("se borra tu perfil publico al
+      // instante"), y tragarse su error devolvia 200 sobre un perfil que sigue
+      // vivo: con `globalOptIn:true`, seudonimo, retorno y movers, o sea
+      // seguia saliendo en el ranking global. Un fallo tiene que LLEGAR al
+      // cliente (que ya lee `res.ok` desde FASE JA5) para que el interruptor
+      // no diga "desactivado" sobre datos publicados. El catch de la ruta lo
+      // convierte en 500.
+      await profileRef.delete()
       return NextResponse.json({ ok: true })
     }
 

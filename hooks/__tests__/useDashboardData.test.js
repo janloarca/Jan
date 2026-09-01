@@ -515,21 +515,151 @@ describe('FASE LU: el YTD mide activos, la deuda no lo mueve', () => {
   it('pagar la deuda desde el banco tampoco lo mueve: el WITHDRAWAL sintético netea la bajada', async () => {
     const base = await run([bank()])
     const paidBank = item({ id: 'b1', symbol: 'BANK1', type: 'Bank', quantity: 1, currentPrice: 10678.64, purchasePrice: 10000 })
+    // El pago se fecha a MITAD de la ventana YTD y no en un día del calendario
+    // escrito a mano: con una fecha fija su peso Dietz cambia cada día que pasa
+    // (y en enero del año siguiente queda en el FUTURO), o sea el test medía
+    // distinto según el día en que se corriera.
+    const anchorMs = Date.UTC(yr, 0, 1)
+    const payDate = new Date(anchorMs + (Date.now() - anchorMs) / 2).toISOString().slice(0, 10)
     const after = await run(
       [paidBank, debt()],
-      [{ id: 'tx2', type: 'TRANSFER', _debtItemId: 'd9', _originItemId: 'b1', _toAmount: 321.36, totalAmount: 321.36, currency: 'USD', date: `${yr}-08-27`, _source: 'manual_debt_payment' }],
+      [{ id: 'tx2', type: 'TRANSFER', _debtItemId: 'd9', _originItemId: 'b1', _toAmount: 321.36, totalAmount: 321.36, currency: 'USD', date: payDate, _source: 'manual_debt_payment' }],
     )
-    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida. La GANANCIA
-    // en dólares es idéntica y ahí va la aserción exacta.
+    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida. La
+    // GANANCIA vuelve a 1,000 exactos, y esa es la propiedad de FASE LU: sin el
+    // WITHDRAWAL sintético serían 678.64, o sea el pago se leería como pérdida.
     expect(after.ytdChange).toBeCloseTo(base.ytdChange, 4)
-    // El % NO puede pinnearse con toBeCloseTo(…, 2): el Dietz pondera el
-    // WITHDRAWAL sintético por el tiempo que ese capital YA no estuvo invertido,
-    // y esa fracción crece con el reloj REAL (endTs = hoy), así que la
-    // diferencia contra la base sube un poco cada día que pasa desde la fecha
-    // del pago (0.000 el 28 ago, 0.007 el 1 sep, …). Eso es aritmética correcta
-    // de money-weighting, no el bug: el bug que este test existe para impedir
-    // producía −8,000 de pérdida inventada (~−80%). La cota es el peor caso
-    // matemático con peso 1: gain·flujo/base² ≈ 1000·321.36/10000² ≈ 0.032 pp.
-    expect(Math.abs(after.returnYTD - base.returnYTD)).toBeLessThan(0.05)
+    // El PORCENTAJE no puede ser idéntico al de la línea base, y eso es
+    // CORRECTO: Modified Dietz pondera el retiro por el tiempo que ese dinero
+    // ya no estuvo invertido, así que el capital promedio del período es algo
+    // menor que 10,000 y el mismo 1,000 de ganancia rinde un pelo más. El techo
+    // de ese efecto es un retiro fechado en el ancla misma (peso 1):
+    // 1000/(10000−321.36) = 10.332%. El bug cae del OTRO lado (678.64/10000 =
+    // 6.79%), así que el piso es lo que de verdad tiene dientes.
+    expect(after.returnYTD).toBeGreaterThanOrEqual(base.returnYTD - 1e-9)
+    expect(after.returnYTD).toBeLessThanOrEqual(base.returnYTD + 0.4)
+  })
+})
+
+// ⛔ FASE ML. "Aportado / Retirado" es una pregunta de FLUJOS, así que tiene que
+// vivir en el MISMO universo solo-activos que el resto del rendimiento (FASE
+// LU). Con la lista cruda una deuda envenenaba las DOS cifras: el DEPOSIT de
+// apertura de una deuda vieja contaba como capital aportado, y el WITHDRAWAL de
+// `manual_loan_proceeds` (el que netea el Dietz cuando el préstamo se fue fuera
+// de la app) se mostraba como "Retirado" en ROJO, dinero que nadie sacó.
+//
+// El NETO salía bien por casualidad, porque los dos errores se cancelan: es el
+// caso de "el total correcto con las partes equivocadas", y por eso las
+// aserciones son sobre las cifras BRUTAS y no sobre el neto.
+describe('FASE ML: Aportado/Retirado no cuenta la deuda', () => {
+  const bank = () => item({ id: 'b1', symbol: 'BANK1', type: 'Bank', quantity: 1, currentPrice: 10000, purchasePrice: 10000 })
+  const debt = () => item({ id: 'd9', symbol: 'AIXEN', type: 'Deuda', isDebt: true, quantity: 1, currentPrice: 4000, purchasePrice: 4000 })
+
+  async function run(items, transactions = []) {
+    const { result, unmount } = setup({
+      firestore: { items, transactions },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = { ...result.current.contributionsSummary }
+    unmount()
+    return out
+  }
+
+  const aporteReal = { id: 't0', type: 'DEPOSIT', totalAmount: 10000, currency: 'USD', date: '2026-01-05', _linkedItemId: 'b1' }
+
+  it('línea base: un aporte real de 10,000 y nada retirado', async () => {
+    const r = await run([bank()], [aporteReal])
+    expect(r.totalContributed).toBeCloseTo(10000, 6)
+    expect(r.totalWithdrawn).toBeCloseTo(0, 6)
+  })
+
+  it('el DEPOSIT envenenado de una deuda vieja NO es capital aportado', async () => {
+    const r = await run([bank(), debt()], [
+      aporteReal,
+      { id: 't1', type: 'DEPOSIT', totalAmount: 4000, currency: 'USD', date: '2026-08-25', _linkedItemId: 'd9', _source: 'manual_new_account' },
+    ])
+    expect(r.totalContributed).toBeCloseTo(10000, 6)
+  })
+
+  it('un préstamo que se fue FUERA de la app no se muestra como Retirado', async () => {
+    const r = await run([bank(), debt()], [
+      aporteReal,
+      { id: 't2', type: 'WITHDRAWAL', totalAmount: 4000, currency: 'USD', date: '2026-08-25', _linkedItemId: 'd9', _loanItemId: 'd9', _source: 'manual_loan_proceeds' },
+    ])
+    expect(r.totalWithdrawn).toBeCloseTo(0, 6)
+    expect(r.totalContributed).toBeCloseTo(10000, 6)
+  })
+
+  // Control POSITIVO: un retiro REAL sigue contando, o si no "retirado 0"
+  // pasaría por haber dejado de contar retiros del todo.
+  it('control: un retiro real del banco SÍ cuenta', async () => {
+    const r = await run([bank()], [
+      aporteReal,
+      { id: 't3', type: 'WITHDRAWAL', totalAmount: 500, currency: 'USD', date: '2026-08-26', _linkedItemId: 'b1' },
+    ])
+    expect(r.totalWithdrawn).toBeCloseTo(500, 6)
+  })
+})
+
+// ⛔ FASE MM. El MTD medía desde el DÍA 1 aunque su ancla fuera de otro día.
+//
+// `findMonthStartAnchor` busca el snapshot más cercano al día 1 en una ventana
+// de ±5 días, así que puede devolver el del día 4 mientras `startTs` se quedaba
+// en el día 1: un depósito del día 2 está DENTRO del valor de arranque y además
+// se netea como flujo, o sea se resta dos veces. Es la lección de `jan1Ts`
+// (FASE DV, "el ancla del YTD tiene FECHA") en la superficie que aquella pasada
+// no tocó, y esta se PUBLICA a Amigos: el número mal se compara contra otras
+// personas.
+describe('FASE MM: el MTD mide desde donde arranca su ancla', () => {
+  const bank = (price) => item({ id: 'b1', symbol: 'B', type: 'Bank', quantity: 1, currentPrice: price, purchasePrice: 10000 })
+  const snap = (date, v) => ({ id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily' })
+
+  afterEach(() => jest.useRealTimers())
+
+  async function run({ items, snapshots, transactions }) {
+    const { result, unmount } = setup({ firestore: { items, snapshots, transactions }, prices: { enrichedItems: items } })
+    await act(async () => {})
+    const out = result.current.returnMTD
+    unmount()
+    return out
+  }
+
+  it('un depósito ya contenido en el ancla no se resta dos veces', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-08-04', 10500)],
+      transactions: [{ id: 'd1', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-08-02', _linkedItemId: 'b1' }],
+    })
+    // Desde el ancla del día 4: (11000 − 10500) / 10500 = 4.7619%.
+    // Con startTs clavado en el día 1 daba 0: el depósito se restaba dos veces.
+    expect(mtd).toBeCloseTo(4.7619, 3)
+  })
+
+  it('un depósito del mes ANTERIOR, posterior al ancla, SÍ se netea', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-07-30', 10000)],
+      transactions: [{ id: 'd2', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-07-31', _linkedItemId: 'b1' }],
+    })
+    // El depósito NO está en el valor del 30 de julio, así que tiene que
+    // netearse. Con startTs en el día 1 caía FUERA de la ventana, no se neteaba
+    // y esos 500 se leían como ganancia (10% en vez de ~5%).
+    expect(mtd).toBeGreaterThan(0)
+    expect(mtd).toBeLessThan(6)
+  })
+
+  // Control POSITIVO: sin flujos el número no se mueve. Sin esto, "ya no resta
+  // de más" podría pasar por haber dejado de netear flujos del todo.
+  it('control: sin ningún flujo el MTD es el cambio de valor puro', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-08-01', 10000)],
+      transactions: [],
+    })
+    expect(mtd).toBeCloseTo(10, 6)
   })
 })

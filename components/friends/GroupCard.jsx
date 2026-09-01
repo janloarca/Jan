@@ -164,7 +164,16 @@ export default function GroupCard({
           const key = `${group.id}:${r.uid}`
           const isOpen = !!expanded[key]
           const hasDetail = (r.movers && r.movers.length > 0) || r.day != null
-          const isPodium = i < 3
+          // ⛔ El podio y el numero salen de `r.rank`, NUNCA del indice del
+              // arreglo. `lib/friendsGroups.js` calcula el puesto con la regla
+              // "solo para quien tiene numero" (una fila sin cifra no esta
+              // ultima, no esta en la carrera), y esta pantalla la ignoraba:
+              // en un grupo de tres donde dos publicaron, el tercero se llevaba
+              // el bronce mientras decia "Sin datos" al lado, y el correo del
+              // domingo decia de esa misma persona "no estas en la tabla".
+              // Ese modulo existe justo para que las dos superficies no puedan
+              // ordenar distinto sobre los mismos perfiles.
+              const isPodium = r.rank != null && r.rank <= 3
           const color = avatarColor(r.uid || r.displayName)
           return (
             <div key={r.uid}>
@@ -177,7 +186,7 @@ export default function GroupCard({
                   onClick={() => hasDetail && setExpanded((p) => ({ ...p, [key]: !p[key] }))}
                   className="flex-1 min-w-0 flex items-center gap-3 text-left">
                   <span className="w-6 text-center text-base shrink-0">
-                    {metric === 'mtd' && i === 0 ? '👑' : isPodium ? MEDALS[i] : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>}
+                    {metric === 'mtd' && r.rank === 1 ? '👑' : isPodium ? MEDALS[r.rank - 1] : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{r.rank ?? '-'}</span>}
                   </span>
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                     style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`, color }}>
