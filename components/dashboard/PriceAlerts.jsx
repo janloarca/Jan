@@ -15,6 +15,7 @@ import { formatCurrency } from './utils'
 export default function PriceAlerts({ items, alerts, marketPrices, addAlert, deleteAlert, lang, onClose = null }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [adding, setAdding] = useState(!!onClose && (alerts || []).length === 0)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [symbol, setSymbol] = useState('')
   const [direction, setDirection] = useState('above')
   const [targetPrice, setTargetPrice] = useState('')
@@ -127,7 +128,10 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
                   {a.triggered ? '🔔' : (a.direction === 'above' ? '📈' : '📉')}
                 </span>
                 <span className={`text-xs text-white font-medium ${a.triggered ? 'opacity-40' : ''}`}>{sym}</span>
-                <span className="text-xs text-slate-500 truncate">
+                {/* FASE ME3: `truncate` cortaba el MONTO objetivo a 390px
+                    ("$120,000...."), o sea una cifra falsa. El dinero no se
+                    trunca: la línea envuelve. */}
+                <span className="text-xs text-slate-500 whitespace-normal break-words">
                   {a.direction === 'above'
                     ? t('sube de', 'above')
                     : t('baja de', 'below')} {formatCurrency(a.targetPrice)}
@@ -137,8 +141,32 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
                 {current != null && isFinite(current) && (
                   <span className="text-xs text-slate-600">{formatCurrency(current)}</span>
                 )}
-                <button onClick={() => deleteAlert(a.id)}
-                  className="text-xs text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">×</button>
+                {/* FASE ME3: la × era `opacity-0 group-hover:opacity-100`, o sea
+                    PERMANENTEMENTE invisible en táctil (hoverOnlyWhenSupported
+                    no compila group-hover para touch): una alerta creada desde
+                    iPad no se podía borrar nunca y seguía notificando. Y encima
+                    borraba en UN toque. Ahora es visible siempre, con objetivo
+                    de 28px y confirmación de dos toques (patrón de
+                    RecentTransactions). */}
+                {confirmDeleteId === a.id ? (
+                  <span className="flex items-center gap-1">
+                    <button onClick={() => { deleteAlert(a.id); setConfirmDeleteId(null) }}
+                      className="min-h-[28px] px-2 rounded text-xs font-medium"
+                      style={{ backgroundColor: 'var(--text-negative)', color: '#ffffff' }}>
+                      {t('Borrar', 'Delete')}
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(null)}
+                      className="min-h-[28px] px-2 rounded text-xs border border-glass-border"
+                      style={{ color: 'var(--text-secondary)' }}>
+                      {t('No', 'No')}
+                    </button>
+                  </span>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(a.id)}
+                    aria-label={t(`Borrar alerta de ${sym}`, `Delete ${sym} alert`)}
+                    className="min-w-[28px] min-h-[28px] flex items-center justify-center rounded text-sm leading-none transition-colors hover:text-red-400"
+                    style={{ color: 'var(--text-muted)' }}>×</button>
+                )}
               </div>
             </div>
           )
