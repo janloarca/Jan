@@ -153,6 +153,23 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
                 'The "Cash Transactions" section arrived but with no deposit or withdrawal in it. If you deposited or withdrew money in the period, edit your Flex Query and, inside "Cash Transactions", tick the "Deposits & Withdrawals" type: without those movements, your deposits count as gains in your returns.')}
         </p>
       )}
+      {/* ⛔ FASE MP. El reporte trae varias filas por fecha (o por moneda) SIN
+          `accountId`, con valores distintos: la firma de un Flex multi-cuenta
+          cuyos campos se eligieron a mano en vez del "Select All" que las
+          instrucciones piden. Sin ese campo las cuentas comparten la llave del
+          dedupe, la primera gana, y el NAV o el efectivo de la otra desaparece.
+          No se puede sumar en su lugar porque sin `accountId` "dos cuentas" y
+          "una cuenta más su fila consolidada" son indistinguibles (y esa
+          segunda forma está observada, no es hipotética: ver el comentario de
+          parseCashPositions), así que sumar contaría el mismo dinero dos veces.
+          Se DICE, con el arreglo real, que vive del lado del usuario. */}
+      {result.sections && ((result.sections.unattributedEquityDates ?? 0) > 0
+        || (result.sections.unattributedCashCurrencies ?? 0) > 0) && (
+        <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {t('Tu reporte trae varias filas para la misma fecha sin decir a qué cuenta pertenece cada una. Si tienes más de una cuenta en IBKR, solo estamos leyendo la primera y el resto no aparece. Edita tu Flex Query y marca "Select All" en la lista de campos de cada sección (ahí va el número de cuenta), y sincroniza de nuevo.',
+            'Your report has several rows for the same date without saying which account each one belongs to. If you have more than one IBKR account, we are only reading the first one and the rest never shows up. Edit your Flex Query and tick "Select All" in each section\'s field list (that is where the account number lives), then sync again.')}
+        </p>
+      )}
       {/* Forensic breakdown: what the Flex XML actually delivered per section vs
           what we imported. One screenshot of this pins the failure: low XML counts
           = the query period is short (fix in IBKR); high XML but low imported = our
