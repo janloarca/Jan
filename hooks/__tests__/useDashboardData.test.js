@@ -601,3 +601,65 @@ describe('FASE ML: Aportado/Retirado no cuenta la deuda', () => {
     expect(r.totalWithdrawn).toBeCloseTo(500, 6)
   })
 })
+
+// ⛔ FASE MM. El MTD medía desde el DÍA 1 aunque su ancla fuera de otro día.
+//
+// `findMonthStartAnchor` busca el snapshot más cercano al día 1 en una ventana
+// de ±5 días, así que puede devolver el del día 4 mientras `startTs` se quedaba
+// en el día 1: un depósito del día 2 está DENTRO del valor de arranque y además
+// se netea como flujo, o sea se resta dos veces. Es la lección de `jan1Ts`
+// (FASE DV, "el ancla del YTD tiene FECHA") en la superficie que aquella pasada
+// no tocó, y esta se PUBLICA a Amigos: el número mal se compara contra otras
+// personas.
+describe('FASE MM: el MTD mide desde donde arranca su ancla', () => {
+  const bank = (price) => item({ id: 'b1', symbol: 'B', type: 'Bank', quantity: 1, currentPrice: price, purchasePrice: 10000 })
+  const snap = (date, v) => ({ id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily' })
+
+  afterEach(() => jest.useRealTimers())
+
+  async function run({ items, snapshots, transactions }) {
+    const { result, unmount } = setup({ firestore: { items, snapshots, transactions }, prices: { enrichedItems: items } })
+    await act(async () => {})
+    const out = result.current.returnMTD
+    unmount()
+    return out
+  }
+
+  it('un depósito ya contenido en el ancla no se resta dos veces', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-08-04', 10500)],
+      transactions: [{ id: 'd1', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-08-02', _linkedItemId: 'b1' }],
+    })
+    // Desde el ancla del día 4: (11000 − 10500) / 10500 = 4.7619%.
+    // Con startTs clavado en el día 1 daba 0: el depósito se restaba dos veces.
+    expect(mtd).toBeCloseTo(4.7619, 3)
+  })
+
+  it('un depósito del mes ANTERIOR, posterior al ancla, SÍ se netea', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-07-30', 10000)],
+      transactions: [{ id: 'd2', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-07-31', _linkedItemId: 'b1' }],
+    })
+    // El depósito NO está en el valor del 30 de julio, así que tiene que
+    // netearse. Con startTs en el día 1 caía FUERA de la ventana, no se neteaba
+    // y esos 500 se leían como ganancia (10% en vez de ~5%).
+    expect(mtd).toBeGreaterThan(0)
+    expect(mtd).toBeLessThan(6)
+  })
+
+  // Control POSITIVO: sin flujos el número no se mueve. Sin esto, "ya no resta
+  // de más" podría pasar por haber dejado de netear flujos del todo.
+  it('control: sin ningún flujo el MTD es el cambio de valor puro', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-08-01', 10000)],
+      transactions: [],
+    })
+    expect(mtd).toBeCloseTo(10, 6)
+  })
+})
