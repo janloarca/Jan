@@ -99,6 +99,17 @@ const CADENCES = {
   },
 }
 
+// La bandera de suscripción de cada cadencia, DERIVADA del mapa de arriba y
+// nunca escrita a mano en otro archivo: el diagnóstico de Ajustes y el botón de
+// prueba preguntan "¿el cron te encuentra?", y esa pregunta solo tiene sentido
+// si la bandera que consultan es LA MISMA que el cron usa. Antes vivía como una
+// cadena de ternarios en la ruta de prueba, o sea una segunda copia esperando a
+// quedarse atrás en cuanto se agregara una cadencia (que es exactamente lo que
+// pasó con `friendsWeekly`).
+export const CADENCE_FLAGS = Object.fromEntries(
+  Object.entries(CADENCES).map(([cadence, cfg]) => [cadence, cfg.flag]),
+)
+
 // FASE IF. Quiénes están suscritos a una cadencia.
 //
 // La vía natural es una consulta de GRUPO DE COLECCIONES sobre `settings`,

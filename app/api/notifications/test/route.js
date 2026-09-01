@@ -8,7 +8,6 @@ import { buildWeeklyBriefForUser, makeMailer, AUTO_HEADERS } from '@/lib/weeklyB
 import { buildMonthlyBriefForUser, buildAnnualBriefForUser } from '@/lib/periodBriefBuilder'
 import { makeBriefFetcher } from '@/lib/briefFetcher'
 import { buildFriendsWeeklyForUser } from '@/lib/friendsWeeklyBuilder'
-import { findSubscribers } from '@/app/api/cron/notifications/route'
 
 // Qué se prueba por cadencia: el MISMO builder y la MISMA ventana de mercado
 // (MARKET_WINDOWS, compartida con el cron) que usa la corrida real. Una lista
@@ -18,9 +17,10 @@ const TESTABLE = {
   monthly: { build: buildMonthlyBriefForUser, marketOpts: MARKET_WINDOWS.monthly },
   annual: { build: buildAnnualBriefForUser, marketOpts: MARKET_WINDOWS.annual },
   // Sin ventana de mercado: el correo de grupos no la lleva (una tabla de
-  // posiciones no dice nada del S&P). `flag` va explícito porque este ya no
-  // se puede derivar de una cadena de ternarios.
-  friendsWeekly: { build: buildFriendsWeeklyForUser, marketOpts: null, flag: 'notifyFriendsWeekly' },
+  // posiciones no dice nada del S&P). La bandera de suscripción NO se declara
+  // aquí: la única que manda es la del cron (`CADENCE_FLAGS`), y esta ruta ya
+  // no la necesita desde que el diagnóstico se mudó a /api/notifications/status.
+  friendsWeekly: { build: buildFriendsWeeklyForUser, marketOpts: null },
 }
 
 export const dynamic = 'force-dynamic'
@@ -112,53 +112,12 @@ export async function POST(request) {
     })
     mailer.transport.close()
 
-    // FASE IF. El botón de prueba probaba TODO menos la única pieza que el
-    // envío automático no comparte con él: cómo el cron encuentra a los
-    // suscriptores (una consulta de grupo de colecciones que exige un índice
-    // y que nunca había corrido en producción). Ahora la ejercita también y
-    // reporta el resultado, así "la prueba llega pero el automático no" deja
-    // de ser un misterio que solo los logs de la plataforma pueden resolver.
-    let cronLookup = null
-    try {
-      const flag = cfg.flag || (cadence === 'weekly' ? 'notifyWeekly' : cadence === 'monthly' ? 'notifyMonthly' : 'notifyAnnual')
-      const found = await findSubscribers(db, flag)
-      cronLookup = {
-        flag,
-        found: found.docs.length,
-        via: found.via,
-        includesYou: found.docs.some((d) => d.ref.parent.parent?.id === uid),
-        ...(found.error ? { error: found.error } : {}),
-      }
-    } catch (e) {
-      cronLookup = { error: e?.message || String(e) }
-    }
-
-    // FASE IF2. La constancia de la última corrida del cron: responde "¿llegó
-    // a ejecutarse?" sin abrir los logs de la plataforma, que es la pregunta
-    // que quedó sin respuesta cuando el primer envío automático no llegó.
-    let lastCronRun = null
-    try {
-      const doc = await db.doc('system/notificationsCron').get()
-      if (doc.exists) {
-        const d = doc.data()
-        // `cadences` lo ESCRIBE el cron desde FASE IF2 y este passthrough lo
-        // descartaba, así que nadie lo veía nunca. Es justo lo que falta cuando
-        // llegó un correo y otro no: `result` dice cómo TERMINÓ la corrida y
-        // `cadences` dice CUÁL tocaba, que son dos preguntas distintas.
-        //
-        // `friendsHistory` del mismo doc se queda deliberadamente afuera: esta
-        // pantalla diagnostica el CORREO, y traerlo hasta acá sin dibujarlo
-        // solo movería el campo muerto una capa más adentro.
-        lastCronRun = {
-          at: d.lastRunAt || null,
-          result: d.lastResult || null,
-          report: d.report || null,
-          cadences: Array.isArray(d.cadences) ? d.cadences : null,
-        }
-      }
-    } catch { /* sin constancia, la UI simplemente no la muestra */ }
-
-    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0, cronLookup, lastCronRun })
+    // FASE IG. El diagnóstico del envío AUTOMÁTICO (si el cron corrió, y si te
+    // encuentra) vivía aquí, colgado del envío: la única forma de consultarlo
+    // era mandarse un correo. Se mudó a /api/notifications/status, que contesta
+    // lo mismo sin mandar nada y por eso Ajustes puede mostrarlo solo. Devolver
+    // esos campos también acá sería una segunda copia de la misma respuesta.
+    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0 })
   } catch (err) {
     // El mensaje del servidor SMTP viaja de vuelta a propósito: si Zoho
     // rechaza la autenticación, saberlo aquí ahorra una ronda de logs.
