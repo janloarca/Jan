@@ -519,8 +519,17 @@ describe('FASE LU: el YTD mide activos, la deuda no lo mueve', () => {
       [paidBank, debt()],
       [{ id: 'tx2', type: 'TRANSFER', _debtItemId: 'd9', _originItemId: 'b1', _toAmount: 321.36, totalAmount: 321.36, currency: 'USD', date: `${yr}-08-27`, _source: 'manual_debt_payment' }],
     )
-    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida.
+    // La cuenta bajó 321.36 pagando la deuda: eso NO es una pérdida. La GANANCIA
+    // en dólares es idéntica y ahí va la aserción exacta.
     expect(after.ytdChange).toBeCloseTo(base.ytdChange, 4)
-    expect(after.returnYTD).toBeCloseTo(base.returnYTD, 2)
+    // El % NO puede pinnearse con toBeCloseTo(…, 2): el Dietz pondera el
+    // WITHDRAWAL sintético por el tiempo que ese capital YA no estuvo invertido,
+    // y esa fracción crece con el reloj REAL (endTs = hoy), así que la
+    // diferencia contra la base sube un poco cada día que pasa desde la fecha
+    // del pago (0.000 el 28 ago, 0.007 el 1 sep, …). Eso es aritmética correcta
+    // de money-weighting, no el bug: el bug que este test existe para impedir
+    // producía −8,000 de pérdida inventada (~−80%). La cota es el peor caso
+    // matemático con peso 1: gain·flujo/base² ≈ 1000·321.36/10000² ≈ 0.032 pp.
+    expect(Math.abs(after.returnYTD - base.returnYTD)).toBeLessThan(0.05)
   })
 })
