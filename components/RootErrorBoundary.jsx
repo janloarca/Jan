@@ -80,7 +80,7 @@ export default class RootErrorBoundary extends Component {
           }}>
             <div style={{
               width: '56px', height: '56px', borderRadius: '16px',
-              backgroundColor: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)',
+              backgroundColor: 'color-mix(in srgb, var(--accent-red) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-red) 15%, transparent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 1.25rem',
               fontSize: '1.5rem',

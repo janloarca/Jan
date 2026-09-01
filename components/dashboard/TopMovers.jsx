@@ -76,7 +76,7 @@ export default function TopMovers({ items, transactions, lang }) {
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex-1 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bar-fill" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: 'rgba(52,211,153,0.6)' }} />
+                    <div className="h-full rounded-full bar-fill" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: 'color-mix(in srgb, var(--accent-green) 60%, transparent)' }} />
                   </div>
                   <span className="text-xs font-medium" style={{ color: isPos ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                     <span className="font-mono tabular-nums">{isFinite(it.retPct) ? `${isPos ? '+' : ''}${it.retPct.toFixed(1)}%` : '-'}</span>

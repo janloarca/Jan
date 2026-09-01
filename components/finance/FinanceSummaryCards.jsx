@@ -71,7 +71,7 @@ export default function FinanceSummaryCards({
   const overspendRatio = totalIncome > 0 && savings < 0 ? expenses / totalIncome : null
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Entró', 'Came in')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>
