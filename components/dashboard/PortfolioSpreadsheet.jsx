@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
-import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
+import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
 import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
@@ -1939,7 +1939,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                   {item.installmentsRemaining > 0 && (
                                     <span>{item.installmentsRemaining} {t('cuotas rest.', 'pmts left')}</span>
                                   )}
-                                  {item.maturityDate && <span>{t('Vence', 'Due')}: {item.maturityDate}</span>}
+                                  {item.maturityDate && <span>{t('Vence', 'Due')}: {formatDate(item.maturityDate)}</span>}
                                   {bd && bd.monthlyInterest > 0.005 && (
                                     <span>{t('interés', 'interest')} ~{fmtD(bd.monthlyInterest)}/{t('mes', 'mo')}</span>
                                   )}

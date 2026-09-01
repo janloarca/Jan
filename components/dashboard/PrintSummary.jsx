@@ -55,7 +55,16 @@ export default function PrintSummary({
   const fmtRaw = (v) => formatCurrency(Math.abs(v || 0))
   const fmtAcc = (v) => (v < 0 ? `(${fmtRaw(v)})` : fmtRaw(v))
   const fmtPct = (v) => v == null ? '-' : (v < 0 ? `(${Math.abs(v).toFixed(2)}%)` : `+${v.toFixed(2)}%`)
-  const fmtDate = (ts) => ts ? new Date(ts).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' }) : ''
+  // FASE ME5: acepta ts O un 'YYYY-MM-DD'. Un dia calendario parsea como
+  // medianoche UTC, y formatearlo en hora local lo retrocede un dia al oeste
+  // de UTC (toda LatAm): el guard formatea esos en UTC, igual que formatDate.
+  const fmtDate = (ts) => {
+    if (!ts) return ''
+    const d = new Date(ts)
+    if (isNaN(d.getTime())) return ''
+    const utcMid = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric', ...(utcMid ? { timeZone: 'UTC' } : {}) })
+  }
 
   const now = new Date(data.meta.generatedTs)
   const dateStr = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -577,7 +586,7 @@ export default function PrintSummary({
                   {data.maturities.map((r, i) => (
                     <tr key={`${r.name}-${i}`} className="border-b border-gray-100">
                       <td className="py-1.5 font-medium">{r.name}</td>
-                      <td className="py-1.5 text-gray-500">{r.date}</td>
+                      <td className="py-1.5 text-gray-500">{fmtDate(r.date)}</td>
                       <td className="py-1.5 text-right text-gray-500">{r.days}</td>
                       <td className="py-1.5 text-right">{fmtAcc(r.value)}</td>
                     </tr>

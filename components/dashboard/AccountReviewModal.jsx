@@ -234,7 +234,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                           <span style={{ color: 'var(--accent-green)' }} title={
                             (transactions || [])
                               .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
-                              .map(tx => `${tx.date}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
+                              .map(tx => `${formatDate(tx.date)}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
                               .join('\n')
                           }>
                             {t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}

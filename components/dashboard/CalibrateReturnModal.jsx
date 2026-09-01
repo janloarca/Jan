@@ -5,7 +5,7 @@ import { parseRate } from '@/lib/numberParse'
 import { useState } from 'react'
 import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
+import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, formatDate } from '@/components/dashboard/utils'
 import { hasRealObservationAt } from '@/lib/snapshotSelect'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
@@ -365,7 +365,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
               {allCalibrated.map((s) => (
                 <div key={s.id || s.date} className="flex items-center justify-between text-xs">
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {s.date}
+                    {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {formatDate(s.date)}
                   </span>
                   <button type="button" disabled={saving} onClick={() => removeCalibration(s)}
                     className="px-2 py-0.5 rounded transition-colors hover:bg-white/5"

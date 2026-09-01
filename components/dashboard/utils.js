@@ -87,10 +87,16 @@ export function formatDate(dateStr) {
 
 export function formatShortDate(dateStr) {
   if (!dateStr) return ''
+  const locale = _lang === 'es' ? 'es' : 'en-US'
   try {
     const d = coerceDate(dateStr)
     if (!d || isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : ''
-    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    // FASE ME5: mismo guard UTC que formatDate. Un 'YYYY-MM-DD' (o el timestamp
+    // de su medianoche UTC) formateado en hora local retrocede un día al oeste
+    // de UTC, y con formato mes/año el caso que muerde es EXACTAMENTE el común:
+    // el ancla del 1 de enero se imprimía "dic 25" en vez de "ene 26".
+    const isUtcMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
+    return d.toLocaleDateString(locale, { month: 'short', year: '2-digit', ...(isUtcMidnight ? { timeZone: 'UTC' } : {}) })
   } catch { return typeof dateStr === 'string' ? dateStr : '' }
 }
 
