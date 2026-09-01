@@ -107,6 +107,8 @@ export default function FinancesPage() {
     saveSettings,
     profile,
     saveProfile,
+    goals,
+    saveGoals,
     incomePlan,
     saveIncomePlan,
   } = useFirestoreItems()
@@ -604,7 +606,8 @@ export default function FinancesPage() {
 
         {/* Moved here from Settings: nobody found it there, and this data is
             time-sensitive — it belongs next to the money it describes. */}
-        <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang} />
+        <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
+          goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
 
       <ModalMount closing={modalClosing}>
       {modalShown === 'add' && (
