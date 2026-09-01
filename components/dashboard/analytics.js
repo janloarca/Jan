@@ -1,4 +1,4 @@
-import { getTypeCategory, getItemValue, computeModifiedDietz, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getItemPrincipalCost, getDividendIncomeByItem } from './utils'
+import { getTypeCategory, getItemValue, computeModifiedDietz, flowsAfterAnchor, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getItemPrincipalCost, getDividendIncomeByItem } from './utils'
 import { snapshotAssetsUSD } from '@/lib/assetReturns'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
 
@@ -424,10 +424,18 @@ export function computePeriodicReturns(snapshots, transactions, convert, baseCur
         const currTs = new Date(sorted[i].date).getTime()
         // Snapshot values (prev/curr) are stored in USD, so flows must be
         // converted to USD too — not to the user's baseCurrency
+        //
+        // ⛔ FASE MW: un flujo fechado EL MISMO DÍA que `prev` ya está dentro de
+        // `prev`, así que netearlo lo resta dos veces y ESE período se lee como
+        // pérdida. El borde de la DERECHA sí es inclusivo a propósito: un flujo
+        // del día de `curr` está dentro de `curr` y tiene que netearse, que es
+        // justo lo que `gain = curr − prev − flujos` necesita. De acá salen
+        // volatilidad, Sharpe y beta, así que un período torcido los mueve.
+        const windowed = flowsAfterAnchor(transactions, prevTs, convert, 'USD').flows
         const { pct } = computeModifiedDietz({
           startValue: prev, endValue: curr,
           startTs: prevTs, endTs: currTs,
-          transactions, convert, baseCurrency: 'USD',
+          transactions: windowed, convert, baseCurrency: 'USD',
         })
         r = pct / 100
       } else {

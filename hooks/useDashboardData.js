@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -1644,7 +1644,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // un descuadre chico contra ese ancla no se puede diagnosticar.
     let anchorSrc = null
     // When the start value is not actually Jan 1's, the window starts where the
-    // value does (see jan1Ts). Only ever moves FORWARD from Jan 1.
+    // value does (see jan1Ts). Desde FASE MT también puede moverse hacia ATRÁS,
+    // a un ancla de fines de diciembre: el buscador de anclas acepta las dos
+    // direcciones y la ventana tiene que seguir al valor en ambas.
     let startTs = yearStartTs
     if (augmentedSnapshots.length >= 2) {
       // Shared anchor (also used by the chart's YTD starting point) so the
@@ -1793,18 +1795,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // flow dated exactly on startTs (`txTs >= startTs`), so moving the window is
     // not enough on its own: the flows at or before the anchor have to go too,
     // or the deposit is subtracted from a start value that already contains it.
-    if (startTs > yearStartTs) {
-      let droppedIn = 0
-      ytdFlows = (ytdFlows || []).filter((tx) => {
-        const txTs = tx.date ? new Date(tx.date).getTime() : NaN
-        if (!isFinite(txTs) || txTs > startTs) return true
-        const ty = (tx.type || '').toUpperCase()
-        const amt = convert
-          ? convert(Number(tx.totalAmount ?? 0), tx.currency || 'USD', baseCurrency || 'USD')
-          : Number(tx.totalAmount ?? 0)
-        if (isFinite(amt)) droppedIn += ty === 'DEPOSIT' ? amt : ty === 'WITHDRAWAL' ? -amt : 0
-        return false
-      })
+    //
+    // ⛔ FASE MW: el drop es INCONDICIONAL, ya no `if (startTs > yearStartTs)`.
+    // Ese guard describía el único caso que existía antes de FASE MT (el ancla
+    // solo se podía mover hacia ADELANTE), y MT habilitó la rama de diciembre
+    // sin extenderlo: con un ancla del 28 de diciembre y un depósito de ESE
+    // MISMO día, el depósito volvía a restarse de un valor que ya lo contenía y
+    // el año se leía plano (medido con el hook real: 0% sobre un 4.76% real).
+    // Con el ancla en el borde exacto las dos formas coinciden, así que quitar
+    // el guard no puede mover el caso común. Ver flowsAfterAnchor (utils.js).
+    {
+      const { flows, dropped } = flowsAfterAnchor(ytdFlows, startTs, convert, baseCurrency)
+      ytdFlows = flows
       // Those dropped deposits ARE the capital that created startVal, and they
       // can exceed the value they bought: an opening deposit carries the entry
       // fee (6,098 into a 6,000 bond). That fee belongs in the DENOMINATOR only.
@@ -1813,7 +1815,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // the VITALI reference case in CLAUDE.md warns about, which lands on
       // 2.33% instead of 3.94%. So the gain keeps measuring against the value
       // (240), and only the base it divides by becomes the all-in cost.
-      if (droppedIn > startVal) ytdCostBase = droppedIn
+      if (dropped > startVal) ytdCostBase = dropped
     }
     const endTsNow = Date.now()
     const { pct, abs, weightedCapital } = computeModifiedDietz({
@@ -2519,10 +2521,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // superficie que aquella pasada no tocó, y esta se PUBLICA a Amigos, o sea
     // el número mal se compara contra otras personas.
     const startTs = anchorStartTs(anchor, Date.UTC(year, month, 1))
+    // ⛔ FASE MW. Mover la ventana no alcanza: Dietz cuenta un flujo fechado
+    // EXACTO en `startTs`, y el snapshot del día del ancla ya lo contiene, así
+    // que se restaba dos veces. Acá faltaba en las DOS direcciones (con el ancla
+    // del día 4 y con la del 31 del mes anterior), y este número se publica a
+    // Amigos: medido con el hook real, un mes que ganó 4.76% imprimía 0%.
+    const mtdFlows = flowsAfterAnchor(
+      (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? assetTransactions : assetDietzTransactions,
+      startTs, convert, baseCurrency,
+    ).flows
     const { pct } = computeModifiedDietz({
       startValue: startVal, endValue: totalAssets,
       startTs, endTs: Date.now(),
-      transactions: (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? assetTransactions : assetDietzTransactions,
+      transactions: mtdFlows,
       convert, baseCurrency,
     })
     // Crudo: la banda la aplica `boundedPct` al publicar (ver returnYTDRaw).

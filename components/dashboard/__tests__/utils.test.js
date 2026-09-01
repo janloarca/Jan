@@ -612,6 +612,32 @@ describe('computeScopedReturns', () => {
     expect(computeScopedReturns({ ...args, items: moved }).day).toBeCloseTo(2.04, 1)
   })
 
+
+  // ⛔ FASE MW. Un flujo fechado EL MISMO DÍA que el ancla ya está dentro del
+  // valor del ancla, así que netearlo lo resta dos veces. Estos números se
+  // publican a Amigos, o sea el error se compara contra otras personas.
+  it('no netea un flujo del mismo día del ancla: ya está dentro del ancla', () => {
+    // El snapshot del 1 de enero vale 1000 y YA contiene el depósito de 100
+    // hecho ESE día. Hoy la cuenta vale 1200, o sea ganó 200 sobre 1000.
+    const sameDay = [
+      { type: 'DEPOSIT', totalAmount: 100, currency: 'USD', date: '2026-01-01', _source: 'ibkr' },
+    ]
+    const { ytd } = computeScopedReturns({ ...args, transactions: sameDay })
+    // Neteándolo daría (1200 − 1000 − 100) / ~1000 ≈ 10%: la mitad.
+    expect(ytd).toBeCloseTo(20, 0)
+  })
+
+  // Control POSITIVO: un flujo POSTERIOR al ancla sí se netea, como siempre.
+  // Sin esto, "ya no resta de más" podría pasar por haber dejado de netear.
+  it('control: un flujo posterior al ancla se sigue neteando', () => {
+    const after = [
+      { type: 'DEPOSIT', totalAmount: 100, currency: 'USD', date: '2026-03-01', _source: 'ibkr' },
+    ]
+    const { ytd } = computeScopedReturns({ ...args, transactions: after })
+    expect(ytd).toBeGreaterThan(9)
+    expect(ytd).toBeLessThan(10)
+  })
+
   it('claims nothing for the day when no scoped price moved', () => {
     expect(computeScopedReturns(args).day).toBeNull()
   })

@@ -156,3 +156,31 @@ describe('sanity bounds — getEffectiveYield', () => {
     expect(result).toBeNull()
   })
 })
+
+// ⛔ FASE MW. Un flujo fechado EL MISMO DÍA que el snapshot de ARRANQUE del
+// período ya está dentro de ese snapshot, así que netearlo lo resta dos veces y
+// ese período se lee como pérdida. De acá salen volatilidad, Sharpe y beta.
+describe('FASE MW — computePeriodicReturns y el flujo del día del ancla', () => {
+  const snapshots = [
+    { date: '2026-01-01', netWorthUSD: 10500 }, // ya contiene el depósito del 1
+    { date: '2026-02-01', netWorthUSD: 11000 },
+  ]
+  const convert = (v) => v
+
+  test('no netea un depósito del mismo día del snapshot de arranque', () => {
+    const tx = [{ type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-01-01' }]
+    const [r] = computePeriodicReturns(snapshots, tx, convert)
+    // (11000 − 10500) / 10500 = 4.76%. Neteándolo daría 0%: un período plano
+    // inventado, que ademas baja la volatilidad medida.
+    expect(r).toBeCloseTo(0.0476, 3)
+  })
+
+  // Control POSITIVO: un depósito DENTRO del período sí se netea. Sin esto,
+  // "ya no resta de más" podría pasar por haber dejado de netear flujos.
+  test('control: un depósito dentro del período se sigue neteando', () => {
+    const tx = [{ type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-01-15' }]
+    const [r] = computePeriodicReturns(snapshots, tx, convert)
+    // La ganancia real es 11000 − 10500 − 500 = 0, no 500.
+    expect(Math.abs(r)).toBeLessThan(0.01)
+  })
+})
