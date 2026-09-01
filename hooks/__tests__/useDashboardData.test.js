@@ -663,3 +663,95 @@ describe('FASE MM: el MTD mide desde donde arranca su ancla', () => {
     expect(mtd).toBeCloseTo(10, 6)
   })
 })
+
+// ⛔ FASE MT. El YTD medía desde el 1 DE ENERO aunque su ancla fuera de otro día.
+//
+// Es el MISMO defecto que FASE MM cerró para el MTD, en la superficie que
+// aquella pasada NO tocó a propósito: el memo `returnYTD` es la superficie
+// congelada C, así que el protocolo exigía preguntar antes (OK del usuario).
+//
+// `findYearStartAnchor` acepta un snapshot de enero dentro de 15 días del 1, o
+// uno de fines de diciembre, mientras `startTs` se quedaba clavado en
+// `Date.UTC(year, 0, 1)`. La corrección `jan1Ts` que ya existía solo corre en
+// la rama de RESPALDO (cuando no hay ancla), o sea justo en el camino menos
+// frecuente; el camino común quedaba sin ella.
+//
+// El propio comentario de `findYearStartAnchor` ya documenta el mecanismo ("that
+// row already holds January's deposit and gain, so anchoring YTD there would
+// make Modified Dietz subtract January's flows a second time") y se defiende
+// ACOTANDO la ventana a 15 días: mitigado, no cerrado.
+describe('FASE MT: el YTD mide desde donde arranca su ancla', () => {
+  const bank = (price) => item({
+    id: 'b1', symbol: 'B', type: 'Bank', quantity: 1,
+    currentPrice: price, purchasePrice: 10000,
+    acquisitionDate: '2024-01-01', createdAt: '2024-01-01',
+  })
+  const snap = (date, v) => ({ id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily' })
+
+  afterEach(() => jest.useRealTimers())
+
+  async function run({ items, snapshots, transactions }) {
+    const { result, unmount } = setup({ firestore: { items, snapshots, transactions }, prices: { enrichedItems: items } })
+    await act(async () => {})
+    const out = result.current.returnYTD
+    unmount()
+    return out
+  }
+
+  // ANCLA DESPUÉS DEL 1: el depósito ya está DENTRO del valor de arranque y
+  // además se netea como flujo, o sea se resta dos veces y el año se lee como
+  // que no rindió nada.
+  it('un depósito ya contenido en el ancla no se resta dos veces', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const ytd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-01-10', 10500), snap('2026-06-15', 10800)],
+      transactions: [{ id: 'd1', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-01-05', _linkedItemId: 'b1' }],
+    })
+    // Desde el ancla del 10 de enero: (11000 − 10500) / 10500 = 4.7619%.
+    // Con startTs clavado en el 1 daba 0: el depósito se restaba dos veces.
+    expect(ytd).toBeCloseTo(4.7619, 3)
+  })
+
+  // ANCLA ANTES DEL 1: el depósito NO está en el valor de arranque y tampoco se
+  // netea, porque cae fuera de la ventana. Se lee como ganancia.
+  it('un depósito de diciembre, posterior al ancla, SÍ se netea', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const ytd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2025-12-28', 10000), snap('2026-06-15', 10800)],
+      transactions: [{ id: 'd2', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2025-12-30', _linkedItemId: 'b1' }],
+    })
+    // El depósito no está en el valor del 28 de diciembre, así que tiene que
+    // netearse. Con startTs en el 1 de enero caía FUERA de la ventana, no se
+    // neteaba, y esos 500 se leían como ganancia (10% en vez de ~5%).
+    expect(ytd).toBeGreaterThan(0)
+    expect(ytd).toBeLessThan(6)
+  })
+
+  // Control POSITIVO: sin flujos el número no se mueve. Sin esto, "ya no resta
+  // de más" podría pasar por haber dejado de netear flujos del todo.
+  it('control: sin ningún flujo el YTD es el cambio de valor puro', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const ytd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-01-01', 10000), snap('2026-06-15', 10500)],
+      transactions: [],
+    })
+    expect(ytd).toBeCloseTo(10, 6)
+  })
+
+  // Control POSITIVO 2: con el ancla EXACTA en el 1 de enero nada cambia, o sea
+  // el caso común no se movió. Un depósito posterior se sigue neteando igual.
+  it('control: con el ancla en el 1 de enero el comportamiento es el de siempre', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const ytd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-01-01', 10000), snap('2026-06-15', 10500)],
+      transactions: [{ id: 'd3', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-03-01', _linkedItemId: 'b1' }],
+    })
+    // El depósito de marzo se netea: la ganancia es 11000 − 10000 − 500 = 500.
+    expect(ytd).toBeGreaterThan(0)
+    expect(ytd).toBeLessThan(6)
+  })
+})
