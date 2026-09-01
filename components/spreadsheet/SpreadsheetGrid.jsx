@@ -126,9 +126,13 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
           />
         </div>
 
-        {/* Formula reference panel */}
+        {/* Formula reference panel.
+            FASE ME3: w-72 fijo sin puerta de breakpoint dejaba la hoja en ~70px
+            en un teléfono (288 de ~358 útiles): pantalla inutilizable hasta
+            volver a tocar el botón. En pantallas angostas el panel se acota a
+            un porcentaje del viewport para que la hoja siga viva al lado. */}
         {showFormulas && (
-          <div className="w-72 border-l border-glass-border bg-theme-card overflow-y-auto p-3">
+          <div className="w-72 max-w-[60vw] shrink-0 border-l border-glass-border bg-theme-card overflow-y-auto p-3">
             <h3 className="text-sm font-semibold text-white mb-3">{t('Fórmulas Disponibles', 'Available Formulas')}</h3>
             {FORMULA_CATALOG.map(cat => (
               <div key={cat.category} className="mb-4">

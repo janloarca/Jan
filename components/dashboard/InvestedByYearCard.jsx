@@ -73,7 +73,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
           ancho FIJO (pctCol): sin ella, el paréntesis de cada fila termina a
           una distancia distinta según el ancho del monto y la columna se lee
           desordenada aunque esté alineada a la derecha. */}
-      <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 pb-1.5 items-end" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+      <div className="grid grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 pb-1.5 items-end" style={{ borderBottom: '1px solid var(--glass-border)' }}>
         <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>{t('Año', 'Year')}</span>
         <span className="text-[10px] uppercase tracking-wider font-medium text-right" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
         {/* El % vive dentro de esta columna, así que es ACÁ donde hay que decir
@@ -91,7 +91,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
             <button type="button" onClick={() => !r.empty && setOpenYear(openYear === r.year ? null : r.year)}
               aria-expanded={r.empty ? undefined : openYear === r.year}
               disabled={r.empty}
-              className="w-full grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline py-2 cursor-pointer text-left transition-colors hover:bg-theme-tertiary/50">
+              className="w-full grid grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 items-baseline py-2 cursor-pointer text-left transition-colors hover:bg-theme-tertiary/50">
               <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                 {r.year}
                 {r.partial && (
@@ -108,13 +108,19 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
               <span className="text-sm font-mono tabular-nums text-right" style={{ color: r.empty ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                 {r.empty ? '-' : fmt(r.invested)}
               </span>
-              <span className="text-sm font-mono tabular-nums text-right whitespace-nowrap">
+              {/* FASE ME3: sin whitespace-nowrap en el CONTENEDOR. Los tracks son
+                  minmax(0,1fr) (un `1fr` arbitrario es minmax(auto,1fr): su mínimo
+                  es el contenido, y con montos reales el grid desbordaba el
+                  DOCUMENTO a 390px); con el track capaz de encoger, el chip del %
+                  envuelve bajo el monto cuando no cabe, en vez de empujar la
+                  página. Cada pieza conserva su propio nowrap. */}
+              <span className="text-sm font-mono tabular-nums text-right">
                 {r.gainAbs != null ? (
-                  <span style={{ color: gainColor(r.gainAbs) }}>{signFmt(r.gainAbs)}</span>
+                  <span className="whitespace-nowrap" style={{ color: gainColor(r.gainAbs) }}>{signFmt(r.gainAbs)}</span>
                 ) : (
                   <span style={{ color: 'var(--text-muted)' }}>-</span>
                 )}
-                <span className="inline-block w-[4.4rem] text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                <span className="inline-block w-[4.4rem] text-right text-[10px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {r.gainPct != null ? `(${r.gainPct >= 0 ? '+' : ''}${r.gainPct.toFixed(2)}%)` : ''}
                 </span>
               </span>
@@ -178,17 +184,17 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
       {/* Totales: misma plantilla de columnas que las filas, incluida la
           sub-columna fija del %, para que el monto total alinee exacto con
           los montos de arriba. */}
-      <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
+      <div className="grid grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 items-baseline pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
         <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Total</span>
         <span className="text-sm font-mono tabular-nums font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{fmt(data.totalInvested)}</span>
         {/* Ya no un guión. La suma de los años que SÍ se midieron es
             información real; lo que se dice al lado es cuántos son, para que
             nadie la lea como la ganancia de toda la vida. */}
-        <span className="text-sm font-mono tabular-nums font-semibold text-right whitespace-nowrap">
+        <span className="text-sm font-mono tabular-nums font-semibold text-right">
           {data.measuredGain != null
-            ? <span style={{ color: gainColor(data.measuredGain) }}>{signFmt(data.measuredGain)}</span>
+            ? <span className="whitespace-nowrap" style={{ color: gainColor(data.measuredGain) }}>{signFmt(data.measuredGain)}</span>
             : <span style={{ color: 'var(--text-muted)' }}>-</span>}
-          <span className="inline-block w-[4.4rem] text-right text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          <span className="inline-block w-[4.4rem] text-right text-[10px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
             {data.unmeasuredYears > 0 ? `${data.measuredYears}/${data.rows.length} ${t('años', 'yrs')}` : ''}
           </span>
         </span>
@@ -199,12 +205,12 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
           patrimonio de abajo por construcción. Casi siempre es la ganancia de
           los años que imprimen "-"; por eso el rótulo no dice "ganancia". */}
       {data.unallocated != null && (
-        <div className="grid grid-cols-[5rem_1fr_1fr] gap-2 items-baseline pt-1.5">
+        <div className="grid grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 items-baseline pt-1.5">
           <span className="col-span-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
             {t('Sin repartir por año', 'Not attributed to a year')}
           </span>
-          <span className="text-sm font-mono tabular-nums text-right whitespace-nowrap">
-            <span style={{ color: 'var(--text-muted)' }}>{signFmt(data.unallocated)}</span>
+          <span className="text-sm font-mono tabular-nums text-right">
+            <span className="whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{signFmt(data.unallocated)}</span>
             <span className="inline-block w-[4.4rem]" aria-hidden="true" />
           </span>
         </div>
