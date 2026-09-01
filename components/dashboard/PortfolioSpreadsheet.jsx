@@ -1028,6 +1028,39 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       // el rendimiento real desaparecía) y un bono o un inmueble solo el valor
       // (toda corrección = ganancia o pérdida, y un número mal tecleado se leía
       // como pérdida). La app no puede saber cuál de las dos es: se pregunta.
+      // ⛔ ESTE `|| 1` ES CORRECTO. Investigado y NO cambiado (FASE MQ), porque
+      // "unificarlo con la convención del lector" es la conclusión natural y es
+      // FALSA, y llegar hasta acá cuesta una ronda entera.
+      //
+      // El planteo: la celda se pinta con `getOriginalValue`, que usa la
+      // convención del LECTOR (`Number(qty) || 0`) y la cascada completa de
+      // precio; esta línea usa la del ESCRITOR (`|| 1`) y una cascada más
+      // corta. Divergen en dos formas, medidas ejecutando las funciones:
+      //
+      //   cantidad 0 con precio 240      celda 0.00 · esta línea 240
+      //   cantidad 1 con residuo en cost celda 240  · esta línea 0
+      //
+      // Y parece que la celda tiene razón, porque es lo que el usuario mira.
+      // No la tiene: en las DOS formas la app ya decidió lo contrario, y lo
+      // decidió escribiendo. `zeroQuantityBalanceFixes` sana la primera
+      // poniendo cantidad 1 (o sea: ese saldo es REAL, estaba escrito
+      // ilegible) y `resurrectedBalanceFixes` sana la segunda poniendo
+      // cantidad 0 (o sea: ese residuo NO es el saldo). Después de sanar, el
+      // valor leído es 240 y 0 respectivamente, que es exactamente lo que esta
+      // línea ya decía. El 0.00 de la celda es la ventana transitoria ANTES de
+      // que el sanador corra, no la verdad.
+      //
+      // Seguir a la celda archivaría capital que no se movió: sobre la primera
+      // forma, teclear 500 registraría un DEPOSIT de 500 cuando entraron 260, y
+      // un DEPOSIT se netea del retorno.
+      //
+      // Lo único que queda abierto y NO se tocó: un BONO con cantidad 0 no lo
+      // cubre ningún sanador (su alcance es `isBankLike`, más angosto que el
+      // `isBankLikeItem` de esta rama), así que ahí la divergencia es
+      // permanente. Ensanchar un sanador que ESCRIBE cantidad es justo lo que
+      // FASE LW/MA rehusaron hacer (en un activo de mercado la cantidad 0 es
+      // una posición VENDIDA y "sanarla" resucita dinero), así que se nombra en
+      // vez de decidirse de paso.
       const qtyNow = item.quantity || 1
       const oldValue = (Number(item._originalPrice ?? item.currentPrice ?? item.purchasePrice) || 0) * qtyNow
       const newValueOriginal = price * qtyNow
