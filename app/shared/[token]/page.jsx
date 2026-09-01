@@ -301,7 +301,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
 
             <Section title={t('Evolución del valor', 'Portfolio growth')}>
               {hasSeries
-                ? <GrowthChart t={t} series={series} showAmounts={showAmounts} money={money} baseCurrency={baseCurrency} />
+                ? <GrowthChart t={t} lang={lang} series={series} showAmounts={showAmounts} money={money} baseCurrency={baseCurrency} />
                 : <Muted>{t(
                   'El historial guardado abarca el patrimonio completo, así que se deja fuera de un link que comparte solo una parte.',
                   'The saved history covers the whole net worth, so it is left out of a link that shares only part of it.',
@@ -483,7 +483,12 @@ function useAsOfLabel(asOf, lang) {
 // riesgo de hidratación: el primer render del cliente ya es post-fetch.
 function shortDate(ts, lang) {
   if (!ts || !isFinite(ts)) return ''
-  return new Date(ts).toLocaleDateString(lang === 'es' ? 'es' : 'en', { day: 'numeric', month: 'short', year: 'numeric' })
+  // FASE ME5: estos ts son medianoches UTC de dias calendario (parse de
+  // 'YYYY-MM-DD' de snapshots); formateados en hora local retroceden un dia
+  // para todo visitante al oeste de UTC. Mismo guard que formatDate.
+  const d = new Date(ts)
+  const utcMid = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
+  return d.toLocaleDateString(lang === 'es' ? 'es' : 'en', { day: 'numeric', month: 'short', year: 'numeric', ...(utcMid ? { timeZone: 'UTC' } : {}) })
 }
 
 function Hero({ t, owner, advisor, label, scopeLabel, asOfLabel, kpis, showAmounts, showPerf, money, baseCurrency }) {
@@ -876,7 +881,7 @@ function Stat({ value, label, sub, color }) {
 // eje sin marcas obliga a adivinar cuánto vale cada punto. En modo 'percent' la
 // serie llega ya rebasada a su primer punto, así que dibuja la misma forma sin
 // publicar un solo monto.
-function GrowthChart({ t, series, showAmounts, money, baseCurrency }) {
+function GrowthChart({ t, lang, series, showAmounts, money, baseCurrency }) {
   const pts = useMemo(
     () => (series || []).map((p) => ({ ...p, v: showAmounts ? p.value : p.pct })).filter((p) => isFinite(p.v)),
     [series, showAmounts],
@@ -947,8 +952,9 @@ function GrowthChart({ t, series, showAmounts, money, baseCurrency }) {
         <polygon points={area} fill="url(#shareGrad)" />
         <polyline points={line} fill="none" stroke="var(--accent-blue)" strokeWidth="2"
           strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        <text x={pad.left} y={H - 9} fontSize={FS} fill="var(--text-muted)">{first.date}</text>
-        <text x={W - pad.right} y={H - 9} textAnchor="end" fontSize={FS} fill="var(--text-muted)">{last.date}</text>
+        {/* FASE ME5: el eje imprimia el ISO crudo ("2026-01-02"). */}
+        <text x={pad.left} y={H - 9} fontSize={FS} fill="var(--text-muted)">{shortDate(Date.parse(first.date), lang)}</text>
+        <text x={W - pad.right} y={H - 9} textAnchor="end" fontSize={FS} fill="var(--text-muted)">{shortDate(Date.parse(last.date), lang)}</text>
         <defs>
           <linearGradient id="shareGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.18" />
@@ -959,7 +965,7 @@ function GrowthChart({ t, series, showAmounts, money, baseCurrency }) {
       <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
         {showAmounts
           ? `${t('Último', 'Latest')} ${money(last.v)}`
-          : `${last.v >= 0 ? '+' : ''}${last.v.toFixed(1)}% ${t('desde', 'since')} ${first.date}`}
+          : `${last.v >= 0 ? '+' : ''}${last.v.toFixed(1)}% ${t('desde', 'since')} ${shortDate(Date.parse(first.date), lang)}`}
       </div>
     </div>
   )

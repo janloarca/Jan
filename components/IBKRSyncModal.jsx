@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { formatDate } from '@/components/dashboard/utils'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
@@ -130,8 +131,8 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
               EMPTY_REPORT. Contradice la instrucción principal y, en enero, YTD
               son días: seguir el consejo ACORTA el historial en vez de
               alargarlo, que es justo lo contrario de lo que este aviso pide. */}
-          {t(`Tu historial de valor empieza el ${result.equityOldest}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Last 365 Calendar Days" y vuelve a sincronizar.`,
-             `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Last 365 Calendar Days" and sync again.`)}
+          {t(`Tu historial de valor empieza el ${formatDate(result.equityOldest)}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Last 365 Calendar Days" y vuelve a sincronizar.`,
+             `Your value history starts on ${formatDate(result.equityOldest)}. For your yearly return to match IBKR, set your Flex Query period to "Last 365 Calendar Days" and sync again.`)}
         </p>
       )}
       {/* Positions arrived but ZERO deposits/withdrawals did. This failure is
@@ -1178,7 +1179,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       {ibkrHistory.snaps.length > 0 && (
                         <div className="bg-theme-base/50 rounded-lg p-2.5 text-xs text-slate-400">
                           <span className="text-slate-500">{t('NAV historial:', 'NAV history:')}</span>{' '}
-                          {ibkrHistory.snaps[0].date} → {ibkrHistory.snaps[ibkrHistory.snaps.length - 1].date}
+                          {formatDate(ibkrHistory.snaps[0].date)} → {formatDate(ibkrHistory.snaps[ibkrHistory.snaps.length - 1].date)}
                         </div>
                       )}
 
@@ -1434,7 +1435,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         <p className="text-lg text-white font-semibold mt-1">{sortedNav.length}</p>
                         {sortedNav.length > 0 && (
                           <p className="text-xs text-slate-400 mt-0.5 break-words">
-                            {sortedNav[0].date} → {sortedNav[sortedNav.length - 1].date}
+                            {formatDate(sortedNav[0].date)} → {formatDate(sortedNav[sortedNav.length - 1].date)}
                           </p>
                         )}
                       </div>
@@ -1498,7 +1499,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       <tbody>
                         {filteredPreview.transactions.slice(0, 20).map((tx, i) => (
                           <tr key={i} className="border-b border-glass-border/30 hover:bg-slate-700/20 transition-colors">
-                            <td className="py-2.5 px-3 text-slate-500">{tx.date}</td>
+                            <td className="py-2.5 px-3 text-slate-500">{formatDate(tx.date)}</td>
                             <td className="py-2.5 px-3 text-white">{tx.symbol}</td>
                             <td className="py-2.5 px-3 font-medium" style={{ color: tx.type === 'BUY' ? 'var(--accent-green)' : 'var(--alert-error-icon)' }}>{tx.type}</td>
                             <td className="py-2.5 px-3 text-right text-slate-400">{tx.quantity}</td>

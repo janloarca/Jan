@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { currencyOptions } from '@/lib/currencies'
+import { formatDate } from '@/components/dashboard/utils'
 import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 // Tres lecturas distintas y no una: la CANTIDAD por parseQuantity (un
@@ -280,7 +281,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                   {itemValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {q.item.currency || 'USD'}
                 </p>
                 {!isBankItem && <p className="text-xs text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
-                {q.item.acquisitionDate && <p className="text-xs text-slate-600">{q.item.acquisitionDate}</p>}
+                {q.item.acquisitionDate && <p className="text-xs text-slate-600">{formatDate(q.item.acquisitionDate)}</p>}
               </div>
             </div>
 

@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, pairPortfolioWithBenchmark, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
+import { formatShortDate } from './utils'
 import { snapshotAssetsUSD } from '@/lib/assetReturns'
 
 export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
@@ -132,7 +133,10 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
               </span>
               {metrics.drawdown.peakDate && (
                 <span className="text-xs text-slate-600">
-                  {new Date(metrics.drawdown.peakDate).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short', year: '2-digit' })}
+                  {/* FASE ME5: el ts del pico es la medianoche UTC de un dia calendario;
+                      formatearlo en hora local lo retrocedia un dia (y en el 1 del mes,
+                      un MES) al oeste de UTC. formatShortDate lleva el guard UTC. */}
+                  {formatShortDate(metrics.drawdown.peakDate)}
                 </span>
               )}
             </div>
