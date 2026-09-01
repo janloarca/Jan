@@ -118,7 +118,7 @@ import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
-import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows, detectCrossSourceDuplicateTrades } from '@/lib/badDataCleanup'
+import { detectFakeAggregateTrades, detectImportStampedAcquisitions, detectFakeCashReportItems, detectDuplicateCashDividends, detectCrossSourceDuplicateFlows, detectCrossSourceDuplicateTrades, detectAccountQualifiedIdDuplicates, detectSameTxnIdAcrossDates } from '@/lib/badDataCleanup'
 import { IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
 import { clearIbkrCredentials } from '@/lib/ibkrVault'
 import { ibkrFailureFeedback, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
@@ -834,10 +834,14 @@ export default function DashboardPage() {
     const dupeFlows = detectCrossSourceDuplicateFlows(transactions || [])
     // FASE KG: el mismo trade escrito por los dos caminos de import.
     const dupeTrades = detectCrossSourceDuplicateTrades(transactions || [])
+    // FASE MO: la transición del id que ahora lleva la cuenta, más las copias
+    // por fecha que dejó el separador de coma de FASE MH.
+    const dupeIds = detectAccountQualifiedIdDuplicates(transactions || [])
+    const dupeDates = detectSameTxnIdAcrossDates(transactions || [])
     const phantoms = detectPhantomFlows(transactions || [])
     const fakeCashItems = detectFakeCashReportItems(items || [])
 
-    const txToDelete = [...fakeTrades, ...dupeDividends, ...dupeFlows, ...dupeTrades, ...phantoms]
+    const txToDelete = [...fakeTrades, ...dupeDividends, ...dupeFlows, ...dupeTrades, ...dupeIds, ...dupeDates, ...phantoms]
     if (txToDelete.length === 0 && stampedAcquisitions.length === 0 && fakeCashItems.length === 0) return
     healedRef.current = true
     let cancelled = false
@@ -853,7 +857,7 @@ export default function DashboardPage() {
         try { await deleteItem(it.id); removedItems++ } catch { /* leave it; next load retries */ }
       }
       if (cancelled || (removedTx === 0 && clearedItems === 0 && removedItems === 0)) return
-      const total = [...fakeTrades, ...phantoms, ...dupeDividends, ...dupeFlows, ...dupeTrades].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
+      const total = [...fakeTrades, ...phantoms, ...dupeDividends, ...dupeFlows, ...dupeTrades, ...dupeIds, ...dupeDates].reduce((sum, p) => sum + Math.abs(p.amount || 0), 0)
         + fakeCashItems.reduce((sum, it) => sum + Math.abs(it.value || 0), 0)
       showToast(
         lang === 'es'
