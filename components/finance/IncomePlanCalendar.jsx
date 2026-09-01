@@ -295,6 +295,11 @@ export default function IncomePlanCalendar({
 
 function ChipEditor({ draft, lang, monthsLong, fromMonth, onChange, onSave, onDelete, onClose }) {
   const t = (es, en) => (lang === 'es' ? es : en)
+  // FASE ME3: "Borrar" (todas las instancias de un ingreso recurrente, p.ej. el
+  // salario en los 12 meses) era UN toque sin confirmación y sin deshacer.
+  // Confirmación de dos toques, el patrón de RecentTransactions. "Quitar de
+  // este mes" se queda de un toque: es chico y re-agregable en dos gestos.
+  const [confirmDel, setConfirmDel] = useState(false)
   const set = (patch) => onChange({ ...draft, ...patch })
   const valid = parseAmount(draft.amount) > 0
   const isMonthly = draft.repeat === REPEAT_MONTHLY
@@ -391,10 +396,24 @@ function ChipEditor({ draft, lang, monthsLong, fromMonth, onChange, onSave, onDe
         <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-glass-border">
           {draft._isNew ? <span /> : (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => onDelete(draft, 'all')}
-                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg" style={{ color: 'var(--alert-error-icon)' }}>
-                <Trash2 size={12} aria-hidden="true" /> {t('Borrar', 'Delete')}
-              </button>
+              {confirmDel ? (
+                <span className="flex items-center gap-1">
+                  <button type="button" onClick={() => onDelete(draft, 'all')}
+                    className="text-xs px-2 py-1.5 rounded-lg font-medium"
+                    style={{ backgroundColor: 'var(--text-negative)', color: '#ffffff' }}>
+                    {t('Confirmar borrado', 'Confirm delete')}
+                  </button>
+                  <button type="button" onClick={() => setConfirmDel(false)}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-glass-border" style={{ color: 'var(--text-secondary)' }}>
+                    {t('No', 'No')}
+                  </button>
+                </span>
+              ) : (
+                <button type="button" onClick={() => setConfirmDel(true)}
+                  className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg" style={{ color: 'var(--alert-error-icon)' }}>
+                  <Trash2 size={12} aria-hidden="true" /> {t('Borrar', 'Delete')}
+                </button>
+              )}
               {isMonthly && (
                 <button type="button" onClick={() => onDelete(draft, 'month')}
                   className="text-xs px-2 py-1.5 rounded-lg" style={{ color: 'var(--text-secondary)' }}>

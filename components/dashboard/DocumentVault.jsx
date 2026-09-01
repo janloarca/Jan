@@ -101,13 +101,16 @@ export default function DocumentVault({ uid, itemId, lang }) {
                 {doc.name}
               </a>
               <span className="text-xs text-slate-600 shrink-0">{formatSize(doc.size)}</span>
+              {/* FASE ME3: era `opacity-0 group-hover:opacity-100`, o sea invisible
+                  en táctil para siempre (borrar un documento era inalcanzable desde
+                  iPad); y el gris #475569 medía 2.60:1. Visible siempre, 28px de
+                  objetivo, tokens. La confirmación de dos toques ya existía. */}
               <button onClick={() => handleDelete(doc)}
-                className={`text-xs shrink-0 px-2 py-0.5 rounded transition-colors ${
-                  confirmDelete !== doc.id ? 'opacity-0 group-hover:opacity-100' : ''
-                }`}
+                aria-label={confirmDelete === doc.id ? t('Confirmar borrado', 'Confirm delete') : t(`Borrar ${doc.name}`, `Delete ${doc.name}`)}
+                className="text-xs shrink-0 min-w-[28px] min-h-[28px] px-2 rounded transition-colors flex items-center justify-center"
                 style={confirmDelete === doc.id
-                  ? { backgroundColor: '#dc2626', color: '#ffffff' }
-                  : { color: '#475569' }
+                  ? { backgroundColor: 'var(--text-negative)', color: '#ffffff' }
+                  : { color: 'var(--text-muted)' }
                 }>
                 {confirmDelete === doc.id ? t('Confirmar', 'Confirm') : '×'}
               </button>

@@ -501,11 +501,24 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               </div>
             ) : renderPts ? (
               <div className="relative">
+                {/* FASE ME3: la gráfica solo tenía handlers de MOUSE, así que en
+                    iPad (donde esta app se usa) no había tooltip ni lectura de
+                    valores. Mismo patrón táctil que PortfolioGrowthChart. */}
                 <svg viewBox="0 0 600 200" className="w-full" preserveAspectRatio="xMidYMid meet"
                   onMouseLeave={() => setHoverIdx(null)}
+                  onTouchEnd={() => setHoverIdx(null)}
                   onMouseMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect()
                     const mx = ((e.clientX - rect.left) / rect.width) * 600
+                    let closest = 0, minD = Infinity
+                    renderPts.forEach((p, i) => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = i } })
+                    setHoverIdx(closest)
+                  }}
+                  onTouchMove={(e) => {
+                    const touch = e.touches[0]
+                    if (!touch) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const mx = ((touch.clientX - rect.left) / rect.width) * 600
                     let closest = 0, minD = Infinity
                     renderPts.forEach((p, i) => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = i } })
                     setHoverIdx(closest)

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { formatCurrency, getTypeCategory, projectItemAnnualIncome, itemLabel } from './utils'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
+import { useEdgeFade } from '@/hooks/useEdgeFade'
 
 // Subtítulo de grupo. La card llevaba ONCE bloques bajo un solo título, así que
 // no había forma de saber si un número era algo que ya entró o algo proyectado:
@@ -31,6 +32,11 @@ function Group({ children }) {
 // toque. Ahora la barra es un botón: al tocarla su valor se queda escrito
 // arriba de la tira, y sigue funcionando con mouse y con teclado.
 function BarStrip({ bars, max, color, dim, label, monthName, selected, onSelect, lang }) {
+  // FASE ME3: 12 barras × 24px + gaps = 332px contra ~326 útiles a 390px, o sea
+  // la tira SÍ scrollea en un teléfono, y con scrollbarWidth:'none' la barra de
+  // diciembre quedaba cortada contra el borde sin ninguna señal: el caso
+  // literal de FASE GP. El hook ya existía y dos hermanos ya lo usan.
+  const fade = useEdgeFade([bars.length])
   const sel = bars.find((b) => b.key === selected)
   return (
     <div className="mb-4">
@@ -46,7 +52,7 @@ function BarStrip({ bars, max, color, dim, label, monthName, selected, onSelect,
           24px que pide WCAG 2.2 SC 2.5.8 por su excepción de espaciado, en
           cualquier ancho de pantalla; si doce barras ya no caben, la tira
           scrollea en vez de encoger las barras hasta que no se puedan tocar. */}
-      <div className="flex items-end gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+      <div ref={fade.ref} className="flex items-end gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none', ...fade.maskStyle }}>
         {bars.map((b, i) => {
           const paid = b.value > 0
           const h = paid && max > 0 ? (b.value / max) * 100 : 0

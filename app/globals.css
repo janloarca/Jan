@@ -832,9 +832,16 @@ html[data-ptr="on"] body {
   transition: background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-tap);
   cursor: pointer;
 }
-.btn-primary:hover {
-  background: var(--accent-blue-strong);
-  box-shadow: var(--glass-shine), 0 4px 16px rgba(37, 99, 235, 0.35);
+/* FASE ME3: los :hover de .btn-* estaban SIN guard. La bandera
+   hoverOnlyWhenSupported del tailwind.config solo cubre clases generadas por
+   Tailwind, no CSS a mano: en iPadOS el hover quedaba pegado después de cada
+   toque (el fondo "encendido" hasta tocar otra cosa). Mismo guard que ya
+   llevan las réplicas de utilidades hover de más arriba. */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    background: var(--accent-blue-strong);
+    box-shadow: var(--glass-shine), 0 4px 16px rgba(37, 99, 235, 0.35);
+  }
 }
 .btn-primary:active { transform: scale(0.97); }
 .btn-primary:disabled {
@@ -861,9 +868,11 @@ html[data-ptr="on"] body {
   transition: background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-tap);
   cursor: pointer;
 }
-.btn-secondary:hover {
-  background: var(--bg-card-hover);
-  box-shadow: var(--shadow-elevated);
+@media (hover: hover) and (pointer: fine) {
+  .btn-secondary:hover {
+    background: var(--bg-card-hover);
+    box-shadow: var(--shadow-elevated);
+  }
 }
 .btn-secondary:active { transform: scale(0.97); }
 
@@ -882,9 +891,11 @@ html[data-ptr="on"] body {
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   cursor: pointer;
 }
-.btn-ghost:hover {
-  background: var(--bg-card);
-  color: var(--text-primary);
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
 }
 
 .btn-danger {
@@ -902,8 +913,10 @@ html[data-ptr="on"] body {
   transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-tap);
   cursor: pointer;
 }
-.btn-danger:hover {
-  background: rgba(248, 113, 113, 0.25);
+@media (hover: hover) and (pointer: fine) {
+  .btn-danger:hover {
+    background: rgba(248, 113, 113, 0.25);
+  }
 }
 .btn-danger:active { transform: scale(0.97); }
 
@@ -1101,9 +1114,11 @@ button[aria-label="Close"] {
   color: #FFFFFF;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
-[data-theme="light"] .btn-primary:hover {
-  background: #1F2937;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+@media (hover: hover) and (pointer: fine) {
+  [data-theme="light"] .btn-primary:hover {
+    background: #1F2937;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  }
 }
 
 [data-theme="light"] .btn-secondary {
@@ -1114,15 +1129,19 @@ button[aria-label="Close"] {
   -webkit-backdrop-filter: none;
   box-shadow: none;
 }
-[data-theme="light"] .btn-secondary:hover {
-  background: #F9FAFB;
-  border-color: #D1D5DB;
-  box-shadow: none;
+@media (hover: hover) and (pointer: fine) {
+  [data-theme="light"] .btn-secondary:hover {
+    background: #F9FAFB;
+    border-color: #D1D5DB;
+    box-shadow: none;
+  }
 }
 
-[data-theme="light"] .btn-ghost:hover {
-  background: #F9FAFB;
-  color: #111827;
+@media (hover: hover) and (pointer: fine) {
+  [data-theme="light"] .btn-ghost:hover {
+    background: #F9FAFB;
+    color: #111827;
+  }
 }
 
 [data-theme="light"] .pill-active {
