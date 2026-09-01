@@ -869,3 +869,114 @@ describe('FASE MU: balanceAsOf LOCAL contra el reloj UTC del motor', () => {
     expect(pagos.has('2026-09-01')).toBe(false)
   })
 })
+
+// ⛔ FASE MW. Un flujo fechado EL MISMO DÍA que el ancla ya está DENTRO del
+// valor del ancla, así que netearlo lo resta dos veces y el período se lee
+// plano.
+//
+// `computeModifiedDietz` filtra su ventana con `txTs >= startTs` (INCLUSIVO) y
+// `anchorStartTs` devuelve la medianoche del día del ancla, pero estas anclas
+// son snapshots DIARIOS: el del día D describe la cartera al CERRAR el día D.
+//
+// El YTD ya dropeaba estos flujos y SOLO cuando el ancla se movía hacia
+// ADELANTE, que era el único caso posible antes de FASE MT; la rama de
+// diciembre que MT habilitó quedó sin ese guard, o sea es una regresión de MT.
+// El MTD nunca tuvo guard en NINGUNA dirección, y ese número se publica a
+// Amigos.
+describe('FASE MW: un flujo del día del ancla no se netea dos veces', () => {
+  const bank = (price) => item({
+    id: 'b1', symbol: 'B', type: 'Bank', quantity: 1,
+    currentPrice: price, purchasePrice: 10000,
+    acquisitionDate: '2024-01-01', createdAt: '2024-01-01',
+  })
+  const snap = (date, v) => ({ id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily' })
+  const dep = (date, amt = 500) => ({
+    id: `d-${date}`, type: 'DEPOSIT', totalAmount: amt, currency: 'USD', date, _linkedItemId: 'b1',
+  })
+
+  afterEach(() => jest.useRealTimers())
+
+  async function run({ items, snapshots, transactions, pick }) {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const { result, unmount } = setup({ firestore: { items, snapshots, transactions }, prices: { enrichedItems: items } })
+    await act(async () => {})
+    const out = pick(result.current)
+    unmount()
+    return out
+  }
+
+  // REGRESIÓN DE FASE MT. El ancla de diciembre existe desde MT; antes de MT
+  // este flujo caía fuera de una ventana que abría el 1 de enero y por
+  // casualidad el número salía bien.
+  it('YTD: ancla de diciembre con un depósito de ESE día', async () => {
+    const ytd = await run({
+      items: [bank(11000)],
+      // El snapshot del 28 de diciembre vale 10,500 y ya contiene el depósito.
+      snapshots: [snap('2025-12-28', 10500), snap('2026-06-15', 10800)],
+      transactions: [dep('2025-12-28')],
+      pick: (r) => r.returnYTD,
+    })
+    expect(ytd).toBeCloseTo(4.7619, 3)
+  })
+
+  it('YTD: ancla de enero con un depósito de ESE día', async () => {
+    const ytd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-01-10', 10500), snap('2026-06-15', 10800)],
+      transactions: [dep('2026-01-10')],
+      pick: (r) => r.returnYTD,
+    })
+    expect(ytd).toBeCloseTo(4.7619, 3)
+  })
+
+  it('MTD: ancla dentro del mes con un depósito de ESE día', async () => {
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-08-04', 10500)],
+      transactions: [dep('2026-08-04')],
+      pick: (r) => r.returnMTD,
+    })
+    expect(mtd).toBeCloseTo(4.7619, 3)
+  })
+
+  it('MTD: ancla del último día del mes anterior con un depósito de ESE día', async () => {
+    const mtd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-07-31', 10500)],
+      transactions: [dep('2026-07-31')],
+      pick: (r) => r.returnMTD,
+    })
+    expect(mtd).toBeCloseTo(4.7619, 3)
+  })
+
+  // Control POSITIVO: un flujo POSTERIOR al ancla se sigue neteando. Sin esto,
+  // "ya no resta de más" podría pasar por haber dejado de netear flujos.
+  it('control: un depósito posterior al ancla sí se netea', async () => {
+    const ytd = await run({
+      items: [bank(11000)],
+      snapshots: [snap('2026-01-10', 10000), snap('2026-06-15', 10500)],
+      transactions: [dep('2026-03-01')],
+      pick: (r) => r.returnYTD,
+    })
+    // 11000 − 10000 − 500 = 500 de ganancia, no 1000.
+    expect(ytd).toBeGreaterThan(0)
+    expect(ytd).toBeLessThan(6)
+  })
+
+  // Control POSITIVO 2: el caso que da nombre a la superficie congelada. Un
+  // depósito de APERTURA fechado el día del ancla y MAYOR que el valor que
+  // compró (lleva la comisión adentro) sigue yendo al DENOMINADOR y solo ahí.
+  it('control: el depósito de apertura sigue alimentando el costo base', async () => {
+    const ytd = await run({
+      items: [bank(6240)],
+      // El ancla del año exige >= 2 snapshots (no es del producto, es el gate
+      // de esta rama del memo): el segundo no participa del cálculo.
+      snapshots: [snap('2026-01-06', 6000), snap('2026-06-15', 6100)],
+      transactions: [dep('2026-01-06', 6098)],
+      pick: (r) => r.returnYTD,
+    })
+    // Ganancia contra el PRINCIPAL (240) sobre el costo all-in (6,098) = 3.94%,
+    // nunca 4.00% (comisión perdonada) ni 2.33% (comisión cobrada dos veces).
+    expect(ytd).toBeCloseTo(3.94, 1)
+  })
+})

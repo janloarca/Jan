@@ -543,6 +543,60 @@ export function anchorStartTs(anchor, fallbackTs) {
   return isFinite(ts) ? ts : fallbackTs
 }
 
+// ⛔ FASE MW. Un flujo fechado EL MISMO DÍA que el ancla ya está DENTRO del
+// valor del ancla, así que netearlo lo resta dos veces.
+//
+// `computeModifiedDietz` filtra su ventana con `txTs >= startTs`, o sea
+// INCLUSIVO, y `anchorStartTs` devuelve la medianoche UTC del día del ancla.
+// Pero estas anclas son snapshots DIARIOS: el snapshot del día D describe la
+// cartera al CERRAR el día D, así que un movimiento fechado D ya está adentro.
+// Con la ventana inclusiva, ese movimiento se resta del valor que ya lo
+// contiene y el período se lee como plano: medido con el hook real, un año que
+// ganó 4.76% imprimía 0%.
+//
+// El YTD ya dropeaba estos flujos, pero SOLO cuando el ancla se había movido
+// hacia ADELANTE (`startTs > yearStartTs`), que era el único caso que existía
+// antes de FASE MT; la rama de diciembre que MT habilitó quedó sin ese guard.
+// El MTD nunca tuvo ninguno, en ninguna de las dos direcciones, y ese número se
+// PUBLICA a Amigos, o sea el error se compara contra otras personas.
+//
+// Se filtra en el CALLER y no se cambia el `>=` de computeModifiedDietz a
+// propósito: esa primitiva es el corazón de las superficies congeladas y la
+// comparten siete consumidores, así que mover su borde tendría un radio mucho
+// mayor que el defecto. Acá el ancla es de granularidad DÍA y por eso la regla
+// es del caller que la eligió.
+//
+// Devuelve también el total dropeado (con signo: depósito positivo, retiro
+// negativo) porque el YTD lo necesita para `ytdCostBase`: esos depósitos SON el
+// capital que creó el ancla y pueden exceder el valor que compraron (6,098 en
+// un bono de 6,000), y esa diferencia va en el DENOMINADOR y solo ahí.
+//
+// La regla NO es nueva: `lib/reportData.js` (periodDietz) y `lib/investedByYear.js`
+// ya la aplican, y citan la misma lección de FASE DV. Ellos la resuelven
+// abriendo la ventana en `anchorTs + 1` en vez de filtrar, que es equivalente
+// y más corto; acá se filtra porque el YTD necesita el TOTAL dropeado y porque
+// una sola definición para los cuatro consumidores es lo que impide que
+// vuelvan a divergir. Si alguna vez se unifican, las dos formas valen: lo que
+// no vale es que una superficie se quede sin ninguna.
+export function flowsAfterAnchor(transactions, startTs, convert, baseCurrency) {
+  if (!Array.isArray(transactions) || !isFinite(startTs)) {
+    return { flows: transactions || [], dropped: 0 }
+  }
+  let dropped = 0
+  const flows = transactions.filter((tx) => {
+    if (!tx || !tx.date) return true
+    const txTs = new Date(tx.date).getTime()
+    if (!isFinite(txTs) || txTs > startTs) return true
+    const ty = (tx.type || '').toUpperCase()
+    if (ty !== 'DEPOSIT' && ty !== 'WITHDRAWAL') return true
+    const raw = Number(tx.totalAmount ?? 0)
+    const amt = convert ? convert(raw, tx.currency || 'USD', baseCurrency || 'USD') : raw
+    if (isFinite(amt)) dropped += ty === 'DEPOSIT' ? amt : -amt
+    return false
+  })
+  return { flows, dropped }
+}
+
 export function findMonthStartAnchor(snapshots, year, month) {
   if (!Array.isArray(snapshots) || snapshots.length === 0) return null
   const monthStart = Date.UTC(year, month, 1)
@@ -586,7 +640,10 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
     const startVal = cv(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0)
     if (!(startVal > 0)) return null
     const startTs = anchorStartTs(anchor, fallbackTs)
-    const { pct } = computeModifiedDietz({ startValue: startVal, endValue, startTs, endTs, transactions: flows, convert, baseCurrency })
+    // ⛔ FASE MW: un flujo del MISMO día del ancla ya está adentro del ancla.
+    // Ver flowsAfterAnchor. Estos dos números también se publican a Amigos.
+    const windowed = flowsAfterAnchor(flows, startTs, convert, baseCurrency).flows
+    const { pct } = computeModifiedDietz({ startValue: startVal, endValue, startTs, endTs, transactions: windowed, convert, baseCurrency })
     return pct
   }
   const ytd = at(findYearStartAnchor(snaps, year), Date.UTC(year, 0, 1))
