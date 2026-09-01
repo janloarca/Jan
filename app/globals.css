@@ -297,7 +297,12 @@ textarea:focus-visible {
    quedan como alias exactos para lo que ya existe (~1000 usos, barrerlos en
    JSX sería un diff que nadie puede revisar y cero cambio visual). */
 :root:not([data-theme="light"]) .text-slate-500 { color: var(--text-muted); }
-:root:not([data-theme="light"]) .text-slate-600 { color: #707A8A; }
+/* FASE ME8: #707A8A medía 4.09:1 sobre la card oscura (bajo el piso AA de
+   4.5), medido con lib/colorMath.js sobre el fondo compuesto real; #7E8899 da
+   4.95 en la card y 5.36 sobre el fondo de página, y sigue un escalón por
+   debajo de .text-slate-500 así que la jerarquía de tres niveles no se toca.
+   La variante clara (#6B7280, 4.83 sobre blanco) ya pasaba y se queda. */
+:root:not([data-theme="light"]) .text-slate-600 { color: #7E8899; }
 /* .text-slate-400 NO tenía regla en oscuro: se quedaba en el gris crudo de
    Tailwind (#94a3b8) mientras en claro sí resolvía a --text-secondary. O sea el
    MISMO JSX daba un nivel de jerarquía distinto según el tema. Ahora es

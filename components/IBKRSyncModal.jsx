@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { formatDate } from '@/components/dashboard/utils'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
@@ -130,8 +132,8 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
               EMPTY_REPORT. Contradice la instrucción principal y, en enero, YTD
               son días: seguir el consejo ACORTA el historial en vez de
               alargarlo, que es justo lo contrario de lo que este aviso pide. */}
-          {t(`Tu historial de valor empieza el ${result.equityOldest}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Last 365 Calendar Days" y vuelve a sincronizar.`,
-             `Your value history starts on ${result.equityOldest}. For your yearly return to match IBKR, set your Flex Query period to "Last 365 Calendar Days" and sync again.`)}
+          {t(`Tu historial de valor empieza el ${formatDate(result.equityOldest)}. Para que tu retorno del año cuadre con IBKR, pon el período de tu Flex Query en "Last 365 Calendar Days" y vuelve a sincronizar.`,
+             `Your value history starts on ${formatDate(result.equityOldest)}. For your yearly return to match IBKR, set your Flex Query period to "Last 365 Calendar Days" and sync again.`)}
         </p>
       )}
       {/* Positions arrived but ZERO deposits/withdrawals did. This failure is
@@ -361,11 +363,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     }
   }, [token, hasVaultCreds, savedQueryId, queryId, decrypting]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   useEffect(() => {
     return () => {
@@ -774,8 +772,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const retryFeedsLockout = errorCode === 'LOCKED'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
       <div ref={trapRef} className="modal-glass max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-glass-border/60">
           <div>
@@ -862,7 +859,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     tratamiento pasa a ámbar y el rótulo dice lo que de verdad
                     describe. El caso sano no cambia. */}
                 <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: error ? 'var(--alert-warn-bg)' : 'rgba(52,211,153,0.15)' }}>
+                  style={{ backgroundColor: error ? 'var(--alert-warn-bg)' : 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}>
                   <CheckCircle size={20} style={{ color: error ? 'var(--alert-warn-icon)' : 'var(--accent-green)' }} />
                 </div>
                 <p className="text-sm text-white font-medium">
@@ -942,7 +939,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <button onClick={handleSync}
                     className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
                     disabled={decrypting}>
-                    {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar de todos modos', 'Sync anyway')}
+                    {/* FASE ME7: solo texto cambiado no se lee como trabajo en
+                        curso; el ocupado va con el anillo (BusyLabel). */}
+                    <BusyLabel busy={decrypting} lang={lang} busyLabel={t('Desencriptando...', 'Decrypting...')}>
+                      {t('Sincronizar de todos modos', 'Sync anyway')}
+                    </BusyLabel>
                   </button>
                 </>
               ) : (
@@ -951,8 +952,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
                     style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}
                     disabled={decrypting}>
-                    <RefreshCw size={14} />
-                    {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
+                    {!decrypting && <RefreshCw size={14} />}
+                    <BusyLabel busy={decrypting} lang={lang} busyLabel={t('Desencriptando...', 'Decrypting...')}>
+                      {t('Sincronizar ahora', 'Sync now')}
+                    </BusyLabel>
                   </button>
 
                   <button onClick={() => { setStep('config'); setShowConfig(true) }}
@@ -1178,7 +1181,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       {ibkrHistory.snaps.length > 0 && (
                         <div className="bg-theme-base/50 rounded-lg p-2.5 text-xs text-slate-400">
                           <span className="text-slate-500">{t('NAV historial:', 'NAV history:')}</span>{' '}
-                          {ibkrHistory.snaps[0].date} → {ibkrHistory.snaps[ibkrHistory.snaps.length - 1].date}
+                          {formatDate(ibkrHistory.snaps[0].date)} → {formatDate(ibkrHistory.snaps[ibkrHistory.snaps.length - 1].date)}
                         </div>
                       )}
 
@@ -1434,7 +1437,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         <p className="text-lg text-white font-semibold mt-1">{sortedNav.length}</p>
                         {sortedNav.length > 0 && (
                           <p className="text-xs text-slate-400 mt-0.5 break-words">
-                            {sortedNav[0].date} → {sortedNav[sortedNav.length - 1].date}
+                            {formatDate(sortedNav[0].date)} → {formatDate(sortedNav[sortedNav.length - 1].date)}
                           </p>
                         )}
                       </div>
@@ -1498,7 +1501,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       <tbody>
                         {filteredPreview.transactions.slice(0, 20).map((tx, i) => (
                           <tr key={i} className="border-b border-glass-border/30 hover:bg-slate-700/20 transition-colors">
-                            <td className="py-2.5 px-3 text-slate-500">{tx.date}</td>
+                            <td className="py-2.5 px-3 text-slate-500">{formatDate(tx.date)}</td>
                             <td className="py-2.5 px-3 text-white">{tx.symbol}</td>
                             <td className="py-2.5 px-3 font-medium" style={{ color: tx.type === 'BUY' ? 'var(--accent-green)' : 'var(--alert-error-icon)' }}>{tx.type}</td>
                             <td className="py-2.5 px-3 text-right text-slate-400">{tx.quantity}</td>

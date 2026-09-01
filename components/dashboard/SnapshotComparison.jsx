@@ -128,7 +128,7 @@ export default function SnapshotComparison({ snapshots, items, lang }) {
               <div className="text-sm font-bold" style={{ color: comparison.change >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {comparison.change >= 0 ? '+' : ''}{comparison.changePct.toFixed(2)}%
               </div>
-              <div className="text-xs" style={{ color: comparison.change >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
+              <div className="text-xs" style={{ color: comparison.change >= 0 ? 'color-mix(in srgb, var(--accent-green) 70%, transparent)' : 'rgba(239,68,68,0.7)' }}>
                 {comparison.change >= 0 ? '+' : ''}{formatCurrency(comparison.change)}
               </div>
             </div>

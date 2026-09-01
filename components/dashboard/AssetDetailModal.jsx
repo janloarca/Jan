@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { Shimmer } from '@/components/dashboard/Skeleton'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -26,6 +28,7 @@ const STAGE_LABELS = {
 }
 
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD', allItems = [] }) {
+  useEscClose(onClose)
   const trapRef = useFocusTrap()
   const [chartData, setChartData] = useState(null)
   const [chartError, setChartError] = useState(null)
@@ -207,8 +210,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   }, [isStatic, assetIncome, item, convert, baseCurrency])
 
   const renderPts = isStatic ? staticPoints : points
-  const isPositive = renderPts ? renderPts[renderPts.length - 1].close >= renderPts[0].close : pnl >= 0
-  const lineColor = isPositive ? 'var(--accent-green)' : 'var(--text-negative)'
+  // FASE ME4: la línea iba verde/roja según los EXTREMOS de la ventana visible,
+  // mientras el P&L de al lado mide desde la compra: una línea verde encima de
+  // un P&L rojo era la tarjeta contradiciéndose. La dirección ya la dibuja la
+  // FORMA de la línea; el color es identidad de serie, como en la gráfica
+  // principal del tablero.
+  const lineColor = 'var(--accent-blue)'
 
   // Straight segments keep bond interest step-ups crisp (vs the smoothed curve).
   function linePath(pts) {
@@ -234,8 +241,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   const hp = hoverIdx != null && renderPts ? renderPts[hoverIdx] : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title">
       <div ref={trapRef} className="modal-glass max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div>
@@ -496,8 +502,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             </div>
 
             {loading && !isStatic ? (
-              <div className="h-[200px] bg-theme-base rounded-lg animate-pulse flex items-center justify-center">
-                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('Cargando...', 'Loading...')}</span>
+              /* FASE ME7: era `animate-pulse` de Tailwind sobre una caja plana,
+                 el patron que FASE HC unifico en Shimmer (mismo atomo que toda
+                 carga de la app: mismo color, mismo barrido). */
+              <div className="h-[200px] rounded-lg relative overflow-hidden flex items-center justify-center">
+                <Shimmer className="absolute inset-0" />
+                <span className="text-sm relative" style={{ color: 'var(--text-muted)' }}>{t('Cargando...', 'Loading...')}</span>
               </div>
             ) : renderPts ? (
               <div className="relative">
@@ -570,7 +580,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               </div>
             ) : (
               <div className="h-[200px] bg-theme-base rounded-lg flex items-center justify-center">
-                <span className="text-sm" style={{ color: chartError ? 'rgba(248,113,113,0.7)' : 'var(--text-muted)' }}>
+                <span className="text-sm" style={{ color: chartError ? 'var(--text-negative)' : 'var(--text-muted)' }}>
                   {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
                 </span>
               </div>

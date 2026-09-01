@@ -71,7 +71,7 @@ export default function FinanceSummaryCards({
   const overspendRatio = totalIncome > 0 && savings < 0 ? expenses / totalIncome : null
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Entró', 'Came in')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>
@@ -97,11 +97,15 @@ export default function FinanceSummaryCards({
       </div>
       <div className="card p-4">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Quedó', 'Left over')}</p>
-        <p className="text-h2 font-mono tabular-nums" style={{ color: savings >= 0 ? 'var(--accent-blue-soft)' : 'var(--text-negative)' }}>
+        {/* FASE ME4: "Quedo" es dinero REAL del mes cerrado o en curso, no una
+            proyeccion: verde cuando quedo, rojo cuando falto, la misma
+            convencion de signo que "Entro"/"Salio" a su lado. El azul es de
+            lo proyectado y aca decia lo contrario. */}
+        <p className="text-h2 font-mono tabular-nums" style={{ color: savings >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
           {money(savings)}
         </p>
         {savingsRate != null && savingsRate >= RATE_FLOOR && (
-          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'var(--accent-blue-soft)' : 'var(--text-negative)', opacity: 0.75 }}>
+          <p className="text-xs font-mono tabular-nums mt-0.5" style={{ color: savingsRate >= 0 ? 'var(--accent-green)' : 'var(--text-negative)', opacity: 0.75 }}>
             {savingsRate >= 0 ? '+' : ''}{savingsRate.toFixed(1)}%
           </p>
         )}

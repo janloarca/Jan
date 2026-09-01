@@ -17,6 +17,7 @@
 // FASE FI) instead of stopping here — this wizard is only the first leg.
 
 import { useState } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { FileSpreadsheet, Camera, KeyRound, ChevronLeft, Lock, CheckCircle2 } from 'lucide-react'
 import { buildBrokerConnectSteps } from '@/lib/brokerConnectSteps'
 import { connectorExplainer } from '@/lib/brokerRegistry'
@@ -31,6 +32,7 @@ export default function BrokerConnectModal({
   brokerForm = {}, setBrokerForm, onSubmitApi, isSyncing = false, error,
   ibkrToken, setIbkrToken, ibkrQueryId, setIbkrQueryId,
 }) {
+  useEscClose(onClose)
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
   const steps = buildBrokerConnectSteps(broker, howTo, lang)

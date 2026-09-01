@@ -17,6 +17,7 @@
 // date, so the curve is portfolio-wide and not just the broker's slice.
 
 import { useState, useMemo, useRef } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
@@ -40,6 +41,7 @@ export default function QuarterlyHistoryModal({
   onClose, onSaved, saveSnapshot, saveSettings, convert, baseCurrency = 'USD',
   snapshots = [], lang = 'es',
 }) {
+  useEscClose(onClose)
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
   const now = new Date()
@@ -312,7 +314,7 @@ export default function QuarterlyHistoryModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-anim rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>

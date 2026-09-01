@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { createPortal } from 'react-dom'
 import { formatCurrency, categoryLabel } from './utils'
 import { buildReportData, regionLabel } from '@/lib/reportData'
@@ -35,6 +36,7 @@ export default function PrintSummary({
   profileName = '',
   lang, onClose,
 }) {
+  useEscClose(onClose)
   const t = (es, en) => lang === 'es' ? es : en
   const locale = lang === 'es' ? 'es-GT' : 'en-US'
   const [period, setPeriod] = useState('ytd')
@@ -55,7 +57,16 @@ export default function PrintSummary({
   const fmtRaw = (v) => formatCurrency(Math.abs(v || 0))
   const fmtAcc = (v) => (v < 0 ? `(${fmtRaw(v)})` : fmtRaw(v))
   const fmtPct = (v) => v == null ? '-' : (v < 0 ? `(${Math.abs(v).toFixed(2)}%)` : `+${v.toFixed(2)}%`)
-  const fmtDate = (ts) => ts ? new Date(ts).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' }) : ''
+  // FASE ME5: acepta ts O un 'YYYY-MM-DD'. Un dia calendario parsea como
+  // medianoche UTC, y formatearlo en hora local lo retrocede un dia al oeste
+  // de UTC (toda LatAm): el guard formatea esos en UTC, igual que formatDate.
+  const fmtDate = (ts) => {
+    if (!ts) return ''
+    const d = new Date(ts)
+    if (isNaN(d.getTime())) return ''
+    const utcMid = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric', ...(utcMid ? { timeZone: 'UTC' } : {}) })
+  }
 
   const now = new Date(data.meta.generatedTs)
   const dateStr = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -150,7 +161,7 @@ export default function PrintSummary({
   if (!mounted) return null
 
   return createPortal(
-    <div className="modal-overlay fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}
+    <div className="modal-overlay modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
       {...(exiting ? { 'data-modal-exit': '' } : {})}>
       <div className="modal-anim bg-white text-black rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {/* Controles (ocultos al imprimir) */}
@@ -577,7 +588,7 @@ export default function PrintSummary({
                   {data.maturities.map((r, i) => (
                     <tr key={`${r.name}-${i}`} className="border-b border-gray-100">
                       <td className="py-1.5 font-medium">{r.name}</td>
-                      <td className="py-1.5 text-gray-500">{r.date}</td>
+                      <td className="py-1.5 text-gray-500">{fmtDate(r.date)}</td>
                       <td className="py-1.5 text-right text-gray-500">{r.days}</td>
                       <td className="py-1.5 text-right">{fmtAcc(r.value)}</td>
                     </tr>

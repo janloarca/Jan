@@ -180,7 +180,7 @@ export default function CostsPage() {
             </div>
 
             {/* Breakdown cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {breakdown.map(({ key, label, value, Icon, hint }) => (
                 <div key={key} className="card p-4">
                   <div className="flex items-center gap-1.5 mb-2">

@@ -1198,3 +1198,38 @@ describe('itemLabel', () => {
     expect(itemLabel(it)).toBe(it.name || it.symbol)
   })
 })
+
+// FASE ME5: formatShortDate lleva el mismo guard UTC que formatDate. La suite
+// corre en TZ=America/Guatemala (jest.config.js, FASE LF), asi que estos tests
+// tienen dientes: sin el guard, la medianoche UTC del 1 de enero se formatea
+// en hora local y retrocede al 31 de diciembre, o sea el MES equivocado en un
+// formato mes/anio. Es exactamente el ancla del YTD ("DESDE ene 26" imprimia
+// "DESDE dic 25") y la fecha de pico del drawdown.
+describe('formatShortDate (FASE ME5)', () => {
+  const { formatShortDate } = require('../utils')
+
+  test('un dia calendario string no retrocede de mes al oeste de UTC', () => {
+    const out = formatShortDate('2026-01-01')
+    expect(out.toLowerCase()).toContain('jan')
+    expect(out).toContain('26')
+    expect(out.toLowerCase()).not.toContain('dec')
+  })
+
+  test('el timestamp de una medianoche UTC (snapshot parseado) tampoco', () => {
+    const out = formatShortDate(Date.UTC(2026, 0, 1))
+    expect(out.toLowerCase()).toContain('jan')
+    expect(out.toLowerCase()).not.toContain('dec')
+  })
+
+  test('un instante real (no medianoche UTC) se formatea en hora local', () => {
+    // 2026-01-01T18:30Z son las 12:30 locales del 1 de enero en Guatemala:
+    // mismo dia en las dos lecturas, y el guard NO aplica (no es medianoche).
+    const out = formatShortDate(Date.UTC(2026, 0, 1, 18, 30))
+    expect(out.toLowerCase()).toContain('jan')
+  })
+
+  test('basura no revienta', () => {
+    expect(formatShortDate(null)).toBe('')
+    expect(formatShortDate('no-fecha')).toBe('no-fecha')
+  })
+})

@@ -1,5 +1,6 @@
 'use client'
 import AmountInput from '@/components/ui/AmountInput'
+import { useEscClose } from '@/hooks/useEscClose'
 import { parseAmount } from '@/lib/numberParse'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
@@ -304,11 +305,7 @@ function ChipEditor({ draft, lang, monthsLong, fromMonth, onChange, onSave, onDe
   const valid = parseAmount(draft.amount) > 0
   const isMonthly = draft.repeat === REPEAT_MONTHLY
 
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useEscClose(onClose)
 
   const labelCls = 'block text-xs mb-1'
   const labelStyle = { color: 'var(--text-secondary)' }
@@ -316,9 +313,8 @@ function ChipEditor({ draft, lang, monthsLong, fromMonth, onChange, onSave, onDe
   const inputStyle = { backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', color: 'var(--text-primary)' }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="chip-editor-title"
-      onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="chip-editor-title"
+      onClick={onClose}>
       <div className="modal-glass max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-glass-border">
           <h2 id="chip-editor-title" className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>

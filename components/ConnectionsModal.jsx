@@ -6,6 +6,7 @@
 // opens this modal directly.
 
 import { useState, useEffect, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { RefreshCw, Rocket } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -97,11 +98,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     return Object.values(map).sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
   }, [portfolioItems])
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   useEffect(() => {
     authFetch('/api/brokers/ibkr', {
@@ -404,15 +401,14 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="connections-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="connections-modal-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="connections-modal-title" className="text-lg font-bold text-white flex items-center gap-2">
             <RefreshCw size={20} style={{ color: 'var(--text-secondary)' }} />
             {t('Conexiones y Sync', 'Connections & Sync')}
             {connectedCount > 0 && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.12)' }}>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 12%, transparent)' }}>
                 {connectedCount} {connectedCount === 1 ? t('activa', 'active') : t('activas', 'active')}
               </span>
             )}
@@ -421,7 +417,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         </div>
 
         {saveStatus && (
-          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: saveStatus.type === 'ok' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}>
+          <div className="mx-6 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all" style={{ color: saveStatus.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', backgroundColor: saveStatus.type === 'ok' ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'rgba(239,68,68,0.15)' }}>
             {saveStatus.msg}
           </div>
         )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED } from '@/lib/financeCategories'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
@@ -19,11 +20,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   // 'Inversiones' never appears here: investment income flows in READ-ONLY
   // from the portfolio's dividend/interest transactions — entering it manually
@@ -70,8 +67,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-finance-tx-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-finance-tx-title">
       <div className="modal-glass max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="add-finance-tx-title" className="text-lg font-bold text-white">{t('Agregar Transacción', 'Add Transaction')}</h2>

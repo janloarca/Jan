@@ -1,11 +1,12 @@
 'use client'
 import AmountInput from '@/components/ui/AmountInput'
+import { useEscClose } from '@/hooks/useEscClose'
 import { parseRate } from '@/lib/numberParse'
 
 import { useState } from 'react'
 import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD } from '@/components/dashboard/utils'
+import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, formatDate } from '@/components/dashboard/utils'
 import { hasRealObservationAt } from '@/lib/snapshotSelect'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
@@ -29,6 +30,7 @@ import { hasRealObservationAt } from '@/lib/snapshotSelect'
 // step carries the user forward on its own instead of sitting on its success
 // message with a primary button that still reads "Save".
 export default function CalibrateReturnModal({ onClose, onSaved, preferredAccount = null, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
+  useEscClose(onClose)
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const year = new Date().getUTCFullYear()
@@ -296,8 +298,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
     : 'px-2.5 py-1 rounded-lg text-xs border border-glass-border transition-colors hover:bg-white/5'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white">{t('Calibrar rendimiento', 'Calibrate return')}</h2>
@@ -365,7 +366,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
               {allCalibrated.map((s) => (
                 <div key={s.id || s.date} className="flex items-center justify-between text-xs">
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {s.date}
+                    {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {formatDate(s.date)}
                   </span>
                   <button type="button" disabled={saving} onClick={() => removeCalibration(s)}
                     className="px-2 py-0.5 rounded transition-colors hover:bg-white/5"

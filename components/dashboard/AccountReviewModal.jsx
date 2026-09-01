@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, getTypeCategory, formatCurrency, formatDate } from './utils'
 
@@ -19,6 +20,7 @@ const CATEGORY_LABELS = {
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
 export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
+  useEscClose(onClose)
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
   const [reviewed, setReviewed] = useState({})
@@ -126,7 +128,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
   const itemFindings = findingsByItem.get(item.id) || []
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       {/* FASE ME: era un panel `bg-white` fijo con tokens de tema ENCIMA, así que en
           tema oscuro (el default) --text-primary resolvía a blanco sobre blanco: la
           cifra de la cuenta que estabas revisando medía 1.00:1. Ahora es el panel
@@ -234,7 +236,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                           <span style={{ color: 'var(--accent-green)' }} title={
                             (transactions || [])
                               .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
-                              .map(tx => `${tx.date}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
+                              .map(tx => `${formatDate(tx.date)}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
                               .join('\n')
                           }>
                             {t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}

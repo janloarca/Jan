@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { openingDepositDateFix } from '@/lib/originDeposits'
@@ -437,11 +438,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isAlternative = /alternative|alternativ/i.test(form.type)
   const hasIncome = !isMarket && !isDebt
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -785,8 +782,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="edit-acct-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Editar', 'Edit')} {item.name || item.symbol}</h2>
@@ -1683,12 +1679,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                   <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                   <option value="GT">🇬🇹 Guatemala</option>
-                  <option value="MX">🇲🇽 México</option>
+                  <option value="MX">{'🇲🇽 '}{t('México', 'Mexico')}</option>
                   <option value="US">🇺🇸 USA</option>
                   <option value="CO">🇨🇴 Colombia</option>
                   <option value="CL">🇨🇱 Chile</option>
-                  <option value="BR">🇧🇷 Brasil</option>
-                  <option value="PE">🇵🇪 Perú</option>
+                  <option value="BR">{'🇧🇷 '}{t('Brasil', 'Brazil')}</option>
+                  <option value="PE">{'🇵🇪 '}{t('Perú', 'Peru')}</option>
                   <option value="AR">🇦🇷 Argentina</option>
                   <option value="OTHER">{t('Otro', 'Other')}</option>
                 </select>
@@ -1698,26 +1694,26 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
                   <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                   <option value="GT">🇬🇹 Guatemala</option>
-                  <option value="MX">🇲🇽 México</option>
+                  <option value="MX">{'🇲🇽 '}{t('México', 'Mexico')}</option>
                   <option value="US">🇺🇸 USA</option>
                   <option value="CO">🇨🇴 Colombia</option>
                   <option value="CL">🇨🇱 Chile</option>
-                  <option value="BR">🇧🇷 Brasil</option>
-                  <option value="PE">🇵🇪 Perú</option>
+                  <option value="BR">{'🇧🇷 '}{t('Brasil', 'Brazil')}</option>
+                  <option value="PE">{'🇵🇪 '}{t('Perú', 'Peru')}</option>
                   <option value="AR">🇦🇷 Argentina</option>
                   <option value="CR">🇨🇷 Costa Rica</option>
-                  <option value="PA">🇵🇦 Panamá</option>
-                  <option value="ES">🇪🇸 España</option>
+                  <option value="PA">{'🇵🇦 '}{t('Panamá', 'Panama')}</option>
+                  <option value="ES">{'🇪🇸 '}{t('España', 'Spain')}</option>
                   <option value="UK">🇬🇧 UK</option>
-                  <option value="DE">🇩🇪 Alemania</option>
-                  <option value="CH">🇨🇭 Suiza</option>
-                  <option value="JP">🇯🇵 Japón</option>
+                  <option value="DE">{'🇩🇪 '}{t('Alemania', 'Germany')}</option>
+                  <option value="CH">{'🇨🇭 '}{t('Suiza', 'Switzerland')}</option>
+                  <option value="JP">{'🇯🇵 '}{t('Japón', 'Japan')}</option>
                   <option value="CN">🇨🇳 China</option>
-                  <option value="KR">🇰🇷 Corea del Sur</option>
+                  <option value="KR">{'🇰🇷 '}{t('Corea del Sur', 'South Korea')}</option>
                   <option value="HK">🇭🇰 Hong Kong</option>
-                  <option value="SG">🇸🇬 Singapur</option>
+                  <option value="SG">{'🇸🇬 '}{t('Singapur', 'Singapore')}</option>
                   <option value="AU">🇦🇺 Australia</option>
-                  <option value="CA">🇨🇦 Canadá</option>
+                  <option value="CA">{'🇨🇦 '}{t('Canadá', 'Canada')}</option>
                   <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
                   <option value="OTHER">{t('Otro', 'Other')}</option>
                 </select>

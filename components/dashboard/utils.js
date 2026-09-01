@@ -87,10 +87,16 @@ export function formatDate(dateStr) {
 
 export function formatShortDate(dateStr) {
   if (!dateStr) return ''
+  const locale = _lang === 'es' ? 'es' : 'en-US'
   try {
     const d = coerceDate(dateStr)
     if (!d || isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : ''
-    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    // FASE ME5: mismo guard UTC que formatDate. Un 'YYYY-MM-DD' (o el timestamp
+    // de su medianoche UTC) formateado en hora local retrocede un día al oeste
+    // de UTC, y con formato mes/año el caso que muerde es EXACTAMENTE el común:
+    // el ancla del 1 de enero se imprimía "dic 25" en vez de "ene 26".
+    const isUtcMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
+    return d.toLocaleDateString(locale, { month: 'short', year: '2-digit', ...(isUtcMidnight ? { timeZone: 'UTC' } : {}) })
   } catch { return typeof dateStr === 'string' ? dateStr : '' }
 }
 
@@ -181,6 +187,26 @@ export const CATEGORY_LABELS = {
   receivables: { es: 'Por Cobrar', en: 'Receivables' },
   debts: { es: 'Pasivos', en: 'Liabilities' },
   other: { es: 'Otros', en: 'Other' },
+}
+
+// FASE ME9: el plazo de una deuda, bilingüe y en UN solo lugar. Vivía COPIADO
+// en DebtSpreadsheet y PortfolioSpreadsheet, y las dos copias eran español
+// fijo: "3 meses" y "Día de pago" se imprimían igual con la app en inglés,
+// mientras su vecino SUBTYPE_LABELS del mismo archivo sí era bilingüe.
+export const DEBT_TERM_LABELS = {
+  '3m': { es: '3 meses', en: '3 months' },
+  '6m': { es: '6 meses', en: '6 months' },
+  '12m': { es: '12 meses', en: '12 months' },
+  '24m': { es: '24 meses', en: '24 months' },
+  '36m': { es: '36 meses', en: '36 months' },
+  payday: { es: 'Día de pago', en: 'Payday' },
+  revolving: { es: 'Revolvente', en: 'Revolving' },
+  custom: { es: 'Personalizado', en: 'Custom' },
+}
+export function debtTermLabel(term, lang) {
+  const e = DEBT_TERM_LABELS[term]
+  if (!e) return term || ''
+  return lang === 'en' ? e.en : e.es
 }
 
 export function categoryLabel(cat, lang) {

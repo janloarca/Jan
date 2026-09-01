@@ -14,8 +14,8 @@ export default function ErrorState({ title, message, onRetry, icon = 'default', 
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
       <div className="rounded-2xl p-4 mb-4" style={{
-        backgroundColor: 'rgba(248,113,113,0.08)',
-        border: '1px solid rgba(248,113,113,0.15)',
+        backgroundColor: 'color-mix(in srgb, var(--accent-red) 8%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--accent-red) 15%, transparent)',
         backdropFilter: 'var(--glass-blur)',
         WebkitBackdropFilter: 'var(--glass-blur)',
       }}>

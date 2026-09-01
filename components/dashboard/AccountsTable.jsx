@@ -205,7 +205,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
               <div key={row.name} className="flex items-center gap-3">
                 <span className="text-xs text-white font-medium w-32 truncate">{row.name}</span>
                 <div className="flex-1 h-1.5 bg-slate-700/30 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${row.pct}%`, backgroundColor: 'rgba(52,211,153,0.6)' }} />
+                  <div className="h-full rounded-full" style={{ width: `${row.pct}%`, backgroundColor: 'color-mix(in srgb, var(--accent-green) 60%, transparent)' }} />
                 </div>
                 <span className="text-xs text-slate-400 w-8">{row.pct.toFixed(0)}%</span>
                 <span className="text-xs text-slate-300 w-14 text-right">{formatCurrency(row.value)}</span>
@@ -295,7 +295,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                             {!isBalanceStyle && item.change7d != null && (
                               <span className="text-xs font-medium px-1.5 py-0.5 rounded"
                                 style={item.change7d >= 0
-                                  ? { backgroundColor: 'rgba(52,211,153,0.15)', color: 'var(--accent-green)' }
+                                  ? { backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)', color: 'var(--accent-green)' }
                                   : { backgroundColor: 'rgba(239,68,68,0.15)', color: 'var(--text-negative)' }
                                 }>
                                 {item.change7d >= 0 ? '▲' : '▼'}{Math.abs(item.change7d).toFixed(1)}% 7d
@@ -330,7 +330,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                                 ? { backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--text-negative)' }
                                 : mat.color === 'amber'
                                   ? { backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--alert-warn-icon)' }
-                                  : { backgroundColor: 'rgba(52,211,153,0.1)', color: 'var(--accent-green)' }
+                                  : { backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', color: 'var(--accent-green)' }
                               return <span className="text-xs px-1.5 py-0.5 rounded" style={matStyle}>{mat.expired ? '⚠' : '⏱'} {mat.label}</span>
                             })()}
                             {item.rateType === 'variable' && item.rateMin > 0 && (
@@ -339,11 +339,11 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                               </span>
                             )}
                             {item.dividendAction === 'reinvest' ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: 'rgba(96,165,250,0.8)' }} title={t('Los pagos se reinvierten en este activo', 'Payments reinvest into this asset')}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: 'color-mix(in srgb, var(--accent-blue-soft) 80%, transparent)' }} title={t('Los pagos se reinvierten en este activo', 'Payments reinvest into this asset')}>
                                 🔄 {t('Reinvierte', 'Reinvests')}
                               </span>
                             ) : item.incomeDestination ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: 'rgba(74,222,128,0.7)' }} title={t('Destino de ingresos', 'Income destination')}>
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)', color: 'rgba(74,222,128,0.7)' }} title={t('Destino de ingresos', 'Income destination')}>
                                 → {(() => { const dest = items.find(it => it.id === item.incomeDestination); return dest ? (dest.name || dest.symbol || '').slice(0, 15) : '?' })()}
                               </span>
                             ) : null}
@@ -391,7 +391,7 @@ export default function AccountsTable({ items, lang, onDeleteItem, onEditItem, o
                           <span className="text-xs font-medium font-mono tabular-nums" style={{ color: retPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                             {retPct >= 0 ? '+' : ''}{formatCurrency(retAbs)}
                           </span>
-                          <div className="text-xs font-mono tabular-nums" style={{ color: retPct >= 0 ? 'rgba(52,211,153,0.7)' : 'rgba(239,68,68,0.7)' }}>
+                          <div className="text-xs font-mono tabular-nums" style={{ color: retPct >= 0 ? 'color-mix(in srgb, var(--accent-green) 70%, transparent)' : 'rgba(239,68,68,0.7)' }}>
                             {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
                           </div>
                         </div>

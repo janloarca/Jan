@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCardStatement, parseCardStatement } from '@/lib/parsers/guateCardStatements'
@@ -130,11 +131,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   useEffect(() => {
     if (brokerHint && step === 'upload' && mode === 'file') {
@@ -1066,8 +1063,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const brokerSteps = (brokerInfo?.csv?.steps || []).filter((s) => !(journeyActive && s.journeyStep))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
       <div ref={trapRef} className="modal-glass max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
@@ -1084,7 +1080,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
             ].map((tab) => (
               <button key={tab.key} onClick={() => { setMode(tab.key); setError('') }}
                 className="flex-1 px-4 py-3 text-sm font-medium transition-colors"
-                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid #34d399', backgroundColor: 'rgba(52,211,153,0.05)' } : { color: 'var(--text-muted)' }}>
+                style={mode === tab.key ? { color: 'var(--accent-green)', borderBottom: '2px solid var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 5%, transparent)' } : { color: 'var(--text-muted)' }}>
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -1094,7 +1090,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
-            <div className="mb-4 p-3 bg-[#f87171]/10 border border-[#f87171]/20 text-[#f87171] rounded-lg text-sm">{error}</div>
+            <div className="mb-4 p-3 bg-[var(--alert-error-bg)] border border-[var(--alert-error-border)] text-[var(--text-negative)] rounded-lg text-sm">{error}</div>
           )}
 
           {/* Un estado de cuenta de un banco que todavía no leemos de forma
@@ -1340,8 +1336,8 @@ When done, give me the .xlsx file ready to download.`
                 {t(`${rawData.length} filas encontradas. Mapea las columnas:`, `${rawData.length} rows found. Map the columns:`)}
               </p>
               {detectedBroker && (
-                <div className="px-3 py-2 mb-3 bg-[#60a5fa]/10 border border-[#60a5fa]/20 rounded-lg">
-                  <span className="text-[#60a5fa] text-xs font-medium">
+                <div className="px-3 py-2 mb-3 bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)] rounded-lg">
+                  <span className="text-[var(--accent-blue)] text-xs font-medium">
                     {t('Formato detectado', 'Format detected')}: {detectedBroker.institution}
                   </span>
                   {detectedBroker.instructions && (
@@ -1366,7 +1362,7 @@ When done, give me the .xlsx file ready to download.`
                       ))}
                     </select>
                     {mapping[field] != null && (
-                      <span className="text-[#34d399] text-xs">&#10003;</span>
+                      <span className="text-[var(--accent-green)] text-xs">&#10003;</span>
                     )}
                   </div>
                 ))}
@@ -1382,8 +1378,8 @@ When done, give me the .xlsx file ready to download.`
                 </div>
               </div>
               {(extraSheets.snapshots.length > 0 || extraSheets.transactions.length > 0) && (
-                <div className="mt-4 p-3 bg-[#34d399]/10 border border-[#34d399]/20 rounded-lg">
-                  <p className="text-[#34d399] text-xs font-medium mb-1">{t('Hojas detectadas:', 'Sheets detected:')}</p>
+                <div className="mt-4 p-3 bg-[var(--alert-success-bg)] border border-[var(--alert-success-border)] rounded-lg">
+                  <p className="text-[var(--accent-green)] text-xs font-medium mb-1">{t('Hojas detectadas:', 'Sheets detected:')}</p>
                   {extraSheets.snapshots.length > 0 && (
                     <p className="text-slate-400 text-xs">📊 {t('Historial:', 'History:')} {extraSheets.snapshots.length} {t('periodos', 'periods')}</p>
                   )}
@@ -1425,7 +1421,7 @@ When done, give me the .xlsx file ready to download.`
                   <tbody>
                     {preview.map((item, i) => (
                       <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                        <td className="py-2 px-2 text-[#34d399] font-medium">{item.symbol}</td>
+                        <td className="py-2 px-2 text-[var(--accent-green)] font-medium">{item.symbol}</td>
                         <td className="py-2 px-2 text-white">{item.name}</td>
                         <td className="py-2 px-2 text-slate-400">{item.type}</td>
                         <td className="py-2 px-2 text-right text-slate-300">{item.quantity.toLocaleString()}</td>
@@ -1454,8 +1450,8 @@ When done, give me the .xlsx file ready to download.`
           {/* BI Preview step */}
           {step === 'bi-preview' && biData && (
             <div>
-              <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[#34d399]/10 border border-[#34d399]/20 rounded-lg">
-                <span className="text-[#34d399] text-xs font-medium">
+              <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[var(--alert-success-bg)] border border-[var(--alert-success-border)] rounded-lg">
+                <span className="text-[var(--accent-green)] text-xs font-medium">
                   {biData.card
                     ? `${t('Formato detectado', 'Format detected')}: ${biData.card.bankLabel}${biData.card.cardLast4 ? ` •${biData.card.cardLast4}` : ''}${biData.card.cutDate ? ` · ${t('corte', 'cut')} ${biData.card.cutDate}` : ''}`
                     : t('Formato detectado: Banco Industrial', 'Format detected: Banco Industrial')}
@@ -1884,7 +1880,7 @@ When done, give me the .xlsx file ready to download.`
                   {t('Atrás', 'Back')}
                 </button>
                 <button onClick={doBIImport} disabled={importing}
-                  className="flex-1 py-2.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: '#059669', color: '#fff' }}>
+                  className="flex-1 py-2.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
                   {importing ? t('Importando...', 'Importing...') : t(`Importar ${biSelected.size} transacciones`, `Import ${biSelected.size} transactions`)}
                 </button>
               </div>
@@ -1894,8 +1890,8 @@ When done, give me the .xlsx file ready to download.`
           {/* IBKR Preview step */}
           {step === 'ibkr-preview' && ibkrData && (
             <div>
-              <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[#60a5fa]/10 border border-[#60a5fa]/20 rounded-lg">
-                <span className="text-[#60a5fa] text-xs font-medium">
+              <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)] rounded-lg">
+                <span className="text-[var(--accent-blue)] text-xs font-medium">
                   {t('Formato detectado: Interactive Brokers', 'Format detected: Interactive Brokers')}
                 </span>
               </div>
@@ -2052,7 +2048,7 @@ When done, give me the .xlsx file ready to download.`
                               <span className="text-sm font-medium" style={{ color: active ? opt.accent : 'var(--text-primary)' }}>{opt.title}</span>
                               {recommended && (
                                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                                  style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                                  style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }}>
                                   {t('Recomendado', 'Recommended')}
                                 </span>
                               )}
@@ -2192,10 +2188,10 @@ When done, give me the .xlsx file ready to download.`
                 </div>
               )}
               {result.txCount > 0 && (
-                <p className="text-[#34d399] text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>
+                <p className="text-[var(--accent-green)] text-xs mt-1">💰 {result.txCount} {t('transacciones', 'transactions')}</p>
               )}
               {result.errorMsg && (
-                <p className="text-[#f87171] text-xs mt-2">{result.errorMsg}</p>
+                <p className="text-[var(--text-negative)] text-xs mt-2">{result.errorMsg}</p>
               )}
               {result.failReasons?.length > 0 && (
                 <div className="mt-3 mx-auto max-w-sm text-left px-3 py-2 rounded-lg"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
@@ -260,11 +261,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     setExcludedPayDates(prev => prev.filter(d => pastDuePayDates.includes(d)))
   }, [pastDuePayDates])
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   // En modo guiado el tipo puede cambiar solo: elegir un resultado de la
   // búsqueda lo re-clasifica (handleSelectSymbol). El subtipo por defecto tiene
@@ -880,8 +877,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       handleSubmit({ preventDefault: () => {} })
     }
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true"
-        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true">
         <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
           <GuidedAssetSteps ctx={{
             t, form, set, type,
@@ -902,8 +898,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">
@@ -2174,12 +2169,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                         <option value="GT">Guatemala</option>
-                        <option value="MX">México</option>
+                        <option value="MX">{t('México', 'Mexico')}</option>
                         <option value="US">USA</option>
                         <option value="CO">Colombia</option>
                         <option value="CL">Chile</option>
-                        <option value="BR">Brasil</option>
-                        <option value="PE">Perú</option>
+                        <option value="BR">{t('Brasil', 'Brazil')}</option>
+                        <option value="PE">{t('Perú', 'Peru')}</option>
                         <option value="AR">Argentina</option>
                         <option value="OTHER">{t('Otro', 'Other')}</option>
                       </select>
@@ -2193,26 +2188,26 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                         <option value="GT">Guatemala</option>
-                        <option value="MX">México</option>
+                        <option value="MX">{t('México', 'Mexico')}</option>
                         <option value="US">USA</option>
                         <option value="CO">Colombia</option>
                         <option value="CL">Chile</option>
-                        <option value="BR">Brasil</option>
-                        <option value="PE">Perú</option>
+                        <option value="BR">{t('Brasil', 'Brazil')}</option>
+                        <option value="PE">{t('Perú', 'Peru')}</option>
                         <option value="AR">Argentina</option>
                         <option value="CR">Costa Rica</option>
-                        <option value="PA">Panamá</option>
-                        <option value="ES">España</option>
+                        <option value="PA">{t('Panamá', 'Panama')}</option>
+                        <option value="ES">{t('España', 'Spain')}</option>
                         <option value="UK">UK</option>
-                        <option value="DE">Alemania</option>
-                        <option value="CH">Suiza</option>
-                        <option value="JP">Japón</option>
+                        <option value="DE">{t('Alemania', 'Germany')}</option>
+                        <option value="CH">{t('Suiza', 'Switzerland')}</option>
+                        <option value="JP">{t('Japón', 'Japan')}</option>
                         <option value="CN">China</option>
-                        <option value="KR">Corea del Sur</option>
+                        <option value="KR">{t('Corea del Sur', 'South Korea')}</option>
                         <option value="HK">Hong Kong</option>
-                        <option value="SG">Singapur</option>
+                        <option value="SG">{t('Singapur', 'Singapore')}</option>
                         <option value="AU">Australia</option>
-                        <option value="CA">Canadá</option>
+                        <option value="CA">{t('Canadá', 'Canada')}</option>
                         <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
                         <option value="OTHER">{t('Otro', 'Other')}</option>
                       </select>

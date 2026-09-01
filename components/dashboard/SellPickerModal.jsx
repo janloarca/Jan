@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, getItemValue } from './utils'
 
@@ -19,11 +20,7 @@ export default function SellPickerModal({ items = [], onPick, onClose, lang = 'e
   const t = (es, en) => (lang === 'es' ? es : en)
   const [query, setQuery] = useState('')
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   const sellable = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -37,8 +34,7 @@ export default function SellPickerModal({ items = [], onPick, onClose, lang = 'e
   const total = (items || []).filter((it) => it && !it.isDebt && (Number(it.quantity) || 0) > 0).length
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>

@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useEscClose } from '@/hooks/useEscClose'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
+import { RING_VIEWBOX, RING_CX, RING_CY, RING_R, sweepDash } from '@/lib/brandRing'
 import Logo from '@/components/ui/Logo'
 import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles, Compass } from 'lucide-react'
 
@@ -12,22 +14,15 @@ import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles, C
 // retrying every 30min. The dashboard owns that rule so the pill, the top banner
 // and the actions card dot always agree. See app/dashboard/page.jsx.
 
-// Same ring geometry as ChispudoRefreshButton's own indeterminate sweep
-// (viewBox 0 0 32 32, r=13.5) — reused here at pill scale so the IBKR pill's
-// spinner speaks the same visual language as the header's refresh ring right
-// next to it, instead of a generic browser-style spin with no relation to it.
-const PILL_RING_R = 13.5
-const PILL_RING_C = 2 * Math.PI * PILL_RING_R
+// FASE ME7: el arco del pill era la CUARTA copia de la geometría del anillo
+// (R=13.5, 0.22/0.78 y su propio keyframe), exactamente lo que lib/brandRing.js
+// existe para impedir; el guardián solo miraba tres archivos y este se le
+// escapó. Ahora importa del módulo compartido y usa el keyframe global.
 export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
-  useEffect(() => {
-    if (!newMenuOpen) return
-    const onKey = (e) => { if (e.key === 'Escape') setNewMenuOpen(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [newMenuOpen])
+  useEscClose(() => setNewMenuOpen(false), newMenuOpen)
 
   // IBKR pill success flash — mirrors ChispudoRefreshButton's own success-hold
   // effect (same shape: a `wasX` ref that only updates on the non-triggering
@@ -152,13 +147,17 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 {ibkrAutoSyncing ? (
                   // Same sweep language as the header refresh ring's own
                   // indeterminate state, at pill scale — not a bare browser spin.
-                  <svg width="12" height="12" viewBox="0 0 32 32" aria-hidden="true" className="relative chispu-pill-anim">
-                    <circle cx="16" cy="16" r={PILL_RING_R} fill="none" strokeWidth="4" strokeLinecap="round"
+                  <svg width="12" height="12" viewBox={RING_VIEWBOX} aria-hidden="true" className="relative">
+                    {/* busy-ring-arc: con prefers-reduced-motion el barrido se hace
+                        LENTO (regla global), nunca se congela: un indicador de
+                        ocupado quieto se lee como pantalla trabada. */}
+                    <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" strokeWidth="4" strokeLinecap="round"
+                      className="busy-ring-arc"
                       style={{
                         stroke: 'currentColor',
-                        strokeDasharray: `${PILL_RING_C * 0.22} ${PILL_RING_C * 0.78}`,
+                        strokeDasharray: sweepDash(),
                         transformOrigin: '16px 16px',
-                        animation: 'chispuPillSweep 1.1s linear infinite',
+                        animation: 'chispuSweep 1.1s linear infinite',
                       }} />
                   </svg>
                 ) : ibkrNeedsAttention ? (
@@ -258,10 +257,6 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
       </div>
 
       <style jsx>{`
-        @keyframes chispuPillSweep {
-          0%   { transform: rotate(-90deg); }
-          100% { transform: rotate(270deg); }
-        }
         @keyframes chispuPillFlash {
           0%   { opacity: 0.55; transform: scale(0.4); }
           60%  { opacity: 0.22; transform: scale(1); }

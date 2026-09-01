@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
+import BusyLabel from '@/components/ui/BusyLabel'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { todayLocalISO } from '@/lib/localDate'
-import { formatCurrency, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
+import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER, debtTermLabel } from './utils'
 import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
@@ -57,17 +58,6 @@ const CATEGORY_ACCENT = {
   receivables: '#06b6d4',
   debts: 'var(--text-negative)',
   other: '#64748b',
-}
-
-const DEBT_TERM_LABELS = {
-  '3m': '3 meses',
-  '6m': '6 meses',
-  '12m': '12 meses',
-  '24m': '24 meses',
-  '36m': '36 meses',
-  payday: 'Día de pago',
-  revolving: 'Revolving',
-  custom: 'Custom',
 }
 
 const REWARD_ICONS = {
@@ -1389,8 +1379,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               style={{ color: 'var(--text-secondary)' }}
               title={t('Volver a calcular los meses pasados con la información de hoy',
                        'Recompute past months with today’s data')}>
-              <RefreshCw size={13} strokeWidth={2} className={recalculating ? 'animate-spin' : undefined} />
-              {recalculating ? t('Recalculando...', 'Recomputing...') : t('Recalcular', 'Recompute')}
+              {/* FASE ME7: era el ultimo `animate-spin` generico de la app; el
+                  ocupado va con el anillo de marca (BusyLabel), como todo boton. */}
+              {!recalculating && <RefreshCw size={13} strokeWidth={2} />}
+              <BusyLabel busy={recalculating} lang={lang} busyLabel={t('Recalculando...', 'Recomputing...')}>
+                {t('Recalcular', 'Recompute')}
+              </BusyLabel>
             </button>
             <button onClick={() => setShowDiag((v) => !v)}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter]"
@@ -1935,7 +1929,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <tr className="bg-theme-tertiary border-t-0">
                               <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-theme-tertiary z-10`} colSpan={2 + (showOriginal ? 1 : 0) + months.length}>
                                 <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
-                                  {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
+                                  {item.debtTerm && <span>{debtTermLabel(item.debtTerm, lang)}</span>}
                                   {item.interestRate > 0 && <span>{item.interestRate}% {item.ratePeriod === 'monthly' ? t('mensual', 'monthly') : t('anual', 'yearly')}</span>}
                                   {/* FASE ME2: la cuota iba con `$` fijo al lado del interés en
                                       fmtD (la moneda REAL): dos monedas en la misma fila. La cuota
@@ -1944,7 +1938,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                   {item.installmentsRemaining > 0 && (
                                     <span>{item.installmentsRemaining} {t('cuotas rest.', 'pmts left')}</span>
                                   )}
-                                  {item.maturityDate && <span>{t('Vence', 'Due')}: {item.maturityDate}</span>}
+                                  {item.maturityDate && <span>{t('Vence', 'Due')}: {formatDate(item.maturityDate)}</span>}
                                   {bd && bd.monthlyInterest > 0.005 && (
                                     <span>{t('interés', 'interest')} ~{fmtD(bd.monthlyInterest)}/{t('mes', 'mo')}</span>
                                   )}
