@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
@@ -2436,9 +2436,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // FASE LU: mismo universo que el YTD, solo activos (se publica a Amigos).
     let startVal = anchor ? convertSnapshot(snapshotAssetsUSD(anchor)) : null
     if (startVal == null || startVal <= 0) return null
+    // ⛔ FASE MM. La ventana arranca donde arranca el VALOR, no el día 1.
+    //
+    // `findMonthStartAnchor` busca el snapshot más cercano al día 1 en una
+    // ventana de ±5 días, así que puede devolver el del día 4 (o el 30 del mes
+    // anterior) mientras `startTs` se quedaba fijo en el día 1. Las dos puntas
+    // fallan y las dos inventan rendimiento:
+    //
+    //   · ancla DESPUÉS del día 1: un depósito del día 2 ya está DENTRO del
+    //     valor de arranque y además se netea como flujo, o sea se resta dos
+    //     veces y el mes se lee como pérdida.
+    //   · ancla ANTES del día 1: un depósito del 31 del mes anterior no está en
+    //     el valor de arranque y tampoco se netea (cae antes de startTs), así
+    //     que se lee como ganancia.
+    //
+    // Medido con el hook real: ancla de 10,500 el día 4 conteniendo un depósito
+    // de 500 del día 2, con 11,000 hoy, daba **0%** contra el 4.76% real.
+    //
+    // Es la lección de `jan1Ts` (FASE DV: "el ancla del YTD tiene FECHA") en la
+    // superficie que aquella pasada no tocó, y esta se PUBLICA a Amigos, o sea
+    // el número mal se compara contra otras personas.
+    const startTs = anchorStartTs(anchor, Date.UTC(year, month, 1))
     const { pct } = computeModifiedDietz({
       startValue: startVal, endValue: totalAssets,
-      startTs: Date.UTC(year, month, 1), endTs: Date.now(),
+      startTs, endTs: Date.now(),
       transactions: (REAL_SNAPSHOT_SOURCES.includes(anchor._source) || anchor._transactional) ? assetTransactions : assetDietzTransactions,
       convert, baseCurrency,
     })

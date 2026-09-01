@@ -478,3 +478,41 @@ describe('computeAssetAttribution: la ganancia sigue la convención congelada', 
     expect(rows[0].weight).toBe(100)
   })
 })
+
+// ⛔ FASE MM. Los retornos POR BROKER que se publican a Amigos tenían el mismo
+// defecto que el MTD del encabezado: el ancla puede caer hasta 15 días (año) o 5
+// (mes) del borde del período, y la ventana Dietz arrancaba en el borde igual.
+describe('FASE MM: computeScopedReturns arranca en la fecha del ancla', () => {
+  const { computeScopedReturns, anchorStartTs } = require('../utils')
+
+  it('anchorStartTs usa la fecha del ancla, y cae al borde sin ella', () => {
+    expect(anchorStartTs({ date: '2026-08-04' }, Date.UTC(2026, 7, 1)))
+      .toBe(Date.parse('2026-08-04T00:00:00Z'))
+    expect(anchorStartTs(null, 123)).toBe(123)
+    expect(anchorStartTs({ date: 'basura' }, 123)).toBe(123)
+  })
+
+  it('un depósito ya contenido en el ancla no se resta dos veces', () => {
+    const nowTs = Date.parse('2026-08-20T12:00:00Z')
+    const out = computeScopedReturns({
+      snapshots: [{ date: '2026-08-04', netWorthUSD: 10500, _source: 'ibkr' }],
+      items: [{ _source: 'ibkr', symbol: 'X', quantity: 1, currentPrice: 11000 }],
+      transactions: [{ _source: 'ibkr', type: 'DEPOSIT', totalAmount: 500, currency: 'USD', date: '2026-08-02' }],
+      source: 'ibkr', convert: null, baseCurrency: 'USD', nowTs,
+    })
+    // (11000 − 10500) / 10500. Con el borde del mes daba 0.
+    expect(out.mtd).toBeCloseTo(4.7619, 3)
+  })
+
+  // Control POSITIVO: sin flujos el número es el cambio de valor puro, o si no
+  // "ya no resta de más" pasaría por haber dejado de netear del todo.
+  it('control: sin flujos el MTD es el cambio de valor', () => {
+    const out = computeScopedReturns({
+      snapshots: [{ date: '2026-08-01', netWorthUSD: 10000, _source: 'ibkr' }],
+      items: [{ _source: 'ibkr', symbol: 'X', quantity: 1, currentPrice: 11000 }],
+      transactions: [], source: 'ibkr', convert: null, baseCurrency: 'USD',
+      nowTs: Date.parse('2026-08-20T12:00:00Z'),
+    })
+    expect(out.mtd).toBeCloseTo(10, 6)
+  })
+})

@@ -496,6 +496,27 @@ export function findYearStartAnchor(snapshots, year) {
 // Month-start anchor for a month-to-date (MTD) return: the snapshot closest to
 // the 1st of the month (either just before — last day of prior month — or just
 // after), within a ~5-day window. `month` is 0-indexed (0 = January).
+// ⛔ FASE MM. Una ventana Dietz arranca donde arranca su VALOR, no donde
+// arranca el calendario.
+//
+// Los buscadores de ancla aceptan un snapshot CERCANO al borde del período (±15
+// días para el año, ±5 para el mes), así que el ancla casi nunca cae exacto en
+// el día 1. Con un `startTs` fijo en el borde, las dos puntas inventan
+// rendimiento:
+//
+//   · ancla DESPUÉS del borde: un flujo entre el borde y el ancla ya está
+//     DENTRO del valor de arranque y además se netea, o sea se resta dos veces.
+//   · ancla ANTES del borde: ese flujo no está en el valor de arranque y
+//     tampoco se netea (cae fuera de la ventana), o sea se lee como ganancia.
+//
+// Es la lección de `jan1Ts` (FASE DV: "el ancla del YTD tiene FECHA"), que se
+// aplicó al YTD del encabezado y no a las otras tres ventanas que usan la misma
+// forma. Una sola definición para que no vuelvan a divergir.
+export function anchorStartTs(anchor, fallbackTs) {
+  const ts = anchor && anchor.date ? Date.parse(`${anchor.date}T00:00:00Z`) : NaN
+  return isFinite(ts) ? ts : fallbackTs
+}
+
 export function findMonthStartAnchor(snapshots, year, month) {
   if (!Array.isArray(snapshots) || snapshots.length === 0) return null
   const monthStart = Date.UTC(year, month, 1)
@@ -532,10 +553,13 @@ export function computeScopedReturns({ snapshots, items, transactions, source, c
   if (!(endValue > 0) || snaps.length === 0) return { ytd: null, mtd: null, day: null }
 
   const flows = (transactions || []).filter((tx) => tx._source === source)
-  const at = (anchor, startTs) => {
+  // FASE MM: la ventana arranca en la FECHA del ancla, no en el borde del
+  // período (ver `anchorStartTs`). Estos dos números se publican a Amigos.
+  const at = (anchor, fallbackTs) => {
     if (!anchor) return null
     const startVal = cv(anchor.netWorthUSD ?? anchor.totalActivosUSD ?? 0)
     if (!(startVal > 0)) return null
+    const startTs = anchorStartTs(anchor, fallbackTs)
     const { pct } = computeModifiedDietz({ startValue: startVal, endValue, startTs, endTs, transactions: flows, convert, baseCurrency })
     return pct
   }
