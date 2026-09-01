@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, Fragment, useCallback } from 'react'
-import { getItemValue, getTypeCategory } from './utils'
+import { getItemValue, getTypeCategory, formatDate } from './utils'
 
 const PATRIMONIO_CATEGORIES = ['realestate', 'alternatives', 'other']
 
@@ -100,9 +100,15 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
     setEditingValue(null)
   }, [editDraft, onUpdateItem])
 
+  // FASE ME: igual que DebtSpreadsheet, esta vista era `bg-white` + grises de tema
+  // claro fijos con clases remapeadas encima: en tema oscuro (el default) las
+  // etiquetas de las tarjetas de resumen median 1.12:1 (números grandes sin decir
+  // de qué son). Migrada a `.card` y tokens. El verde de los VALORES se quitó a
+  // propósito: una valuación no es una ganancia (el verde queda solo en la
+  // columna Ganancia, que sí lo es).
   if (patrimonioItems.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+      <div className="card p-8 text-center">
         <p className="text-slate-400 text-sm">{t('No tienes bienes patrimoniales registrados.', 'No estate assets recorded.')}</p>
         <p className="text-slate-300 text-xs mt-2">
           {t('Agrega propiedades, vehículos, coleccionables u otros bienes desde el dashboard.',
@@ -126,7 +132,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
           <span className="text-xs text-slate-400">{t('Agregar:', 'Add:')}</span>
           {quickAddTemplates.map(tmpl => (
             <button key={tmpl.label} onClick={() => onAdd(tmpl.defaults)}
-              className="px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors flex items-center gap-1.5">
+              className="px-3 py-1.5 text-xs font-medium bg-theme-card border border-glass-border rounded-lg hover:bg-theme-elevated transition-colors flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
               {tmpl.icon} {tmpl.label}
             </button>
           ))}
@@ -134,24 +140,24 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
       )}
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Patrimonio Total', 'Total Estate')}</p>
-          <p className="text-xl font-bold text-emerald-600 mt-1">${fmt(grandTotal)}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>${fmt(grandTotal)}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Bienes', 'Assets')}</p>
-          <p className="text-xl font-bold text-slate-800 mt-1">{patrimonioItems.length}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>{patrimonioItems.length}</p>
         </div>
         {grouped.map(g => (
-          <div key={g.key} className="bg-white rounded-xl border border-slate-200 p-4">
+          <div key={g.key} className="card p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">{g.icon} {g.label}</p>
-            <p className="text-lg font-bold text-slate-800 mt-1">${fmt(g.total)}</p>
+            <p className="text-lg font-bold mt-1" style={{ color: 'var(--text-primary)' }}>${fmt(g.total)}</p>
           </div>
         ))}
       </div>
 
       {/* Info box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+      <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
         <p className="text-xs text-blue-600">
           {t('Los valores se pueden actualizar haciendo clic en el monto. Para bienes raíces y vehículos, te recomendamos actualizar el valor de mercado periódicamente.',
              'Values can be updated by clicking the amount. For real estate and vehicles, we recommend updating the market value periodically.')}
@@ -159,11 +165,11 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
+              <tr className="bg-theme-tertiary border-b border-glass-border">
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('Bien', 'Asset')}</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('Categoría', 'Category')}</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('Ubicación/Detalle', 'Location/Detail')}</th>
@@ -176,13 +182,13 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
             <tbody>
               {grouped.map(group => (
                 <Fragment key={group.key}>
-                  <tr className="bg-slate-50/70 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => toggleCategory(group.key)}>
-                    <td className="px-4 py-2 text-sm font-semibold text-slate-700" colSpan={4}>
+                  <tr className="cursor-pointer hover:bg-theme-tertiary transition-colors" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-tertiary) 70%, transparent)' }} onClick={() => toggleCategory(group.key)}>
+                    <td className="px-4 py-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }} colSpan={4}>
                       <span className="mr-1.5">{expanded[group.key] === false ? '▸' : '▾'}</span>
                       {group.icon} {group.label}
                       <span className="ml-2 text-xs font-normal text-slate-400">({group.items.length})</span>
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-sm font-bold text-slate-700">${fmt(group.total)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>${fmt(group.total)}</td>
                     <td></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-400">
                       {grandTotal > 0 ? ((group.total / grandTotal) * 100).toFixed(1) + '%' : '-'}
@@ -198,17 +204,17 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                     const isEditing = editingValue === item.id
 
                     return (
-                      <tr key={item.id || i} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors">
+                      <tr key={item.id || i} className="border-b border-glass-border hover:bg-theme-tertiary transition-colors">
                         <td className="px-4 py-2.5 pl-8">
                           {onEditItem ? (
-                            <button onClick={() => onEditItem(item)} className="text-sm font-medium text-slate-800 hover:text-blue-600 text-left transition-colors">
+                            <button onClick={() => onEditItem(item)} className="text-sm font-medium text-left transition-colors hover:underline" style={{ color: 'var(--text-primary)' }}>
                               {item.name || item.symbol}
                             </button>
                           ) : (
-                            <span className="text-sm font-medium text-slate-800">{item.name || item.symbol}</span>
+                            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.name || item.symbol}</span>
                           )}
                           {item.acquisitionDate && (
-                            <p className="text-xs text-slate-400 mt-0.5">{t('Adquirido', 'Acquired')}: {item.acquisitionDate}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{t('Adquirido', 'Acquired')}: {formatDate(item.acquisitionDate)}</p>
                           )}
                         </td>
                         <td className="px-3 py-2.5">
@@ -230,11 +236,12 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                                 onChange={e => setEditDraft(e.target.value)}
                                 onBlur={() => commitEditValue(item)}
                                 onKeyDown={e => { if (e.key === 'Enter') commitEditValue(item); if (e.key === 'Escape') setEditingValue(null) }}
-                                className="w-28 bg-white border-2 border-blue-400 rounded px-2 py-1 text-sm text-slate-900 text-right font-mono focus:outline-none"
+                                className="w-28 border-2 border-blue-400 rounded px-2 py-1 text-sm text-right font-mono focus:outline-none"
+                                style={{ backgroundColor: 'var(--input-bg, #2C2C2E)', color: 'var(--text-primary)' }}
                               />
                             </div>
                           ) : (
-                            <span className="font-mono text-sm text-emerald-600 font-medium cursor-pointer hover:underline"
+                            <span className="font-mono text-sm font-medium cursor-pointer hover:underline" style={{ color: 'var(--text-primary)' }}
                               onClick={() => startEditValue(item)}>
                               ${fmt(value)}
                             </span>
@@ -251,8 +258,8 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <div className="w-10 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                            <div className="w-10 h-1.5 bg-theme-tertiary rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ backgroundColor: 'var(--accent-blue)', width: `${Math.min(pct, 100)}%` }} />
                             </div>
                             <span className="font-mono text-xs text-slate-400">{pct.toFixed(1)}%</span>
                           </div>
@@ -264,11 +271,11 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-slate-50 border-t-2 border-slate-200">
-                <td className="px-4 py-3 text-sm font-bold text-slate-700" colSpan={4}>
+              <tr className="bg-theme-tertiary border-t-2 border-glass-border">
+                <td className="px-4 py-3 text-sm font-bold" style={{ color: 'var(--text-primary)' }} colSpan={4}>
                   {t('Total Patrimonio', 'Total Estate')}
                 </td>
-                <td className="px-3 py-3 text-right font-mono text-sm font-bold text-emerald-600">${fmt(grandTotal)}</td>
+                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>${fmt(grandTotal)}</td>
                 <td colSpan={2}></td>
               </tr>
             </tfoot>
