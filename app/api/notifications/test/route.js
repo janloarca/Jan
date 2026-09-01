@@ -141,7 +141,20 @@ export async function POST(request) {
       const doc = await db.doc('system/notificationsCron').get()
       if (doc.exists) {
         const d = doc.data()
-        lastCronRun = { at: d.lastRunAt || null, result: d.lastResult || null, report: d.report || null }
+        // `cadences` lo ESCRIBE el cron desde FASE IF2 y este passthrough lo
+        // descartaba, así que nadie lo veía nunca. Es justo lo que falta cuando
+        // llegó un correo y otro no: `result` dice cómo TERMINÓ la corrida y
+        // `cadences` dice CUÁL tocaba, que son dos preguntas distintas.
+        //
+        // `friendsHistory` del mismo doc se queda deliberadamente afuera: esta
+        // pantalla diagnostica el CORREO, y traerlo hasta acá sin dibujarlo
+        // solo movería el campo muerto una capa más adentro.
+        lastCronRun = {
+          at: d.lastRunAt || null,
+          result: d.lastResult || null,
+          report: d.report || null,
+          cadences: Array.isArray(d.cadences) ? d.cadences : null,
+        }
       }
     } catch { /* sin constancia, la UI simplemente no la muestra */ }
 

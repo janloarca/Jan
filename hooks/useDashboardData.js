@@ -226,11 +226,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
     const netWorthUSD = totalAssetsUSD - totalDebtUSD
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
-      const { netContributions: totalContributedUSD } = computeNetContributions(transactions, convert, 'USD')
+      // `totalContributedUSD` se archivaba en CADA snapshot diario y no lo leía
+      // ninguna superficie: ni la gráfica, ni el ancla del YTD, ni los correos,
+      // ni el link compartido. Costaba una pasada de `computeNetContributions`
+      // sobre TODAS las transacciones una vez al día para nada, y un campo que
+      // se escribe y nadie lee es cómo alguien más adelante cree que sirve para
+      // algo. Los aportes netos se calculan en vivo donde de verdad hacen falta
+      // (línea 2630, escopados al alcance que se está midiendo), que además es
+      // la respuesta correcta: la de acá era del portafolio COMPLETO.
+      //
       // _source:'daily' marks this as a FULL-portfolio snapshot (all enriched
       // items) so other writers (IBKR sync = broker-only NAV) know not to
       // overwrite it with a poorer value for the same date.
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, totalContributedUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
+      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
   }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
@@ -3262,45 +3270,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     return Math.max(0, Math.floor((Date.now() - freshest) / 86400000))
   }, [latestSnapshot, pricesUpdate])
 
-  // Profile figures for insights. The user types monthlyIncome/monthlyExpenses by
-  // hand in Settings, but also records the real thing as finance transactions —
-  // two entries of the same money that silently diverge. When a manual figure is
-  // missing, derive it from the last 3 closed months of finance transactions
-  // (manual values always win; the current partial month is excluded).
-  const effectiveProfile = useMemo(() => {
-    const p = profile || {}
-    if (p.monthlyIncome > 0 && p.monthlyExpenses > 0) return p
-    const txs = entityFinanceTransactions || []
-    if (txs.length === 0) return p
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth() - 3, 1).getTime()
-    const end = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-    let income = 0, expenses = 0
-    const monthsSeen = new Set()
-    txs.forEach(tx => {
-      const ts = tx.date ? new Date(tx.date).getTime() : NaN
-      if (isNaN(ts) || ts < start || ts >= end) return
-      const type = (tx.type || '').toUpperCase()
-      if (type !== 'INCOME' && type !== 'EXPENSE') return
-      const amt = convert(Math.abs(tx.amount || 0), tx.currency || baseCurrency, baseCurrency)
-      if (type === 'INCOME') income += amt
-      else expenses += amt
-      const d = new Date(tx.date)
-      monthsSeen.add(`${d.getFullYear()}-${d.getMonth()}`)
-    })
-    const n = monthsSeen.size
-    if (n === 0) return p
-    return {
-      ...p,
-      monthlyIncome: p.monthlyIncome > 0 ? p.monthlyIncome : income / n,
-      monthlyExpenses: p.monthlyExpenses > 0 ? p.monthlyExpenses : expenses / n,
-      _derivedFromFinances: true,
-    }
-  }, [profile, entityFinanceTransactions, convert, baseCurrency])
+  // ⛔ NO revivir `effectiveProfile`. Existía acá un memo que, cuando el perfil
+  // no traía ingreso o gasto mensual tecleado, los DERIVABA de los últimos 3
+  // meses cerrados de Flujo y marcaba el resultado con `_derivedFromFinances`.
+  //
+  // Se borró por dos razones, y la segunda sola ya alcanzaba:
+  //
+  //   1. Estaba MUERTO. Se re-exportaba, `app/dashboard/page.jsx` lo
+  //      desestructuraba y no lo usaba en ninguna línea, así que era una pasada
+  //      sobre todas las transacciones de Flujo (con una conversión de moneda
+  //      por fila) en cada render del tablero, para nada.
+  //   2. Cablearlo habría CONTRADICHO una decisión explícita del usuario.
+  //      FASE JZ: "Flujo es separado a inversión... son dos segmentos por
+  //      aparte", y FASE JA5b lo dejó escrito para este caso exacto: los gastos
+  //      del número FIRE "se siguen leyendo de esa misma tarjeta y NUNCA de
+  //      Flujo... tentador y equivocado".
+  //
+  // Y el campo era además la señal que nadie mostraba: un número DERIVADO se
+  // presentaba con la misma autoridad que uno declarado. Si algún día se quiere
+  // esa sugerencia, va con el usuario decidiendo y viéndola marcada, como ya
+  // hace `suggestSavingsRate` en la proyección: no jalada en silencio.
 
   return {
     // Raw Firestore data
-    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, effectiveProfile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
     dataLoading, loadError,
 
