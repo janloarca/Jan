@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } fro
 import BusyLabel from '@/components/ui/BusyLabel'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
-import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
+import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER, debtTermLabel } from './utils'
 import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
@@ -57,17 +57,6 @@ const CATEGORY_ACCENT = {
   receivables: '#06b6d4',
   debts: 'var(--text-negative)',
   other: '#64748b',
-}
-
-const DEBT_TERM_LABELS = {
-  '3m': '3 meses',
-  '6m': '6 meses',
-  '12m': '12 meses',
-  '24m': '24 meses',
-  '36m': '36 meses',
-  payday: 'Día de pago',
-  revolving: 'Revolving',
-  custom: 'Custom',
 }
 
 const REWARD_ICONS = {
@@ -1935,7 +1924,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <tr className="bg-theme-tertiary border-t-0">
                               <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-theme-tertiary z-10`} colSpan={2 + (showOriginal ? 1 : 0) + months.length}>
                                 <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
-                                  {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
+                                  {item.debtTerm && <span>{debtTermLabel(item.debtTerm, lang)}</span>}
                                   {item.interestRate > 0 && <span>{item.interestRate}% {item.ratePeriod === 'monthly' ? t('mensual', 'monthly') : t('anual', 'yearly')}</span>}
                                   {/* FASE ME2: la cuota iba con `$` fijo al lado del interés en
                                       fmtD (la moneda REAL): dos monedas en la misma fila. La cuota
