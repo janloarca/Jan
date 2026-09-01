@@ -1899,7 +1899,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
                                   {item.debtTerm && <span>{DEBT_TERM_LABELS[item.debtTerm] || item.debtTerm}</span>}
                                   {item.interestRate > 0 && <span>{item.interestRate}% {item.ratePeriod === 'monthly' ? t('mensual', 'monthly') : t('anual', 'yearly')}</span>}
-                                  {item.monthlyPayment > 0 && <span>${item.monthlyPayment.toLocaleString()}/{t('mes', 'mo')}</span>}
+                                  {/* FASE ME2: la cuota iba con `$` fijo al lado del interés en
+                                      fmtD (la moneda REAL): dos monedas en la misma fila. La cuota
+                                      se teclea en la moneda del ítem, igual que el resto. */}
+                                  {item.monthlyPayment > 0 && <span>{fmtD(item.monthlyPayment)}/{t('mes', 'mo')}</span>}
                                   {item.installmentsRemaining > 0 && (
                                     <span>{item.installmentsRemaining} {t('cuotas rest.', 'pmts left')}</span>
                                   )}

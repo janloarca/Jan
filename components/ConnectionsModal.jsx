@@ -661,7 +661,10 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white font-medium truncate">{inst.name}</p>
                         <p className="text-xs text-slate-500">
-                          {inst.count} {t('posiciones', 'positions')} · ${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          {/* FASE ME2: el abs a secas hacía que una institución con neto
+                              NEGATIVO (tarjeta, margen) imprimiera cifra positiva sin señal;
+                              acá no hay color que rescate la dirección, así que el signo va. */}
+                          {inst.count} {t('posiciones', 'positions')} · {inst.value < 0 ? '-' : ''}${Math.abs(inst.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </p>
                       </div>
                     </div>

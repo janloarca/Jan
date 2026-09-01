@@ -15,7 +15,7 @@ import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
 import { planCardPaymentNetting, planStatementPaymentNetting } from '@/lib/cardPaymentNetting'
-import { flowSign, flowMagnitude } from '@/lib/financeAmount'
+import { flowSign, flowMagnitude, cashFlowOf } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
 import { applyCategoryToMatchingRows, learnablesFrom } from '@/lib/importLearning'
@@ -1429,7 +1429,9 @@ When done, give me the .xlsx file ready to download.`
                         <td className="py-2 px-2 text-white">{item.name}</td>
                         <td className="py-2 px-2 text-slate-400">{item.type}</td>
                         <td className="py-2 px-2 text-right text-slate-300">{item.quantity.toLocaleString()}</td>
-                        <td className="py-2 px-2 text-right text-slate-300">${item.purchasePrice.toLocaleString()}</td>
+                        {/* FASE ME2: el $ fijo vestía una posición en EUR/GTQ de dólares en la
+                            pantalla donde se decide qué importar; cada fila ya trae su moneda. */}
+                        <td className="py-2 px-2 text-right text-slate-300">{item.currency && item.currency !== 'USD' ? `${item.currency} ` : '$'}{item.purchasePrice.toLocaleString()}</td>
                         <td className="py-2 px-2 text-slate-500">{item.institution}</td>
                       </tr>
                     ))}
@@ -1620,8 +1622,12 @@ When done, give me the .xlsx file ready to download.`
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(row.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{row.description}</td>
-                                <td className="py-1.5 px-2 text-right whitespace-nowrap" style={{ color: 'var(--text-negative)' }}>
-                                  {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                                {/* FASE ME2: era la única de las cuatro tablas de este bloque sin
+                                    migrar a flowSign/flowMagnitude: imprimía row.amount CRUDO en
+                                    rojo fijo para toda fila, así que un reembolso salía "Q-488.07"
+                                    y un ingreso salía rojo. Signo y color salen los DOS del flujo. */}
+                                <td className="py-1.5 px-2 text-right whitespace-nowrap" style={{ color: cashFlowOf(row) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                                  {flowSign(row)}{row.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(row).toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[170px] truncate">
                                   {relation === 'adjusted'
@@ -1679,7 +1685,11 @@ When done, give me the .xlsx file ready to download.`
                                     ))}
                                   </select>
                                 </td>
-                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: tx.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                {/* FASE ME2: el color salía de tx.type y el signo de flowSign, así
+                                    que un reembolso (EXPENSE con monto negativo) imprimía "+Q488.07"
+                                    EN ROJO: signo y color contradiciéndose en la misma celda. La
+                                    regla de lib/financeAmount: los dos salen del FLUJO. */}
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: cashFlowOf(tx) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                                   {flowSign(tx)}{tx.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(tx).toLocaleString()}
                                 </td>
                               </tr>
@@ -1710,7 +1720,7 @@ When done, give me the .xlsx file ready to download.`
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(parsed.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
-                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: cashFlowOf(parsed) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                                   {flowSign(parsed)}{parsed.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(parsed).toLocaleString()}
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-500 max-w-[150px] truncate">
@@ -1736,7 +1746,7 @@ When done, give me the .xlsx file ready to download.`
                       <div className="mt-1 max-h-40 overflow-y-auto border border-glass-border/40 rounded-lg p-2 space-y-0.5">
                         {biMatch.confirmed.map(({ row, changes }, i) => (
                           <p key={i} className="text-slate-500 truncate">
-                            {formatFinanceDate(row.date)} · {row.description} · {row.currency === 'USD' ? '$' : 'Q'}{row.amount.toLocaleString()}
+                            {formatFinanceDate(row.date)} · {row.description} · {flowSign(row)}{row.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(row).toLocaleString()}
                             {changes.length > 0 && (
                               <span style={{ color: 'var(--alert-warn-icon)' }}>
                                 {' → '}{changes.map((c) => `${c.field}: ${c.field === 'date' ? formatFinanceDate(c.from) : c.from} → ${c.field === 'date' ? formatFinanceDate(c.to) : c.to}`).join(', ')}
@@ -1797,7 +1807,7 @@ When done, give me the .xlsx file ready to download.`
                                 </td>
                                 <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{formatFinanceDate(parsed.date)}</td>
                                 <td className="py-1.5 px-2 text-white max-w-[150px] truncate">{parsed.description}</td>
-                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: parsed.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap" style={{ color: cashFlowOf(parsed) >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                                   {flowSign(parsed)}{parsed.currency === 'USD' ? '$' : 'Q'}{flowMagnitude(parsed).toLocaleString()}
                                 </td>
                               </tr>
