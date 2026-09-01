@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { isOriginFullyRecorded } from '@/lib/originDeposits'
 import { buildContributionFields } from '@/lib/contributions'
@@ -14,6 +15,7 @@ import { todayLocalISO } from '@/lib/localDate'
 
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], convert, lang = 'es', baseCurrency = 'USD', prefill = null }) {
+  useEscClose(onClose)
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -386,8 +388,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
       : t('¿De qué cuenta salió?', 'Which account did it leave from?')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-glass-border">
           <div className="flex items-center justify-between">

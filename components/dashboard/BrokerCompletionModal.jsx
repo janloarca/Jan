@@ -11,6 +11,7 @@
 // (FASE DT).
 
 import { useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { KeyRound, FileSpreadsheet, CalendarRange, Percent, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { getBrokerCompletionSteps } from '@/lib/brokerCompletion'
@@ -42,6 +43,7 @@ export default function BrokerCompletionModal({
   // lifetime primitives vs ours, delta visible per row.
   reconciliation = null,
 }) {
+  useEscClose(onClose)
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
 
@@ -81,7 +83,7 @@ export default function BrokerCompletionModal({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-anim rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>

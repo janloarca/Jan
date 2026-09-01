@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { currencyOptions } from '@/lib/currencies'
 import { formatDate } from '@/components/dashboard/utils'
@@ -140,11 +141,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   const questions = useMemo(() => generateQuestions(items, t), [items])
   const [step, setStep] = useState(0)
@@ -168,8 +165,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   if (questions.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-done-title"
-        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-done-title">
         <div className="modal-glass max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <div className="text-4xl mb-3">✅</div>
           <h3 id="optimize-done-title" className="text-lg font-bold text-white mb-2">{t('Todo en orden', 'All good')}</h3>
@@ -227,8 +223,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
   if (isDone) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-complete-title"
-        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-complete-title">
         <div className="modal-glass max-w-md w-full p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <div className="text-4xl mb-3">🎉</div>
           <h3 id="optimize-complete-title" className="text-lg font-bold text-white mb-2">{t('¡Listo!', 'Done!')}</h3>
@@ -244,8 +239,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
     : (q.item.quantity || 0) * (q.item.currentPrice || q.item.purchasePrice || 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="optimize-modal-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div className="flex items-center gap-2">

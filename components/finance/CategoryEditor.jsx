@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { CATEGORY_COLORS, FINANCE_CATEGORIES } from '@/lib/financeCategories'
 import { suggestCategoryForLabel } from '@/lib/merchantLabels'
 
@@ -38,10 +39,8 @@ export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual =
   // monta: dos mecanismos para el mismo gesto es cómo uno se queda atrás.
   useEffect(() => {
     inputRef.current?.focus()
-    const onKey = (e) => { if (e.key === 'Escape') onCancel?.() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCancel])
+  }, [])
+  useEscClose(onCancel)
 
   // La etiqueta viaja siempre que se haya escrito algo, aunque la categoría se
   // elija a mano de la lista: "mecánico" sigue siendo lo que el usuario sabe de

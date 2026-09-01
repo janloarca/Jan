@@ -9,6 +9,7 @@
 // reviewed and stops resurfacing.
 
 import { useState } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate } from './utils'
 import BusyLabel from '@/components/ui/BusyLabel'
@@ -16,6 +17,7 @@ import BusyLabel from '@/components/ui/BusyLabel'
 export default function InferredFlowsModal({
   candidates = [], reconciliation = null, onClose, onAccept, onDismiss, lang = 'es',
 }) {
+  useEscClose(onClose)
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
   const [busyId, setBusyId] = useState(null)
@@ -47,7 +49,7 @@ export default function InferredFlowsModal({
   const pending = candidates.filter((c) => !done.has(c.id))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-anim rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>

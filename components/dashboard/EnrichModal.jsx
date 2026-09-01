@@ -11,6 +11,7 @@
 // want Chispu to tell you.
 
 import { useState, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { Search, Sparkles, ChevronRight, ListChecks, ListOrdered, Building2 } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, formatCurrency } from './utils'
@@ -20,6 +21,7 @@ export default function EnrichModal({
   onPickAccount, onPickInstitution, onGuided, contributionWarning = false,
   onBrokerChecklist, hasBroker = false,
 }) {
+  useEscClose(onClose)
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState(null) // null = chooser, 'pick' = institution/account list
@@ -64,7 +66,7 @@ export default function EnrichModal({
   const guidedCount = withGaps + (contributionWarning ? 1 : 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-anim rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>

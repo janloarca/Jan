@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEscClose } from '@/hooks/useEscClose'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
@@ -22,12 +23,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
-  useEffect(() => {
-    if (!newMenuOpen) return
-    const onKey = (e) => { if (e.key === 'Escape') setNewMenuOpen(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [newMenuOpen])
+  useEscClose(() => setNewMenuOpen(false), newMenuOpen)
 
   // IBKR pill success flash — mirrors ChispudoRefreshButton's own success-hold
   // effect (same shape: a `wasX` ref that only updates on the non-triggering
