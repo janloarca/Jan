@@ -1644,6 +1644,36 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         flowAware = REAL_SNAPSHOT_SOURCES.includes(bestSnap._source) || !!bestSnap._transactional
         anchorCalibrated = !!bestSnap._calibrated
         anchorSrc = bestSnap._source || 'daily'
+        // ⛔ FASE MT. Una ventana Dietz arranca donde arranca su VALOR, no donde
+        // arranca el calendario. `findYearStartAnchor` acepta un snapshot de
+        // enero dentro de 15 días del 1, o uno de fines de diciembre, así que
+        // el ancla casi nunca cae exacto en el borde: con `startTs` clavado en
+        // el 1 las dos puntas INVENTAN rendimiento, y en direcciones opuestas.
+        //
+        //   ancla DESPUÉS del 1  un depósito anterior a ella ya está DENTRO del
+        //                        valor de arranque y además se netea como
+        //                        flujo: se resta dos veces y el año se lee como
+        //                        que no rindió (medido: 0% contra 4.76% real).
+        //   ancla ANTES (dic)    un depósito posterior a ella no está en el
+        //                        valor de arranque y tampoco se netea, porque
+        //                        cae fuera de la ventana: se lee como ganancia
+        //                        (medido: 10% contra ~5% real).
+        //
+        // La corrección `jan1Ts` de FASE DV ya existía pero SOLO corre en la
+        // rama de respaldo de abajo, o sea justo en el camino menos frecuente.
+        // Y el comentario de `findYearStartAnchor` ya documenta el mecanismo y
+        // se defiende ACOTANDO la ventana a 15 días: mitigado, no cerrado.
+        //
+        // `anchorStartTs` es la MISMA definición que usan el MTD y los retornos
+        // por broker desde FASE MM; sin fecha legible cae al borde del período,
+        // que es el comportamiento de siempre.
+        //
+        // Sí, esto puede mover el arranque HACIA ATRÁS (a un ancla de
+        // diciembre), y es deliberado: el rótulo dice "YTD" y la medición
+        // arranca unos días antes, pero la alternativa es aritmética
+        // simplemente falsa. La ventana está acotada a ±15 días por el propio
+        // buscador de anclas, así que el rótulo nunca se desvía más que eso.
+        startTs = anchorStartTs(bestSnap, yearStartTs)
       }
     }
     if (startVal == null || startVal <= 0) {
