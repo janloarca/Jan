@@ -151,6 +151,40 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailSig])
 
+  // ⛔ Y los OTROS CUATRO controles sembrados de `settings`, que aquel arreglo
+  // dejó atrás. Es el mismo defecto exacto: `useState` corre una sola vez, así
+  // que si `settings` no llegó al montar el modal —o si su lectura FALLÓ, que
+  // es justo lo que produjo el reporte de FASE IE9: la cuota diaria de la base
+  // agotada— el control se queda mostrando su default contra lo que de verdad
+  // hay guardado, para toda esa apertura.
+  //
+  // Los tres primeros MIENTEN sobre el estado: los cuatro interruptores de aviso
+  // y el de Amigos tienen default ENCENDIDO (`!== false`), así que a quien los
+  // apagó le dicen que están prendidos.
+  //
+  // El cuarto además ESCRIBE: `handleSave` persiste `{baseCurrency,
+  // benchmarkSymbol}` desde este estado, o sea con `settings` sin llegar,
+  // apretar Guardar le reemplaza la moneda base real por USD. Y la moneda base
+  // no es cosmética: es contra la que se convierte cada cifra de la app.
+  //
+  // Se resiembra solo cuando cambia el valor GUARDADO, nunca en cada render,
+  // que es el mismo criterio con el que los cuatro campos de identidad de abajo
+  // no pisan lo que el usuario está tecleando.
+  const notifSig = NOTIF_CATEGORIES.map((c) => (settings?.[c.key] !== false ? '1' : '0')).join('')
+  useEffect(() => {
+    setNotifPrefs(Object.fromEntries(NOTIF_CATEGORIES.map((c) => [c.key, settings?.[c.key] !== false])))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifSig])
+
+  const savedFriendsEnabled = settings?.friendsEnabled !== false
+  useEffect(() => { setFriendsEnabled(savedFriendsEnabled) }, [savedFriendsEnabled])
+
+  const savedBaseCurrency = settings?.baseCurrency || 'USD'
+  useEffect(() => { setBaseCurrency(savedBaseCurrency) }, [savedBaseCurrency])
+
+  const savedBenchmark = settings?.benchmarkSymbol || '%5EGSPC'
+  useEffect(() => { setBenchmarkSymbol(savedBenchmark) }, [savedBenchmark])
+
   // FASE KB. Tu nombre, para la portada del reporte PDF y para Amigos. Vive en
   // `settings/profile` (doc aparte de las preferencias) y hasta ahora SOLO se
   // podía escribir desde el lápiz de la tarjeta de Amigos, que además se
