@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { createPortal } from 'react-dom'
 import { formatCurrency, categoryLabel } from './utils'
 import { buildReportData, regionLabel } from '@/lib/reportData'
@@ -35,6 +36,7 @@ export default function PrintSummary({
   profileName = '',
   lang, onClose,
 }) {
+  useEscClose(onClose)
   const t = (es, en) => lang === 'es' ? es : en
   const locale = lang === 'es' ? 'es-GT' : 'en-US'
   const [period, setPeriod] = useState('ytd')
@@ -159,7 +161,7 @@ export default function PrintSummary({
   if (!mounted) return null
 
   return createPortal(
-    <div className="modal-overlay fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}
+    <div className="modal-overlay modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
       {...(exiting ? { 'data-modal-exit': '' } : {})}>
       <div className="modal-anim bg-white text-black rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {/* Controles (ocultos al imprimir) */}

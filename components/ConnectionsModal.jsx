@@ -6,6 +6,7 @@
 // opens this modal directly.
 
 import { useState, useEffect, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { RefreshCw, Rocket } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -97,11 +98,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     return Object.values(map).sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
   }, [portfolioItems])
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   useEffect(() => {
     authFetch('/api/brokers/ibkr', {
@@ -404,8 +401,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="connections-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="connections-modal-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="connections-modal-title" className="text-lg font-bold text-white flex items-center gap-2">

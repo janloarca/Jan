@@ -374,8 +374,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
   const current = isIntro ? classicSteps[0] : classicSteps[step]
 
   return (
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className={`modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}>
       <div className="modal-glass max-w-md w-full overflow-hidden">
         <div className="p-8 text-center">
           <div className="flex justify-center mb-4">

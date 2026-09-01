@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
 import { detectCardStatement, parseCardStatement } from '@/lib/parsers/guateCardStatements'
@@ -130,11 +131,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   useEffect(() => {
     if (brokerHint && step === 'upload' && mode === 'file') {
@@ -1066,8 +1063,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const brokerSteps = (brokerInfo?.csv?.steps || []).filter((s) => !(journeyActive && s.journeyStep))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
       <div ref={trapRef} className="modal-glass max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
 import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
@@ -32,11 +33,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // copia ANGOSTA que dejaba a una "Cuenta Monetaria" del lado equivocado.
   const getValue = accountValue
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   // Un pasivo NO puede ser ninguno de los dos lados de una transferencia.
   // Como origen no tiene saldo que mover, y como destino el crédito le SUBÍA la
@@ -151,8 +148,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="transfer-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Transferencia', 'Transfer')}</h2>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { Zap } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -45,11 +46,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     'The database hit its free daily quota. It resets on its own within hours; this is not an app bug, and the iPhone shortcut and automatic email do not depend on this button.',
   ) : (raw || t('Error', 'Error')))
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   const ingestApi = useCallback(async (payload) => {
     const res = await authFetch('/api/ingest', {
@@ -220,8 +217,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const copyLabel = (token, what) => (ingestCopied === `${token}:${what}` ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy'))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="auto-capture-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="auto-capture-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="auto-capture-title" className="text-lg font-bold text-white flex items-center gap-2">

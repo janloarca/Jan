@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { normalizeWalletName, buildWalletOptions, addSavedWallet } from '@/lib/customWallets'
@@ -65,11 +66,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
 
   const walletOptions = [...buildWalletOptions(BASE_CUSTODIES, savedWallets), OTHER_WALLET]
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   useEffect(() => {
     let cancelled = false
@@ -253,8 +250,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
   const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">

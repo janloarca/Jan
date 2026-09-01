@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
@@ -30,11 +31,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   const totalValue = (item.quantity || 0) * origPriceOf(item)
   // La cantidad va por parseQuantity y el precio por parseAmount, y NO es lo
@@ -152,8 +149,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title">
       <div ref={trapRef} className="modal-glass max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">

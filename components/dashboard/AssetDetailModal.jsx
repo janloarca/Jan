@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
@@ -26,6 +27,7 @@ const STAGE_LABELS = {
 }
 
 export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD', allItems = [] }) {
+  useEscClose(onClose)
   const trapRef = useFocusTrap()
   const [chartData, setChartData] = useState(null)
   const [chartError, setChartError] = useState(null)
@@ -238,8 +240,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
   const hp = hoverIdx != null && renderPts ? renderPts[hoverIdx] : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="asset-detail-title">
       <div ref={trapRef} className="modal-glass max-w-xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div>

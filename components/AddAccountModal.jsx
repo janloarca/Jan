@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
@@ -259,11 +260,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     setExcludedPayDates(prev => prev.filter(d => pastDuePayDates.includes(d)))
   }, [pastDuePayDates])
 
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose])
+  useEscClose(onClose)
 
   // En modo guiado el tipo puede cambiar solo: elegir un resultado de la
   // búsqueda lo re-clasifica (handleSelectSymbol). El subtipo por defecto tiene
@@ -871,8 +868,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       handleSubmit({ preventDefault: () => {} })
     }
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true"
-        style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true">
         <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
           <GuidedAssetSteps ctx={{
             t, form, set, type,
@@ -893,8 +889,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">
