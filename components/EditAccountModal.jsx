@@ -18,6 +18,7 @@ import { InfoTip } from './ui/Tooltip'
 import { currencyOptions } from '@/lib/currencies'
 import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { todayLocalISO } from '@/lib/localDate'
 
 const ACCOUNT_TYPES = [
   { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
@@ -509,7 +510,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // ahí se propone, nunca se aplica solo), y la alternativa (sellar solo
       // cuando el monto cambia) deja fuera el caso de teclear el mismo número
       // a propósito para confirmarlo.
-      if (!isMarket) updated.balanceAsOf = new Date().toISOString().slice(0, 10)
+      // ⛔ FASE MS. El DIA LOCAL, nunca `toISOString()`, que devuelve el dia
+      // UTC. La spec dice literal que este sello significa "hoy: el usuario
+      // esta mirando el campo y apretando Guardar", y eso es el dia que el
+      // usuario esta viviendo. En Guatemala (UTC-6) el dia UTC rota a las 6pm,
+      // asi que guardar un saldo de noche lo sellaba con la fecha de MAÑANA, y
+      // la regla del saldo es "HASTA balanceAsOf manda el saldo": un cupon del
+      // dia siguiente quedaba dentro de la foto y NO se acreditaba nunca.
+      // Reproducido: guardar a las 7pm del 31 de agosto sellaba 2026-09-01.
+      if (!isMarket) updated.balanceAsOf = todayLocalISO()
 
       // Dividend settings (market assets)
       if (isMarket) {
