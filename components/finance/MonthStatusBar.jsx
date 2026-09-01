@@ -15,8 +15,12 @@
 
 const STATUS_META = {
   empty: {
+    // FASE ME4: era rojo (alert-error). Un mes sin capturar es un pendiente,
+    // no un daño: el rojo queda reservado para lo grave o irreversible
+    // (regla de lib/toastStyle.js). Ámbar, igual que "falta un lado";
+    // el icono y la palabra distinguen los dos estados.
     es: 'Sin registrar', en: 'Nothing logged', icon: '✗',
-    color: 'var(--alert-error-icon)', bg: 'var(--alert-error-bg)', border: 'var(--alert-error-border)',
+    color: 'var(--alert-warn-icon)', bg: 'var(--alert-warn-bg)', border: 'var(--alert-warn-border)',
     titleEs: 'Este mes no tiene ningún movimiento capturado.',
     titleEn: 'No movements logged for this month.',
   },

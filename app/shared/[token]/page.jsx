@@ -401,8 +401,11 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
                     {/* Solo con un total REAL: imprimir $0.00 grande sobre
                         fuentes con tasa es un cero inventado (regla del repo:
                         un dato ausente se omite, nunca se imprime en cero). */}
+                    {/* FASE ME4: azul, no verde. Es una PROYECCION (tasas
+                        declaradas hacia adelante), y el verde de este repo
+                        significa dinero ya cobrado o ganado. */}
                     {showAmounts && income.projectedAnnual > 0 && (
-                      <div className="text-kpi mb-1" style={{ color: 'var(--accent-green)' }}>{money(income.projectedAnnual)}</div>
+                      <div className="text-kpi mb-1" style={{ color: 'var(--accent-blue)' }}>{money(income.projectedAnnual)}</div>
                     )}
                     {income.yieldPct != null && (
                       <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -415,7 +418,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
                           <span className="truncate" style={{ color: 'var(--text-primary)' }}>{s.name}</span>
                           <span className="shrink-0 tabular-nums flex items-center gap-2">
                             {showAmounts && s.annual > 0 && <span style={{ color: 'var(--text-secondary)' }}>{money(s.annual)}</span>}
-                            <span style={{ color: 'var(--accent-green)' }}>{s.rateLabel}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{s.rateLabel}</span>
                           </span>
                         </div>
                       ))}
