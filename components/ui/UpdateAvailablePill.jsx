@@ -23,6 +23,14 @@ import { useEffect, useState } from 'react'
 const CHECK_MS = 60000
 
 export default function UpdateAvailablePill({ buildId }) {
+  // FASE ME9: el texto era español fijo en un componente que ve TODO usuario
+  // (vive en el layout, sin prop de idioma). Se lee la misma preferencia que
+  // guarda el tablero, en un efecto y nunca durante el render: localStorage no
+  // existe en el servidor y leerlo al renderizar rompería la hidratación.
+  const [lang, setLang] = useState('es')
+  useEffect(() => {
+    try { if (localStorage.getItem('chispudo-lang') === 'en') setLang('en') } catch {}
+  }, [])
   const [serverBuild, setServerBuild] = useState(null)
 
   useEffect(() => {
@@ -68,7 +76,7 @@ export default function UpdateAvailablePill({ buildId }) {
         color: '#fff',
       }}
     >
-      <span>Hay una versión nueva. Tocá para actualizar</span>
+      <span>{lang === 'es' ? 'Hay una versión nueva. Tocá para actualizar' : 'A new version is ready. Tap to update'}</span>
       <span style={{ opacity: 0.7 }}>
         {String(buildId).slice(0, 6)}→{String(serverBuild).slice(0, 6)}
       </span>

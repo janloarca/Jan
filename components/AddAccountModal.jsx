@@ -2160,12 +2160,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                         <option value="GT">Guatemala</option>
-                        <option value="MX">México</option>
+                        <option value="MX">{t('México', 'Mexico')}</option>
                         <option value="US">USA</option>
                         <option value="CO">Colombia</option>
                         <option value="CL">Chile</option>
-                        <option value="BR">Brasil</option>
-                        <option value="PE">Perú</option>
+                        <option value="BR">{t('Brasil', 'Brazil')}</option>
+                        <option value="PE">{t('Perú', 'Peru')}</option>
                         <option value="AR">Argentina</option>
                         <option value="OTHER">{t('Otro', 'Other')}</option>
                       </select>
@@ -2179,26 +2179,26 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                         <option value="GT">Guatemala</option>
-                        <option value="MX">México</option>
+                        <option value="MX">{t('México', 'Mexico')}</option>
                         <option value="US">USA</option>
                         <option value="CO">Colombia</option>
                         <option value="CL">Chile</option>
-                        <option value="BR">Brasil</option>
-                        <option value="PE">Perú</option>
+                        <option value="BR">{t('Brasil', 'Brazil')}</option>
+                        <option value="PE">{t('Perú', 'Peru')}</option>
                         <option value="AR">Argentina</option>
                         <option value="CR">Costa Rica</option>
-                        <option value="PA">Panamá</option>
-                        <option value="ES">España</option>
+                        <option value="PA">{t('Panamá', 'Panama')}</option>
+                        <option value="ES">{t('España', 'Spain')}</option>
                         <option value="UK">UK</option>
-                        <option value="DE">Alemania</option>
-                        <option value="CH">Suiza</option>
-                        <option value="JP">Japón</option>
+                        <option value="DE">{t('Alemania', 'Germany')}</option>
+                        <option value="CH">{t('Suiza', 'Switzerland')}</option>
+                        <option value="JP">{t('Japón', 'Japan')}</option>
                         <option value="CN">China</option>
-                        <option value="KR">Corea del Sur</option>
+                        <option value="KR">{t('Corea del Sur', 'South Korea')}</option>
                         <option value="HK">Hong Kong</option>
-                        <option value="SG">Singapur</option>
+                        <option value="SG">{t('Singapur', 'Singapore')}</option>
                         <option value="AU">Australia</option>
-                        <option value="CA">Canadá</option>
+                        <option value="CA">{t('Canadá', 'Canada')}</option>
                         <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
                         <option value="OTHER">{t('Otro', 'Other')}</option>
                       </select>

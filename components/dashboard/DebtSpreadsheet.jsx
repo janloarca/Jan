@@ -1,14 +1,8 @@
 'use client'
 
 import { useState, useMemo, Fragment } from 'react'
-import { getItemValue, getTypeCategory } from './utils'
+import { getItemValue, getTypeCategory, debtTermLabel } from './utils'
 import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
-
-const DEBT_TERM_LABELS = {
-  '3m': '3 meses', '6m': '6 meses', '12m': '12 meses',
-  '24m': '24 meses', '36m': '36 meses',
-  payday: 'Día de pago', revolving: 'Revolving', custom: 'Custom',
-}
 
 const SUBTYPE_LABELS = {
   mortgage: { es: 'Hipoteca', en: 'Mortgage' },
@@ -230,7 +224,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{debt.monthly > 0 ? `$${fmt(debt.monthly)}` : '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className="text-xs text-slate-500">{DEBT_TERM_LABELS[debt.debtTerm] || debt.debtTerm || '-'}</span>
+                        <span className="text-xs text-slate-500">{debtTermLabel(debt.debtTerm, lang) || '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{debt.remaining > 0 ? debt.remaining : '-'}</span>
