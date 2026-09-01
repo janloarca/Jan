@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { Shimmer } from '@/components/dashboard/Skeleton'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
@@ -501,8 +502,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             </div>
 
             {loading && !isStatic ? (
-              <div className="h-[200px] bg-theme-base rounded-lg animate-pulse flex items-center justify-center">
-                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('Cargando...', 'Loading...')}</span>
+              /* FASE ME7: era `animate-pulse` de Tailwind sobre una caja plana,
+                 el patron que FASE HC unifico en Shimmer (mismo atomo que toda
+                 carga de la app: mismo color, mismo barrido). */
+              <div className="h-[200px] rounded-lg relative overflow-hidden flex items-center justify-center">
+                <Shimmer className="absolute inset-0" />
+                <span className="text-sm relative" style={{ color: 'var(--text-muted)' }}>{t('Cargando...', 'Loading...')}</span>
               </div>
             ) : renderPts ? (
               <div className="relative">
@@ -575,7 +580,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               </div>
             ) : (
               <div className="h-[200px] bg-theme-base rounded-lg flex items-center justify-center">
-                <span className="text-sm" style={{ color: chartError ? 'rgba(248,113,113,0.7)' : 'var(--text-muted)' }}>
+                <span className="text-sm" style={{ color: chartError ? 'var(--text-negative)' : 'var(--text-muted)' }}>
                   {chartError ? t('Error cargando datos', 'Failed to load data') : t('Sin datos de precio disponibles', 'No price data available')}
                 </span>
               </div>

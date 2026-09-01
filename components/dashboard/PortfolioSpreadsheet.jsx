@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment, memo } from 'react'
+import BusyLabel from '@/components/ui/BusyLabel'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER } from './utils'
@@ -1384,8 +1385,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               style={{ color: 'var(--text-secondary)' }}
               title={t('Volver a calcular los meses pasados con la información de hoy',
                        'Recompute past months with today’s data')}>
-              <RefreshCw size={13} strokeWidth={2} className={recalculating ? 'animate-spin' : undefined} />
-              {recalculating ? t('Recalculando...', 'Recomputing...') : t('Recalcular', 'Recompute')}
+              {/* FASE ME7: era el ultimo `animate-spin` generico de la app; el
+                  ocupado va con el anillo de marca (BusyLabel), como todo boton. */}
+              {!recalculating && <RefreshCw size={13} strokeWidth={2} />}
+              <BusyLabel busy={recalculating} lang={lang} busyLabel={t('Recalculando...', 'Recomputing...')}>
+                {t('Recalcular', 'Recompute')}
+              </BusyLabel>
             </button>
             <button onClick={() => setShowDiag((v) => !v)}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter]"

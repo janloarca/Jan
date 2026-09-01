@@ -939,7 +939,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <button onClick={handleSync}
                     className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
                     disabled={decrypting}>
-                    {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar de todos modos', 'Sync anyway')}
+                    {/* FASE ME7: solo texto cambiado no se lee como trabajo en
+                        curso; el ocupado va con el anillo (BusyLabel). */}
+                    <BusyLabel busy={decrypting} lang={lang} busyLabel={t('Desencriptando...', 'Decrypting...')}>
+                      {t('Sincronizar de todos modos', 'Sync anyway')}
+                    </BusyLabel>
                   </button>
                 </>
               ) : (
@@ -948,8 +952,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
                     style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}
                     disabled={decrypting}>
-                    <RefreshCw size={14} />
-                    {decrypting ? t('Desencriptando...', 'Decrypting...') : t('Sincronizar ahora', 'Sync now')}
+                    {!decrypting && <RefreshCw size={14} />}
+                    <BusyLabel busy={decrypting} lang={lang} busyLabel={t('Desencriptando...', 'Decrypting...')}>
+                      {t('Sincronizar ahora', 'Sync now')}
+                    </BusyLabel>
                   </button>
 
                   <button onClick={() => { setStep('config'); setShowConfig(true) }}
