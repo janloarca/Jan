@@ -16,6 +16,15 @@ import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 //        PRÉSTAMO (`indexBalanceEvents` ganó su rama para `_debtItemId`, con OK
 //        del usuario). Todo mes cacheado con un pago archivado tiene la deuda
 //        plana en su saldo de hoy, y el merge nunca lo corrige solo.
+//   v31 (30 ago 2026, FASE MG): la reconstrucción del pasado pasó a leer el
+//        precio con la MISMA prioridad que la columna de hoy (`rawItemPrice`,
+//        que sí conoce `lastManualValuation`). Un inmueble revaluado a mano
+//        tiene el precio VIEJO horneado en todos sus meses cacheados.
+//   v32 (2 sep 2026, FASE MX): un gasto sobre un activo pagado desde una cuenta
+//        registrada ya rebobina el pasado de ESA cuenta (`indexBalanceEvents`
+//        ganó su rama para `FEE` + `_paidFromItemId`, con OK del usuario). Todo
+//        mes cacheado con un gasto así archivado tiene esa cuenta plana en su
+//        saldo de hoy, o sea diciendo que el dinero nunca estuvo ahí.
 
 let _db = null
 let _auth = null
