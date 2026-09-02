@@ -87,8 +87,10 @@ const ConcentrationRisk = dynamic(() => import('@/components/dashboard/Concentra
 const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
 const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
-// These three were already built and registered in cardRegistry.js but had
-// never been mounted anywhere in the app. They are Analysis tabs now.
+// These three were built long before they were mounted anywhere; they became
+// Analysis tabs in FASE IU. (The cardRegistry.js file that once listed them
+// had zero consumers and was deleted in FASE ME10 along with the components
+// that never got mounted at all; git history keeps everything.)
 const BenchmarkComparison = dynamic(() => import('@/components/dashboard/BenchmarkComparison'), { loading: () => <SkeletonCard /> })
 const CurrencyImpact = dynamic(() => import('@/components/dashboard/CurrencyImpact'), { loading: () => <SkeletonCard /> })
 const FeeAnalysis = dynamic(() => import('@/components/dashboard/FeeAnalysis'), { loading: () => <SkeletonCard /> })
@@ -483,7 +485,7 @@ export default function DashboardPage() {
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, ytdStartValue, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
-    annualDividends, estimatedAnnualIncome,
+    annualDividends, estimatedAnnualIncome, incomeVerification,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
@@ -715,8 +717,8 @@ export default function DashboardPage() {
   const handleCloseSell = useCallback(() => setSellItem(null), [])
   // Vender era INALCANZABLE: SellModal solo se monta con un sellItem, y nada
   // en la app llamaba a setSellItem (el único caller previsto era el botón por
-  // fila de AccountsTable, un componente que hoy no se renderiza en ningún
-  // lado). Por eso "no sabía dónde registrar una venta" no era un problema de
+  // fila de AccountsTable, un componente que nunca se montó y que se borró en
+  // FASE ME10). Por eso "no sabía dónde registrar una venta" no era un problema de
   // descubrimiento sino de que el camino no existía. El picker elige la
   // posición y recién ahí abre el SellModal de siempre, sin tocar su lógica.
   const handleOpenSellPicker = useCallback(() => setModal('sellPicker'), [])
@@ -976,8 +978,12 @@ export default function DashboardPage() {
       // describe a la app, no a los datos del usuario. Ver el comentario en
       // lib/dataCompleteness.js.
       pricesReady: !pricesLoading && !pricesError,
+      // La verificación cruzada contra el ledger del broker. Se calcula en el
+      // hook (que es donde vive la proyección por ítem, sobre los ítems
+      // ENRIQUECIDOS) y llega acá como mapa, igual que `resolvedPrices`.
+      incomeVerification,
     }),
-    [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices, pricesLoading, pricesError]
+    [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices, pricesLoading, pricesError, incomeVerification]
   )
 
   // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA

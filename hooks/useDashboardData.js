@@ -9,6 +9,7 @@ import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItem
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
+import { verifyIncomeForItems } from '@/lib/dividendVerify'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
@@ -2646,8 +2647,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }, 0)
   }, [transactions, enrichedItems, convert, baseCurrency])
 
-  const estimatedAnnualIncome = useMemo(() => {
+  // El total en base Y la proyección POR ÍTEM salen del MISMO recorrido. La
+  // derivación del saldo es sutil (`_originalPrice` en la moneda del ítem, con
+  // respaldo al precio ya convertido) y tenerla escrita dos veces es cómo la
+  // cifra que se muestra y la que se verifica terminarían midiendo distinto.
+  const { estimatedAnnualIncome, incomeProjections } = useMemo(() => {
     let total = 0
+    const byItem = new Map()
     portfolioItems.forEach((it) => {
       const qty = it.quantity || 1
       const origPrice = it._originalPrice ?? it._originalPurchasePrice ?? 0
@@ -2659,11 +2665,25 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const annual = projectItemAnnualIncome(it, balance)
       if (annual > 0) {
         const cur = hasOriginal ? itemCur : priceCur
+        // El mapa va en la moneda del ÍTEM, que es lo que espera el verificador
+        // (compara contra pagos del ledger convertidos a esa misma moneda).
+        if (it.id) byItem.set(it.id, { annual, currency: cur })
         total += convert(annual, cur, baseCurrency)
       }
     })
-    return total
+    return { estimatedAnnualIncome: total, incomeProjections: byItem }
   }, [portfolioItems, convert, baseCurrency])
+
+  // Verificación cruzada: lo que la app proyecta contra lo que el broker de
+  // verdad pagó. Ver la cabecera de lib/dividendVerify.js para por qué el
+  // ledger del broker es la segunda fuente y no un proveedor externo.
+  const incomeVerification = useMemo(() => verifyIncomeForItems({
+    items: portfolioItems,
+    transactions,
+    projections: new Map([...incomeProjections].map(([id, v]) => [id, v.annual])),
+    baseCurrency,
+    convert,
+  }), [portfolioItems, transactions, incomeProjections, baseCurrency, convert])
 
   const benchmarkSymbol = settings?.benchmarkSymbol || '%5EGSPC'
   const { benchmarkData, benchmarkReturn, benchmarkName, loading: benchmarkLoading, error: benchmarkError, refetch: refetchBenchmark } = useBenchmark('YTD', benchmarkSymbol)
@@ -3407,7 +3427,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // año, donde un % sin su base se lee contra la columna equivocada.
     ytdStartValue,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
-    annualDividends, estimatedAnnualIncome,
+    annualDividends, estimatedAnnualIncome, incomeVerification,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,

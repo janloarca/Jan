@@ -185,6 +185,32 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const savedBenchmark = settings?.benchmarkSymbol || '%5EGSPC'
   useEffect(() => { setBenchmarkSymbol(savedBenchmark) }, [savedBenchmark])
 
+  // FASE IG. El estado del envío AUTOMÁTICO, leído solo y sin mandar ningún
+  // correo. Todo este diagnóstico (FASES IF/IF2/IF3) nació colgado del botón de
+  // "enviar prueba", o sea la única forma de saber si el cron corría y si te
+  // encontraba era mandarse un correo a uno mismo; con las cadencias ya
+  // funcionando, los botones sobran y el diagnóstico no.
+  //
+  // Se pide cuando esta pestaña está a la vista y no en cada render: la
+  // búsqueda de suscriptores puede costar una lectura por usuario cuando la
+  // consulta rápida cae al barrido, y esta base ya tocó su cuota diaria una vez
+  // (FASE IE9). Un fallo aquí NO se muestra como error: es diagnóstico, no una
+  // acción que el usuario pidió, y un banner rojo por no poder leerlo asustaría
+  // sobre algo que puede estar perfecto.
+  const [autoStatus, setAutoStatus] = useState(null)
+  useEffect(() => {
+    if (tab !== 'general') return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await authFetch('/api/notifications/status')
+        const data = await safeJson(res)
+        if (!cancelled && res.ok) setAutoStatus(data)
+      } catch { /* sin estado, el bloque simplemente no se dibuja */ }
+    })()
+    return () => { cancelled = true }
+  }, [tab, emailSig])
+
   // FASE KB. Tu nombre, para la portada del reporte PDF y para Amigos. Vive en
   // `settings/profile` (doc aparte de las preferencias) y hasta ahora SOLO se
   // podía escribir desde el lápiz de la tarjeta de Amigos, que además se
@@ -248,43 +274,12 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       })
       const data = await safeJson(res)
       if (res.ok) {
-        // El diagnóstico del envío AUTOMÁTICO: la prueba y el cron comparten
-        // todo menos cómo se encuentra a los suscriptores, y esa pieza es
-        // justamente la que puede fallar sola (FASE IF).
-        const cl = data?.cronLookup
-        // El fallback (userScan) funciona, pero significa que la consulta
-        // rápida está fallando: el motivo suele traer el enlace exacto para
-        // crear el índice que falta, y esconderlo sería dejar el problema de
-        // raíz sin arreglar detrás de un mensaje en verde (FASE IF3).
-        const slow = cl?.via === 'userScan'
-          ? t(` Está usando el camino lento porque la consulta rápida falla: ${cl.error || 'sin detalle'}`, ` It is using the slow path because the fast query fails: ${cl.error || 'no detail'}`)
-          : ''
-        const auto = cl
-          ? (cl.includesYou
-            ? t(` El envío automático te encuentra correctamente (vía ${cl.via}).`, ` The scheduled send finds you correctly (via ${cl.via}).`) + slow
-            : t(` OJO: el envío automático NO te encuentra (${cl.error || 'revisa que el interruptor esté encendido'}).`, ` HEADS UP: the scheduled send does NOT find you (${cl.error || 'check the toggle is on'}).`))
-          : ''
-        // Cuándo corrió el cron por última vez: sin este dato, "no me llegó"
-        // no distingue entre un cron que nunca se ejecutó y uno que sí corrió
-        // pero no envió (FASE IF2).
-        const lr = data?.lastCronRun
-        // QUÉ cadencia tocaba esa corrida. El cron ya lo escribía y el
-        // diagnóstico lo descartaba, así que "corrió y no me llegó el mensual"
-        // no se distinguía de "corrió y el mensual no tocaba ese día": son dos
-        // conclusiones opuestas. Una lista vacía SÍ es una respuesta, y por eso
-        // se dice en vez de omitirse.
-        const cad = Array.isArray(lr?.cadences)
-          ? (lr.cadences.length
-            ? t(` Tocaba: ${lr.cadences.join(', ')}.`, ` Due: ${lr.cadences.join(', ')}.`)
-            : t(' Ese día no tocaba ninguna cadencia.', ' No cadence was due that day.'))
-          : ''
-        const runMsg = lr?.at
-          ? t(` Última corrida automática: ${new Date(lr.at).toLocaleString()} (${lr.result || 'sin detalle'}).`,
-              ` Last scheduled run: ${new Date(lr.at).toLocaleString()} (${lr.result || 'no detail'}).`) + cad
-          : t(' El envío automático NUNCA ha corrido todavía.', ' The scheduled send has NEVER run yet.')
+        // El diagnóstico del envío AUTOMÁTICO ya no viaja en esta respuesta:
+        // vive en su propio bloque de estado, que se lee solo y sin mandar
+        // ningún correo (FASE IG). Acá solo queda el resultado del envío.
         setTestResult({
-          ok: !cl || cl.includesYou,
-          msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`) + auto + runMsg,
+          ok: true,
+          msg: t(`Enviado a ${data?.sentTo || userEmail}. Revisa tu bandeja (y spam).`, `Sent to ${data?.sentTo || userEmail}. Check your inbox (and spam).`),
         })
       } else {
         // El mensaje del servidor SMTP se muestra tal cual: si Zoho rechaza la
@@ -847,33 +842,69 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         ? t(`Se envían a ${userEmail}. Todos los correos van en inglés.`, `Sent to ${userEmail}. All emails are in English.`)
                         : t('Todos los correos van en inglés.', 'All emails are in English.')}
                     </p>
-                    {/* Enviar una prueba ahora: el semanal solo sale los
-                        domingos, y esperar días para descubrir que el correo no
-                        sale es el ciclo lento que este repo ya pagó caro. Arma
-                        el MISMO correo de la corrida real. */}
-                    <div className="pt-1 flex flex-wrap gap-2">
-                      <button type="button" onClick={() => handleTestEmail('weekly')} disabled={!!testingEmail}
-                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
-                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
-                        {testingEmail === 'weekly' ? t('Enviando...', 'Sending...') : t('Probar semanal', 'Test weekly')}
-                      </button>
-                      <button type="button" onClick={() => handleTestEmail('monthly')} disabled={!!testingEmail}
-                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
-                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
-                        {testingEmail === 'monthly' ? t('Enviando...', 'Sending...') : t('Probar mensual', 'Test monthly')}
-                      </button>
-                      <button type="button" onClick={() => handleTestEmail('annual')} disabled={!!testingEmail}
-                        className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
-                        style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
-                        {testingEmail === 'annual' ? t('Enviando...', 'Sending...') : t('Probar anual', 'Test annual')}
-                      </button>
+                    {/* FASE IG. El estado del envío AUTOMÁTICO, sin mandar nada.
+                        Los tres botones de "enviar prueba" de las cadencias de
+                        portafolio salieron (el usuario los pidió fuera tras la
+                        primera prueba exitosa, y el envío real ya funcionó), pero
+                        lo que colgaba de ellos era el diagnóstico, que es justo
+                        lo que convierte un "no me llegó" en una respuesta. Ahora
+                        se lee solo. */}
+                    <div className="pt-1 space-y-1">
+                      <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                        {autoStatus?.lastRun?.at
+                          ? t(`Última corrida automática: ${new Date(autoStatus.lastRun.at).toLocaleString()} (${autoStatus.lastRun.result || 'sin detalle'}).`,
+                              `Last scheduled run: ${new Date(autoStatus.lastRun.at).toLocaleString()} (${autoStatus.lastRun.result || 'no detail'}).`)
+                          : autoStatus
+                            ? t('El envío automático NUNCA ha corrido todavía.', 'The scheduled send has NEVER run yet.')
+                            : t('Consultando el estado del envío automático...', 'Checking the scheduled send...')}
+                        {/* Qué cadencia TOCABA esa corrida: sin esto, "corrió y
+                            no me llegó el mensual" no se distingue de "corrió y
+                            el mensual no tocaba ese día", que son conclusiones
+                            opuestas. Una lista vacía SÍ es una respuesta. */}
+                        {Array.isArray(autoStatus?.lastRun?.cadences) && (
+                          autoStatus.lastRun.cadences.length
+                            ? t(` Tocaba: ${autoStatus.lastRun.cadences.join(', ')}.`, ` Due: ${autoStatus.lastRun.cadences.join(', ')}.`)
+                            : t(' Ese día no tocaba ninguna cadencia.', ' No cadence was due that day.'))}
+                      </p>
+                      {/* Una línea por cadencia ENCENDIDA que tenga algo que
+                          decir. Lo normal (te encuentra por el camino rápido) no
+                          imprime nada: un estado sano no necesita ocupar
+                          espacio, y así lo que aparece siempre es accionable. */}
+                      {(autoStatus?.lookups || []).map((l) => {
+                        if (!l.includesYou) {
+                          return (
+                            <p key={l.cadence} className="text-[11px] leading-relaxed" style={{ color: 'var(--text-negative)' }}>
+                              {t(`OJO: el envío automático NO te encuentra para el ${l.cadence} (${l.error || 'revisa que el interruptor esté encendido'}).`,
+                                 `HEADS UP: the scheduled send does NOT find you for ${l.cadence} (${l.error || 'check the toggle is on'}).`)}
+                            </p>
+                          )
+                        }
+                        // El barrido de usuarios funciona, pero significa que la
+                        // consulta rápida está fallando: el motivo suele traer el
+                        // enlace exacto para crear el índice que falta, y
+                        // esconderlo dejaría el problema de raíz sin arreglar
+                        // detrás de un estado en verde (FASE IF3).
+                        if (l.via === 'userScan') {
+                          return (
+                            <p key={l.cadence} className="text-[11px] leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+                              {t(`El ${l.cadence} sale por el camino lento porque la consulta rápida falla: ${l.error || 'sin detalle'}`,
+                                 `The ${l.cadence} brief uses the slow path because the fast query fails: ${l.error || 'no detail'}`)}
+                            </p>
+                          )
+                        }
+                        return null
+                      })}
+                    </div>
+                    {/* El correo de grupos es la única cadencia que todavía no
+                        se comprobó en un envío automático real, así que conserva
+                        su prueba: es el MISMO criterio con el que se quitaron
+                        las otras tres. */}
+                    <div className="pt-1">
                       <button type="button" onClick={() => handleTestEmail('friendsWeekly')} disabled={!!testingEmail}
                         className="px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
                         style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-input)' }}>
-                        {testingEmail === 'friendsWeekly' ? t('Enviando...', 'Sending...') : t('Probar grupos', 'Test groups')}
+                        {testingEmail === 'friendsWeekly' ? t('Enviando...', 'Sending...') : t('Probar el de grupos', 'Test the group email')}
                       </button>
-                    </div>
-                    <div>
                       {testResult && (
                         <p className="text-[11px] mt-1.5 leading-relaxed"
                           style={{ color: testResult.ok ? 'var(--accent-green)' : 'var(--text-negative)' }}>
