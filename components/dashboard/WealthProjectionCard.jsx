@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { parseRate } from '@/lib/numberParse'
-import { ArrowRight, Repeat } from 'lucide-react'
+import { ArrowRight, Repeat, Target } from 'lucide-react'
 import { InfoTip } from '@/components/ui/Tooltip'
 import { formatCurrency } from './utils'
 import {
-  normalizePlan, planTotalsByMonth, firstPlannedMonth, serializePlan, REPEAT_MONTHLY,
+  normalizePlan, planTotalsByMonth, planTotalsForFutureYear, firstPlannedMonth, serializePlan, REPEAT_MONTHLY,
 } from '@/lib/incomePlan'
-import { projectWealth, suggestSavingsRate, annualizedReturnPct, savingsRateFromProfile } from '@/lib/wealthProjection'
+import { projectWealth, projectToGoal, savingsRateForGoal, suggestSavingsRate, annualizedReturnPct, savingsRateFromProfile } from '@/lib/wealthProjection'
+import { clampTargetYear, readGoal, goalInBase, portfolioValue } from '@/lib/goalFields'
 
 // El otro lado del plan de ingresos: en Flujo se arma el calendario, acá se
 // juega con lo que ese calendario le hace al patrimonio de aquí a diciembre.
@@ -88,7 +89,7 @@ function PctStepper({ value, onCommit, step, min = 0, max = 100, accent = false,
 
 export default function WealthProjectionCard({
   netWorth = 0, plan: rawPlan, onSavePlan, financeTransactions = [], profile,
-  convert, baseCurrency = 'USD', returnSinceStart, sinceStartDate,
+  convert, baseCurrency = 'USD', returnSinceStart, sinceStartDate, goals, totalAssets = null,
   lang = 'es', today = new Date(), onOpenFlow,
 }) {
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
@@ -163,6 +164,54 @@ export default function WealthProjectionCard({
     annualReturnPct: returnPct,
     fromMonth,
   }), [netWorth, income, plan.savingsRate, savingsDefault, returnPct, fromMonth])
+
+  // La meta se lee con los MISMOS helpers que la card de Metas, nunca con una
+  // segunda copia: si esta proyección midiera contra otro número, las dos
+  // pantallas dirían cosas distintas sobre la misma meta (que es exactamente
+  // el duplicado que FASE MW vino a cerrar).
+  // El default es CERO y no los 100,000 que usa la card de Metas, y la
+  // divergencia es deliberada: allá el default es un marcador de posición en
+  // la pantalla donde justamente se fija la meta, acá sería esta card
+  // afirmando que vas hacia una meta que nadie puso. Sin meta guardada, el
+  // bloque no existe.
+  const goalValue = goalInBase(readGoal(goals?.portfolioGoal, 0), goals?.goalCurrency, baseCurrency, convert)
+  const targetYear = clampTargetYear(goals?.targetYear, year)
+  const growthPct = plan.incomeGrowthPct != null ? plan.incomeGrowthPct : 0
+
+  // Un año FUTURO no es este año repetido: el salario mensual ya arrancó, así
+  // que corre los doce meses. Ver `planTotalsForFutureYear`.
+  const futureIncome = useMemo(
+    () => planTotalsForFutureYear(plan, { convert, to: baseCurrency }),
+    [plan, convert, baseCurrency]
+  )
+
+  // Solo tiene sentido preguntar "¿voy a llegar?" cuando la meta apunta a un
+  // año POSTERIOR: si es este año, la proyección a diciembre de arriba ya lo
+  // contestó y repetirlo abajo sería el mismo número dos veces.
+  const goalOn = goalValue > 0 && targetYear > year
+  const goalRun = useMemo(() => {
+    if (!goalOn) return null
+    const params = {
+      // ⛔ El ARRANQUE de la carrera hacia la meta son los ACTIVOS, no el
+      // patrimonio neto, y sale del mismo helper que usa la card de Metas: si
+      // midiera contra otra base, las dos pantallas darían dos respuestas a
+      // "¿cuánto me falta?" sobre la misma meta el mismo día. La proyección a
+      // diciembre de arriba sí arranca en el patrimonio neto, porque contesta
+      // otra pregunta ("¿en cuánto termino?").
+      startValue: portfolioValue(totalAssets, netWorth),
+      currentYearIncome: income,
+      futureYearIncome: futureIncome,
+      savingsRate: plan.savingsRate,
+      defaultSavingsRate: savingsDefault,
+      annualReturnPct: returnPct,
+      incomeGrowthPct: growthPct,
+      fromMonth,
+      currentYear: year,
+      throughYear: targetYear,
+      goalValue,
+    }
+    return { ...projectToGoal(params), neededPct: savingsRateForGoal(params) }
+  }, [goalOn, totalAssets, netWorth, income, futureIncome, plan.savingsRate, savingsDefault, returnPct, growthPct, fromMonth, year, targetYear, goalValue])
 
   const setSavingsFor = useCallback((month, value) => {
     // parseRate y no Number(): Number('42,5') es NaN y caia a 0, o sea el
@@ -326,6 +375,86 @@ export default function WealthProjectionCard({
               </div>
             ))}
           </div>
+
+          {goalRun && (
+            <div data-goal-block className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--card-border)' }}>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <h4 className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                  <Target size={12} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+                  {t(`¿Llegás a ${fmt(goalValue)} en ${targetYear}?`, `Do you reach ${fmt(goalValue)} by ${targetYear}?`)}
+                </h4>
+              </div>
+
+              <p data-goal-verdict className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                {goalRun.reachedYear != null ? (
+                  <>
+                    <strong style={{ color: 'var(--accent-green)' }}>
+                      {t(`Sí, en ${goalRun.reachedYear}.`, `Yes, in ${goalRun.reachedYear}.`)}
+                    </strong>{' '}
+                    {t(`Cerrás ${targetYear} con ${fmt(goalRun.endValue)}.`, `You close ${targetYear} with ${fmt(goalRun.endValue)}.`)}
+                  </>
+                ) : (
+                  <>
+                    {t(`Con este ritmo cerrás ${targetYear} con ${fmt(goalRun.endValue)}: te faltan ${fmt(goalRun.gap)}.`,
+                       `At this pace you close ${targetYear} with ${fmt(goalRun.endValue)}: ${fmt(goalRun.gap)} short.`)}{' '}
+                    {goalRun.neededPct != null
+                      ? t(`Ahorrando ${goalRun.neededPct}% en vez de ${savingsDefault}% sí llegás.`,
+                          `Saving ${goalRun.neededPct}% instead of ${savingsDefault}% gets you there.`)
+                      : t('Ni ahorrando el 100% de lo planeado alcanza: la meta o el año necesitan moverse.',
+                          'Not even saving 100% of the plan gets there: the goal or the year needs to move.')}
+                  </>
+                )}
+              </p>
+
+              {goalRun.neededPct != null && goalRun.reachedYear == null && (
+                <button
+                  type="button"
+                  data-goal-apply
+                  onClick={() => applyToAll(String(goalRun.neededPct))}
+                  className="text-[11px] font-medium hover:underline mb-2 block"
+                  style={{ color: 'var(--accent-blue)' }}
+                >
+                  {t(`Poner el ahorro en ${goalRun.neededPct}%`, `Set savings to ${goalRun.neededPct}%`)}
+                </button>
+              )}
+
+              <label className="flex items-center justify-between gap-2 rounded-lg border p-2 mb-2" style={{ borderColor: 'var(--card-border)' }}>
+                <span className="text-[11px] min-w-0" style={{ color: 'var(--text-muted)' }}>
+                  {t('Tu ingreso crece cada año', 'Your income grows each year')}
+                </span>
+                <PctStepper
+                  value={growthPct}
+                  step={1}
+                  max={50}
+                  ariaLabel={t('Crecimiento anual del ingreso', 'Annual income growth')}
+                  onCommit={(raw) => savePlan({ ...plan, incomeGrowthPct: raw === '' ? null : Math.min(50, Math.max(0, parseRate(raw))) })}
+                />
+              </label>
+
+              <div className="space-y-0.5">
+                {goalRun.years.map((y) => (
+                  <div key={y.year} data-goal-year={y.year} className="flex items-center justify-between gap-2 text-[11px]">
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {y.year}
+                      {y.year === goalRun.reachedYear && (
+                        <span className="ml-1 font-semibold" style={{ color: 'var(--accent-green)' }}>
+                          {t('· meta', '· goal')}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-mono tabular-nums" style={{ color: y.year === goalRun.reachedYear ? 'var(--accent-green)' : 'var(--text-secondary)' }}>
+                      {fmt(y.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                {t(`Los años después de ${year} repiten tu plan con ese crecimiento. La meta y el año salen de la card de Metas.`,
+                   `Years after ${year} repeat your plan with that growth. The goal and the year come from the Goals card.`)}
+              </p>
+            </div>
+          )}
 
           <p className="text-[10px] mt-2 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
             <Repeat size={9} aria-hidden="true" />

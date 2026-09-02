@@ -1,7 +1,7 @@
 'use client'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
-import { clampTargetYear, readGoal, goalInBase } from '@/lib/goalFields'
+import { clampTargetYear, readGoal, goalInBase, portfolioValue } from '@/lib/goalFields'
 
 import { useState, useMemo, useEffect } from 'react'
 import { formatCurrency, formatCompact } from './utils'
@@ -14,20 +14,6 @@ import { monthsUntilGoal, monthlyNeeded, measuredMonthlyContribution } from '@/l
 // cómo nació el duplicado que ese módulo existe para cerrar. Se re-exportan
 // porque el test de esta card los importa desde acá.
 export { GOAL_MAX_YEAR, clampTargetYear, readGoal, goalInBase } from '@/lib/goalFields'
-
-// ⛔ Una meta de "Tamaño de portfolio" se mide contra los ACTIVOS, no contra el
-// patrimonio neto. Con una deuda viva las dos cifras difieren, y contra el neto
-// pagar la deuda contaría como crecimiento del portafolio (y pedir prestado como
-// encogimiento) sin que un solo activo se hubiera movido: la misma distinción
-// que FASE LU/LV fijó para el rendimiento, acá para la meta. `netWorth` se
-// conserva como respaldo para un caller que no pase activos, y sin deuda las dos
-// son la misma cifra.
-function portfolioValue(totalAssets, netWorth) {
-  const a = Number(totalAssets)
-  if (Number.isFinite(a) && a !== 0) return a
-  const n = Number(netWorth)
-  return Number.isFinite(n) ? n : 0
-}
 
 export default function GoalTracker({ netWorth, totalAssets = null, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null, transactions = null, items = null }) {
   const [editing, setEditing] = useState(false)
