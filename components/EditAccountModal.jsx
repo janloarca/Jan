@@ -19,6 +19,8 @@ import { currencyOptions } from '@/lib/currencies'
 import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
+import DiscardHint from '@/components/ui/DiscardHint'
 
 const ACCOUNT_TYPES = [
   { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
@@ -236,7 +238,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   )
 
   const t = (es, en) => lang === 'es' ? es : en
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  // FASE NC: mismo guard de telon que AddAccountModal (ver useDirtyClose).
+  const { markDirty, onBackdropClick, backdropArmed } = useDirtyClose(onClose)
+  const set = (k, v) => { markDirty(); setForm(prev => ({ ...prev, [k]: v })) }
   // FASE EK. The currency select used to just relabel the SAME number under a
   // new currency — switching USD → GTQ left the price field reading, say,
   // "1967.45", now claimed to be 1967.45 GTQ (≈ $258), a silent ~87% value
@@ -804,7 +808,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     : null
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onBackdropClick} role="dialog" aria-modal="true" aria-labelledby="edit-acct-modal-title">
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="edit-acct-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Editar', 'Edit')} {item.name || item.symbol}</h2>

@@ -53,7 +53,11 @@ export default function FinanceWipePanel({
   const [month, setMonth] = useState('all')
   const [method, setMethod] = useState('all')
   const [transport, setTransport] = useState(null)
-  const [armed, setArmed] = useState(false)
+  // FASE NC: armed guarda QUÉ botón armó ('backup' | 'delete' | null), no un
+  // booleano compartido. Con el booleano, armar con "Descargar y borrar" y
+  // tocar después el "Borrar" pelado ejecutaba el borrado SIN respaldo, aunque
+  // el primer toque había expresado exactamente la intención contraria.
+  const [armed, setArmed] = useState(null)
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
 
@@ -66,7 +70,7 @@ export default function FinanceWipePanel({
 
   // Cambiar cualquier filtro desarma el confirm: si no, se podría armar sobre
   // 3 filas, mover el filtro a 900 y confirmar sin volver a leer el número.
-  const setFilter = (fn) => { setArmed(false); setError(''); fn() }
+  const setFilter = (fn) => { setArmed(null); setError(''); fn() }
 
   const methods = [
     { key: 'all', label: t('Todo', 'Everything') },
@@ -88,7 +92,10 @@ export default function FinanceWipePanel({
 
   const run = async (withBackup) => {
     if (plan.count === 0) return
-    if (!armed) { setArmed(true); return }
+    const mode = withBackup ? 'backup' : 'delete'
+    // Armar con un boton y confirmar con el OTRO re-arma en vez de ejecutar:
+    // cada boton confirma solo su propia intencion.
+    if (armed !== mode) { setArmed(mode); return }
     setBusy(withBackup ? 'backup' : 'delete')
     setError('')
     try {
@@ -99,7 +106,7 @@ export default function FinanceWipePanel({
       // cientos de deletes.
       if (plan.isEverything && onDeleteAll) await onDeleteAll()
       else await onDeleteByIds(plan.ids)
-      setArmed(false)
+      setArmed(null)
       if (onDone) onDone(plan.count)
     } catch (e) {
       setError(e?.message || t('Error al borrar', 'Error deleting'))
@@ -213,16 +220,16 @@ export default function FinanceWipePanel({
           className="px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 disabled:opacity-50"
           style={{ color: 'var(--text-primary)', borderColor: 'var(--card-border)' }}>
           <BusyLabel busy={busy === 'backup'} lang={lang} busyLabel={t('Borrando…', 'Deleting…')}>
-            <span className="inline-flex items-center gap-1.5"><Download size={12} />{armed ? t('Confirmar y descargar', 'Confirm and download') : t('Descargar y borrar', 'Download and delete')}</span>
+            <span className="inline-flex items-center gap-1.5"><Download size={12} />{armed === 'backup' ? t('Confirmar y descargar', 'Confirm and download') : t('Descargar y borrar', 'Download and delete')}</span>
           </BusyLabel>
         </button>
         <button type="button" onClick={() => run(false)} disabled={plan.count === 0 || busy}
           className="px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 disabled:opacity-50"
-          style={armed
+          style={armed === 'delete'
             ? { backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }
             : { color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
           <BusyLabel busy={busy === 'delete'} lang={lang} busyLabel={t('Borrando…', 'Deleting…')}>
-            {armed ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
+            {armed === 'delete' ? t('Confirmar', 'Confirm') : t('Borrar', 'Delete')}
           </BusyLabel>
         </button>
       </div>

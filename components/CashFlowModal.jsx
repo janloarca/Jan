@@ -12,6 +12,8 @@ import { parseAmount } from '@/lib/numberParse'
 import { debtOptions, debtBalance as debtBalanceOf } from '@/lib/propertyEquity'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
+import DiscardHint from '@/components/ui/DiscardHint'
 
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], convert, lang = 'es', baseCurrency = 'USD', prefill = null }) {
@@ -67,6 +69,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // past history with the wrong date.
   const [date, setDate] = useState(prefill?.date ?? (prefill?.alreadyReflected ? '' : todayLocalISO()))
   const [description, setDescription] = useState('')
+  // FASE NC: guard del telon. Aca "sucio" se calcula al click (no hay un
+  // set() unico que marcar): lo que duele perder es el monto y la
+  // descripcion; los dropdowns se re-eligen en un toque. Un monto PREFILLED
+  // tambien cuenta: quien llego desde un hallazgo con el numero ya puesto no
+  // quiere perderlo por un dedo fuera del panel.
+  const { onBackdropClick, backdropArmed } = useDirtyClose(onClose)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedCount, setSavedCount] = useState(0)
@@ -398,7 +406,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
         : t('¿De qué cuenta salió?', 'Which account did it leave from?')
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={() => onBackdropClick(String(amount).trim() !== '' || description.trim() !== '')}>
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-glass-border">
           <div className="flex items-center justify-between">

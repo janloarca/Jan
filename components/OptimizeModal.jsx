@@ -7,6 +7,7 @@ import { currencyOptions } from '@/lib/currencies'
 import { formatDate } from '@/components/dashboard/utils'
 import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
+import ConfirmTap from '@/components/ui/ConfirmTap'
 // Tres lecturas distintas y no una: la CANTIDAD por parseQuantity (un
 // separador solitario es decimal), el dinero por parseAmount (convencion LatAm
 // de miles) y la TASA por parseRate (decimal, y conserva el signo).
@@ -472,12 +473,18 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
+            {/* FASE NC: dos toques (borra el ITEM, no una fila). El key por
+                item es obligatorio: sin él, el estado armado de la pregunta N
+                sobreviviría al avance y el primer toque de la pregunta N+1
+                ejecutaría el borrado directo. */}
             {q.category === 'cero' && (
-              <button type="button" onClick={handleDelete} disabled={saving}
+              <ConfirmTap key={q.item.id} onConfirm={handleDelete} disabled={saving}
                 className="px-3 py-2.5 text-xs font-medium border rounded-lg transition-colors disabled:opacity-50"
-                style={{ color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                style={{ color: 'var(--text-negative)', borderColor: 'rgba(239,68,68,0.3)' }}
+                confirmStyle={{ backgroundColor: 'var(--text-negative)', color: '#ffffff', borderColor: 'var(--text-negative)' }}
+                confirmContent={t('Confirmar eliminar', 'Confirm delete')}>
                 {t('Eliminar', 'Delete')}
-              </button>
+              </ConfirmTap>
             )}
             <div className="flex-1" />
             <button type="button" onClick={() => setStep((s) => s + 1)}

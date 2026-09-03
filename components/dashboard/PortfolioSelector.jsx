@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import ConfirmTap from '@/components/ui/ConfirmTap'
 
 export default function PortfolioSelector({ portfolios, activePortfolio, onSelect, onAdd, onDelete, lang }) {
   const [showMenu, setShowMenu] = useState(false)
@@ -96,15 +97,22 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                     aparecía nunca o se quedaba pegado tras el primer toque, así
                     que borrar un portafolio dependía de tener mouse. Visible y
                     apagado, con 24x24 de objetivo (WCAG 2.2 SC 2.5.8). */}
+                {/* FASE NC: dos toques. Un solo toque borraba el portafolio
+                    entero sin ninguna confirmación, y un dropdown angosto es
+                    exactamente donde el dedo cae en la × por accidente. */}
                 {!p.isDefault && onDelete && (
-                  <button onClick={() => onDelete(p.id)}
-                    aria-label={t('Borrar portafolio', 'Delete portfolio')}
+                  <ConfirmTap onConfirm={() => onDelete(p.id)}
+                    ariaLabel={t('Borrar portafolio', 'Delete portfolio')}
+                    confirmAriaLabel={t(`Confirmar borrar ${p.name}`, `Confirm delete ${p.name}`)}
                     className="px-2 min-w-[24px] min-h-[24px] flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
-                    style={{ color: 'var(--text-muted)' }}>
+                    confirmClassName="px-2 min-h-[24px] flex items-center justify-center text-[11px] font-semibold whitespace-nowrap"
+                    style={{ color: 'var(--text-muted)' }}
+                    confirmStyle={{ color: 'var(--text-negative)' }}
+                    confirmContent={t('¿Borrar?', 'Delete?')}>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </ConfirmTap>
                 )}
               </div>
             ))}

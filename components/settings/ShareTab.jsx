@@ -24,6 +24,7 @@ import ModalMount from '@/components/ui/ModalMount'
 import useModalExit from '@/hooks/useModalExit'
 import { useInstruments } from '@/hooks/useInstruments'
 import BusyLabel from '@/components/ui/BusyLabel'
+import ConfirmTap from '@/components/ui/ConfirmTap'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import InstrumentSheetsManager from '@/components/settings/InstrumentSheetsManager'
 
@@ -296,10 +297,20 @@ export default function ShareTab({
                         className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
                       </button>
-                      <button onClick={() => handleRevokeShare(link.token)} disabled={shareLoading} aria-label={t('Revocar', 'Revoke')}
-                        className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
+                      {/* FASE NC: dos toques. Revocar mata el link EN LA MANO
+                          del cliente que lo recibió, y no se puede des-revocar:
+                          hay que crear otro y volver a mandarlo. Un toque en la
+                          × de una fila no puede tener ese costo. */}
+                      <ConfirmTap onConfirm={() => handleRevokeShare(link.token)} disabled={shareLoading}
+                        ariaLabel={t('Revocar', 'Revoke')}
+                        confirmAriaLabel={t('Confirmar revocar este link', 'Confirm revoking this link')}
+                        className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity"
+                        confirmClassName="shrink-0 px-2 py-1 text-[11px] font-semibold whitespace-nowrap rounded"
+                        style={{ color: 'var(--text-negative)', opacity: 0.6 }}
+                        confirmStyle={{ color: '#ffffff', backgroundColor: 'var(--text-negative)' }}
+                        confirmContent={t('¿Revocar?', 'Revoke?')}>
                         ✕
-                      </button>
+                      </ConfirmTap>
                     </>
                   )}
                 </div>
