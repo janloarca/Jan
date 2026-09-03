@@ -457,19 +457,28 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       // "Todas" arrancando en -$6.3K. Ver lib/portfolioRewind.js.
       const brokerItemsInScope = chartItems.filter((it) => it?._source === 'ibkr')
       const brokerTx = brokerAccountTransactions(scopedTransactions, brokerItemsInScope)
+      // ⛔ FASE MZ. Cuál ítem ES la caja del broker se resuelve ANTES de armar
+      // sus flujos, porque buildCashFlows necesita saberlo: un gasto pagado
+      // DESDE esta misma caja sí la movió y tiene que deshacerse, mientras que
+      // uno pagado desde otra cuenta no. Sin pasarle el id, el guard de FASE MY
+      // saltaba los dos, y como abajo la caja recibe accountCashFlows EN VEZ de
+      // perItemCashFlows (los ítems 'ibkr' quedan fuera de ese mapa), ese gasto
+      // no lo recogía nadie: desaparecía del pasado de la caja.
+      // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item so
+      // the flows still rebuild the cash line when the symbol isn't exactly CASH-*.
+      const cashCandidate = chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
+        || chartItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || ''))
       const accountCashFlows = buildCashFlows(brokerTx,
         (amt, cur2) => convert ? convert(amt, cur2, 'USD') : amt,
-        { rewindableSymbols: rewindableTradeSymbols(chartItems, txEventsBySym) })
+        {
+          rewindableSymbols: rewindableTradeSymbols(chartItems, txEventsBySym),
+          cashAccountId: cashCandidate?.id,
+        })
       // The whole account ledger attaches to ONE cash item (the broker's cash line).
       // Only rewind cash when there's a REAL external flow (deposit/withdrawal): with
       // hold-flat stocks, rewinding by BUY/SELL double-counts and wrecks the baseline.
       const hasExternalFlow = brokerTx.some((t) => /^(DEPOSIT|WITHDRAWAL)$/i.test(t.type || ''))
-      // Prefer the CASH-{ccy} holding; fall back to any single IBKR bank-type item so
-      // the flows still rebuild the cash line when the symbol isn't exactly CASH-*.
-      const cashItem = (accountCashFlows.length > 0 && hasExternalFlow)
-        ? (chartItems.find((it) => it._source === 'ibkr' && /^CASH-/i.test(it.symbol || ''))
-           || chartItems.find((it) => it._source === 'ibkr' && /bank|cash/i.test(it.type || '')))
-        : null
+      const cashItem = (accountCashFlows.length > 0 && hasExternalFlow) ? cashCandidate : null
       // Manual bank-like items (bonds, cash accounts, alternatives — anything
       // with no market price series) don't ride the IBKR cash line above. A
       // later "aporte" (EditAccountModal's contribution flow) just bumps the
