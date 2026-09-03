@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Fragment, useCallback } from 'react'
 import { getItemValue, getTypeCategory, formatDate } from './utils'
+import { parseAmount } from '@/lib/numberParse'
 
 const PATRIMONIO_CATEGORIES = ['realestate', 'alternatives', 'other']
 
@@ -56,6 +57,9 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
   const [expanded, setExpanded] = useState({})
   const [editingValue, setEditingValue] = useState(null)
   const [editDraft, setEditDraft] = useState('')
+  // Un valor rechazado tiene que DECIRSE (ver commitEditValue): se limpia al
+  // abrir la siguiente edición o al guardar una buena.
+  const [rejectMsg, setRejectMsg] = useState('')
 
   const patrimonioItems = useMemo(() => {
     if (!items) return []
@@ -87,18 +91,38 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
 
   const startEditValue = (item) => {
     setEditingValue(item.id)
+    setRejectMsg('')
     const val = Math.abs(getItemValue(item))
     setEditDraft(val > 0 ? String(val) : '')
   }
 
   const commitEditValue = useCallback((item) => {
-    const num = parseFloat(editDraft.replace(/[^0-9.\-]/g, ''))
+    // parseAmount y NO el regex ingenuo: `parseFloat('12.500,00'.replace(...))`
+    // daba 12.5 — mil veces menos, con cara de guardado (la clase de bug que la
+    // cabecera de lib/numberParse.js documenta, y que ya se sacó de la otra
+    // Hoja en FASE JA).
+    // El guard de vacío/garbage es aparte porque parseAmount devuelve 0 tanto
+    // para '' como para texto ilegible: sin él, cerrar una celda sin tocar (o
+    // con basura) escribiría un cero encima del valor. Un CERO tecleado a
+    // propósito ("0") sí se acepta, igual que siempre.
+    const raw = editDraft.trim()
+    const num = parseAmount(raw)
+    const isExplicitZero = /^0([.,]0*)?$/.test(raw)
     // Same ceiling as file imports (lib/validation MAX_PRICE).
-    if (!isNaN(num) && num >= 0 && num <= 10_000_000 && onUpdateItem) {
+    if (raw !== '' && isFinite(num) && (num > 0 || isExplicitZero) && num <= 10_000_000 && onUpdateItem) {
       onUpdateItem(item.id, { currentPrice: num, quantity: 1 })
+      setRejectMsg('')
+    } else if (raw !== '') {
+      // Un valor rechazado se descartaba EN SILENCIO: la celda se cerraba y el
+      // número viejo seguía ahí, indistinguible de un guardado (la lección de
+      // handleValueReject en PortfolioSpreadsheet).
+      const label = item.name || item.symbol
+      setRejectMsg(lang === 'es'
+        ? `${label}: ese valor no se pudo leer. Usá solo números positivos, hasta 10,000,000.`
+        : `${label}: could not read that value. Use positive numbers only, up to 10,000,000.`)
     }
     setEditingValue(null)
-  }, [editDraft, onUpdateItem])
+  }, [editDraft, onUpdateItem, lang])
 
   // FASE ME: igual que DebtSpreadsheet, esta vista era `bg-white` + grises de tema
   // claro fijos con clases remapeadas encima: en tema oscuro (el default) las
@@ -163,6 +187,14 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
              'Values can be updated by clicking the amount. For real estate and vehicles, we recommend updating the market value periodically.')}
         </p>
       </div>
+
+      {rejectMsg && (
+        <div role="alert" className="rounded-xl p-3 text-xs flex items-center justify-between gap-2"
+          style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
+          <span>{rejectMsg}</span>
+          <button onClick={() => setRejectMsg('')} className="shrink-0 font-semibold" aria-label={t('Cerrar aviso', 'Dismiss')}>&times;</button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="card overflow-hidden">

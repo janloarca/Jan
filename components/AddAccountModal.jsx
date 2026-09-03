@@ -195,6 +195,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [showIncome, setShowIncome] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
+  // El aviso de duplicado describe el activo TAL COMO estaba al detectarse: si
+  // el usuario edita símbolo/nombre/banco, el aviso queda hablando de otro
+  // activo y ademas escondería "Siguiente" para siempre. Se limpia y goToStep2
+  // vuelve a evaluar con lo nuevo.
+  useEffect(() => {
+    setDuplicateWarning((w) => (w ? null : w))
+  }, [form.symbol, form.name, form.institution])
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
   const searchAbortRef = useRef(null)
@@ -389,6 +396,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   const goToStep2 = () => {
     setError('')
+    // Con el aviso de duplicado a la vista, avanzar se decide SOLO con sus dos
+    // botones ("Agregar a posición" / "Crear separado"). Sin este guard, Enter
+    // en cualquier campo re-enviaba el form y caía al final de esta función:
+    // "Crear separado" elegido en silencio, sin que nadie lo eligiera.
+    if (duplicateWarning) return
     if (isMarketAsset && !form.symbol) { setError(t('Busca y selecciona un activo', 'Search and select an asset')); return }
     if (!isMarketAsset && !form.name && !isBank) { setError(t('Ingresa el nombre', 'Enter the name')); return }
     if (isBank && !form.institution) { setError(t('Ingresa el banco', 'Enter the bank')); return }
@@ -406,7 +418,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (form.institution && ei.institution) return (ei.institution || '').toLowerCase() === (form.institution || '').toLowerCase()
       return true
     })
-    if (existing && !duplicateWarning) {
+    if (existing) {
       setDuplicateWarning(existing)
       return
     }
@@ -1094,10 +1106,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 className="flex-1 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
                 {t('Cancelar', 'Cancel')}
               </button>
-              <button type="submit"
-                className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
-                {t('Siguiente', 'Next')} →
-              </button>
+              {/* Con el aviso de duplicado abierto, "Siguiente" desaparece: el
+                  segundo toque en ese botón elegía "Crear separado" en
+                  SILENCIO (goToStep2 limpiaba el aviso y avanzaba). La
+                  decisión la toman sus dos botones, que dicen qué hacen. */}
+              {!duplicateWarning && (
+                <button type="submit"
+                  className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
+                  {t('Siguiente', 'Next')} →
+                </button>
+              )}
             </div>
           </>)}
 

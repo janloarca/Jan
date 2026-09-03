@@ -2442,7 +2442,12 @@ export default function DashboardPage() {
             else if (action === 'settings') setModal('settings')
           }}
           onComplete={() => setShowOnboarding(false)}
-          onSeedDemo={handleSeedDemo}
+          // El botón de demo SOLO con la cartera vacía (o ya en demo, donde
+          // re-sembrar es un no-op de ids fijos): sembrado sobre una cartera
+          // REAL, los retornos del tablero — y lo que se publica a Amigos — se
+          // calculan sobre la mezcla, y el banner de demo invita a "borrar y
+          // empezar" a alguien que ya empezó.
+          onSeedDemo={(portfolioItems.length === 0 || isDemoMode) ? handleSeedDemo : undefined}
           onClearDemo={handleClearDemo}
           demoActive={isDemoMode}
         />

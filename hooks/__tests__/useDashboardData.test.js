@@ -458,6 +458,25 @@ describe('publicar a Amigos: una vez por día y con los datos ya asentados', () 
     expect(friendsCalls()).toHaveLength(0)
     unmount()
   })
+
+  // ⛔ FASE NA. El contrato del modo demo es "cero side-effects persistentes":
+  // los vetos de snapshots y dividendos ya existían, y este efecto publicaba
+  // igual — con UN item de ejemplo en la mezcla, el YTD que leen tus amigos se
+  // calcula sobre dinero inventado. El gate vive en lib/friendsPublish.js
+  // (hasSomethingToPublish); este test fija que el efecto REAL del hook pasa
+  // por él, no una copia.
+  it('con datos de DEMO en la cartera no se publica nada', async () => {
+    const mixed = [item(), item({ id: 'demo-1', symbol: 'AAPL', _source: 'demo' })]
+    const { unmount } = setup({
+      firestore: { items: mixed }, prices: { enrichedItems: mixed }, opts: { publishFriends: true },
+    })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    // Y el día NO se estampa: al borrar el demo, la publicación real del día
+    // tiene que poder salir.
+    expect(fakeFirestore.saveSettings.mock.calls.filter((c) => c[0]?._lastFriendsPublish)).toHaveLength(0)
+    unmount()
+  })
 })
 
 // ⛔ FASE LU. "La deuda tampoco debería de afectar el YTD" (decisión del

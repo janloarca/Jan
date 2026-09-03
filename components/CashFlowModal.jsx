@@ -101,8 +101,13 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   const debtItem = debtTargets.find((i) => i.id === debtId)
   const isYield = flowType === 'DEPOSIT' && origin === 'yield'
   const isExternal = origin === 'external'
-  // The account whose balance this movement can update
-  const balanceTarget = (isYield || isExternal) ? linkedItem : null
+  // The account whose balance this movement can update. `isExpense` entra desde
+  // FASE NA: la rama que escribe el FEE ya sabía debitar la cuenta que pagó
+  // (buildContributionFields + _paidFromItemId, y desde FASE MX el rebobinado
+  // histórico también la entiende), pero el selector nunca se ofrecía, así que
+  // un gasto real (reparar el techo, pagado del banco) dejaba el saldo del
+  // banco sin bajar y el pasado sin explicación.
+  const balanceTarget = (isYield || isExternal || isExpense) ? linkedItem : null
   const effectiveCurrency = balanceTarget ? (balanceTarget.currency || 'USD') : currency
   // ⛔ Una transferencia entre monedas tiene DOS montos. Esta pantalla restaba
   // `num` del origen y sumaba el MISMO `num` al destino sin mirar la moneda de
@@ -204,7 +209,10 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           _source: 'manual_cashflow',
           ...(balanceTarget ? { _paidFromItemId: balanceTarget.id } : {}),
         }
-        if (balanceTarget) {
+        // `willTouchBalance` y no `balanceTarget` a secas: respeta el checkbox
+        // de "el saldo ya está contado" (un gasto retro-fechado cuyo débito ya
+        // se ve en el saldo tecleado solo necesita quedar registrado).
+        if (willTouchBalance) {
           const { itemFields, newLot, lotClose } = buildContributionFields({
             item: balanceTarget, amount: num, date, isAdd: false, currency: effectiveCurrency,
           })
@@ -383,9 +391,11 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
 
   const linkedLabel = isYield
     ? t('¿En qué cuenta lo recibiste?', 'Which account received it?')
-    : flowType === 'DEPOSIT'
-      ? t('¿A qué cuenta entró?', 'Which account did it go into?')
-      : t('¿De qué cuenta salió?', 'Which account did it leave from?')
+    : isExpense
+      ? t('¿De qué cuenta pagaste?', 'Which account did you pay from?')
+      : flowType === 'DEPOSIT'
+        ? t('¿A qué cuenta entró?', 'Which account did it go into?')
+        : t('¿De qué cuenta salió?', 'Which account did it leave from?')
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -473,7 +483,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           {isExpense && (
             <div>
               <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('¿De qué activo es este gasto?', 'Which asset is this expense on?')}</label>
-              <select value={costForId} onChange={(e) => setCostForId(e.target.value)} className={inputCls}>
+              <select value={costForId}
+                onChange={(e) => { setCostForId(e.target.value); if (e.target.value === linkedId) setLinkedId('') }}
+                className={inputCls}>
                 <option value="">{t('Seleccionar...', 'Select...')}</option>
                 {assets.map((item) => <option key={item.id} value={item.id}>{item.name || item.symbol} ({item.institution || '-'})</option>)}
               </select>
@@ -580,7 +592,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
             </div>
           )}
 
-          {(isExternal || isYield) && (
+          {(isExternal || isYield || isExpense) && (
             <div>
               <label className="text-xs text-slate-400 mb-1 block">
                 {linkedLabel} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span>
@@ -596,9 +608,15 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 }}
                 className={inputCls}>
                 <option value="">{t('- Sin vincular -', '- Not linked -')}</option>
-                {assets.filter((i) => !isYield || i.id !== yieldSourceId).map((item) => (
-                  <option key={item.id} value={item.id}>{formatOption(item)}</option>
-                ))}
+                {assets
+                  .filter((i) => !isYield || i.id !== yieldSourceId)
+                  // Un gasto no puede "pagarse desde" el mismo activo que lo
+                  // generó: el gasto no revalúa al activo (FASE KW), así que
+                  // debitarlo sería contarle el gasto encima.
+                  .filter((i) => !isExpense || i.id !== costForId)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>{formatOption(item)}</option>
+                  ))}
               </select>
               {balanceTarget ? (
                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>

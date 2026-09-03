@@ -6,6 +6,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
+import { accountValue } from '@/lib/transferFields'
 import { todayLocalISO } from '@/lib/localDate'
 
 const QTY_EPSILON = 0.0001
@@ -41,7 +42,18 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   const qtySell = parseQuantity(quantity)
   const price = parseAmount(salePrice)
   const proceeds = Math.round(qtySell * price * 100) / 100
-  const otherItems = existingItems.filter((it) => it.id !== item.id)
+  // `!isDebt`: acreditarle el producto de una venta a una DEUDA le SUBIRÍA la
+  // magnitud (se guardan en positivo), o sea el camino equivocado — la misma
+  // regla que TransferModal ya aplica a su lista de destinos. Pagar un préstamo
+  // es Movimiento → Pago de deuda, no una venta.
+  const otherItems = existingItems.filter((it) => it.id !== item.id && !it.isDebt)
+  // La opción dice moneda y saldo con `accountValue`, la MISMA función con la
+  // que el tablero suma esa cuenta (patrón de TransferModal): elegir el destino
+  // de una venta a ciegas es cómo un producto en USD aterriza en la cuenta
+  // equivocada.
+  const money = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatOption = (it) =>
+    `${it.name || it.symbol} (${it.institution || '-'}) - ${it.currency || 'USD'} ${money(accountValue(it))}`
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -50,6 +62,14 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
     if (qtySell <= 0) { setError(t('Ingresa una cantidad valida', 'Enter a valid quantity')); return }
     if (qtySell > (item.quantity || 0) + QTY_EPSILON) { setError(t('No puedes vender mas de lo que tienes', 'Cannot sell more than you own')); return }
     if (price <= 0) { setError(t('Ingresa un precio de venta valido', 'Enter a valid sale price')); return }
+    // "Queda en el portafolio" SIN cuenta elegida caía al else-if de abajo y la
+    // venta se ejecutaba igual: la posición bajaba y el dinero no aterrizaba en
+    // NINGUNA cuenta (ni retiro ni crédito), o sea desaparecía del patrimonio
+    // en silencio. Con destino declarado, el destino es obligatorio.
+    if (destination === '__stay__' && !destinationId) {
+      setError(t('Selecciona la cuenta donde queda el dinero', 'Select the account where the money stays'))
+      return
+    }
 
     setSaving(true)
     try {
@@ -87,7 +107,15 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         })
       } else if (destination === '__stay__' && destinationId) {
         const dest = existingItems.find((it) => it.id === destinationId)
-        if (dest) {
+        // Un id que ya no resuelve (cuenta borrada con el modal abierto) NO
+        // puede degradar a "vender sin acreditar a nadie": mismo silencio que
+        // el guard de arriba existe para impedir.
+        if (!dest) {
+          setSaving(false)
+          setError(t('Esa cuenta ya no existe. Elige otra.', 'That account no longer exists. Pick another.'))
+          return
+        }
+        {
           // Proceeds are in the SOLD asset's currency; the destination stores raw
           // values in ITS OWN currency — convert before crediting, or a USD sale
           // into a GTQ account credits ~7.8× less than reality.
@@ -246,9 +274,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
                 <select value={destinationId} onChange={(e) => setDestinationId(e.target.value)} className={inputCls}>
                   <option value="">{t('-- Selecciona cuenta destino --', '-- Select destination --')}</option>
                   {otherItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name || it.symbol} {it.institution ? `(${it.institution})` : ''}
-                    </option>
+                    <option key={it.id} value={it.id}>{formatOption(it)}</option>
                   ))}
                 </select>
                 <p className="text-xs text-emerald-400/70">
