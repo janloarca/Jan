@@ -47,6 +47,11 @@ export default function PageShell({
   // entrada cuando la recibe, así que una página sin captura automática no debe
   // ofrecerla. Solo Flujo la pasa.
   onAuto,
+  // Modo demo: el tablero lleva su banner con salida desde siempre, pero las
+  // demás pantallas mostraban los datos de ejemplo SIN ninguna marca — en la
+  // Hoja o en Costos los números inventados se leían como propios. La banda
+  // solo INFORMA; la salida (borrar demo) vive en el tablero, a un toque.
+  demoActive = false,
   headerProps = {},
 }) {
   const router = useRouter()
@@ -78,6 +83,20 @@ export default function PageShell({
       />
       <main id="main-content"
         className={`${WIDTHS[width] || WIDTHS.narrow} mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 ${mainClassName}`}>
+        {demoActive && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {t('Estás explorando con datos de ejemplo: nada de esto es tuyo todavía.',
+                 'You are exploring with sample data: none of this is yours yet.')}
+            </span>
+            <button onClick={go}
+              className="shrink-0 px-2.5 py-1 rounded-lg font-medium"
+              style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+              {t('Ir al tablero', 'Go to dashboard')}
+            </button>
+          </div>
+        )}
         {children}
       </main>
       {/* MobileNav already renders its own bottom spacer, so pages must NOT add

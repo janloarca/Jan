@@ -127,7 +127,19 @@ export async function POST(request) {
       let verification = { verified: false }
       try {
         const settingsSnap = await db.collection('users').doc(uid).collection('settings').get()
-        verification = brokerVerification(settingsSnap.docs.map((d) => ({ id: d.id, data: d.data() })))
+        const docs = settingsSnap.docs.map((d) => ({ id: d.id, data: d.data() }))
+        // Con Amigos APAGADO el servidor rechaza la publicación, no solo el
+        // cliente: apagar borra el perfil público (una decisión de privacidad),
+        // y sin este guard cualquier superficie que publique de fondo (el
+        // tablero publica una vez por día) lo RE-CREABA en silencio. Cuesta
+        // cero lecturas extra: sale del MISMO snapshot que ya se lee para la
+        // insignia. Fail-open a propósito: si la lectura falla no se puede
+        // saber, y el gate del cliente sigue siendo la primera línea.
+        const prefs = docs.find((d) => d.id === 'preferences')
+        if (prefs?.data?.friendsEnabled === false) {
+          return NextResponse.json({ error: 'Friends is disabled', code: 'friends_disabled' }, { status: 403 })
+        }
+        verification = brokerVerification(docs)
       } catch (err) {
         // Best-effort: un fallo de lectura no puede impedir publicar tus
         // números. Sin insignia es el lado correcto del error.

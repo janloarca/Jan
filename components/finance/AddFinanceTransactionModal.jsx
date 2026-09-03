@@ -7,14 +7,28 @@ import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
 import { todayLocalISO } from '@/lib/localDate'
 
-export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es' }) {
+// `month`/`year` (opcionales): el mes que la pantalla de Flujo está MOSTRANDO.
+// Flujo organiza todo por mes, así que agregar un gasto mirando julio con la
+// fecha pre-llenada en HOY (agosto) lo archivaba en un mes que no estás viendo:
+// la fila "no aparecía" y se re-tecleaba, o quedaba duplicada. Sin los props el
+// comportamiento es el de siempre (hoy).
+export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es', month, year }) {
   const t = (es, en) => lang === 'es' ? es : en
+  const today = todayLocalISO()
+  // Comparación por PREFIJO de texto, nunca new Date() (regla de financeMonth:
+  // 'YYYY-MM-DD' parseado como Date corre el mes en UTC-6).
+  const viewingKey = (Number.isInteger(month) && Number.isInteger(year))
+    ? `${year}-${String(month + 1).padStart(2, '0')}`
+    : null
+  const initialDate = (viewingKey && !today.startsWith(viewingKey))
+    ? `${viewingKey}-01`
+    : today
   const [form, setForm] = useState({
     type: 'EXPENSE',
     amount: '',
     category: 'Otros Gastos',
     description: '',
-    date: todayLocalISO(),
+    date: initialDate,
     currency: 'GTQ',
   })
   const [saving, setSaving] = useState(false)
@@ -123,6 +137,12 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
               <input type="date" value={form.date}
                 onChange={e => setForm({ ...form, date: e.target.value })}
                 className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none input-focus" />
+              {viewingKey && form.date && !form.date.startsWith(viewingKey) && (
+                <p className="text-xs mt-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {t('Esta fecha cae fuera del mes que estás viendo: la verás al cambiar de mes.',
+                     'This date falls outside the month you are viewing: you will see it after switching months.')}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Moneda', 'Currency')}</label>

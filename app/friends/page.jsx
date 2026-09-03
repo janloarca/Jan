@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { buildPublishStats, publishIdentity, publishDayKey, hasSomethingToPublish } from '@/lib/friendsPublish'
+import { hasDemoData } from '@/lib/demoData'
 import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
 import PageShell, { PageTitle } from '@/components/PageShell'
 import PullToRefresh from '@/components/ui/PullToRefresh'
@@ -74,6 +75,12 @@ function FriendsPageInner() {
   // el mismo "-" que significa "no hay nada que medir".
   const statsReady = !!ytdResolved && !pricesLoading
   const hasPortfolio = (enrichedItems || []).length > 0
+  // Amigos APAGADO en Ajustes: apagar borra el perfil público y saca de todos
+  // los grupos, así que esta pantalla no puede seguir operando como si nada
+  // (publicaba en el mount y recargaba grupos de una función desactivada).
+  // `=== false` a propósito: ausente/null significa activado, el default.
+  const friendsDisabled = settings?.friendsEnabled === false
+  const [reactivating, setReactivating] = useState(false)
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
 
@@ -244,7 +251,16 @@ function FriendsPageInner() {
   // solo releían, así que jalar en Amigos actualizaba los números de todos los
   // demás menos el tuyo. Un solo significado para una sola palabra.
   const doSync = useCallback(async () => {
-    if (!myStats.all) { await refresh(); return true }
+    // Con Amigos apagado no se publica NADA por ninguna puerta: la pantalla
+    // entera está detrás del aviso de reactivar, pero el gesto de jalar y el
+    // botón del header siguen cableados a esta función.
+    if (friendsDisabled) return false
+    // La MISMA regla compartida que usan el mount y el tablero. Antes este
+    // camino (el botón "Publicar", el header, el gesto) solo miraba
+    // `myStats.all`, o sea se saltaba el gate — incluido el veto de datos de
+    // DEMO, que existe porque los retornos llegan calculados sobre el conjunto
+    // completo y un item de ejemplo contamina la cifra entera.
+    if (!hasSomethingToPublish({ stats: myStats, enrichedItems })) { await refresh(); return true }
     try {
       const res = await api({ action: 'sync', displayName, avatar, stats: myStats })
       setVerified(!!res?.verified)
@@ -261,7 +277,7 @@ function FriendsPageInner() {
       flash(e.message, 'warn')
       return false
     }
-  }, [api, myStats, displayName, avatar, refresh, flash, saveSettings])
+  }, [api, myStats, enrichedItems, friendsDisabled, displayName, avatar, refresh, flash, saveSettings])
 
   const [refreshing, setRefreshing] = useState(false)
   const handleManualRefresh = useCallback(async () => {
@@ -272,6 +288,9 @@ function FriendsPageInner() {
   useEffect(() => {
     if (syncedRef.current) return
     if (!user || dataLoading) return
+    // Apagado: ni publicar ni cargar grupos (la pantalla muestra el aviso de
+    // reactivar y nada más). El ref NO se marca: al reactivar debe reintentar.
+    if (friendsDisabled) return
     // La regla de "¿hay algo que publicar?" también es compartida: el tablero
     // la evalúa sobre los mismos datos, y con dos copias una cartera podía
     // contar como vacía en una superficie y no en la otra.
@@ -287,7 +306,7 @@ function FriendsPageInner() {
     // una primera publicación fallida quedaba trabada el resto de la sesión sin
     // ningún reintento.
     doSync().then((ok) => { if (ok) syncedRef.current = true })
-  }, [user, dataLoading, myStats, enrichedItems, doSync, refresh])
+  }, [user, dataLoading, friendsDisabled, myStats, enrichedItems, doSync, refresh])
 
   const handleUpdate = useCallback(async () => {
     setBusy(true)
@@ -465,8 +484,48 @@ function FriendsPageInner() {
     </div>
   )
 
+  // Amigos apagado: la pantalla lo DICE y ofrece reactivar, en vez de operar
+  // como si nada sobre una función cuyo perfil público ya se borró. Antes esta
+  // página ni consultaba `friendsEnabled`: publicaba en el mount y recargaba
+  // grupos igual, o sea deshacía en silencio lo que el usuario apagó a
+  // conciencia en Ajustes (una decisión de PRIVACIDAD).
+  // Va después de todos los hooks (regla dura de este repo).
+  if (friendsDisabled) {
+    return (
+      <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+        <PageTitle icon={Users}
+          title={t('Amigos', 'Friends')}
+          subtitle={t('Compara tu retorno con tus amigos: sin revelar montos.', 'Compare your return with friends: without revealing amounts.')} />
+        <div className="card p-6 text-center space-y-3">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {t('Amigos está desactivado', 'Friends is turned off')}
+          </p>
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {t('Lo apagaste en Ajustes: tu perfil público se borró y saliste de tus grupos. Nada tuyo está publicado.',
+               'You turned it off in Settings: your public profile was deleted and you left your groups. Nothing of yours is published.')}
+          </p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {t('Si lo reactivas, tus porcentajes (nunca montos) se vuelven a publicar y puedes crear o unirte a grupos otra vez.',
+               'If you turn it back on, your percentages (never amounts) get published again and you can create or join groups.')}
+          </p>
+          <button onClick={async () => {
+            setReactivating(true)
+            try { await saveSettings({ friendsEnabled: true }) }
+            catch (e) { flash(e?.message || t('No se pudo reactivar', 'Could not turn it back on'), 'warn') }
+            finally { setReactivating(false) }
+          }} disabled={reactivating}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
+            style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+            <BusyLabel busy={reactivating} lang={lang}>{t('Reactivar Amigos', 'Turn Friends back on')}</BusyLabel>
+          </button>
+        </div>
+      </PageShell>
+    )
+  }
+
   return (
     <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow"
+      demoActive={hasDemoData(enrichedItems)}
       // Sin esto el botón de refrescar del header es un control MUERTO en esta
       // pantalla: PageShell le pasa `onRefresh={() => {}}` por default, y el
       // spread de headerProps es lo último, así que lo pisa.

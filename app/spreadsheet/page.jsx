@@ -14,6 +14,7 @@ import PageTour from '@/components/dashboard/PageTour'
 import Header from '@/components/dashboard/Header'
 import MobileNav from '@/components/dashboard/MobileNav'
 import { TEMPLATES } from '@/lib/spreadsheet/formulas'
+import { hasDemoData } from '@/lib/demoData'
 
 const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/SpreadsheetGrid'), { ssr: false })
 const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
@@ -284,6 +285,27 @@ export default function SpreadsheetPage() {
           )}
         </div>
       </div>
+
+      {/* Modo demo: misma banda que PageShell dibuja en las otras pantallas
+          (esta página arma su header a mano y no pasa por PageShell). Sin ella,
+          la Hoja mostraba los números de ejemplo sin ninguna marca de que no
+          son tuyos. */}
+      {hasDemoData(items) && (
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {t('Estás explorando con datos de ejemplo: nada de esto es tuyo todavía.',
+                 'You are exploring with sample data: none of this is yours yet.')}
+            </span>
+            <button onClick={() => router.push('/dashboard')}
+              className="shrink-0 px-2.5 py-1 rounded-lg font-medium"
+              style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+              {t('Ir al tablero', 'Go to dashboard')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Templates dropdown */}
       {showTemplates && (

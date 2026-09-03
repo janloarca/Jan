@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { computeCosts } from '@/lib/costsSummary'
+import { hasDemoData } from '@/lib/demoData'
 import PageShell, { PageTitle } from '@/components/PageShell'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import { SkeletonCard } from '@/components/dashboard/Skeleton'
@@ -115,7 +116,8 @@ export default function CostsPage() {
   const maxMonth = Math.max(1, ...shownMonths.map((m) => costs.byMonth[m].total))
 
   return (
-    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow">
+    <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="narrow"
+      demoActive={hasDemoData(portfolioItems)}>
         {/* El selector de año era la firma exacta de SegmentedTabs (pastillas
             sobre un riel `--bg-tertiary`) escrita a mano: sin `role="tablist"`,
             sin el difuminado que avisa que la fila sigue, y con `py-1`, o sea un

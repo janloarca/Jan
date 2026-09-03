@@ -13,7 +13,16 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
 
   const usingDefaultTargets = !goals?.allocationTargets
   const targets = goals?.allocationTargets || DEFAULT_TARGETS
+  // El form NO se siembra en el mount: `goals` llega async, así que sembrarlo
+  // una sola vez lo dejaba con los DEFAULTS de fábrica aunque el usuario ya
+  // tuviera su plan guardado — abrir Editar y tocar Guardar PISABA el plan real
+  // con 40/20/15/10/5 sin ninguna señal. Se siembra al ABRIR el editor, desde
+  // lo guardado en ese momento (mismo patrón re-seed de SettingsModal, FASE MW).
   const [form, setForm] = useState({ ...DEFAULT_TARGETS, ...targets })
+  const openEditor = () => {
+    setForm({ ...DEFAULT_TARGETS, ...(goals?.allocationTargets || DEFAULT_TARGETS) })
+    setEditing(true)
+  }
 
   const allocation = useMemo(() => {
     const cats = {}
@@ -76,7 +85,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
               {t('Drift', 'Drift')}: {maxDrift.toFixed(1)}%
             </span>
           )}
-          <button onClick={() => setEditing(!editing)}
+          <button onClick={() => (editing ? setEditing(false) : openEditor())}
             className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
             {editing ? t('Cancelar', 'Cancel') : t('Editar', 'Edit')}
           </button>
@@ -102,9 +111,17 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
             </div>
           ))}
           <div className="flex items-center justify-between pt-2">
-            <span className="text-xs text-slate-500">
-              {t('Total', 'Total')}: {Object.values(form).reduce((s, v) => s + (v || 0), 0)}%
-            </span>
+            {(() => {
+              const total = Object.values(form).reduce((s, v) => s + (v || 0), 0)
+              // Un plan que no suma 100 no bloquea el guardado (puede ser una
+              // decisión: dejar 5% "sin asignar"), pero decirlo evita que un
+              // typo pase como plan.
+              return (
+                <span className="text-xs" style={total === 100 ? { color: 'var(--text-muted)' } : { color: 'var(--alert-warn-icon)' }}>
+                  {t('Total', 'Total')}: {total}%{total !== 100 ? ` · ${t('no suma 100', 'does not add to 100')}` : ''}
+                </span>
+              )
+            })()}
             <button onClick={handleSave}
               className="px-3 py-1.5 text-xs bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff' }}>
               {t('Guardar', 'Save')}

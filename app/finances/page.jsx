@@ -15,6 +15,7 @@ import PullToRefresh from '@/components/ui/PullToRefresh'
 import ModalMount from '@/components/ui/ModalMount'
 import useModalExit from '@/hooks/useModalExit'
 import { computeLoadStages } from '@/lib/loadStages'
+import { hasDemoData } from '@/lib/demoData'
 import MonthSelector from '@/components/finance/MonthSelector'
 import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
 import BreakdownCard from '@/components/finance/BreakdownCard'
@@ -347,6 +348,7 @@ export default function FinancesPage() {
     // stages are the data listener and the exchange rate fetch.
     <PageShell
       user={user} lang={lang} setLang={handleSetLang} settings={settings} width="wide"
+      demoActive={hasDemoData(items)}
       onAdd={() => setModal('add')}
       onImport={() => setModal('import')}
       onExport={handleExportCsv}
@@ -615,6 +617,8 @@ export default function FinancesPage() {
           onClose={() => setModal(null)}
           onAdd={addFinanceTransaction}
           lang={lang}
+          month={month}
+          year={year}
         />
       )}
       </ModalMount>
