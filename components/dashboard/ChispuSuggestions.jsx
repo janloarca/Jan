@@ -24,15 +24,27 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   })
   const [expanded, setExpanded] = useState(false)
   const [applied, setApplied] = useState(() => new Set())
+  const [applyFailed, setApplyFailed] = useState(() => new Set())
 
   // Findings with a resolved patch stay VISIBLE right after applying (their
   // own next recompute will drop them once items actually update) but their
   // row swaps to a small confirmation so the click reads as "done", not as
   // nothing happening.
-  const applySuggestion = (f) => {
+  //
+  // FASE NB: "Aplicado" solo se marca DESPUÉS de que updateItem confirmó.
+  // Antes se marcaba al disparar, así que un guardado fallido (updateItem es
+  // optimista y LANZA al revertir) dejaba el check verde sobre un dato que
+  // Firestore nunca recibió: la sugerencia reaparecía en la próxima sesión
+  // "sin razón" para el usuario.
+  const applySuggestion = async (f) => {
     if (!f.suggestion || !f.itemId || !onApplySuggestion) return
-    onApplySuggestion(f.itemId, f.suggestion.patch)
-    setApplied((p) => new Set(p).add(f.id))
+    setApplyFailed((p) => { const n = new Set(p); n.delete(f.id); return n })
+    try {
+      await onApplySuggestion(f.itemId, f.suggestion.patch)
+      setApplied((p) => new Set(p).add(f.id))
+    } catch {
+      setApplyFailed((p) => new Set(p).add(f.id))
+    }
   }
 
   const visible = useMemo(() => findings.filter((f) => !dismissed.has(f.id)), [findings, dismissed])
@@ -136,6 +148,11 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
               {applied.has(f.id) && (
                 <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
                   ✓ {t('Aplicado', 'Applied')}
+                </p>
+              )}
+              {applyFailed.has(f.id) && (
+                <p className="text-xs mt-1" role="alert" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {t('No se pudo guardar. Toca "Usar esto" otra vez.', 'Could not save. Tap "Use this" again.')}
                 </p>
               )}
             </div>

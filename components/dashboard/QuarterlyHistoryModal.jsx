@@ -232,6 +232,14 @@ export default function QuarterlyHistoryModal({
       return
     }
     setSaving(true)
+    // FASE NB: los contadores viven FUERA del try. Antes `saved` se declaraba
+    // adentro, así que un fallo en el trimestre 8 de 14 caía a un catch que
+    // decía "No se pudo guardar" a secas: los 7 ya escritos quedaban en
+    // Firestore y el mensaje afirmaba lo contrario, invitando a re-teclear
+    // todo. Re-guardar no duplica (el id del doc es la fecha), pero el usuario
+    // no tiene por qué saberlo si el error no se lo dice.
+    let saved = 0
+    let skipped = 0
     try {
       // ⛔ FASE KA. Cada fila pasa por el planificador antes de escribirse. Una
       // transcripción es NAV de UNA cuenta: no puede fusionarse encima de la
@@ -239,8 +247,6 @@ export default function QuarterlyHistoryModal({
       // más común es el trimestre EN CURSO, que se fecha HOY, donde casi
       // siempre hay un doc 'daily'), ni pisar el NAV diario real del mismo
       // broker, que es la misma medición pero más fina.
-      let saved = 0
-      let skipped = 0
       for (const j of jobs) {
         const plan = planQuarterlyNavWrite(j.date, snapshots)
         if (plan.action !== 'write') { skipped++; continue }
@@ -288,7 +294,10 @@ export default function QuarterlyHistoryModal({
       ))
       if (onSaved) onSaved(saved)
     } catch {
-      setError(t('No se pudo guardar. Intenta de nuevo.', 'Could not save. Try again.'))
+      setError(saved > 0
+        ? t(`Se guardaron ${saved} trimestres y ahí falló la conexión. Vuelve a apretar Guardar: los ya guardados no se duplican.`,
+            `${saved} quarters were saved and then the connection failed. Press Save again: the ones already saved will not duplicate.`)
+        : t('No se pudo guardar. Intenta de nuevo.', 'Could not save. Try again.'))
     } finally {
       setSaving(false)
     }

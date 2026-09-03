@@ -61,6 +61,11 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
   // layer writes (users/{uid}/settings/preferences): loaded once on open so
   // the select can offer them again, saved on confirm.
   const [savedWallets, setSavedWallets] = useState([])
+  // FASE NB: el import real (onSyncComplete escribe a Firestore) tiene su
+  // propio estado de ocupado y su propio error. Antes handleConfirm disparaba
+  // y cerraba el modal en el acto: una escritura que fallara a mitad dejaba
+  // "importado" en la cara del usuario sin que nada lo dijera.
+  const [importing, setImporting] = useState(false)
 
   const t = (es, en) => lang === 'es' ? es : en
 
@@ -136,7 +141,9 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
   }, [addresses, t])
 
   const handleConfirm = useCallback(async () => {
-    if (!results) return
+    if (!results || importing) return
+    setError('')
+    setImporting(true)
 
     // The wallet the user typed under "Otra wallet" becomes the institution
     // (and a saved option for next time); empty text keeps the generic label.
@@ -243,9 +250,19 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
       }
     }
 
-    onSyncComplete({ items, transactions, mode: 'merge' })
-    onClose()
-  }, [results, custody, customName, savedWallets, onSyncComplete, onClose, t])
+    // El handler del dashboard es async y escribe a Firestore: se espera y se
+    // cierra SOLO si terminó bien. Cerrar antes de saber convierte un fallo de
+    // red en un "importado" falso (FASE NB).
+    try {
+      await onSyncComplete({ items, transactions, mode: 'merge' })
+      onClose()
+    } catch (err) {
+      setError(t(`No se pudo importar: ${err?.message || 'error de conexión'}. Nada se cerró: intenta de nuevo.`,
+        `Import failed: ${err?.message || 'connection error'}. Nothing was closed: try again.`))
+    } finally {
+      setImporting(false)
+    }
+  }, [results, importing, custody, customName, savedWallets, onSyncComplete, onClose, t])
 
   const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
@@ -390,14 +407,22 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
               </div>
             )}
 
+            {error && (
+              <div className="p-3 rounded-lg text-xs whitespace-pre-wrap"
+                style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
+                {error}
+              </div>
+            )}
             <div className="flex gap-3">
-              <button onClick={() => { setStep('input'); setResults(null) }}
-                className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-base transition-colors text-sm">
+              <button onClick={() => { setStep('input'); setResults(null) }} disabled={importing}
+                className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-base transition-colors text-sm disabled:opacity-50">
                 {t('Atrás', 'Back')}
               </button>
-              <button onClick={handleConfirm}
-                className="flex-1 py-2.5 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
-                {t('Importar', 'Import')} ({results.results.length})
+              <button onClick={handleConfirm} disabled={importing}
+                className="flex-1 py-2.5 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors text-sm font-medium disabled:opacity-60" style={{ color: '#ffffff' }}>
+                <BusyLabel busy={importing} lang={lang}>
+                  {t('Importar', 'Import')} ({results.results.length})
+                </BusyLabel>
               </button>
             </div>
           </div>

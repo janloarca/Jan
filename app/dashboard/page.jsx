@@ -354,7 +354,6 @@ export default function DashboardPage() {
   // persistir (recargar la página ya pasa por la cadencia del auto-sync).
   const [ibkrCooldownUntil, setIbkrCooldownUntil] = useState(0)
   const toastTimer = useRef(null)
-  const [staleCode, setStaleCode] = useState(false)
 
 
   const { entities, addEntity, updateEntity: updateEntityData, deleteEntity } = useEntities()
@@ -451,15 +450,12 @@ export default function DashboardPage() {
     return () => { unsubscribe(); if (refreshInterval) clearInterval(refreshInterval) }
   }, [router])
 
-  useEffect(() => {
-    const clientBuild = process.env.NEXT_BUILD_ID || '__dev__'
-    if (clientBuild === '__dev__') return
-    fetch('/api/version').then(r => r.json()).then(data => {
-      if (data.buildId && data.buildId !== '__dev__' && data.buildId !== clientBuild) {
-        setStaleCode(true)
-      }
-    }).catch(() => {})
-  }, [])
+  // FASE NB: el chequeo de version propio de esta pagina se QUITO. Habia DOS
+  // superficies avisando "hay version nueva" a la vez (esta + UpdateAvailablePill
+  // del layout, que ademas recarga con cache-busting, el unico reload que
+  // funciona en iOS Safari por FASE HK/HM), y encima este banner tenia la
+  // prioridad MAS ALTA de topBanner: una noticia de build tapaba un token de
+  // IBKR vencido. Una sola superficie de version: el pill.
 
   // Data layer
   const {
@@ -760,7 +756,7 @@ export default function DashboardPage() {
       console.error('[ibkr] vault clear on disconnect failed:', e?.message)
       showToast(lang === 'es'
         ? 'IBKR desconectado aquí, pero no pudimos borrar la copia del servidor. Volvé a intentarlo.'
-        : 'IBKR disconnected here, but we could not clear the server copy. Please try again.')
+        : 'IBKR disconnected here, but we could not clear the server copy. Please try again.', 'warn')
     }
   }, [saveSettings, showToast, lang])
 
@@ -1020,7 +1016,7 @@ export default function DashboardPage() {
     // Antes era un `return` mudo: el clic simplemente no hacía nada, sin toast
     // ni error. Se copia la forma que handleReport ya usa para lo mismo.
     if (items.length === 0) {
-      showToast(lang === 'es' ? 'Agrega activos antes de exportar' : 'Add assets before exporting')
+      showToast(lang === 'es' ? 'Agrega activos antes de exportar' : 'Add assets before exporting', 'warn')
       return
     }
     showToast(lang === 'es' ? 'Generando Excel...' : 'Generating Excel...', 'info')
@@ -1120,7 +1116,7 @@ export default function DashboardPage() {
 
   const handleReport = useCallback(async () => {
     if (!enrichedItems || enrichedItems.length === 0) {
-      showToast(lang === 'es' ? 'Agrega activos antes de generar el reporte' : 'Add assets before generating the report')
+      showToast(lang === 'es' ? 'Agrega activos antes de generar el reporte' : 'Add assets before generating the report', 'warn')
       return
     }
     try {
@@ -1138,7 +1134,11 @@ export default function DashboardPage() {
       showToast(lang === 'es' ? 'PDF descargado' : 'PDF downloaded')
     } catch (err) {
       console.error('[report] generation failed:', err)
-      showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF')
+      // 'warn' y no el default (exito, con su check verde): un PDF que fallo
+      // mostrado con el tono de exito es la peor forma de fallar. Tampoco
+      // 'error': es reintentable, y la regla de lib/toastStyle.js reserva el
+      // rojo para lo grave o irreversible.
+      showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF', 'warn')
     }
   }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
@@ -1147,7 +1147,7 @@ export default function DashboardPage() {
     // 0" y lo mandaba al share nativo o al portapapeles, o sea publicaba una
     // cartera vacía como si fuera un dato. Mismo aviso que exportar.
     if (enrichedItems.length === 0) {
-      showToast(lang === 'es' ? 'Agrega activos antes de compartir' : 'Add assets before sharing')
+      showToast(lang === 'es' ? 'Agrega activos antes de compartir' : 'Add assets before sharing', 'warn')
       return
     }
     const t = (es, en) => lang === 'es' ? es : en
@@ -1271,7 +1271,6 @@ export default function DashboardPage() {
     // was greeted by an amber "exchange rates outdated" warning above the welcome
     // screen, which reads as "this is broken" before they've added anything.
     if (portfolioItems.length === 0) return null
-    if (staleCode) return 'stale'
     // FASE HX: TODA rama de IBKR pasa por ibkrNeedsAttention (la regla de los
     // 5 días hábiles). TOKEN_EXPIRED/INVALID_QUERY salían aquí SIN esa
     // compuerta, así que un solo intento fallido con esos códigos encendía el
@@ -1298,7 +1297,7 @@ export default function DashboardPage() {
     // looking. It used to sit under the YTD figure, where it read as a
     // complaint about the number itself.
     return null
-  }, [staleCode, ibkrSyncErrorCode, ibkrNeedsAttention, everIbkrSynced, settings?._ibkrConnectedAt, pricesError, ratesError, portfolioItems.length])
+  }, [ibkrSyncErrorCode, ibkrNeedsAttention, everIbkrSynced, settings?._ibkrConnectedAt, pricesError, ratesError, portfolioItems.length])
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
@@ -1346,7 +1345,7 @@ export default function DashboardPage() {
         loadStagesDone={loadStages.done}
         loadStagesTotal={loadStages.total}
         // Reflects the SAME error signal the "prices" banner already uses
-        // (see staleCode above) — the button's error state and the banner
+        // (see topBanner's 'prices' branch) — the button's error state and the banner
         // can never disagree about whether the last refresh actually failed.
         // Both hooks clear their own error on the next fetch attempt, so a
         // retry click clears this automatically once the retry lands.
@@ -1375,15 +1374,10 @@ export default function DashboardPage() {
         const es = lang === 'es'
         const ibkrFix = { secondaryLabel: es ? 'Desconectar' : 'Disconnect', onSecondary: handleIbkrDisconnect, onAction: () => setModal('ibkr') }
         const BANNERS = {
-          stale: {
-            tone: 'brand', icon: 'refresh',
-            message: es ? 'Hay una nueva versión disponible' : 'A new version is available',
-            actionLabel: es ? 'Actualizar' : 'Update',
-            onAction: () => {
-              if (typeof caches !== 'undefined') caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k))))
-              window.location.reload()
-            },
-          },
+          // La entrada 'stale' se fue con el chequeo de versión duplicado (ver
+          // el comentario donde vivía el efecto): el aviso de build es del
+          // UpdateAvailablePill del layout, cuya recarga con cache-busting es
+          // la que de verdad funciona en iOS Safari.
           'ibkr-expired': {
             ...ibkrFix,
             message: es ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated',
