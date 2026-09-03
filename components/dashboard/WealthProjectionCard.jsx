@@ -8,7 +8,7 @@ import { formatCurrency } from './utils'
 import {
   normalizePlan, planTotalsByMonth, planTotalsForFutureYear, firstPlannedMonth, serializePlan, REPEAT_MONTHLY,
 } from '@/lib/incomePlan'
-import { projectWealth, projectToGoal, savingsRateForGoal, suggestSavingsRate, annualizedReturnPct, savingsRateFromProfile } from '@/lib/wealthProjection'
+import { projectWealth, projectToGoal, savingsRateForGoal, goalChartGeometry, suggestSavingsRate, annualizedReturnPct, savingsRateFromProfile } from '@/lib/wealthProjection'
 import { clampTargetYear, readGoal, goalInBase, portfolioValue } from '@/lib/goalFields'
 
 // El otro lado del plan de ingresos: en Flujo se arma el calendario, acá se
@@ -213,6 +213,11 @@ export default function WealthProjectionCard({
     return { ...projectToGoal(params), neededPct: savingsRateForGoal(params) }
   }, [goalOn, totalAssets, netWorth, income, futureIncome, plan.savingsRate, savingsDefault, returnPct, growthPct, fromMonth, year, targetYear, goalValue])
 
+  const goalChart = useMemo(
+    () => (goalRun ? goalChartGeometry(goalRun.points, goalValue) : null),
+    [goalRun, goalValue]
+  )
+
   const setSavingsFor = useCallback((month, value) => {
     // parseRate y no Number(): Number('42,5') es NaN y caia a 0, o sea el
     // porcentaje se perdia entero al teclear una coma. El clamp 0-100 se queda
@@ -416,6 +421,50 @@ export default function WealthProjectionCard({
                 >
                   {t(`Poner el ahorro en ${goalRun.neededPct}%`, `Set savings to ${goalRun.neededPct}%`)}
                 </button>
+              )}
+
+              {goalChart && (
+                <div className="mb-2">
+                  <svg data-goal-chart viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-20" aria-hidden="true">
+                    <polygon points={goalChart.area} fill="var(--accent-blue)" opacity="0.12" />
+                    <polyline points={goalChart.line} fill="none" stroke="var(--accent-blue)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                    {goalChart.goalY != null && (
+                      <line
+                        data-goal-line
+                        x1="0" x2="100" y1={goalChart.goalY} y2={goalChart.goalY}
+                        stroke="var(--accent-green)" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke"
+                      />
+                    )}
+                    {goalChart.cross && (
+                      <circle data-goal-cross cx={goalChart.cross.x} cy={goalChart.cross.y} r="2.5"
+                        fill="var(--accent-green)" vectorEffect="non-scaling-stroke" />
+                    )}
+                  </svg>
+                  {/* La gráfica es decorativa (aria-hidden): lo que de verdad
+                      dice el recorrido está en el veredicto y en la lista de
+                      años, que sí se leen con lector de pantalla. Lo único que
+                      necesita voz propia es cuando la meta NO se pudo dibujar,
+                      porque si no una gráfica sin línea verde y una donde la
+                      meta cae fuera son la misma imagen. */}
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    {goalChart.goalOffChart
+                      ? t(`Tu meta queda muy por encima de esta escala, así que no se dibuja: la línea muestra a dónde llegás, no dónde está la meta. De ${fmt(goalRun.startValue)} en ${months[fromMonth]} ${year} a ${fmt(goalRun.endValue)} en diciembre ${targetYear}.`,
+                          `Your goal sits far above this scale, so it is not drawn: the line shows where you land, not where the goal is. From ${fmt(goalRun.startValue)} in ${months[fromMonth]} ${year} to ${fmt(goalRun.endValue)} in December ${targetYear}.`)
+                      : t(`La línea punteada es tu meta. De ${fmt(goalRun.startValue)} en ${months[fromMonth]} ${year} a ${fmt(goalRun.endValue)} en diciembre ${targetYear}.`,
+                          `The dashed line is your goal. From ${fmt(goalRun.startValue)} in ${months[fromMonth]} ${year} to ${fmt(goalRun.endValue)} in December ${targetYear}.`)}
+                  </p>
+                  {/* El arranque de esta gráfica son los ACTIVOS y el de la de
+                      arriba el patrimonio NETO, así que con una deuda viva las
+                      dos empiezan a alturas distintas. Se DICE cuando pasa: dos
+                      gráficas en la misma card arrancando en números distintos
+                      sin explicación se leen como un error. */}
+                  {Math.abs(goalRun.startValue - projection.startValue) > 0.005 && (
+                    <p data-goal-basis className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {t(`Arranca en tus activos (${fmt(goalRun.startValue)}) y no en el patrimonio neto: la meta es de portafolio, y pagar una deuda no lo hace crecer.`,
+                         `It starts from your assets (${fmt(goalRun.startValue)}), not net worth: the goal is about the portfolio, and paying down debt does not grow it.`)}
+                    </p>
+                  )}
+                </div>
               )}
 
               <label className="flex items-center justify-between gap-2 rounded-lg border p-2 mb-2" style={{ borderColor: 'var(--card-border)' }}>
