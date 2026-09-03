@@ -32,6 +32,11 @@ export default function UpdateAvailablePill({ buildId }) {
     try { if (localStorage.getItem('chispudo-lang') === 'en') setLang('en') } catch {}
   }, [])
   const [serverBuild, setServerBuild] = useState(null)
+  // Se puede descartar, pero SOLO ese build: si el servidor avanza a otro build
+  // el aviso vuelve solo. Un descarte permanente dejaría a la pestaña pegada al
+  // bundle viejo sin ninguna señal, que es exactamente lo que este pill existe
+  // para impedir (FASE HK/HM).
+  const [dismissedBuild, setDismissedBuild] = useState(null)
 
   useEffect(() => {
     if (!buildId || buildId === '__dev__') return
@@ -54,7 +59,7 @@ export default function UpdateAvailablePill({ buildId }) {
     return () => { cancelled = true; clearTimeout(first); clearInterval(timer) }
   }, [buildId])
 
-  if (!serverBuild) return null
+  if (!serverBuild || serverBuild === dismissedBuild) return null
 
   const reload = () => {
     try {
@@ -67,8 +72,7 @@ export default function UpdateAvailablePill({ buildId }) {
   }
 
   return (
-    <button
-      onClick={reload}
+    <div
       className="fixed left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-3 py-2 rounded-full text-xs font-medium shadow-lg"
       style={{
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)',
@@ -76,10 +80,17 @@ export default function UpdateAvailablePill({ buildId }) {
         color: '#fff',
       }}
     >
-      <span>{lang === 'es' ? 'Hay una versión nueva. Tocá para actualizar' : 'A new version is ready. Tap to update'}</span>
-      <span style={{ opacity: 0.7 }}>
-        {String(buildId).slice(0, 6)}→{String(serverBuild).slice(0, 6)}
-      </span>
-    </button>
+      <button onClick={reload} className="flex items-center gap-2">
+        <span>{lang === 'es' ? 'Hay una versión nueva. Tocá para actualizar' : 'A new version is ready. Tap to update'}</span>
+        <span style={{ opacity: 0.7 }}>
+          {String(buildId).slice(0, 6)}→{String(serverBuild).slice(0, 6)}
+        </span>
+      </button>
+      <button onClick={() => setDismissedBuild(serverBuild)}
+        aria-label={lang === 'es' ? 'Descartar aviso' : 'Dismiss'}
+        className="pl-1 font-bold" style={{ opacity: 0.8 }}>
+        &times;
+      </button>
+    </div>
   )
 }

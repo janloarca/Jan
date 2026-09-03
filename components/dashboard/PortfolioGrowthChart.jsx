@@ -1738,12 +1738,25 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // Sanity gates: a fat-fingered extra zero or a future date silently corrupts
     // the chart's scale/history. Zero/negative rows also used to "save" and then
     // vanish (the chart filters value>0) with no explanation.
-    const valid = snapshotRows.filter(r => {
-      const v = parseFloat(r.value)
+    //
+    // FASE NB: el gate juzga con parseAmount, el MISMO lector con el que se
+    // guarda tres lineas abajo. Antes juzgaba con parseFloat: "0,5" (coma
+    // decimal, el teclado en espanol) daba 0 y se rechazaba aunque el guardado
+    // la leia perfecta, o sea el gate y el escritor discrepaban sobre la misma
+    // fila. Y una fila invalida entre varias validas se DESCARTABA en
+    // silencio: ahora se rehusa el lote entero nombrando cuantas, porque
+    // guardar un subconjunto sin decirlo se lee como "todo guardado".
+    const filled = snapshotRows.filter(r => r.date || String(r.value ?? '').trim() !== '')
+    const valid = filled.filter(r => {
+      const v = parseAmount(r.value)
       return r.date && r.date <= todayStr && isFinite(v) && v > 0
     })
-    if (valid.length === 0) {
-      setFetchError(t('Revisa las filas: fecha pasada y valor mayor a 0.', 'Check the rows: past date and value above 0.'))
+    if (valid.length === 0 || valid.length < filled.length) {
+      const bad = filled.length - valid.length
+      setFetchError(valid.length === 0
+        ? t('Revisa las filas: fecha pasada y valor mayor a 0.', 'Check the rows: past date and value above 0.')
+        : t(`No se guardó nada: ${bad} ${bad === 1 ? 'fila necesita' : 'filas necesitan'} fecha pasada y valor mayor a 0.`,
+            `Nothing was saved: ${bad} ${bad === 1 ? 'row needs' : 'rows need'} a past date and a value above 0.`))
       return
     }
     setSnapshotSaving(true)

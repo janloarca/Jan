@@ -83,10 +83,20 @@ export default function ShareTab({
 
   const shareUrlFor = (token) => `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${token}`
 
-  const copyShareLink = (token) => {
-    navigator.clipboard.writeText(shareUrlFor(token))
-    setShareCopied(token)
-    setTimeout(() => setShareCopied(null), 2000)
+  // FASE NB: "Copiado" solo se afirma si el portapapeles ACEPTÓ la escritura.
+  // navigator.clipboard.writeText devuelve una promesa que puede rechazar
+  // (permiso denegado, pestaña sin foco, Safari sin gesto), y antes se marcaba
+  // "copiado" sin esperarla: el usuario pegaba en WhatsApp lo que tuviera el
+  // portapapeles de antes, creyendo que era el link del cliente.
+  const copyShareLink = async (token) => {
+    try {
+      await navigator.clipboard.writeText(shareUrlFor(token))
+      setShareCopied(token)
+      setTimeout(() => setShareCopied(null), 2000)
+      return true
+    } catch {
+      return false
+    }
   }
 
   const handleCreateShare = async () => {
@@ -106,8 +116,10 @@ export default function ShareTab({
       setShareLinks((prev) => [...(prev || []), link])
       setShareCreating(false)
       setShareForm(EMPTY_FORM)
-      copyShareLink(link.token)
-      flash('ok', t('Link creado y copiado', 'Link created and copied'))
+      const copied = await copyShareLink(link.token)
+      flash('ok', copied
+        ? t('Link creado y copiado', 'Link created and copied')
+        : t('Link creado. Copialo desde la lista.', 'Link created. Copy it from the list.'))
     } catch (e) { flash('err', e.message) }
     setShareLoading(false)
   }
@@ -277,7 +289,10 @@ export default function ShareTab({
                         className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
                         ✎
                       </button>
-                      <button onClick={() => copyShareLink(link.token)}
+                      <button onClick={async () => {
+                        const ok = await copyShareLink(link.token)
+                        if (!ok) flash('err', t('No se pudo copiar. Copialo a mano: mantén presionado el link.', 'Could not copy. Copy it by hand: long-press the link.'))
+                      }}
                         className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}
                       </button>

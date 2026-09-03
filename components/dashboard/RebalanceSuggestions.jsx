@@ -55,11 +55,25 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
   const maxDrift = Math.max(...allocation.categories.map((c) => Math.abs(c.diff)), 0)
   const isBalanced = maxDrift < 5
 
-  const handleSave = () => {
-    if (onSaveGoals) {
-      onSaveGoals({ ...goals, allocationTargets: form })
+  // FASE NB: el guardado se ESPERA y el editor solo se cierra si terminó bien.
+  // Antes era disparar-y-cerrar: un fallo de red dejaba el editor cerrado con
+  // los % nuevos en pantalla (estado local) mientras Firestore conservaba los
+  // viejos, y en la próxima carga el plan "guardado" volvía solo al anterior.
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const handleSave = async () => {
+    if (saving) return
+    setSaveError('')
+    setSaving(true)
+    try {
+      if (onSaveGoals) await onSaveGoals({ ...goals, allocationTargets: form })
+      setEditing(false)
+    } catch {
+      setSaveError(t('No se pudo guardar. Revisa tu conexión e intenta de nuevo.',
+        'Could not save. Check your connection and try again.'))
+    } finally {
+      setSaving(false)
     }
-    setEditing(false)
   }
 
   return (
@@ -122,11 +136,14 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                 </span>
               )
             })()}
-            <button onClick={handleSave}
-              className="px-3 py-1.5 text-xs bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors" style={{ color: '#ffffff' }}>
-              {t('Guardar', 'Save')}
+            <button onClick={handleSave} disabled={saving}
+              className="px-3 py-1.5 text-xs bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-60" style={{ color: '#ffffff' }}>
+              {saving ? t('Guardando...', 'Saving...') : t('Guardar', 'Save')}
             </button>
           </div>
+          {saveError && (
+            <p className="text-xs" role="alert" style={{ color: 'var(--alert-warn-icon)' }}>{saveError}</p>
+          )}
         </div>
       ) : (
         <div className="space-y-2">

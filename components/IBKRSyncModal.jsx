@@ -56,7 +56,20 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
   // When there is no value history, don't auto-close: the user needs time to read
   // the warning and reach for the Activity Statement complement.
   const needsHistory = result.items > 0 && result.equityHistory <= 1
-  const [countdown, setCountdown] = useState(needsHistory ? -1 : 5)
+  // FASE NB. Cada condición de aviso se calcula UNA vez y se usa tanto para el
+  // render como para decidir si el modal se puede cerrar solo. Antes solo
+  // needsHistory desactivaba el auto-cierre: los otros avisos (token sin
+  // guardar, historial corto, cero depósitos, multi-cuenta, import parcial)
+  // aparecían bajo un "Sincronización exitosa" que se cerraba solo a los 5s,
+  // o sea el usuario veía un flash ámbar desaparecer antes de poder leerlo.
+  // Un modal que se cierra solo está afirmando "no hay nada más que leer acá".
+  const shortHistory = result.items > 0 && result.equityHistory > 1 && result.equityOldest
+    && new Date(result.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
+  const zeroFlows = result.items > 0 && !!result.sections && (result.impFlows ?? 0) === 0
+  const multiAccount = !!result.sections && ((result.sections.unattributedEquityDates ?? 0) > 0
+    || (result.sections.unattributedCashCurrencies ?? 0) > 0)
+  const hasWarnings = needsHistory || !!credWarning || shortHistory || zeroFlows || multiAccount || !!result.partial
+  const [countdown, setCountdown] = useState(hasWarnings ? -1 : 5)
 
   useEffect(() => {
     if (countdown < 0) return
@@ -81,7 +94,7 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
           {result.equityHistory} {t('días de historial guardados', 'days of history saved')}
         </p>
       )}
-      {result.items > 0 && result.equityHistory <= 1 && (
+      {needsHistory && (
         <div className="mt-3 mx-auto max-w-xs">
           <p className="text-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
             {/* FASE KE. Antes esto ofrecía el Activity Statement diciendo que
@@ -125,8 +138,7 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
       )}
       {/* History present but SHORT: the query period truncates it, so YTD can't
           match the broker. Same actionable fix: widen the period, re-sync. */}
-      {result.items > 0 && result.equityHistory > 1 && result.equityOldest
-        && new Date(result.equityOldest).getTime() > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000 && (
+      {shortHistory && (
         <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
           {/* FASE KE: decía "Year to Date", igual que el consejo de
               EMPTY_REPORT. Contradice la instrucción principal y, en enero, YTD
@@ -146,7 +158,7 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
           account with genuinely no external flows in the window is legitimate
           and rare, not wrong. Gated on result.sections so an older result
           shape without the forensic counts can never false-alarm. */}
-      {result.items > 0 && result.sections && (result.impFlows ?? 0) === 0 && (
+      {zeroFlows && (
         <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
           {(result.sections.cashTransactions ?? 0) === 0
             ? t('No llegó ningún depósito ni retiro (la sección "Cash Transactions" no vino en el archivo). Si depositaste o retiraste dinero en el período, edita tu Flex Query, agrega "Cash Transactions" con el tipo "Deposits & Withdrawals" marcado, y sincroniza de nuevo: sin esos movimientos, tus depósitos se cuentan como ganancia en los retornos.',
@@ -165,8 +177,7 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
           segunda forma está observada, no es hipotética: ver el comentario de
           parseCashPositions), así que sumar contaría el mismo dinero dos veces.
           Se DICE, con el arreglo real, que vive del lado del usuario. */}
-      {result.sections && ((result.sections.unattributedEquityDates ?? 0) > 0
-        || (result.sections.unattributedCashCurrencies ?? 0) > 0) && (
+      {multiAccount && (
         <p className="text-xs mt-3 mx-auto max-w-xs leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
           {t('Tu reporte trae varias filas para la misma fecha sin decir a qué cuenta pertenece cada una. Si tienes más de una cuenta en IBKR, solo estamos leyendo la primera y el resto no aparece. Edita tu Flex Query y marca "Select All" en la lista de campos de cada sección (ahí va el número de cuenta), y sincroniza de nuevo.',
             'Your report has several rows for the same date without saying which account each one belongs to. If you have more than one IBKR account, we are only reading the first one and the rest never shows up. Edit your Flex Query and tick "Select All" in each section\'s field list (that is where the account number lives), then sync again.')}
@@ -505,6 +516,30 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     const effToken = typed || (hasVaultCreds ? '__stored__' : '')
     if (!effToken || !queryId.trim()) {
       setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
+      setShowConfig(true)
+      return
+    }
+    // Validación de FORMA antes de la pantalla "Credenciales guardadas ✓": ese
+    // check verde promete que el sync va a correr solo, así que unas
+    // credenciales que no PUEDEN funcionar no deben llegar ahí. Un Query ID es
+    // un número corto (p.ej. 1603751); letras significan que se pegó otra cosa,
+    // y 15+ dígitos son la firma de haber pegado el TOKEN en el campo
+    // equivocado. El token es una cadena larga: menos de 15 caracteres es un
+    // pegado truncado. Nada de esto llama a IBKR (cero intentos gastados: los
+    // intentos fallidos son la moneda con la que se compra el bloqueo).
+    const qid = queryId.trim()
+    if (!/^\d+$/.test(qid) || qid.length > 14) {
+      setError(/^\d+$/.test(qid)
+        ? t('Ese Query ID se ve demasiado largo: parece el token. El Query ID es el número corto de tu Flex Query (p.ej. 1603751).',
+            'That Query ID looks too long: it looks like the token. The Query ID is your Flex Query\'s short number (e.g. 1603751).')
+        : t('El Query ID solo lleva números (p.ej. 1603751). Revisa que no hayas pegado otra cosa.',
+            'The Query ID is numbers only (e.g. 1603751). Check you did not paste something else.'))
+      setShowConfig(true)
+      return
+    }
+    if (typed && typed.length < 15) {
+      setError(t('Ese token se ve demasiado corto: un Flex Token tiene 15+ caracteres. Copia el token completo desde IBKR.',
+                 'That token looks too short: a Flex Token is 15+ characters. Copy the full token from IBKR.'))
       setShowConfig(true)
       return
     }

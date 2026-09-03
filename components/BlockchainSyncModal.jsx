@@ -49,16 +49,30 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
     setSyncing(false)
   }, [apiKey, uid, onSaveCredentials, t])
 
-  const handleConfirm = useCallback(() => {
-    if (!preview) return
-    onSyncComplete({
-      items: preview.items,
-      transactions: preview.transactions,
-      mode: syncMode,
-      source: 'blockchain',
-    })
-    onClose()
-  }, [preview, syncMode, onSyncComplete, onClose])
+  // FASE NB: el handler del dashboard escribe a Firestore y es async. Antes
+  // esto disparaba y cerraba en el acto: una escritura fallida dejaba el modal
+  // cerrado con cara de "importado" y ninguna señal de lo contrario. Se espera
+  // y se cierra solo si terminó bien; un fallo se dice y el modal se queda.
+  const [importing, setImporting] = useState(false)
+  const handleConfirm = useCallback(async () => {
+    if (!preview || importing) return
+    setError('')
+    setImporting(true)
+    try {
+      await onSyncComplete({
+        items: preview.items,
+        transactions: preview.transactions,
+        mode: syncMode,
+        source: 'blockchain',
+      })
+      onClose()
+    } catch (err) {
+      setError(t(`No se pudo importar: ${err?.message || 'error de conexión'}. Intenta de nuevo.`,
+        `Import failed: ${err?.message || 'connection error'}. Try again.`))
+    } finally {
+      setImporting(false)
+    }
+  }, [preview, importing, syncMode, onSyncComplete, onClose, t])
 
   const inputCls = 'w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50'
 
@@ -155,15 +169,23 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               </div>
             </div>
 
+            {error && (
+              <div className="p-3 rounded-lg text-xs whitespace-pre-wrap"
+                style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
+                {error}
+              </div>
+            )}
             <div className="flex gap-3">
-              <button onClick={() => { setStep('config'); setPreview(null) }}
-                className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-base transition-colors text-sm">
+              <button onClick={() => { setStep('config'); setPreview(null) }} disabled={importing}
+                className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-base transition-colors text-sm disabled:opacity-50">
                 {t('Atrás', 'Back')}
               </button>
-              <button onClick={handleConfirm}
-                className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium"
+              <button onClick={handleConfirm} disabled={importing}
+                className="flex-1 py-2.5 rounded-lg hover:opacity-90 transition-colors text-sm font-medium disabled:opacity-60"
                 style={{ backgroundColor: '#059669', color: '#ffffff' }}>
-                {t('Importar', 'Import')} ({preview.items.length})
+                <BusyLabel busy={importing} lang={lang}>
+                  {t('Importar', 'Import')} ({preview.items.length})
+                </BusyLabel>
               </button>
             </div>
           </div>

@@ -41,6 +41,10 @@ export default function PrintSummary({
   const locale = lang === 'es' ? 'es-GT' : 'en-US'
   const [period, setPeriod] = useState('ytd')
   const [downloading, setDownloading] = useState(false)
+  // Un PDF que falla no puede quedar en console.error: el botón dejaba de
+  // girar y NADA lo decía, así que "falló" y "ya se descargó" se veían
+  // idénticos. Se limpia al reintentar.
+  const [downloadError, setDownloadError] = useState(false)
 
   const data = useMemo(() => buildReportData({
     items, transactions, snapshots,
@@ -95,6 +99,7 @@ export default function PrintSummary({
   const handleDownload = async () => {
     if (downloading) return
     setDownloading(true)
+    setDownloadError(false)
     try {
       const { generateReport } = await import('@/lib/generateReport')
       // Los mismos argumentos que la vista previa le pasa a `buildReportData`,
@@ -115,6 +120,7 @@ export default function PrintSummary({
       })
     } catch (err) {
       console.error('[report] PDF generation failed:', err)
+      setDownloadError(true)
     } finally {
       setDownloading(false)
     }
@@ -161,7 +167,7 @@ export default function PrintSummary({
   if (!mounted) return null
 
   return createPortal(
-    <div className="modal-overlay modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
+    <div data-print-root className="modal-overlay modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}
       {...(exiting ? { 'data-modal-exit': '' } : {})}>
       <div className="modal-anim bg-white text-black rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {/* Controles (ocultos al imprimir) */}
@@ -189,6 +195,12 @@ export default function PrintSummary({
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-black text-xl" aria-label="Close">&times;</button>
           </div>
+          {downloadError && (
+            <p role="alert" className="w-full text-xs" style={{ color: '#B45309' }}>
+              {t('No se pudo generar el PDF. Revisa tu conexión y vuelve a tocar "Descargar PDF"; la vista previa de abajo sigue siendo válida y también puedes Imprimir.',
+                 'Could not generate the PDF. Check your connection and tap "Download PDF" again; the preview below is still valid and you can also Print.')}
+            </p>
+          )}
         </div>
 
         <div className="p-8 print:p-4">
@@ -653,11 +665,17 @@ export default function PrintSummary({
         </div>
       </div>
 
+      {/* FASE NB: la regla de impresión apunta a data-print-root y ya no a
+          ".fixed" a secas. Con ".fixed", CUALQUIER hijo fijo de body (el
+          UpdateAvailablePill del layout, un toast) sobrevivía al ocultado,
+          se volvía estático con fondo blanco y se IMPRIMÍA dentro del
+          reporte del cliente ("Hay una versión nueva. Tocá para actualizar"
+          en un documento financiero). */}
       <style jsx global>{`
         @media print {
-          body > *:not(.fixed) { display: none !important; }
-          .fixed { position: static !important; background: white !important; }
-          .fixed > div { max-height: none !important; overflow: visible !important; box-shadow: none !important; }
+          body > *:not([data-print-root]) { display: none !important; }
+          [data-print-root] { position: static !important; background: white !important; }
+          [data-print-root] > div { max-height: none !important; overflow: visible !important; box-shadow: none !important; }
           .print\\:hidden { display: none !important; }
           .print\\:p-4 { padding: 1rem !important; }
         }

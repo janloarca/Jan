@@ -1881,7 +1881,27 @@ When done, give me the .xlsx file ready to download.`
                 </button>
                 <button onClick={doBIImport} disabled={importing}
                   className="flex-1 py-2.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)', color: '#fff' }}>
-                  {importing ? t('Importando...', 'Importing...') : t(`Importar ${biSelected.size} transacciones`, `Import ${biSelected.size} transactions`)}
+                  {/* FASE NB: el rótulo dice TODO lo que el botón va a escribir.
+                      Antes decía solo "Importar N", y doBIImport además
+                      actualiza las filas confirmadas por el estado, aplica el
+                      enriquecimiento de las de revisión sin marcar, y degrada
+                      los pagos neteados a transferencia: un botón que hace más
+                      de lo que dice es una sorpresa sobre datos de dinero.
+                      Cuenta solo parches NO vacíos, igual que doBIImport. */}
+                  {importing ? t('Importando...', 'Importing...') : (() => {
+                    const isCard = Array.isArray(biMatch.confirmed)
+                    const updates = isCard
+                      ? [
+                        ...biMatch.confirmed,
+                        ...biMatch.review.filter((_, i) => !biSelected.has(`r${i}`)).map((x) => ({ match: x.match, updates: enrichmentFor(x.row, x.match).updates })),
+                      ].filter((u) => u.match?.id && u.updates && Object.keys(u.updates).length > 0).length
+                      : 0
+                    const netted = biNetting?.demotions?.length || 0
+                    const extra = updates + netted
+                    return extra > 0
+                      ? t(`Importar ${biSelected.size} · actualizar ${extra}`, `Import ${biSelected.size} · update ${extra}`)
+                      : t(`Importar ${biSelected.size} transacciones`, `Import ${biSelected.size} transactions`)
+                  })()}
                 </button>
               </div>
             </div>
