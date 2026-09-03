@@ -21,6 +21,8 @@ import { debtOptions } from '@/lib/propertyEquity'
 import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
+import DiscardHint from '@/components/ui/DiscardHint'
 
 
 const TYPES = [
@@ -207,7 +209,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const searchAbortRef = useRef(null)
 
   const t = (es, en) => lang === 'es' ? es : en
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  // FASE NC: cualquier tecleo marca el formulario como sucio, y con cambios
+  // encima el telon deja de cerrar al primer click (useDirtyClose): diez
+  // campos de un activo nuevo no pueden perderse por un dedo que cayo fuera
+  // del panel. La x y Esc siguen cerrando al instante (gestos explicitos).
+  const { markDirty, onBackdropClick, backdropArmed } = useDirtyClose(onClose)
+  const set = (k, v) => { markDirty(); setForm(prev => ({ ...prev, [k]: v })) }
   const [creatingDest, setCreatingDest] = useState(null) // 'income' | 'capital' | null
   const [extraItems, setExtraItems] = useState([])
   const destItems = useMemo(() => [...existingItems, ...extraItems], [existingItems, extraItems])
@@ -910,7 +917,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   }
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onBackdropClick} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <div className="flex items-center gap-3">

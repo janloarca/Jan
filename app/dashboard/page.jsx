@@ -1740,7 +1740,7 @@ export default function DashboardPage() {
           <ErrorBoundary lang={lang}>
             <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} totalAssets={totalAssets} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} convert={convert} baseCurrency={baseCurrency} transactions={transactions} items={items} /></CardBoundary>
             {!settings?.hideRebalanceSuggestions && (
-              <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ ...settings, hideRebalanceSuggestions: true })} /></CardBoundary>
+              <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ hideRebalanceSuggestions: true })} /></CardBoundary>
             )}
           </ErrorBoundary>
         {/* La sección "Análisis" que vivía aquí abajo se movió arriba, a la

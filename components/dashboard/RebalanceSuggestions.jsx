@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue } from './utils'
+import ConfirmTap from '@/components/ui/ConfirmTap'
 
 const DEFAULT_TARGETS = {
   stocks: 40, crypto: 10, funds: 20, bonds: 15, banks: 5, realestate: 5, alternatives: 5,
@@ -103,11 +104,20 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
             className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
             {editing ? t('Cancelar', 'Cancel') : t('Editar', 'Edit')}
           </button>
+          {/* FASE NC: dos toques. Esta × escondía la tarjeta ENTERA con un
+              solo toque, para siempre y sin ningún camino de vuelta (la
+              bandera solo se escribía, nadie ofrecía apagarla). Ahora confirma
+              y el camino de vuelta existe en Ajustes → General. */}
           {onDismiss && (
-            <button onClick={onDismiss}
-              className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+            <ConfirmTap onConfirm={onDismiss}
+              ariaLabel={t('Ocultar esta tarjeta', 'Hide this card')}
+              confirmAriaLabel={t('Confirmar ocultar la tarjeta de rebalanceo', 'Confirm hiding the rebalancing card')}
+              className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+              confirmClassName="text-[11px] font-semibold whitespace-nowrap px-1.5 py-0.5 rounded"
+              confirmStyle={{ color: 'var(--alert-warn-icon)', backgroundColor: 'var(--alert-warn-bg)' }}
+              confirmContent={t('¿Ocultar? Vuelve en Ajustes', 'Hide? Restore in Settings')}>
               ✕
-            </button>
+            </ConfirmTap>
           )}
         </div>
       </div>

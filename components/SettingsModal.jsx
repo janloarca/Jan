@@ -810,6 +810,28 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   </div>
                 </div>
 
+                {/* FASE NC. El camino de vuelta de la × de Rebalanceo: la
+                    bandera se escribía y NADIE ofrecía apagarla, o sea ocultar
+                    la tarjeta era permanente sin que ninguna pantalla lo
+                    dijera. La fila solo existe cuando hay algo que restaurar:
+                    un control que casi nunca aplica no gana un lugar fijo. */}
+                {settings?.hideRebalanceSuggestions === true && (
+                  <div className="p-3 bg-theme-card border border-glass-border rounded-lg flex items-center justify-between gap-3">
+                    <span className="text-sm min-w-0" style={{ color: 'var(--text-primary)' }}>
+                      {t('Tarjeta de Rebalanceo oculta', 'Rebalancing card hidden')}
+                    </span>
+                    <button type="button"
+                      onClick={async () => {
+                        try { await onSaveSettings({ hideRebalanceSuggestions: false }) }
+                        catch (e) { flash('err', e.message || t('Error al guardar', 'Error saving')) }
+                      }}
+                      className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                      style={{ color: 'var(--accent-blue)', borderColor: 'var(--card-border)' }}>
+                      {t('Restaurar', 'Restore')}
+                    </button>
+                  </div>
+                )}
+
                 {/* Correos periódicos: tres cadencias independientes. */}
                 <div>
                   <label className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Resúmenes por correo', 'Email briefs')}</label>
