@@ -20,6 +20,7 @@ import { flowSign, flowMagnitude, cashFlowOf } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
 import { cardBalanceSummary } from '@/lib/cardBalance'
+import { planCardDebtSync, describeCardDebtLine } from '@/lib/cardDebt'
 import { applyCategoryToMatchingRows, learnablesFrom } from '@/lib/importLearning'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
@@ -131,6 +132,9 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   const [walletStats, setWalletStats] = useState(null)
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
+  // Llevar el saldo de la tarjeta a la Hoja como deuda. Apagado por default: es
+  // una escritura al patrimonio, y el usuario tiene que pedirla.
+  const [debtToSheet, setDebtToSheet] = useState(false)
 
   useEscClose(onClose)
 
@@ -830,6 +834,32 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       }
     }
 
+    // La deuda de la tarjeta hacia la Hoja, solo si el usuario lo pidió.
+    //
+    // El plan se re-calcula acá y no se toma del render: entre que se dibujó la
+    // vista previa y que se apretó Importar pueden haber cambiado los items (el
+    // listener de Firestore entrega cada estado intermedio), y escribir contra
+    // una foto vieja es cómo se crea una segunda deuda que el plan decía que
+    // iba a actualizar.
+    //
+    // Best-effort a propósito: un fallo acá no puede tumbar un import de
+    // movimientos que YA se escribió. Se cuenta y se dice en la pantalla final.
+    let debtsWritten = 0
+    let debtsFailed = 0
+    if (debtToSheet && biData.card) {
+      const plan = planCardDebtSync(biData.card, existingItems)
+      for (const c of plan.creates) {
+        try {
+          if (onImportItems) { await onImportItems(c.item); debtsWritten++ }
+        } catch { debtsFailed++ }
+      }
+      for (const u of plan.updates) {
+        try {
+          if (onUpdateItem) { await onUpdateItem(u.id, u.patch); debtsWritten++ }
+        } catch { debtsFailed++ }
+      }
+    }
+
     // Lo que el usuario corrigió en la vista previa se ENSEÑA acá, no antes: el
     // conocimiento que se guarda tiene que ser el de lo que de verdad se
     // importó. Best-effort a propósito: una regla que no se pudo guardar no
@@ -871,10 +901,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         : (biMatch.exact.length + (biMatch.repeats?.length || 0)
            - [...biSelected].filter((k) => k.startsWith('e') || k.startsWith('d')).length),
       isBI: true,
+      debtsWritten,
+      debtsFailed,
     })
     setStep('done')
     setImporting(false)
-  }, [biData, biMatch, biNetting, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount, onLearnCategories])
+  }, [biData, biMatch, biNetting, biSelected, stmtAccount, onAddFinanceTransaction, onUpdateFinanceTransaction, onImportItems, onUpdateItem, existingItems, selectedBankAccount, onLearnCategories, debtToSheet])
 
   const doIBKRImport = useCallback(async () => {
     // History-only files are valid: a Flex XML for a closed year can carry just
@@ -1493,6 +1525,7 @@ When done, give me the .xlsx file ready to download.`
                   afirmaría que no debés nada. */}
               {biData.card && (() => {
                 const bal = cardBalanceSummary(biData.card)
+                const debtPlan = planCardDebtSync(biData.card, existingItems)
                 return (
                   <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
                     style={bal.ok
@@ -1518,6 +1551,45 @@ When done, give me the .xlsx file ready to download.`
                         {t('No pudimos leer el saldo al corte de este estado. Los movimientos de abajo sí se leyeron; solo falta esa cifra.',
                            'We could not read the closing balance on this statement. The rows below did parse; only that figure is missing.')}
                       </span>
+                    )}
+                    {/* El interruptor hacia la Hoja. Solo se ofrece con un saldo
+                        legible Y con algo que escribir: ofrecerlo sobre un plan
+                        vacío sería un control que no hace nada. */}
+                    {bal.ok && debtPlan && (debtPlan.ok || debtPlan.stale.length > 0) && (
+                      <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--card-border)' }}>
+                        <label className="flex items-start gap-2 cursor-pointer" style={{ minHeight: 24 }}>
+                          <input type="checkbox" className="mt-0.5" checked={debtToSheet}
+                            disabled={!debtPlan.ok}
+                            onChange={(e) => setDebtToSheet(e.target.checked)} />
+                          <span className="block">
+                            <span className="block font-medium" style={{ color: 'var(--text-primary)' }}>
+                              {t('Poner esta deuda en la Hoja', 'Put this debt on the sheet')}
+                            </span>
+                            {debtPlan.creates.map((c) => (
+                              <span key={`c${c.currency}`} className="block mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                {t('Se crea:', 'Creates:')} {describeCardDebtLine(c, 'create')}
+                              </span>
+                            ))}
+                            {debtPlan.updates.map((u) => (
+                              <span key={`u${u.currency}`} className="block mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                {t('Se actualiza:', 'Updates:')} {describeCardDebtLine(u, 'update')}
+                              </span>
+                            ))}
+                            {debtPlan.stale.map((s) => (
+                              <span key={`s${s.currency}`} className="block mt-0.5" style={{ color: 'var(--alert-warn-icon)' }}>
+                                {t(`${s.name}: ya tienes un saldo más nuevo (${formatFinanceDate(s.asOf)}), así que este estado no lo pisa.`,
+                                   `${s.name}: you already have a newer balance (${formatFinanceDate(s.asOf)}), so this statement will not overwrite it.`)}
+                              </span>
+                            ))}
+                            {debtPlan.ok && (
+                              <span className="block mt-1" style={{ color: 'var(--text-muted)' }}>
+                                {t('El saldo queda fechado al corte. Entre un estado y el siguiente el pasado de esta deuda se dibuja plano: la baja mezcla lo que pagaste con lo que compraste, y no inventamos un pago por esa diferencia.',
+                                   'The balance is dated to the cut date. Between statements this debt\'s past is drawn flat: the drop mixes what you paid with what you bought, and we do not invent a payment for that difference.')}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      </div>
                     )}
                   </div>
                 )
@@ -2204,6 +2276,24 @@ When done, give me the .xlsx file ready to download.`
                       <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
                         {t(`${result.netted} pago(s) a tu tarjeta quedaron como movimiento entre cuentas propias: ya no cuentan como ingreso ni como gasto.`,
                            `${result.netted} payment(s) to your card are now a transfer between your own accounts: they no longer count as income or expense.`)}
+                      </p>
+                    )}
+                    {/* La deuda escrita a la Hoja. Misma razón que lo aprendido:
+                        una escritura silenciosa no se distingue de una que
+                        falló, y esta además mueve el patrimonio neto. */}
+                    {result.debtsWritten > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                        {result.debtsWritten === 1
+                          ? t('La deuda de esta tarjeta quedó en la Hoja, fechada al corte.',
+                               'This card\'s debt is now on the sheet, dated to the cut date.')
+                          : t(`Las ${result.debtsWritten} deudas de esta tarjeta quedaron en la Hoja, fechadas al corte.`,
+                               `This card's ${result.debtsWritten} debts are now on the sheet, dated to the cut date.`)}
+                      </p>
+                    )}
+                    {result.debtsFailed > 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {t(`No se pudo guardar ${result.debtsFailed} de las deudas. Tus movimientos SÍ se importaron; volvé a subir el estado para reintentar solo la deuda.`,
+                           `${result.debtsFailed} of the debts could not be saved. Your transactions DID import; re-upload the statement to retry just the debt.`)}
                       </p>
                     )}
                     {/* Lo que se aprendió se dice: una corrección que se guarda
