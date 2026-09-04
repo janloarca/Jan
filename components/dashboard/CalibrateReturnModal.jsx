@@ -8,6 +8,8 @@ import { Info } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, formatDate } from '@/components/dashboard/utils'
 import { hasRealObservationAt } from '@/lib/snapshotSelect'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
+import DiscardHint from '@/components/ui/DiscardHint'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
 // single % for the whole portfolio cannot represent accounts with different
@@ -152,6 +154,13 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
   const [error, setError] = useState('')
   const [doneMsg, setDoneMsg] = useState('')
   const [showHelp, setShowHelp] = useState(false)
+
+  // Mismo accidente que en QuarterlyHistoryModal: los porcentajes copiados del
+  // broker se perdian con un click fuera del panel, y dentro del viaje ese
+  // click ademas AVANZA de paso, asi que el descarte se leia como progreso.
+  // Se pasa el booleano explicito porque un onClick entrega el EVENTO.
+  const { onBackdropClick, backdropArmed } = useDirtyClose(onClose)
+  const hasTyped = Object.values(pcts).some((v) => v != null && String(v).trim() !== '')
 
   const toUSD = (valBase) => {
     if (!isFinite(valBase)) return null
@@ -328,7 +337,8 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
     : 'px-2.5 py-1 rounded-lg text-xs border border-glass-border transition-colors hover:bg-white/5'
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => onBackdropClick(hasTyped)}>
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white">{t('Calibrar rendimiento', 'Calibrate return')}</h2>
