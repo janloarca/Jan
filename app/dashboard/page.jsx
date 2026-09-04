@@ -1378,14 +1378,23 @@ export default function DashboardPage() {
           // el comentario donde vivía el efecto): el aviso de build es del
           // UpdateAvailablePill del layout, cuya recarga con cache-busting es
           // la que de verdad funciona en iOS Safari.
+          // FASE NM: sobre una conexión que NUNCA sincronizó, "expiró" es una
+          // afirmación falsa sobre lo que pasó (el token se guardó hace un
+          // rato, no venció): lo que ocurrió es que IBKR lo rechazó la primera
+          // vez que lo usamos. La acción es la misma; la frase tiene que decir
+          // la verdad, porque manda a buscar causas distintas.
           'ibkr-expired': {
             ...ibkrFix,
-            message: es ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated',
+            message: everIbkrSynced
+              ? (es ? 'Tu token de IBKR expiró: genera uno nuevo para mantener tu portafolio actualizado' : 'Your IBKR token has expired: generate a new one to keep your portfolio updated')
+              : (es ? 'IBKR rechazó el token que guardaste: genera uno nuevo desde Flex Queries y pégalo otra vez' : 'IBKR rejected the token you saved: generate a new one from Flex Queries and paste it again'),
             actionLabel: es ? 'Actualizar' : 'Update',
           },
           'ibkr-query': {
             ...ibkrFix,
-            message: es ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR',
+            message: everIbkrSynced
+              ? (es ? 'Query ID de IBKR inválido: verifica tu Flex Query en IBKR' : 'Invalid IBKR Query ID: verify your Flex Query in IBKR')
+              : (es ? 'IBKR no encontró ese Query ID: es el número corto junto a tu Flex Query guardado' : 'IBKR did not find that Query ID: it is the short number next to your saved Flex Query'),
             actionLabel: es ? 'Configurar' : 'Configure',
           },
           // FASE GQ: una primera conexión que nunca llegó a sincronizar ni una
@@ -1813,6 +1822,7 @@ export default function DashboardPage() {
           existingItems={items} existingLots={lots}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang} brokerHint={importBrokerHint} journeyActive={ibkrJourney != null}
+          apiAlreadySyncs={importBrokerHint === 'ibkr' && ibkrConnected}
           ibkrSyncBusy={ibkrAutoSyncing || bulkWriting}
         />
       )}
@@ -1895,7 +1905,12 @@ export default function DashboardPage() {
           total={5}
           title={[
             lang === 'es' ? 'Conectar por API' : 'Connect via API',
-            lang === 'es' ? 'Subir tu Flex XML' : 'Upload your Flex XML',
+            // FASE NM: con la API ya conectada este paso es opcional (el sync
+            // trae lo mismo), y la barra tiene que decir lo mismo que la
+            // pantalla o vuelven a contradecirse.
+            ibkrConnected
+              ? (lang === 'es' ? 'Subir tu Flex XML (opcional)' : 'Upload your Flex XML (optional)')
+              : (lang === 'es' ? 'Subir tu Flex XML' : 'Upload your Flex XML'),
             lang === 'es' ? 'Transcribir tu foto de PortfolioAnalyst' : 'Transcribe your PortfolioAnalyst screenshot',
             lang === 'es' ? 'Copiar tus retornos (%)' : 'Copy your returns (%)',
             lang === 'es' ? 'Resumen y conciliación' : 'Summary and reconciliation',

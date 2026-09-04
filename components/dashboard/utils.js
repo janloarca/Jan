@@ -928,6 +928,11 @@ export function getInvestmentClass(item) {
 
 import { INVESTMENT_CLASS_COLORS } from '@/lib/colors'
 import { isDailyAccrual, accrualAnnualRate } from '@/lib/dailyAccrual'
+// FASE NM: la lista de códigos donde IBKR ya dio un veredicto se importa, NO
+// se copia: el planificador de sync (lib/ibkrSchedule.js) ya detiene la
+// cadencia con esos mismos códigos, y dos listas de "esto es fatal" es cómo
+// una se queda atrás cuando aparezca un tercero.
+import { FATAL_ERROR_CODES } from '@/lib/ibkrSchedule'
 
 export const INVESTMENT_CLASS_META = {
   renta_variable: { label: { es: 'Renta Variable', en: 'Variable Income' }, returnType: { es: 'Retorno variable', en: 'Variable return' }, color: INVESTMENT_CLASS_COLORS.renta_variable, icon: 'TrendingUp' },
@@ -1370,8 +1375,25 @@ export function businessDaysSince(since, now = Date.now()) {
 // guardar credenciales es un intento fresco que reinicia el fusible. Sin
 // ninguna marca, businessDaysSince(null) = Infinity y alarma de inmediato
 // (conexión rota sin ninguna evidencia de haber funcionado jamás).
+//
+// ⛔ FASE NM, la única excepción, y su razón: la gracia existe porque IBKR de
+// verdad no contesta fuera de horario de mercado. Con TIMEOUT, LOCKED,
+// RATE_LIMITED o un fallo de red, "todavía no ha respondido" es una
+// explicación honesta y esperar es lo correcto. TOKEN_EXPIRED e INVALID_QUERY
+// son lo contrario: IBKR SÍ contestó, y contestó un veredicto. Esperar cinco
+// días hábiles sobre una respuesta que el broker ya dio es exactamente lo
+// opuesto a la razón por la que la gracia existe.
+//
+// El alcance es ANGOSTO a propósito: solo cuando nunca hubo un sync exitoso
+// (ni manual ni automático). El usuario fijó su regla sobre una conexión que
+// YA funcionaba ("ayer se conectó entonces no pasó ni un día") y ahí la gracia
+// se queda entera. Sobre una que nunca funcionó esa frase no aplica: no hay
+// ningún "se conectó", y la pantalla de "Credenciales guardadas ✓" le acaba de
+// prometer al usuario que el sync corre solo. Callar una semana sobre eso es
+// dejar un check verde encima de una conexión que el broker ya rechazó.
 export function ibkrAttentionNeeded({ errorCode, lastSync, lastAutoSync, connectedAt } = {}, now = Date.now()) {
   if (!errorCode) return false
+  if (!lastSync && !lastAutoSync && FATAL_ERROR_CODES.includes(errorCode)) return true
   const stamps = [lastSync, lastAutoSync, connectedAt]
     .map((s) => (s ? new Date(s).getTime() : NaN))
     .filter((t) => isFinite(t))
