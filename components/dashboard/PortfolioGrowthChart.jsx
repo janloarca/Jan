@@ -7,7 +7,8 @@ import { niceScale, pctDecimals } from '@/lib/niceAxis'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { buildNavByDate, composeDailyTotals, divergentDailyDates, contradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { buildNavByDate, composeDailyTotals, divergentDailyDates, contradictedCalibrationDates, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { usdFlowEvents } from '@/lib/corruptSnapshots'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { staticValueAt } from '@/lib/staticOverlay'
@@ -1474,10 +1475,27 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       const divergent = divergentDailyDates(srcSnapshots, composed)
       // FASE NL: misma regla que el backfill automático, o si no las dos
       // superficies volverían a escribir historias distintas.
-      const contradictedCal = new Set(contradictedCalibrationDates(srcSnapshots, composed))
+      // FASE NP: y la que no necesita al broker, el archivo contradiciéndose
+      // entre días vecinos. El reporte las cuenta APARTE porque significan
+      // cosas distintas: una la refuta el broker, a la otra la refuta el día
+      // de al lado.
+      const selfCal = new Set(selfContradictedCalibrationDates(srcSnapshots, usdFlowEvents(transactions, convert)))
+      const contradictedCal = new Set([
+        ...contradictedCalibrationDates(srcSnapshots, composed),
+        ...selfCal,
+      ])
       const targets = new Set([...gaps, ...divergent, ...contradictedCal])
       const fills = composed.filter((f) => targets.has(f.date))
-      push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}${contradictedCal.size > 0 ? ` · ${t('calibraciones contradichas por el broker', 'calibrations the broker contradicts')}: ${contradictedCal.size}` : ''}`)
+      push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}${contradictedCal.size > 0 ? ` · ${t('calibraciones contradichas', 'contradicted calibrations')}: ${contradictedCal.size}` : ''}`)
+      // Un ancla contradicha para la que NO hay composición (broker conectado
+      // sin NAV arrastrable a esa fecha) no se puede reescribir: la app deja de
+      // usarla al leer (ver contradictedAnchors en useDashboardData) y esto lo
+      // DICE, en vez de dejar un "nada que corregir" que se lee como que el
+      // ancla estaba bien.
+      const unwritable = [...selfCal].filter((d) => !composed.some((f) => f.date === d))
+      if (unwritable.length > 0) {
+        push(`${t('Sin NAV del broker para', 'No broker NAV for')} ${unwritable.join(', ')}: ${t('esa calibración no se puede reescribir, pero la app ya dejó de usarla como arranque', 'that calibration cannot be rewritten, but the app already stopped using it as the year-start')}.`)
+      }
 
       if (fills.length === 0) {
         push(t('Nada que corregir: el historial ya está bien.', 'Nothing to fix: history is already correct.'))
