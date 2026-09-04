@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
 import { statsForScope, groupStandings } from '@/lib/friendsGroups'
+import { purgeUserFromGroupHistory, deleteGroupHistory } from '@/lib/friendsHistoryStore'
 import { brokerVerification } from '@/lib/friendsVerified'
 
 // Social layer: friend groups + a YTD-return leaderboard. Like shareTokens, the
@@ -281,6 +282,11 @@ export async function POST(request) {
       const group = await readGroup(db, groupId)
       if (!group) return NextResponse.json({ error: 'Unknown group', code: 'group_gone' }, { status: 404 })
       if (group.ownerUid !== uid) return NextResponse.json({ error: 'Only the owner can delete' }, { status: 403 })
+      // La subcolección PRIMERO: Firestore no la borra con el doc padre, y
+      // borrado el padre queda huérfana, sin ninguna pantalla desde la cual
+      // verla ni limpiarla. Al revés, un fallo acá deja el grupo en pie con su
+      // historia intacta, que es un estado consistente.
+      await deleteGroupHistory({ db, groupId })
       await db.collection('friendGroups').doc(groupId).delete()
       return NextResponse.json({ ok: true })
     }
@@ -345,7 +351,18 @@ export async function POST(request) {
       await Promise.all(snap.docs.map(async (gd) => {
         const g = gd.data()
         const members = (g.memberUids || []).filter((m) => m !== uid)
-        if (members.length === 0) return gd.ref.delete()
+        // ⛔ La memoria semanal (FASE LS) guarda uid, nombre y porcentajes de
+        // cada persona, semana por semana. Sin esto, apagar Amigos borraba el
+        // perfil público y dejaba TODO eso vivo en `history`, o sea la promesa
+        // de la pantalla era falsa. Y un grupo borrado no se lleva su
+        // subcolección: Firestore no borra subcolecciones con el doc padre, así
+        // que quedaban fotos huérfanas que ninguna pantalla puede mostrar ni
+        // limpiar.
+        if (members.length === 0) {
+          await deleteGroupHistory({ db, groupId: gd.id })
+          return gd.ref.delete()
+        }
+        await purgeUserFromGroupHistory({ db, groupId: gd.id, uid })
         const patch = { memberUids: members }
         if (g.ownerUid === uid) patch.ownerUid = members[0]
         return gd.ref.update(patch)

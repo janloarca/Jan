@@ -36,7 +36,7 @@ import { zeroQuantityBalanceFixes, resurrectedBalanceFixes } from '@/lib/zeroQua
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
-import { buildPublishPayload, publishDayKey, shouldPublishToday } from '@/lib/friendsPublish'
+import { buildPublishPayload, publishDayKey, shouldPublishToday, publishBlockedBy } from '@/lib/friendsPublish'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -2591,7 +2591,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const dayKey = publishDayKey()
     const att = friendsPublishAttemptRef.current
     if (att.dayKey === dayKey && att.tries >= 3) return
-    if (dataLoading || pricesLoading || pricesFetching || ratesLoading || !ytdResolved) return
+    // La lista de compuertas es COMPARTIDA con /friends (lib/friendsPublish.js).
+    // Escrita a mano acá se quedó sin `bulkWriting` ni `ibkrAutoSyncing` mientras
+    // el comentario de arriba afirmaba que era la misma de los escritores de
+    // snapshots: un comentario que contradice a su código.
+    if (publishBlockedBy({
+      dataLoading, pricesLoading, pricesFetching, ratesLoading,
+      bulkWriting, ibkrAutoSyncing, ytdResolved,
+    })) return
     const payload = buildPublishPayload({
       // Los CRUDOS, no los que muestra el tablero: la banda la aplica
       // `boundedPct` al publicar, y saturarlos antes la dejaba sin trabajo.
@@ -2622,7 +2629,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   }, [
     publishFriends, user, settings?.friendsEnabled, settings?._lastFriendsPublish,
     dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved,
-    enrichedItems, returnYTD, returnMTD, dailyChange, totalAssets, ibkrReturns, profile, saveSettings,
+    bulkWriting, ibkrAutoSyncing,
+    // Los CRUDOS, que son los que el cuerpo lee. Con los saturados, un retorno
+    // que se mueve DENTRO de la zona de clamp no re-dispara el efecto.
+    enrichedItems, returnYTDRaw, returnMTDRaw, dailyChange, totalAssets, ibkrReturns, profile, saveSettings,
   ])
 
   const annualDividends = useMemo(() => {
@@ -3410,6 +3420,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Market data
     enrichedItems, portfolioItems, marketPrices,
     pricesLoading, pricesError, pricesUpdate,
+    // `pricesFetching` se expone para que /friends pueda gatear su publicación
+    // con la MISMA lista que el tablero (lib/friendsPublish.js). Ojo: NO es lo
+    // mismo que `pricesLoading`, que es un latch de una sola vía y por eso no
+    // sirve como semáforo de escritura (FASE FE).
+    pricesFetching,
     rates, convert, convertItemValue,
     // `ratesStale` lo publicaba useExchangeRates y este hook no lo
     // desestructuraba, asi que nunca llegaba al tablero. No se notaba porque

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { buildPublishStats, publishIdentity, publishDayKey, hasSomethingToPublish } from '@/lib/friendsPublish'
+import { buildPublishStats, publishIdentity, publishDayKey, hasSomethingToPublish, publishBlockedBy } from '@/lib/friendsPublish'
 import { hasDemoData } from '@/lib/demoData'
 import { toastStyleFor, toastIconFor } from '@/lib/toastStyle'
 import PageShell, { PageTitle } from '@/components/PageShell'
@@ -66,8 +66,20 @@ function FriendsPageInner() {
   const {
     enrichedItems, returnYTDRaw, returnMTDRaw, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
     dailyChange, totalAssets, profile, settings, dataLoading, saveProfile, saveSettings,
-    ytdResolved, pricesLoading,
+    ytdResolved, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+
+  // ⛔ Las MISMAS compuertas que el tablero, y no una lista propia: esta
+  // pantalla publicaba con `!dataLoading` a secas, o sea sin esperar a que
+  // asentaran el ancla del año, los precios ni las TASAS (ni siquiera
+  // desestructuraba `ratesLoading`). Y como `doSync` estampa la cadencia
+  // diaria, ese número a medio calcular BLOQUEABA por 24h la publicación del
+  // tablero, que sí espera: el orden de las puertas decidía cuál ganaba, y
+  // ganaba la mal gateada.
+  const publishBlocked = publishBlockedBy({
+    dataLoading, pricesLoading, pricesFetching, ratesLoading,
+    bulkWriting, ibkrAutoSyncing, ytdResolved,
+  })
 
   // Las tres cifras de tu tarjeta cuelgan de dos piezas asíncronas que asientan
   // DESPUÉS de que `dataLoading` se apaga: los precios del día y la
@@ -250,11 +262,22 @@ function FriendsPageInner() {
   // Antes no: "Actualizar" publicaba + releía, mientras el header y el gesto
   // solo releían, así que jalar en Amigos actualizaba los números de todos los
   // demás menos el tuyo. Un solo significado para una sola palabra.
-  const doSync = useCallback(async () => {
+  const doSync = useCallback(async ({ silent = false } = {}) => {
     // Con Amigos apagado no se publica NADA por ninguna puerta: la pantalla
     // entera está detrás del aviso de reactivar, pero el gesto de jalar y el
     // botón del header siguen cableados a esta función.
     if (friendsDisabled) return false
+    // Datos todavía asentando. Se rehúsa SIEMPRE, también cuando el toque es
+    // explícito: el botón dice "Publicar", y publicar un YTD a medio calcular
+    // le manda a otras personas un número que no es cierto. La diferencia es
+    // que un toque del usuario merece una explicación y el mount automático no
+    // (ese reintenta solo, porque el efecto se re-ejecuta cuando las compuertas
+    // se abren).
+    if (publishBlocked) {
+      if (!silent) flash(t('Estamos calculando tus números. Probá en un momento.',
+        'Still crunching your numbers. Try again in a moment.'), 'warn')
+      return false
+    }
     // La MISMA regla compartida que usan el mount y el tablero. Antes este
     // camino (el botón "Publicar", el header, el gesto) solo miraba
     // `myStats.all`, o sea se saltaba el gate — incluido el veto de datos de
@@ -277,7 +300,7 @@ function FriendsPageInner() {
       flash(e.message, 'warn')
       return false
     }
-  }, [api, myStats, enrichedItems, friendsDisabled, displayName, avatar, refresh, flash, saveSettings])
+  }, [api, myStats, enrichedItems, friendsDisabled, publishBlocked, displayName, avatar, refresh, flash, saveSettings, t])
 
   const [refreshing, setRefreshing] = useState(false)
   const handleManualRefresh = useCallback(async () => {
@@ -305,8 +328,12 @@ function FriendsPageInner() {
     // marcaba antes del await y `doSync` se tragaba su propio error, así que
     // una primera publicación fallida quedaba trabada el resto de la sesión sin
     // ningún reintento.
-    doSync().then((ok) => { if (ok) syncedRef.current = true })
-  }, [user, dataLoading, friendsDisabled, myStats, enrichedItems, doSync, refresh])
+    // Silencioso: el mount no es un toque del usuario, y un aviso de "estamos
+    // calculando" al entrar a la pantalla sería ruido sobre algo que se resuelve
+    // solo en segundos. El ref no se marca si no publicó, así que reintenta en
+    // cuanto las compuertas se abren.
+    doSync({ silent: true }).then((ok) => { if (ok) syncedRef.current = true })
+  }, [user, dataLoading, publishBlocked, friendsDisabled, myStats, enrichedItems, doSync, refresh])
 
   const handleUpdate = useCallback(async () => {
     setBusy(true)

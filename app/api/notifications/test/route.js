@@ -117,7 +117,13 @@ export async function POST(request) {
     // era mandarse un correo. Se mudó a /api/notifications/status, que contesta
     // lo mismo sin mandar nada y por eso Ajustes puede mostrarlo solo. Devolver
     // esos campos también acá sería una segunda copia de la misma respuesta.
-    return NextResponse.json({ ok: true, sentTo: email, attached: mail.attachments.length > 0 })
+    // ⛔ `attachments` es OPCIONAL: el correo de grupos no adjunta nada (no lee
+    // el portafolio, así que no hay PDF que generar) y devuelve solo
+    // { subject, html, text }. Sin el guard, esta línea lanzaba un TypeError
+    // DESPUÉS de que el correo ya había salido, así que Ajustes contestaba 502
+    // "Send failed" sobre un envío exitoso: el peor orden posible, porque manda
+    // a diagnosticar el SMTP cuando el SMTP funcionó.
+    return NextResponse.json({ ok: true, sentTo: email, attached: (mail.attachments?.length || 0) > 0 })
   } catch (err) {
     // El mensaje del servidor SMTP viaja de vuelta a propósito: si Zoho
     // rechaza la autenticación, saberlo aquí ahorra una ronda de logs.
