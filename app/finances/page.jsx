@@ -39,7 +39,9 @@ import { detectRecurringCharges, annualPaymentsOfMonth } from '@/lib/recurringCh
 import { isTransferCategory } from '@/lib/financeCategories'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
+import { commitmentsHaveContent, yearInViewHasContent } from '@/lib/financeSections'
 import PageTour from '@/components/dashboard/PageTour'
+import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import { Wallet, Zap } from 'lucide-react'
 import { authFetch } from '@/lib/authFetch'
 
@@ -262,6 +264,31 @@ export default function FinancesPage() {
     [financeTransactions, ingestRules]
   )
 
+  // ¿Qué secciones tienen algo debajo? Las cards se auto-ocultan cuando no
+  // tienen contenido, así que sin esto una sección entera podía dibujar su
+  // encabezado sobre nada. Se pregunta con los MISMOS selectores puros que usa
+  // cada card (`lib/financeSections.js`): una sola fuente de verdad, cero
+  // umbrales duplicados acá.
+  const hasCommitments = useMemo(
+    () => commitmentsHaveContent(financeTransactions, { convert }),
+    [financeTransactions, convert]
+  )
+  const hasYearInView = useMemo(
+    () => yearInViewHasContent(financeTransactions, year, convert),
+    [financeTransactions, year, convert]
+  )
+
+  // El mes ELEGIDO tiene movimientos, que no es lo mismo que la cuenta tenga
+  // historia: moverse a un mes anterior a cuando empezaste es normal.
+  const monthHasMovements = monthTransactions.length > 0
+  const monthLabel = useMemo(() => {
+    try {
+      const d = new Date(Date.UTC(year, month, 1))
+      const name = d.toLocaleDateString(lang === 'es' ? 'es-GT' : 'en-US', { month: 'long', timeZone: 'UTC' })
+      return `${name} ${year}`
+    } catch { return `${month + 1}/${year}` }
+  }, [month, year, lang])
+
   const handleRecategorizeAll = useCallback(async () => {
     if (recatPlan.length === 0) return
     setRecatBusy(true)
@@ -437,7 +464,7 @@ export default function FinancesPage() {
         {/* A brand-new user sees the empty state directly, not a stack of Q0.00
             cards and blank breakdowns with the guidance buried below the fold. */}
         {financeTransactions.length > 0 && <>
-        <MonthStatusBar
+        {monthHasMovements && <MonthStatusBar
           status={analysis.status}
           partialMonth={analysis.partialMonth}
           daysElapsed={analysis.daysElapsed}
@@ -447,7 +474,7 @@ export default function FinancesPage() {
           onToggleReminder={handleToggleReminder}
           reminderEmail={settings?.financeReminderEmail || user?.email || ''}
           lang={lang}
-        />
+        />}
         {recatPlan.length > 0 && (
           <InlineNotice
             tone="info"
@@ -469,31 +496,26 @@ export default function FinancesPage() {
         {/* Lo que de verdad pasa cuando un ahorro sale en -245%: no es que se
             gastara tres veces el sueldo, es que el sueldo todavía no está
             registrado. Decirlo es más útil que pintar el número de rojo. */}
-        {analysis.incomeLooksUnlogged && (
+        {monthHasMovements && analysis.incomeLooksUnlogged && (
           <InlineNotice tone="warn">
             {t('Este mes no tiene ningún ingreso recurrente registrado (salario, renta, freelance), así que el resultado de abajo mide gastos contra casi nada. Agrega tu ingreso del mes y las cifras cuadran.',
                'This month has no recurring income logged (salary, rent, freelance), so the result below measures spending against almost nothing. Add your income for the month and the figures line up.')}
           </InlineNotice>
         )}
 
+        {/* Lo que es del MES. El bloque grande está gateado en que la CUENTA
+            tenga historia, no el mes elegido, así que moverse a un mes sin
+            movimientos dibujaba igual tres cards en Q0.00 y dos desgloses
+            vacíos. Un mes vacío ahora lo DICE en una línea; las secciones que
+            no son del mes (compromisos, el año, el perfil) se quedan enteras,
+            porque sus datos siguen siendo ciertos. */}
+        {monthHasMovements ? <>
         <FinanceSummaryCards income={income} expenses={expenses}
           momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
           momComparable={analysis.momComparable}
           momTitle={momTitle}
           annualInMonth={annualInMonth}
           lang={lang} />
-
-        {/* El anio en una vista (feature 5): doce columnas REALES con el punto
-            de los pagos anuales; tocar un mes salta a el. Solo transacciones,
-            jamas el plan (regla dura de incomePlan.js). */}
-        <YearInViewCard
-          transactions={financeTransactions}
-          convert={convert}
-          year={year}
-          month={month + 1}
-          onSelectMonth={(m, y) => { setMonth(m); setYear(y) }}
-          lang={lang}
-        />
 
         {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
             eran cuatro cards dibujando el mismo dinero dos veces por lado. */}
@@ -520,7 +542,23 @@ export default function FinancesPage() {
         </div>
 
         <FinanceInsights insights={monthInsights} lang={lang} />
+        </> : (
+          <div className="card p-4 sm:p-5 text-center">
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {t(`Sin movimientos en ${monthLabel}.`, `No movements in ${monthLabel}.`)}
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              {t('Cambia de mes arriba, o agrega un movimiento.', 'Switch months above, or add a movement.')}
+            </p>
+          </div>
+        )}
 
+        {/* "¿A qué estoy amarrado hacia adelante?" Plata ya comprometida, que es
+            otra pregunta que "cuánto gasté este mes". Cerrada por default: se
+            consulta, no se lee de corrido. El encabezado solo existe si alguna
+            de las tres cards tiene contenido (las tres se auto-ocultan). */}
+        {hasCommitments && (
+        <SectionCollapse title={t('Compromisos', 'Commitments')} id="commitments">
         {/* Cuotas activas: sale del campo `installment` que los estados ya
             traían. Recibe el HISTORIAL completo (los planes cruzan meses) y el
             mes seleccionado para la línea de "cuánto de este mes son cuotas".
@@ -550,7 +588,13 @@ export default function FinancesPage() {
           transactions={financeTransactions}
           lang={lang}
         />
+        </SectionCollapse>
+        )}
 
+        {/* "¿Qué pasó, fila por fila?" El triage va acá porque habla de esas
+            mismas filas. Abierta por default: es el segundo motivo por el que
+            se entra a esta pantalla. */}
+        <SectionCollapse title={t('Movimientos', 'Transactions')} id="ledger" defaultOpen>
         {/* Triage de "Otros Gastos" por COMERCIO, ordenado por dinero: recibe
             el historial completo (una regla por comercio arregla todos sus
             meses). Se oculta sola cuando no queda nada que clasificar. */}
@@ -568,6 +612,7 @@ export default function FinancesPage() {
           onToggleAnnual={handleToggleAnnual}
           lang={lang}
         />
+        </SectionCollapse>
         </>}
 
         {financeTransactions.length === 0 && (
@@ -597,21 +642,44 @@ export default function FinancesPage() {
           </div>
         )}
 
-        {/* El plan del año. Va fuera del bloque que exige transacciones: se
-            puede planear el año sin haber registrado un solo movimiento, y de
-            hecho es lo primero que alguien nuevo puede hacer acá. */}
-        <IncomePlanCalendar
-          plan={incomePlan}
-          onSave={saveIncomePlan}
-          financeTransactions={financeTransactions}
-          convert={convert}
-          lang={lang}
-        />
+        {/* "¿Cómo va el año?" Las dos son de horizonte anual y estaban separadas
+            por media pantalla.
 
-        {/* Moved here from Settings: nobody found it there, and this data is
-            time-sensitive — it belongs next to the money it describes. */}
-        <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
-          goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
+            ⛔ Esta sección y la del perfil van FUERA del gate de cuenta vacía, y
+            no es un descuido. Meterlas adentro le quitaría a un usuario sin una
+            sola transacción la única forma de configurar su perfil o de planear
+            su año ANTES de importar nada, que es justo cuando quiere hacerlo. El
+            gate se reparte por ORIGEN del dato: lo que se DERIVA de
+            transacciones va adentro, lo que el usuario TECLEA va afuera. */}
+        <SectionCollapse title={t('El año', 'The year')} id="year">
+          {/* El año en una vista: doce columnas REALES con el punto de los
+              pagos anuales; tocar un mes salta a él. Solo transacciones, jamás
+              el plan (regla dura de incomePlan.js). Se auto-oculta sin datos. */}
+          {hasYearInView && (
+            <YearInViewCard
+              transactions={financeTransactions}
+              convert={convert}
+              year={year}
+              month={month + 1}
+              onSelectMonth={(m, y) => { setMonth(m); setYear(y) }}
+              lang={lang}
+            />
+          )}
+          <IncomePlanCalendar
+            plan={incomePlan}
+            onSave={saveIncomePlan}
+            financeTransactions={financeTransactions}
+            convert={convert}
+            lang={lang}
+          />
+        </SectionCollapse>
+
+        {/* Configuración, no lectura del mes. Moved here from Settings: nobody
+            found it there, and this data is time-sensitive. */}
+        <SectionCollapse title={t('Mi perfil', 'My profile')} id="profile">
+          <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
+            goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
+        </SectionCollapse>
 
       <ModalMount closing={modalClosing}>
       {modalShown === 'add' && (
