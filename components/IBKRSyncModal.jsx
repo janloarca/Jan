@@ -7,6 +7,7 @@ import { formatDate } from '@/components/dashboard/utils'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { authFetch } from '@/lib/authFetch'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
@@ -232,6 +233,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [result, setResult] = useState(null)
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
+  // ⛔ FASE NR. La elección MANUAL manda (misma lección que FASE LH en
+  // FileImportModal): sin la ref, el efecto que recomienda 'enrich' volvería a
+  // pisar lo que el usuario acaba de tocar en cuanto cambie la identidad de
+  // `existingItems`, y esa identidad cambia con cada eco del listener.
+  const syncModeTouchedRef = useRef(false)
   const [decrypting, setDecrypting] = useState(false)
   // True when the Flex token lives in the server-side vault (settings/ibkr), so a
   // sync can run with '__stored__' without the client ever handling the token.
@@ -394,6 +400,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }
 
   const handleSync = useCallback(async () => {
+    // ⛔ FASE NR. 'enrich' es un modo de ARCHIVO y no puede sobrevivir a un
+    // cambio de camino: el modal se reusa, así que subir un archivo, elegir
+    // "Completar" y después sincronizar por API dejaría el sync en vivo sin
+    // pisar precios ni limpiar posiciones vendidas, que es justo lo contrario
+    // de lo que un sync por API tiene que hacer.
+    const apiMode = syncMode === 'enrich' ? 'merge' : syncMode
+    if (syncMode === 'enrich') { setSyncMode('merge'); syncModeTouchedRef.current = false }
     // Use the typed token, or '__stored__' to sync from the server vault without the
     // client ever handling the token.
     const typed = token.trim()
@@ -451,7 +464,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       // here, so a CSV workaround correctly leaves a real LOCKED state in place.
       onApiSyncSuccess?.()
 
-      if (syncMode === 'merge' && onSyncComplete) {
+      if (apiMode === 'merge' && onSyncComplete) {
         // Skip preview for merge mode — go straight to done
         setSyncStatus('importing')
         await onSyncComplete(data, 'merge')
@@ -632,7 +645,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         ))
       }
 
-      setPreview(data)
+      // ⛔ FASE NR. La marca viaja en el PREVIEW y no se deduce de `importMode`
+      // al renderizar: esa pestaña es un estado de UI que el usuario puede
+      // mover después de que el archivo se leyó, y de qué camino salieron estos
+      // datos es un hecho del momento en que se leyeron.
+      setPreview({ ...data, _fromFile: true })
       setSelectedAccounts(null)
       setStep('preview')
     } catch (err) {
@@ -641,6 +658,25 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setSyncing(false)
     }
   }, [t, syncMode, onSyncComplete])
+
+  // ⛔ FASE NR. Ensayo del match, con la MISMA función que corre la importación,
+  // para que la recomendación sea evidencia y no una corazonada: "encontramos N
+  // de estas posiciones" en vez de pedirle al usuario que adivine cuál modo es
+  // seguro. Puro, sin escrituras.
+  const enrichMatched = useMemo(() => {
+    if (!preview?._fromFile || !preview?.items?.length) return 0
+    return reconcileBrokerPositions({
+      incoming: preview.items,
+      existing: existingItems || [],
+      source: 'ibkr',
+      mode: 'enrich',
+    }).matched
+  }, [preview, existingItems])
+
+  useEffect(() => {
+    if (syncModeTouchedRef.current) return
+    if (preview?._fromFile) setSyncMode(enrichMatched > 0 ? 'enrich' : 'merge')
+  }, [preview, enrichMatched])
 
   const handleFileDrop = useCallback((e) => {
     e.preventDefault()
@@ -680,6 +716,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       accounts: activeAccounts,
     } : preview
 
+    // ⛔ FASE NR. 'enrich' solo tiene sentido sobre un archivo. El modal se
+    // reusa entre los dos caminos, así que se acota acá: un preview que no
+    // salió de un archivo jamás confirma en ese modo.
+    const confirmMode = (syncMode === 'enrich' && !preview._fromFile) ? 'merge' : syncMode
     const totalItems = dataToImport.items.length + dataToImport.transactions.length + (dataToImport.equityHistory || []).length
     const timeoutMs = Math.max(120000, totalItems * 1500)
     const MAX_RETRIES = 1
@@ -691,7 +731,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), timeoutMs)
         )
         await Promise.race([
-          onSyncComplete(dataToImport, syncMode, (done, total) => {
+          onSyncComplete(dataToImport, confirmMode, (done, total) => {
             progress.done = done
             progress.total = total
             setImportProgress({ done, total })
@@ -704,7 +744,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           equityHistory: (dataToImport.equityHistory || []).length,
           accounts: activeAccounts,
           syncedAt: dataToImport.syncedAt || new Date().toISOString(),
-          mode: syncMode,
+          mode: confirmMode,
         })
         setStep('done')
         return
@@ -1418,31 +1458,65 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              {/* Sync mode selector — shown first for visibility */}
+              {/* Sync mode selector — shown first for visibility.
+                  ⛔ FASE NR. El tercer modo ('enrich') aparece SOLO cuando el
+                  preview salió de un ARCHIVO, y ahí es el recomendado: un
+                  statement es la foto de un momento pasado, así que "Actualizar"
+                  puede pisar el precio y la cantidad de HOY con los del archivo.
+                  En el sync por API "Actualizar" sí es lo correcto (el broker
+                  está reportando lo de ahora) y por eso ahí no se ofrece. */}
               <div className="bg-theme-base/50 rounded-xl p-4 border border-glass-border/40">
                 <p className="text-xs text-white font-medium mb-3">
                   {t('¿Cómo importar?', 'How to import?')}
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setSyncMode('merge')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'merge' ? 'border-glass-border hover:border-slate-500' : ''}`}
-                    style={syncMode === 'merge' ? { borderColor: 'var(--accent-blue)', backgroundColor: 'var(--alert-info-bg)' } : undefined}>
-                    <p className="text-sm text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                      {t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
-                         'Updates prices and quantities for existing positions. Adds new ones. Deletes nothing.')}
-                    </p>
-                  </button>
-                  <button onClick={() => setSyncMode('replace')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'replace' ? 'border-glass-border hover:border-slate-500' : ''}`}
-                    style={syncMode === 'replace' ? { borderColor: 'var(--accent-red)', backgroundColor: 'var(--alert-error-bg)' } : undefined}>
-                    <p className="text-sm text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                      {t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
-                         'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors.')}
-                    </p>
-                  </button>
-                </div>
+                {(() => {
+                  const opts = []
+                  if (preview._fromFile) {
+                    opts.push({
+                      key: 'enrich', accent: 'var(--accent-green)', bg: 'var(--alert-success-bg)',
+                      title: `📎 ${t('Completar lo que ya tengo', 'Fill in what I already have')}`,
+                      desc: enrichMatched > 0
+                        ? t(`Encontramos ${enrichMatched} de estas posiciones en tu cuenta. Les agrega las fechas y los movimientos que falten, sin tocar tu precio ni tu cantidad de hoy, y sin borrar nada.`,
+                             `We found ${enrichMatched} of these positions in your account. It adds the missing dates and movements, without touching today's price or quantity, and deletes nothing.`)
+                        : t('Ninguna de estas posiciones está todavía en tu cuenta, así que se agregarán todas.',
+                             'None of these positions are in your account yet, so all of them will be added.'),
+                    })
+                  }
+                  opts.push({
+                    key: 'merge', accent: 'var(--accent-blue)', bg: 'var(--alert-info-bg)',
+                    title: `🔄 ${t('Actualizar', 'Update')}`,
+                    desc: preview._fromFile
+                      ? t('Reemplaza precio y cantidad con los del archivo. Ojo: si el archivo es de una fecha vieja, tu saldo de hoy retrocede a esa fecha.',
+                           'Replaces price and quantity with the file\'s. Careful: if the file is from an old date, today\'s balance rolls back to that date.')
+                      : t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
+                           'Updates prices and quantities for existing positions. Adds new ones. Deletes nothing.'),
+                  })
+                  opts.push({
+                    key: 'replace', accent: 'var(--accent-red)', bg: 'var(--alert-error-bg)',
+                    title: `♻️ ${t('Sustituir todo', 'Replace all')}`,
+                    desc: t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
+                             'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors.'),
+                  })
+                  return (
+                    <div className={`grid gap-3 ${opts.length > 2 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      {opts.map((opt) => (
+                        <button key={opt.key} onClick={() => { syncModeTouchedRef.current = true; setSyncMode(opt.key) }}
+                          className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== opt.key ? 'border-glass-border hover:border-slate-500' : ''}`}
+                          style={syncMode === opt.key ? { borderColor: opt.accent, backgroundColor: opt.bg } : undefined}>
+                          <p className="text-sm text-white font-medium">
+                            {opt.title}
+                            {opt.key === 'enrich' && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)' }}>
+                                {t('recomendado', 'recommended')}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1 leading-relaxed">{opt.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
                 <p className="text-xs text-slate-600 mt-2">
                   {t('El historial de transacciones y NAV se importa siempre (no se duplica).',
                      'Transaction history and NAV are always imported (no duplicates).')}
