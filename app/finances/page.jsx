@@ -499,7 +499,8 @@ export default function FinancesPage() {
             eran cuatro cards dibujando el mismo dinero dos veces por lado. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
           <BreakdownCard
-            title={t('Gastos', 'Expenses')}
+            title={t('GASTOS', 'EXPENSES')}
+            dotColor="var(--accent-red)"
             groups={analysis.groups}
             total={analysis.expenses}
             silentReason={deltaSilentReason}
@@ -507,7 +508,8 @@ export default function FinancesPage() {
             lang={lang}
           />
           <BreakdownCard
-            title={t('Ingresos', 'Income')}
+            title={t('INGRESOS', 'INCOME')}
+            dotColor="var(--accent-green)"
             groups={analysis.incomeGroups}
             total={analysis.income}
             silentReason={deltaSilentReason}

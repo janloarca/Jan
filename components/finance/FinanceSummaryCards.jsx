@@ -72,14 +72,14 @@ export default function FinanceSummaryCards({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-      <div className="card p-4">
+      <div className="card p-4 sm:p-5">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Entró', 'Came in')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>
           {money(totalIncome)}
           <Delta momComparable={momComparable} momTitle={momTitle} t={t} pct={momIncomePct} />
         </p>
       </div>
-      <div className="card p-4">
+      <div className="card p-4 sm:p-5">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Salió', 'Went out')}</p>
         <p className="text-h2 font-mono tabular-nums" style={{ color: 'var(--text-negative)' }}>
           {money(expenses)}
@@ -95,7 +95,7 @@ export default function FinanceSummaryCards({
           </p>
         )}
       </div>
-      <div className="card p-4">
+      <div className="card p-4 sm:p-5">
         <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>{t('Quedó', 'Left over')}</p>
         {/* FASE ME4: "Quedo" es dinero REAL del mes cerrado o en curso, no una
             proyeccion: verde cuando quedo, rojo cuando falto, la misma

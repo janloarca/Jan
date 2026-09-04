@@ -181,10 +181,13 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
 
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Transacciones', 'Transactions')}</h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="card-title">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+            {t('MOVIMIENTOS', 'TRANSACTIONS')}
+          </h3>
           {filtered.length > 0 && (
             <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>
               {filtered.length} · {shownTotal >= 0 ? '+' : '-'}Q{fmt(Math.abs(shownTotal))}

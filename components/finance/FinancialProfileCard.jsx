@@ -134,11 +134,12 @@ export default function FinancialProfileCard({
   ]
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            👤 {t('Mi perfil financiero', 'My financial profile')}
+          <h3 className="card-title">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--text-muted)' }} />
+            {t('MI PERFIL FINANCIERO', 'MY FINANCIAL PROFILE')}
             {savedFlash && <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>✓ {t('Guardado', 'Saved')}</span>}
           </h3>
           <p className="text-xs mt-0.5" style={{ color: isStale ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>
@@ -217,7 +218,7 @@ export default function FinancialProfileCard({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {FIELDS.map((field) => (
               <div key={field.key}>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">{field.label}</label>
+                <label className="text-micro uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>{field.label}</label>
                 <AmountInput value={form[field.key]} onChange={(e) => setForm((p) => ({ ...p, [field.key]: e.target.value }))}
                   placeholder={field.placeholder}
                   className="w-full px-3 py-2 bg-theme-base border border-glass-border/60 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -227,7 +228,7 @@ export default function FinancialProfileCard({
           </div>
 
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-1 block">{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
+            <label className="text-micro uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Tolerancia al riesgo', 'Risk tolerance')}</label>
             <div className="flex gap-2">
               {Object.entries(RISK_LABEL).map(([key, label]) => (
                 <button key={key} onClick={() => setForm((p) => ({ ...p, riskTolerance: key }))}

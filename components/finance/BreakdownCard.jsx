@@ -29,6 +29,11 @@ export default function BreakdownCard({
   momTitle = null,
   emptyText,
   accentFallback = 'var(--text-muted)',
+  // El punto de color del encabezado. Lo decide el CALLER porque esta card no
+  // sabe de qué lado es: la misma sirve para gastos y para ingresos, y el rojo
+  // o el verde son del lado, no de la card. El default es el mismo que usa el
+  // tablero cuando una card no tiene un color propio que reclamar.
+  dotColor = 'var(--accent-blue-soft)',
 }) {
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
   const [open, setOpen] = useState(() => new Set())
@@ -64,9 +69,12 @@ export default function BreakdownCard({
   const barWidth = (v) => `${Math.min(100, (Math.abs(v || 0) / max) * 100)}%`
 
   return (
-    <div className="card p-4">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+    <div className="card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h3 className="card-title">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+          {title}
+        </h3>
         <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{fmt(total)}</span>
       </div>
 
