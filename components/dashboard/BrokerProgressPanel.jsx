@@ -121,6 +121,11 @@ export default function BrokerProgressPanel({
           const isNext = s.step === nextStep
           const label = lang === 'es' ? s.title.es : s.title.en
           const desc = s.desc ? (lang === 'es' ? s.desc.es : s.desc.en) : null
+          // FASE NT: un aviso del paso (una calibración copiada que la app
+          // está ignorando). Gana sobre "Listo"/"Pendiente": el estado del
+          // círculo no cambia, la frase de al lado sí, porque "Pendiente"
+          // sobre un paso que el usuario ya hizo se lee como trabajo borrado.
+          const attention = s.attention ? (lang === 'es' ? s.attention.es : s.attention.en) : null
           return (
             <button
               key={s.id}
@@ -143,12 +148,16 @@ export default function BrokerProgressPanel({
                 <span className="block text-xs font-medium truncate" style={{ color: isDone ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
                   {label}
                 </span>
-                <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
-                  {isDone
-                    ? t('Listo', 'Done')
-                    : isSkippable
-                      ? t('No hace falta: ya está cubierto.', 'Not needed: already covered.')
-                      : (isNext && desc ? desc : t('Pendiente', 'Pending'))}
+                <span className="block text-[11px] mt-0.5 leading-snug"
+                  data-step-attention={attention ? 'true' : undefined}
+                  style={{ color: attention ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>
+                  {attention
+                    ? attention
+                    : isDone
+                      ? t('Listo', 'Done')
+                      : isSkippable
+                        ? t('No hace falta: ya está cubierto.', 'Not needed: already covered.')
+                        : (isNext && desc ? desc : t('Pendiente', 'Pending'))}
                 </span>
               </span>
               <ChevronRight size={15} className="shrink-0" style={{ color: 'var(--text-muted)' }} />
