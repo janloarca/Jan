@@ -1262,6 +1262,33 @@ describe('FASE NT: las calibraciones ignoradas se exponen con su razón', () => 
   })
 })
 
+// FASE NU. Un snapshot fechado DESPUES de hoy no es una observacion. El CSV de
+// PortfolioAnalyst fecha el mes en curso a su fin de mes, asi que un doc de
+// NAV '2026-09-30' podia existir un 4 de septiembre y, como la serie se ordena
+// por fecha, se volvia el "ultimo snapshot" del portafolio.
+describe('FASE NU: un snapshot del futuro no entra a la serie', () => {
+  it('se filtra de snapshots/augmentedSnapshots y no es el latestSnapshot', async () => {
+    const future = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10)
+    const items = [item({ id: 'ibkr1', symbol: 'IBKRP', _source: 'ibkr', createdAt: '2026-01-05' })]
+    const snaps = [
+      { id: '2026-06-15', date: '2026-06-15', netWorthUSD: 8000, totalActivosUSD: 8000, totalDebtUSD: 0, _source: 'daily' },
+      { id: `${future}~nav~ibkr`, date: future, netWorthUSD: 10008.97, totalActivosUSD: 10008.97, totalDebtUSD: 0, _source: 'ibkr' },
+    ]
+    const { result, unmount } = setup({
+      firestore: { items, snapshots: snaps },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    expect(result.current.snapshots.some((s) => s.date === future)).toBe(false)
+    expect(result.current.augmentedSnapshots.some((s) => s.date === future)).toBe(false)
+    // El de junio (pasado) sigue ahi: el filtro es solo hacia el futuro.
+    expect(result.current.snapshots.some((s) => s.date === '2026-06-15')).toBe(true)
+    // Y el checklist no cuenta el doc futuro como un dia de NAV traido.
+    expect(result.current.brokerCompletionState.ibkrNavDays).toBe(0)
+    unmount()
+  })
+})
+
 // ⛔ FASE NP. El ancla GLOBAL calibrada que sus propios vecinos contradicen.
 //
 // TERCER reporte del usuario, mismo número al centavo, con NL y NN ya
