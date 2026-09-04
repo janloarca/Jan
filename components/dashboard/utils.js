@@ -8,6 +8,13 @@ let _baseCurrency = 'USD'
 export function setBaseCurrency(code) { _baseCurrency = code || 'USD' }
 export function getBaseCurrency() { return _baseCurrency }
 
+// Una sola definicion del simbolo: una segunda copia en un componente es como
+// una se queda atras cuando la lista crece (la enfermedad que este repo ya
+// documenta para InfoTip y lib/transferTx.js).
+export function currencySymbol(code) {
+  return CURRENCY_SYMBOLS[code || _baseCurrency] || '$'
+}
+
 let _lang = 'en'
 export function setLang(code) { _lang = code || 'en' }
 

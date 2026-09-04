@@ -129,6 +129,17 @@ function formatNum(val) {
   return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// `formatNum` hace Math.abs, asi que una fila que SI calculo su signo lo perdia
+// justo al imprimirlo: la fila Pasivos mostraba "-$5,000.00" en la columna del
+// mes actual (que usa formatCurrency) y "5,000.00" en las once anteriores, o sea
+// cambiaba de convencion a mitad de su propia fila. El signo tampoco puede
+// quedar solo en el color: verde y rojo miden 1.14:1 entre si, o sea para
+// daltonismo rojo-verde son la misma muestra.
+function formatSigned(val) {
+  if (val == null || !isFinite(val)) return '-'
+  return `${val < 0 ? '-' : ''}${formatNum(val)}`
+}
+
 function isMarketAsset(type) {
   return /stock|crypto|fund|etf/i.test(type) && !/realestate|inmueble/i.test(type)
 }
@@ -1775,7 +1786,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     if (foundAny) {
                       return (
                         <td key={mk} className="text-right py-3 px-2 tabular-nums font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
-                          {formatNum(catHistTotal)}
+                          {formatSigned(catHistTotal)}
                         </td>
                       )
                     }

@@ -376,6 +376,7 @@ export default function SpreadsheetPage() {
           <DebtSpreadsheet
             items={portfolioItems || enrichedItems}
             lang={lang}
+            baseCurrency={baseCurrency}
             onEditItem={(item) => setEditItem(item)}
             onAdd={() => { setAddModalDefaults({ isDebt: true }); setShowAddModal(true) }}
           />
@@ -385,6 +386,8 @@ export default function SpreadsheetPage() {
           <PatrimonioSpreadsheet
             items={portfolioItems || enrichedItems}
             lang={lang}
+            convert={convert}
+            baseCurrency={baseCurrency}
             onEditItem={(item) => setEditItem(item)}
             onUpdateItem={updateItem}
             onAdd={(defaults) => { setAddModalDefaults(defaults || {}); setShowAddModal(true) }}

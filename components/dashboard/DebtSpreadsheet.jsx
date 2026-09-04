@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, Fragment } from 'react'
-import { getItemValue, getTypeCategory, debtTermLabel } from './utils'
+import { getItemValue, getTypeCategory, debtTermLabel, currencySymbol } from './utils'
 import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
 
 const SUBTYPE_LABELS = {
@@ -24,7 +24,10 @@ function pctFmt(val) {
   return val.toFixed(2) + '%'
 }
 
-export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
+export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd, baseCurrency }) {
+  // Mismas cifras en moneda BASE con un "$" fijo encima: con base GTQ la
+  // pestana entera rotulaba quetzales como dolares.
+  const money = (val) => `${currencySymbol(baseCurrency)}${fmt(val)}`
   const t = (es, en) => lang === 'es' ? es : en
   const [sortBy, setSortBy] = useState('balance')
   const [sortDir, setSortDir] = useState('desc')
@@ -128,15 +131,15 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Deuda Total', 'Total Debt')}</p>
-          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-negative)' }}>${fmt(totals.totalBalance)}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-negative)' }}>{money(totals.totalBalance)}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Pago Mensual', 'Monthly Payment')}</p>
-          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>${fmt(totals.totalMonthly)}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>{money(totals.totalMonthly)}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Interés Mensual', 'Monthly Interest')}</p>
-          <p className="text-xl font-bold mt-1" style={{ color: 'var(--alert-warn-icon)' }}>${fmt(totals.totalInterest)}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: 'var(--alert-warn-icon)' }}>{money(totals.totalInterest)}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Tasa Promedio (anual equiv.)', 'Avg Rate (annual eq.)')}</p>
@@ -155,7 +158,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
             </div>
             <div>
               <p className="text-blue-500 font-medium">Snowball ({t('motivación', 'motivation')})</p>
-              <p style={{ color: 'var(--text-secondary)' }}>{t('Paga primero', 'Pay first')}: <strong>{avalancheFirst.snowball.name || avalancheFirst.snowball.symbol}</strong> (${fmt(avalancheFirst.snowball.balance)})</p>
+              <p style={{ color: 'var(--text-secondary)' }}>{t('Paga primero', 'Pay first')}: <strong>{avalancheFirst.snowball.name || avalancheFirst.snowball.symbol}</strong> ({money(avalancheFirst.snowball.balance)})</p>
             </div>
           </div>
         </div>
@@ -213,7 +216,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         <span className="text-xs text-slate-500">{subtypeLabel}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className="font-mono text-sm font-medium" style={{ color: 'var(--text-negative)' }}>${fmt(debt.balance)}</span>
+                        <span className="font-mono text-sm font-medium" style={{ color: 'var(--text-negative)' }}>{money(debt.balance)}</span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <span className={`font-mono text-sm ${debt.rateAnnualEq > 20 ? 'font-semibold' : ''}`} style={{ color: debt.rateAnnualEq > 20 ? 'var(--text-negative)' : debt.rate > 0 ? 'var(--accent-orange)' : 'var(--text-muted)' }}>
@@ -221,7 +224,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
-                        <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{debt.monthly > 0 ? `$${fmt(debt.monthly)}` : '-'}</span>
+                        <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{debt.monthly > 0 ? money(debt.monthly) : '-'}</span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <span className="text-xs text-slate-500">{debtTermLabel(debt.debtTerm, lang) || '-'}</span>
@@ -231,7 +234,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <span className="font-mono text-sm" style={{ color: debt.monthlyInterest > 100 ? 'var(--text-negative)' : 'var(--alert-warn-icon)' }}>
-                          {debt.monthlyInterest > 0 ? `$${fmt(debt.monthlyInterest)}` : '-'}
+                          {debt.monthlyInterest > 0 ? money(debt.monthlyInterest) : '-'}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
@@ -251,7 +254,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
                         <td colSpan={9} className="px-8 py-1.5">
                           <span className="text-xs text-slate-400">
                             {debt.bd.totalToPay != null && (
-                              <>{t('Total a pagar con intereses', 'Total to pay with interest')}: ~${fmt(debt.bd.totalToPay)} ({t('intereses', 'interest')} ~${fmt(debt.bd.totalInterestRemaining)}{debt.bd.months != null ? ` · ~${debt.bd.months} ${t('meses', 'months')}` : ''})</>
+                              <>{t('Total a pagar con intereses', 'Total to pay with interest')}: ~{money(debt.bd.totalToPay)} ({t('intereses', 'interest')} ~{money(debt.bd.totalInterestRemaining)}{debt.bd.months != null ? ` · ~${debt.bd.months} ${t('meses', 'months')}` : ''})</>
                             )}
                             {debt.bd.paymentTooSmall && (
                               <span style={{ color: 'var(--alert-warn-icon)' }}> ⚠ {t('el pago no cubre ni el interés del mes: así la deuda no baja', 'the payment does not even cover monthly interest: the debt cannot shrink')}</span>
@@ -279,11 +282,11 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd }) {
             <tfoot>
               <tr className="bg-theme-tertiary border-t-2 border-glass-border">
                 <td className="px-4 py-3 text-sm font-bold" style={{ color: 'var(--text-primary)' }} colSpan={2}>Total</td>
-                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-negative)' }}>${fmt(totals.totalBalance)}</td>
+                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-negative)' }}>{money(totals.totalBalance)}</td>
                 <td className="px-3 py-3 text-right font-mono text-sm" style={{ color: 'var(--alert-warn-icon)' }}>{pctFmt(totals.avgRate)}</td>
-                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>${fmt(totals.totalMonthly)}</td>
+                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{money(totals.totalMonthly)}</td>
                 <td colSpan={2}></td>
-                <td className="px-3 py-3 text-right font-mono text-sm" style={{ color: 'var(--alert-warn-icon)' }}>${fmt(totals.totalInterest)}</td>
+                <td className="px-3 py-3 text-right font-mono text-sm" style={{ color: 'var(--alert-warn-icon)' }}>{money(totals.totalInterest)}</td>
                 <td></td>
               </tr>
             </tfoot>

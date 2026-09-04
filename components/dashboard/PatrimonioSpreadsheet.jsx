@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, Fragment, useCallback } from 'react'
-import { getItemValue, getTypeCategory, formatDate } from './utils'
+import { getItemValue, getTypeCategory, formatDate, currencySymbol } from './utils'
 import { parseAmount } from '@/lib/numberParse'
 
 const PATRIMONIO_CATEGORIES = ['realestate', 'alternatives', 'other']
@@ -52,8 +52,13 @@ function categorizePatrimonio(item) {
   return 'other'
 }
 
-export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdateItem, onAdd }) {
+export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdateItem, onAdd, convert, baseCurrency }) {
   const t = (es, en) => lang === 'es' ? es : en
+  // Estas cifras vienen en moneda BASE (los items llegan enriquecidos), y la
+  // pestaña las rotulaba con un "$" fijo: con base GTQ, toda la pantalla
+  // presentaba quetzales como dolares. Se conservan los cero decimales, que son
+  // deliberados para montos de esta escala.
+  const money = (val) => `${currencySymbol(baseCurrency)}${fmt(val)}`
   const [expanded, setExpanded] = useState({})
   const [editingValue, setEditingValue] = useState(null)
   const [editDraft, setEditDraft] = useState('')
@@ -110,7 +115,38 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
     const isExplicitZero = /^0([.,]0*)?$/.test(raw)
     // Same ceiling as file imports (lib/validation MAX_PRICE).
     if (raw !== '' && isFinite(num) && (num > 0 || isExplicitZero) && num <= 10_000_000 && onUpdateItem) {
-      onUpdateItem(item.id, { currentPrice: num, quantity: 1 })
+      // ⛔ La celda MUESTRA en moneda base (`getItemValue` sobre un item ya
+      // enriquecido: su `currentPrice` viene convertido, el crudo vive en
+      // `_originalPrice`) y `currentPrice` se GUARDA crudo, así que escribir el
+      // número tal cual lo re-convierte en la siguiente carga. Con base USD y
+      // una propiedad en quetzales, abrir la celda y dar Enter sin tocar nada
+      // dejaba Q1,000,000 guardado como Q130,000: la edición no era necesaria,
+      // bastaba con abrirla. Es el bug XOCHI (FASE EK) en la pestaña que aquella
+      // pasada no tocó.
+      const cur = item._originalCurrency || item.currency || 'USD'
+      const base = baseCurrency || 'USD'
+      let price = num
+      if (convert && cur !== base) {
+        const out = convert(num, base, cur)
+        // Sin tasa, `convert` devuelve el monto CRUDO: ahí se rehúsa en vez de
+        // guardar un número en la moneda equivocada.
+        if (!Number.isFinite(out) || out === num) {
+          setRejectMsg(t(
+            `No hay tipo de cambio ${base}→${cur} en este momento. Intentá de nuevo en unos segundos.`,
+            `No ${base}→${cur} exchange rate right now. Try again in a few seconds.`
+          ))
+          setEditingValue(null)
+          return
+        }
+        price = out
+      }
+      // La cantidad solo se normaliza cuando la guardada NO SIRVE: forzar 1
+      // sobre un bien con cantidad legítima le cambia el Costo (cantidad x
+      // precio de compra) sin que nadie haya editado esa columna.
+      const qty = Number(item.quantity)
+      const patch = { currentPrice: price }
+      if (!Number.isFinite(qty) || qty <= 0) patch.quantity = 1
+      onUpdateItem(item.id, patch)
       setRejectMsg('')
     } else if (raw !== '') {
       // Un valor rechazado se descartaba EN SILENCIO: la celda se cerraba y el
@@ -122,7 +158,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
         : `${label}: could not read that value. Use positive numbers only, up to 10,000,000.`)
     }
     setEditingValue(null)
-  }, [editDraft, onUpdateItem, lang])
+  }, [editDraft, onUpdateItem, lang, convert, baseCurrency])
 
   // FASE ME: igual que DebtSpreadsheet, esta vista era `bg-white` + grises de tema
   // claro fijos con clases remapeadas encima: en tema oscuro (el default) las
@@ -166,7 +202,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Patrimonio Total', 'Total Estate')}</p>
-          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>${fmt(grandTotal)}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>{money(grandTotal)}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs uppercase tracking-wide text-slate-400">{t('Bienes', 'Assets')}</p>
@@ -175,7 +211,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
         {grouped.map(g => (
           <div key={g.key} className="card p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">{g.icon} {g.label}</p>
-            <p className="text-lg font-bold mt-1" style={{ color: 'var(--text-primary)' }}>${fmt(g.total)}</p>
+            <p className="text-lg font-bold mt-1" style={{ color: 'var(--text-primary)' }}>{money(g.total)}</p>
           </div>
         ))}
       </div>
@@ -220,7 +256,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                       {group.icon} {group.label}
                       <span className="ml-2 text-xs font-normal text-slate-400">({group.items.length})</span>
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>${fmt(group.total)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{money(group.total)}</td>
                     <td></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-400">
                       {grandTotal > 0 ? ((group.total / grandTotal) * 100).toFixed(1) + '%' : '-'}
@@ -256,7 +292,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                           <span className="text-xs text-slate-500 max-w-[200px] truncate block">{location || '-'}</span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <span className="font-mono text-sm text-slate-500">{cost > 0 ? `$${fmt(cost)}` : '-'}</span>
+                          <span className="font-mono text-sm text-slate-500">{cost > 0 ? money(cost) : '-'}</span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           {isEditing ? (
@@ -275,7 +311,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                           ) : (
                             <span className="font-mono text-sm font-medium cursor-pointer hover:underline" style={{ color: 'var(--text-primary)' }}
                               onClick={() => startEditValue(item)}>
-                              ${fmt(value)}
+                              {money(value)}
                             </span>
                           )}
                         </td>
@@ -307,7 +343,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                 <td className="px-4 py-3 text-sm font-bold" style={{ color: 'var(--text-primary)' }} colSpan={4}>
                   {t('Total Patrimonio', 'Total Estate')}
                 </td>
-                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>${fmt(grandTotal)}</td>
+                <td className="px-3 py-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{money(grandTotal)}</td>
                 <td colSpan={2}></td>
               </tr>
             </tfoot>
