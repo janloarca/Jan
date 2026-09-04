@@ -1175,10 +1175,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // broker está reportando lo que hay AHORA) y es falso para un archivo, que
     // puede cubrir otro período u otra cuenta. En modo enrich no se borra nada.
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
+    // SOLO lo que el propio sync creo, la GUARDA 2 de ibkrVanishedPositions.js,
+    // cuyo comentario ya nombraba a ESTA rama como la peligrosa: la heuristica
+    // por nombre de institucion alcanzaba a un item que el usuario tecleo a
+    // mano y llamo "Interactive Brokers", y `quantity: 0` es como se escribe
+    // una cuenta vaciada a proposito. Borrar eso durante un sync automatico,
+    // sin preview y sin aviso, es lo que ese comentario llama imperdonable.
     if (!enrichOnly) itemsNow.forEach(it => {
       if (deleteIds.includes(it.id)) return
-      const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
-      if (isIbkr && (it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
+      if (it._source !== 'ibkr') return
+      if ((it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
         deleteIds.push(it.id)
       }
     })
@@ -1194,17 +1200,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       feedAccounts: data.accounts || [],
       hasCashSection: (data.sections?.cashReport || 0) > 0,
     }).forEach((id) => { if (!deleteIds.includes(id)) deleteIds.push(id) })
-    const deleteSet = new Set(deleteIds)
-    const afterCleanup = itemsNow.filter(it => !deleteSet.has(it.id))
-    if (!enrichOnly) afterCleanup.forEach(it => {
-      if (it._source === 'ibkr') return
-      const sym = (it.symbol || '').toUpperCase()
-      if (!sym) return
-      const ibkrMatch = afterCleanup.find(other =>
-        other.id !== it.id && other._source === 'ibkr' && (other.symbol || '').toUpperCase() === sym
-      )
-      if (ibkrMatch && (it.quantity ?? 0) <= 0) deleteIds.push(it.id)
-    })
+    // ⛔ NO volver a agregar aqui un borrado por COLISION DE SIMBOLO.
+    //
+    // Vivio aqui una regla que borraba todo item con `quantity <= 0` que
+    // compartiera simbolo con uno de IBKR. Su alcance real era el contrario del
+    // que parece: todo lo que importamos lleva `_source:'ibkr'` y la regla
+    // arrancaba con `if (it._source === 'ibkr') return`, asi que lo UNICO que
+    // podia borrar eran items que el usuario tecleo a mano (o de otro broker).
+    //
+    // Y `quantity: 0` es un estado NORMAL y documentado de un item manual: asi
+    // se escribe una cuenta vaciada (lib/transferFields.js pone la cantidad en
+    // cero a proposito para que un residuo en price/cost no resucite el saldo,
+    // y hay dos sanadores construidos alrededor de esa firma). O sea la regla
+    // no distinguia un residuo de migracion de una cuenta que el usuario vacio
+    // a conciencia, y podia dispararse en un auto-sync que nadie pidio, sin
+    // preview y sin aviso.
+    //
+    // Es exactamente lo que prohibe la doctrina de lib/ibkrVanishedPositions.js,
+    // el modulo hermano que si borra bien: "Ante cualquier duda: no se borra.
+    // Una posicion de mas es un error visible que el usuario puede reportar;
+    // una cartera borrada no se recupera."
+    //
+    // El duplicado que la regla intentaba limpiar NO queda sin atender: el
+    // hallazgo `dup-suspect` (lib/dataCompleteness.js) lo detecta y se lo
+    // muestra al usuario, que es quien puede distinguir los dos casos.
 
     await bulkImport({
       items: newItems,
