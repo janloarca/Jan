@@ -22,11 +22,11 @@ import { ibkrSyncDecision, bumpAttempts, ibkrDayKey } from '@/lib/ibkrSchedule'
 // pestaña que queda abierta días cruce a un día nuevo sola.
 const SYNC_HEARTBEAT_MS = NORMAL_INTERVAL_MS
 import { vanishedIbkrPositionIds } from '@/lib/ibkrVanishedPositions'
-import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapshots'
+import { corruptSnapshotRunIds, feEraSuspectDailyIds, usdFlowEvents } from '@/lib/corruptSnapshots'
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -93,21 +93,39 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // dedup, backfill, scoped returns) or they would read as catastrophic drops.
   // Every consumer below uses the filtered `snapshots`; only the calibration
   // math in the returnYTD memo reads `accountCalibrations`.
-  const accountCalibrations = useMemo(
+  // ⛔ FASE NN: el filtro va AQUÍ, en la única definición, y no en cada
+  // consumidor. Una calibración por cuenta se aplica en memoria en CUATRO
+  // sitios (los anclas sintéticos del chart, el ancla del YTD, la de
+  // desde-el-inicio, y el checklist del broker); filtrar en uno solo dejaría a
+  // los otros tres midiendo contra un arranque que la app ya declaró falso, y
+  // las superficies volverían a contradecirse. El doc NO se borra: se deja de
+  // aplicar, así que re-calibrar sigue siendo un camino abierto.
+  const rawAccountCalibrations = useMemo(
     () => (rawSnapshots || []).filter((s) => s && s._account && s._calibrated && s.date),
     [rawSnapshots]
   )
-  const snapshots = useMemo(
+  const contradictedCals = useMemo(
+    () => new Set(contradictedAccountCalibrations(rawAccountCalibrations, rawSnapshots)),
+    [rawAccountCalibrations, rawSnapshots]
+  )
+  const accountCalibrations = useMemo(
+    () => rawAccountCalibrations.filter((c) => !contradictedCals.has(c)),
+    [rawAccountCalibrations, contradictedCals]
+  )
+  // La serie de NAV cruda: todo lo que no es un ancla por cuenta. La consumen
+  // los REPARADORES, que tienen que poder ver el doc envenenado para
+  // reescribirlo; todo lo que LEE usa `snapshots`, más abajo.
+  const snapshotsAll = useMemo(
     () => (rawSnapshots || []).filter((s) => !(s && s._account)),
     [rawSnapshots]
   )
 
-  // ⛔ FASE LH. Espejo en ref de items/snapshots para la reconciliación de
-  // IBKR. handleIBKRSync corre DESPUÉS de una descarga de hasta ~90s, así que
-  // leer `items` de su closure significaba reconciliar contra la foto de
-  // cuando la corrida se armó: si un import escribió posiciones en el medio,
-  // el sync no las veía y las volvía a crear (posiciones duplicadas, sin
-  // heal posterior: dataCompleteness excluye los items de broker a propósito).
+  // ⛔ FASE LH. Espejo en ref de items para la reconciliación de IBKR.
+  // handleIBKRSync corre DESPUÉS de una descarga de hasta ~90s, así que leer
+  // `items` de su closure significaba reconciliar contra la foto de cuando la
+  // corrida se armó: si un import escribió posiciones en el medio, el sync no
+  // las veía y las volvía a crear (posiciones duplicadas, sin heal posterior:
+  // dataCompleteness excluye los items de broker a propósito).
   // La asignación es en render a propósito: idempotente, y siempre la foto
   // más fresca que el cliente tiene. Tenerlas como ref además saca `items` y
   // `snapshots` de las deps de handleIBKRSync, lo que de paso deja de
@@ -115,8 +133,6 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // tirando un sync completo en silencio) con cada eco del listener.
   const itemsRef = useRef(items)
   itemsRef.current = items
-  const snapshotsRef = useRef(snapshots)
-  snapshotsRef.current = snapshots
 
   const baseCurrency = settings?.baseCurrency || 'USD'
 
@@ -125,6 +141,38 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, isFetching: pricesFetching, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, stale: ratesStale, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
+
+  // ⛔ FASE NP. Un ancla calibrada que sus propios vecinos contradicen deja de
+  // usarse, no solo de repararse.
+  //
+  // La lección de FASE NN una capa más arriba, y la razón de que este sea el
+  // TERCER intento sobre el mismo número: reparar el doc no alcanza cuando la
+  // reparación NO PUEDE CORRER. `composeDailyTotals` salta a propósito todo día
+  // sin NAV arrastrable del broker (invariante 2 de la serie histórica: nunca
+  // archivar un total que omite una cuenta conectada), así que para ese día no
+  // hay entrada en `composedAll`, `fills` queda vacío y las tres vías de
+  // reparación son inertes: el ancla envenenada se queda para siempre.
+  //
+  // Se filtra SOLO una calibración GLOBAL, jamás una observación real, así que
+  // en el peor caso una calibración deja de aplicarse (la misma compensación
+  // que FASE NN ya aceptó) y la tarjeta lo DICE. El día pasa a leerse como
+  // hueco, que es lo honesto: el ancla del año cae al siguiente doc real.
+  //
+  // Va DEBAJO de `convert` a propósito: una deps array se evalúa en render, y
+  // arriba sería un ReferenceError de TDZ (la clase de bug que este repo ya
+  // pagó tres veces; lo cazó noTdzReferences al escribir esto).
+  const contradictedAnchors = useMemo(
+    () => new Set(selfContradictedCalibrationDates(snapshotsAll, usdFlowEvents(transactions, convert))),
+    [snapshotsAll, transactions, convert]
+  )
+  const snapshots = useMemo(
+    () => (contradictedAnchors.size === 0
+      ? snapshotsAll
+      : snapshotsAll.filter((s) => !(s._calibrated && contradictedAnchors.has(s.date)))),
+    [snapshotsAll, contradictedAnchors]
+  )
+  const snapshotsRef = useRef(snapshots)
+  snapshotsRef.current = snapshots
 
   // FASE GB. Declarada AQUÍ (antes de los efectos escritores que la llevan en
   // sus deps) porque una deps array se evalúa en render: referenciarla antes
@@ -324,7 +372,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // before the next poll corrects it — the value-chart "bumps" a sync in
     // progress can leave behind.
     if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
-    if (enrichedItems.length === 0 || !snapshots) return
+    if (enrichedItems.length === 0 || !snapshotsAll) return
     // With no broker-synced item, a 'daily' doc is not an external truth
     // either — it is the SAME "sum of whatever items the app knew about that
     // day" that 'backfill' is, just computed live instead of after the fact.
@@ -347,8 +395,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // sus backfills) se regeneran completos con precios históricos reales.
     // Cada día se llena UNA vez y queda cubierto: el costo grande es solo la
     // primera pasada.
-    const gaps = staleBackfillDates(snapshots, { treatDailyAsStale: !hasBrokerItem, windowDays: 366, brokerConnectedTs: brokerAddedTs })
-    const navMigrations = misplacedPlainNavMigrations(snapshots)
+    const gaps = staleBackfillDates(snapshotsAll, { treatDailyAsStale: !hasBrokerItem, windowDays: 366, brokerConnectedTs: brokerAddedTs })
+    const navMigrations = misplacedPlainNavMigrations(snapshotsAll)
     // FASE HO: con un broker conectado la corrida no se salta aunque no haya
     // huecos: la composición (NAV real + manual) es la vara que detecta un doc
     // 'daily' corrupto, y esos docs NO son huecos (están protegidos justo por
@@ -381,7 +429,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // hasta acá significa que los docs paralelos YA se escribieron, y
           // dejar la migración a medias solo la repite la próxima sesión.)
           try {
-            const moved = await migrateMisplacedNav(snapshots)
+            const moved = await migrateMisplacedNav(snapshotsAll)
             console.info(`[nav-migration] moved ${moved} broker NAV doc(s) to parallel ids`)
           } catch (e) {
             console.error('[nav-migration] no se escribe nada esta sesión:', e?.message)
@@ -398,7 +446,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // mitades se componen abajo. Antes se le pedía adivinar la cuenta del
         // broker (hold-flat, o cero antes del sello de sync: FASE HL), que es
         // de donde salían los niveles distintos día a día.
-        const navByDate = buildNavByDate(snapshots)
+        const navByDate = buildNavByDate(snapshotsAll)
         const composing = hasBrokerItem && navByDate.size > 0
         const assetItems = composing
           ? allAssetItems.filter((it) => it._source !== 'ibkr')
@@ -472,9 +520,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const composedAll = composeDailyTotals({
           gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
         })
+        // FASE NL: una calibración GLOBAL que la composición contradice. Es el
+        // único doc que ningún reparador podía tocar (su `_source:'manual'` la
+        // disfraza de transcripción del usuario), así que un ancla de año mal
+        // despejada quedaba congelada para siempre.
+        const contradictedCal = new Set([
+          ...contradictedCalibrationDates(snapshotsAll, composedAll),
+          // FASE NP: y la que no necesita al broker, el archivo
+          // contradiciéndose entre días vecinos. Sin ella, un ancla calibrada
+          // en un día para el que composeDailyTotals no pudo componer (broker
+          // conectado, sin NAV arrastrable a esa fecha) queda congelada para
+          // siempre: es el caso del reporte de tres rondas seguidas.
+          ...selfContradictedCalibrationDates(snapshotsAll, usdFlowEvents(transactions, convert)),
+        ])
         const rewriteSet = new Set([
           ...gaps,
-          ...divergentDailyDates(snapshots, composedAll),
+          ...divergentDailyDates(snapshotsAll, composedAll),
+          ...contradictedCal,
         ])
         const fills = composedAll.filter((f) => rewriteSet.has(f.date))
         for (const f of fills) {
@@ -484,6 +546,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             totalActivosUSD: f.total,
             totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
+            // saveSnapshot FUSIONA: sin apagarlos, el doc quedaría con el valor
+            // bueno y todavía marcado como calibrado.
+            ...(contradictedCal.has(f.date) ? CLEARED_CALIBRATION_FIELDS : {}),
             // Un doc compuesto es tan flow-aware como un NAV real: su mitad de
             // broker ES la medición del broker (que ya contiene el efecto de
             // los depósitos) y la manual es reconstrucción transaccional.
@@ -509,7 +574,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, lots, transactions, saveSnapshot, convert, migrateMisplacedNav])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshotsAll, lots, transactions, saveSnapshot, convert, migrateMisplacedNav])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
@@ -2992,24 +3057,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => {
     if (corruptSnapCleanupRef.current) return
     if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
-    if (!deleteSnapshot || !snapshots || snapshots.length < 4) return
+    if (!deleteSnapshot || !snapshotsAll || snapshotsAll.length < 4) return
     if ((items || []).some((it) => it && it._source === 'demo')) return
-    const flowsUSD = (transactions || [])
-      .filter((tx) => /^(DEPOSIT|WITHDRAWAL)$/i.test(tx.type || ''))
-      .map((tx) => {
-        const ts = tx.date ? new Date(tx.date).getTime() : NaN
-        const amt = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0))
-        const usd = convert ? convert(amt, tx.currency || 'USD', 'USD') : amt
-        return { ts, amount: usd, type: (tx.type || '').toUpperCase() }
-      })
-      .filter((f) => isFinite(f.ts) && isFinite(f.amount) && f.amount > 0)
+    const flowsUSD = usdFlowEvents(transactions, convert)
     // FASE GA: además de las rachas estadísticas, la purga guiada por era: los
     // docs 'daily' de la ventana en que el hueco de FASE FE estuvo abierto,
     // cuando se desvían >5% del nivel real post-era. Atrapa el residuo que
     // jumpExplained protege (un depósito real de la misma fecha, XOCHI, cubría
     // más de la mitad del salto corrupto).
-    const runIds = corruptSnapshotRunIds(snapshots, flowsUSD)
-    const eraIds = feEraSuspectDailyIds(snapshots)
+    const runIds = corruptSnapshotRunIds(snapshotsAll, flowsUSD)
+    const eraIds = feEraSuspectDailyIds(snapshotsAll)
     const ids = [...new Set([...runIds, ...eraIds])]
     corruptSnapCleanupRef.current = true
     if (ids.length === 0) return
@@ -3024,7 +3081,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       if (removed > 0) console.info(`[corrupt-snapshot-cleanup] removed ${removed} corrupt snapshot(s); backfill will rebuild them`)
     })()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, snapshots, transactions, items, convert, deleteSnapshot])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, snapshotsAll, transactions, items, convert, deleteSnapshot])
 
   // Self-heal: opening deposits our own onAdd wrapper left without a link
   // (FASE EA). Only unambiguous, self-inflicted rows — see
@@ -3441,6 +3498,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
     // año, donde un % sin su base se lee contra la columna equivocada.
     ytdStartValue,
+    ytdCalIgnored: contradictedCals.size,
+    ytdAnchorIgnored: contradictedAnchors.size,
+    // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
+    // un ancla equivocada se ve en vez de tener que despejarse a mano.
+    ytdStartTs, ytdStartSrc,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome, incomeVerification,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,

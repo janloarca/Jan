@@ -182,7 +182,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, pricesUpdate = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0, ytdAnchorIgnored = 0, pricesUpdate = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -491,6 +491,18 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         )}
       </div>
 
+      {/* ⛔ FASE NP. El aviso va FUERA del panel expandible, a diferencia del de
+          FASE NN: acá lo que se dejó de usar es el ancla del AÑO, o sea el
+          número grande de arriba cambió de valor. Un arranque que cambia sin
+          una palabra se lee como que la app borró el trabajo del usuario. */}
+      {ytdAnchorIgnored > 0 && (
+        <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {lang === 'es'
+            ? `No se está usando ${ytdAnchorIgnored === 1 ? 'una calibración' : `${ytdAnchorIgnored} calibraciones`} como arranque del año: el valor que sale de ese % no cuadra con lo que la app midió el día de al lado, sin que haya entrado ni salido dinero. Vuelve a copiar el % desde tu broker para usarlo.`
+            : `Not using ${ytdAnchorIgnored === 1 ? 'one calibration' : `${ytdAnchorIgnored} calibrations`} as the year's starting point: the value that % solves to does not match what the app measured the very next day, with no money moving in or out. Copy the % again from your broker to use it.`}
+        </p>
+      )}
+
       {/* What is behind the YTD number, by institution and then by holding.
           Each row is (value today − value on Jan 1) minus the money you moved
           in or out of it this year, so financing an account never shows up here
@@ -633,6 +645,38 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               {lang === 'es'
                 ? '. Eso no es rendimiento y por eso se descuenta acá; la gráfica de esa cuenta no lo descuenta, así que va a mostrar otro número.'
                 : '. That is not performance, so it is netted out here; that account\'s chart does not net it, so it will show a different figure.'}
+            </p>
+          )}
+          {/* ⛔ FASE NL. El valor con el que arrancó el año, dicho de frente.
+              TODO el YTD (el número grande, su %, y cada fila de este panel)
+              cuelga de este único dato, y el panel nunca lo enunciaba: cuando
+              el usuario reportó "los números no encajan del todo", la única
+              forma de saber contra qué se estaba midiendo fue despejar el
+              ancla del Dietz a mano desde una captura (salió 9,305.22 contra
+              los 5,432.98 que el propio broker reporta para diciembre). Es la
+              lección de FASE HP otra vez: un dato que la app ya tiene y no
+              muestra cuesta una ronda entera de diagnóstico.
+
+              Va como UNA línea y no como la tabla de términos que FASE KK
+              quitó a pedido del usuario: acá el panel ya cuadra, esto es el
+              punto de partida, no un volcado forense. */}
+          {hasBreakdown && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartValue > 0 && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es' ? 'Arranque del año: ' : 'Year-start: '}
+              <span className="font-mono tabular-nums">{formatCurrency(cv(ytdStartValue), displayCur)}</span>
+              {ytdStartTs ? ` · ${formatDate(new Date(ytdStartTs))}` : ''}
+              {ANCHOR_SRC_LABEL[ytdStartSrc] ? ` · ${ANCHOR_SRC_LABEL[ytdStartSrc][lang === 'es' ? 'es' : 'en']}` : ''}
+            </p>
+          )}
+          {/* FASE NN: una calibración que el NAV real del broker contradice se
+              deja de aplicar, y eso hay que DECIRLO. El usuario tecleó ese
+              porcentaje y sigue guardado; si el arranque cambia sin una
+              palabra, la app se ve como que le borró el trabajo. */}
+          {hasBreakdown && ytdCalIgnored > 0 && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+              {lang === 'es'
+                ? `Se está ignorando ${ytdCalIgnored === 1 ? 'una calibración' : `${ytdCalIgnored} calibraciones`} de cuenta: el % que copiaste no cuadra con el valor que tu broker reporta para esa fecha. Vuelve a copiarlo desde tu broker para usarlo.`
+                : `Ignoring ${ytdCalIgnored === 1 ? 'one account calibration' : `${ytdCalIgnored} account calibrations`}: the % you copied does not match the value your broker reports for that date. Copy it again from your broker to use it.`}
             </p>
           )}
           {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (

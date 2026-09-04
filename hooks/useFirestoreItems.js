@@ -25,6 +25,11 @@ import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 //        ganó su rama para `FEE` + `_paidFromItemId`, con OK del usuario). Todo
 //        mes cacheado con un gasto así archivado tiene esa cuenta plana en su
 //        saldo de hoy, o sea diciendo que el dinero nunca estuvo ahí.
+//   v33 (4 sep 2026, FASE NJ): una posición de IBKR con ledger de trades ya se
+//        reconstruye POR POSICIÓN en vez de colapsarse en el bucket sintético.
+//        Todo mes cacheado tiene el bucket con el valor del grupo COMPLETO
+//        horneado, así que dejarlo vivo lo sumaría encima de las posiciones
+//        reconstruidas (el doble conteo de FASE FT, por la puerta de al lado).
 
 let _db = null
 let _auth = null

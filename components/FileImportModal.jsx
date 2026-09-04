@@ -85,7 +85,7 @@ function parseNumber(val) {
 // screen, with a summary of what was written. The IBKR journey orchestrator
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
-export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false, ibkrSyncBusy = false,
+export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false, ibkrSyncBusy = false, apiAlreadySyncs = false,
   // Desde qué pantalla se abrió. Solo cambia el TEXTO: desde Flujo uno importa
   // movimientos, no un portafolio, y decir lo contrario (o hablar de
   // "posiciones" cuando un estado de tarjeta no se reconoce) manda a buscar el
@@ -1163,6 +1163,31 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               {/* FASE IH2: plegadas por defecto, misma razón que el paso 1:
                   con la lista abierta, la zona de "arrastra tu archivo" (la
                   única acción de esta pantalla) quedaba fuera de la vista. */}
+              {/* ⛔ FASE NM: dentro del viaje, este paso viene DESPUÉS de la
+                  pantalla que acaba de prometer "no hace falta que esperes
+                  aquí, tus datos se actualizarán solos" — y sin esta línea lo
+                  siguiente que el usuario ve es "descargá tu Flex XML y
+                  subilo", o sea la app le pide a mano exactamente el trabajo
+                  que acaba de decirle que no hace falta hacer. Dos pantallas
+                  seguidas diciendo lo contrario sobre el mismo dato es lo que
+                  vuelve confuso conectar IBKR aunque las dos sean correctas
+                  por separado. El paso NO desaparece: el sync todavía no
+                  aterrizó (IBKR puede tardar, y en fin de semana días), y un
+                  Flex Query al que le falte una sección sincroniza vacío
+                  (FASE GG), así que subir el archivo sigue siendo la salida.
+                  Lo que cambia es que se presenta como lo que es. */}
+              {apiAlreadySyncs && (
+                <div className="px-3 py-2.5 mb-4 rounded-lg text-xs leading-relaxed"
+                  style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--text-secondary)' }}>
+                  <p className="font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>
+                    {t('Opcional: ya conectaste por API', 'Optional: you already connected via API')}
+                  </p>
+                  <p>
+                    {t('El sync trae esto solo (posiciones, movimientos y el valor diario de tu cuenta). Subí el archivo solo si no querés esperar a que IBKR responda, o si el sync llegó sin historial.',
+                       'The sync brings this on its own (positions, movements and your account\'s daily value). Upload the file only if you would rather not wait for IBKR to answer, or if the sync arrived with no history.')}
+                  </p>
+                </div>
+              )}
               {brokerInfo?.csv?.steps && (
                 <div className="mb-4">
                   <BrokerSteps steps={brokerSteps} note={brokerInfo.csv.note} variant="csv" lang={lang} collapsible />

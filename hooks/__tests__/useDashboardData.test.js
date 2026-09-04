@@ -1016,3 +1016,265 @@ describe('FASE MW: un flujo del día del ancla no se netea dos veces', () => {
     expect(ytd).toBeCloseTo(3.94, 1)
   })
 })
+
+// ⛔ FASE NL. El ancla del año, y por qué una calibración vieja la envenena.
+//
+// Reporte del usuario con captura: `YTD -$3,217.57 (-26.10%) · calibrated`
+// sobre un año que de verdad iba +$654. Estos tests corren el hook REAL con
+// los números EXACTOS de esa captura, así que la aritmética del diagnóstico
+// queda fijada en código y no en prosa.
+//
+// Se afirma sobre ytdChange (DÓLARES) y no sobre el porcentaje: el % depende
+// del reloj (Dietz pondera los flujos por el tiempo que faltaba), los dólares
+// no. `end − start − flujos` es la misma cuenta cualquier día del año.
+describe('FASE NL: el ancla del YTD sale de UN doc, y ese doc puede estar mal', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 10032.65, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  // Los tres depósitos reales del año (3,945 en total).
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+    { id: 'd2', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1350, currency: 'USD', date: `${yr}-02-26`, _source: 'ibkr' },
+    { id: 'd3', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1145, currency: 'USD', date: `${yr}-04-10`, _source: 'ibkr' },
+  ]
+  // La calibración envenenada del 1 de enero, tal como la escribe
+  // CalibrateReturnModal: _source 'manual' (que la disfraza de transcripción
+  // del usuario ante los tres reparadores) y _calibrated.
+  const poisoned = {
+    id: `${yr}-01-01`, date: `${yr}-01-01`,
+    netWorthUSD: 9305.22, totalActivosUSD: 9305.22, totalDebtUSD: 0,
+    _source: 'manual', _calibrated: true, _calibrationKind: 'ytd',
+  }
+  // El día siguiente, medido: cuadra con el NAV que el broker reporta para
+  // diciembre (5,432.98) y con la columna de enero de la Hoja.
+  const real = (date, v) => ({ id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily' })
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      start: result.current.ytdStartValue,
+      change: result.current.ytdChange,
+      src: result.current.ytdStartSrc,
+      calibrated: result.current.ytdCalibrated,
+    }
+    unmount()
+    return out
+  }
+
+  // ⛔ El vecino está LEJOS a propósito (FASE NP): con una observación real a
+  // un día, el ancla envenenada ya no se usa, porque el archivo se estaría
+  // contradiciendo a sí mismo. Acá se aísla el mecanismo de FASE NL, que es la
+  // calibración que SOLO el NAV del broker puede refutar.
+  it('reproduce la captura: el ancla envenenada inventa una pérdida del tamaño de los depósitos', async () => {
+    const r = await run([poisoned, real(`${yr}-02-15`, 5555), real(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(9305.22, 2)
+    // 10,032.65 − 9,305.22 − 3,945 = −3,217.57, el número EXACTO de la captura.
+    expect(r.change).toBeCloseTo(-3217.57, 2)
+    expect(r.calibrated).toBe(true)
+  })
+
+  it('con el ancla ya reparada, el mismo año es GANANCIA', async () => {
+    // El doc del 1 de enero reescrito por la composición (NAV real del broker
+    // arrastrado al feriado + reconstrucción de lo manual).
+    const repaired = { ...real(`${yr}-01-01`, 5555), _source: 'backfill', _transactional: true }
+    const r = await run([repaired, real(`${yr}-01-02`, 5560), real(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5555, 2)
+    expect(r.change).toBeCloseTo(532.65, 2)
+    expect(r.calibrated).toBe(false)
+  })
+
+  it('el ancla y su fuente se exponen para que el panel pueda decirlos', async () => {
+    // Sin esto, la única forma de saber contra qué se estaba midiendo era
+    // despejar el Dietz a mano desde una captura del teléfono.
+    const r = await run([poisoned, real(`${yr}-02-15`, 5555), real(`${yr}-06-15`, 8000)])
+    expect(r.src).toBe('manual')
+    expect(typeof r.start).toBe('number')
+  })
+})
+
+// ⛔ FASE NN. La OTRA especie de calibración, y por qué FASE NL no la tocó.
+//
+// Segundo reporte del usuario con las mismas tres capturas: `YTD -$3,296.15
+// (-26.73%) · calibrado` sobre un patrimonio de $9,954.07 con $3,945.00 de
+// aportes. Despejando el ancla: 9,954.07 − 3,945 + 3,296.15 = 9,305.22, el
+// MISMO valor al centavo que la ronda anterior, aunque la reparación de FASE
+// NL ya estaba desplegada.
+//
+// Esa invariancia es el dato: un doc que un backfill reescribe habría cambiado
+// de valor. Uno que se COMPUTA en vivo desde un porcentaje guardado, no.
+//
+// Se afirma sobre DÓLARES por la misma razón de siempre: el % depende del
+// reloj (Dietz pondera los flujos por el tiempo que faltaba).
+describe('FASE NN: una calibración por CUENTA se aplica en memoria, no en el archivo', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 9954.07, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+    { id: 'd2', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1350, currency: 'USD', date: `${yr}-02-26`, _source: 'ibkr' },
+    { id: 'd3', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1145, currency: 'USD', date: `${yr}-04-10`, _source: 'ibkr' },
+  ]
+  const snap = (date, v, over = {}) => ({
+    id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily', ...over,
+  })
+  // El NAV REAL del broker para diciembre, el mismo 5,432.98 que la Hoja del
+  // usuario muestra en su columna Dic 25.
+  const brokerNav = snap('2025-12-31', 5432.98, { id: '2025-12-31~nav~ibkr', _source: 'ibkr' })
+  // El ancla del año, ya correcta en el archivo.
+  const anchor = snap(`${yr}-01-01`, 5432.98, { _source: 'backfill', _transactional: true })
+  // La calibración POR CUENTA que CalibrateReturnModal escribe cuando el
+  // usuario copia el % de su broker (el paso 4 del viaje de IBKR preselecciona
+  // la cuenta 'ibkr'). Nunca entra a la serie de NAV: se aplica al leer.
+  const accountCal = {
+    id: `${yr}-01-01~cal~ibkr`, date: `${yr}-01-01`,
+    netWorthUSD: 9305.22, totalActivosUSD: 9305.22,
+    _account: 'ibkr', _accountName: 'Interactive Brokers',
+    _source: 'manual', _calibrated: true, _calibrationKind: 'ytd',
+  }
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      start: result.current.ytdStartValue,
+      change: result.current.ytdChange,
+      ignored: result.current.ytdCalIgnored,
+    }
+    unmount()
+    return out
+  }
+
+  it('reproduce la captura: el arranque sale del % calibrado y no del ancla del archivo', async () => {
+    // Sin NAV del broker no hay contra qué juzgarla, así que se aplica igual
+    // que siempre: eso es lo que estaba pasando en producción.
+    const r = await run([anchor, accountCal, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(9305.22, 2)
+    // 9,954.07 − 9,305.22 − 3,945 = −3,296.15, el número EXACTO de la captura.
+    expect(r.change).toBeCloseTo(-3296.15, 2)
+  })
+
+  it('con el NAV real del broker enfrente, deja de aplicarse y el año es GANANCIA', async () => {
+    const r = await run([brokerNav, anchor, accountCal, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5432.98, 2)
+    expect(r.change).toBeCloseTo(576.09, 2)
+    expect(r.ignored).toBe(1)
+  })
+
+  it('una calibración que CUADRA con el broker se sigue aplicando', async () => {
+    // El control positivo: sin él, "el año da ganancia" podría significar que
+    // la app dejó de aplicar TODA calibración, que es otro bug.
+    const buena = { ...accountCal, netWorthUSD: 5500, totalActivosUSD: 5500 }
+    const r = await run([brokerNav, anchor, buena, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5500, 2)
+    expect(r.ignored).toBe(0)
+  })
+})
+
+// ⛔ FASE NP. El ancla GLOBAL calibrada que sus propios vecinos contradicen.
+//
+// TERCER reporte del usuario, mismo número al centavo, con NL y NN ya
+// desplegadas: patrimonio $9,968.11, aportes $3,945.00, y la gráfica midiendo
+// -$3,282.11 desde el arranque del año. Despejando: 9,968.11 − 3,945 +
+// 3,282.11 = 9,305.22 OTRA VEZ.
+//
+// Y la gráfica DIBUJA ese punto ("Mayor caída del período -40.3%, 1 ene → 2
+// ene"), lo que descarta la especie por cuenta: chartSnapshots no sintetiza
+// anclas 'ytd'. Es un doc GLOBAL calibrado en el archivo, o sea el territorio
+// de FASE NL, que no lo tocó porque exige NAV real del broker para ese día y
+// composeDailyTotals SALTA todo día sin NAV arrastrable.
+//
+// El 2 de enero, medido en vivo, vale 9,305.22 × (1 − 0.403) = 5,555.2.
+describe('FASE NP: el ancla del archivo que su día vecino contradice', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 9968.11, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+    { id: 'd2', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1350, currency: 'USD', date: `${yr}-02-26`, _source: 'ibkr' },
+    { id: 'd3', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1145, currency: 'USD', date: `${yr}-04-10`, _source: 'ibkr' },
+  ]
+  const snap = (date, v, over = {}) => ({
+    id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily', ...over,
+  })
+  const poisoned = snap(`${yr}-01-01`, 9305.22, { _source: 'manual', _calibrated: true, _calibrationKind: 'ytd' })
+  const jan2 = snap(`${yr}-01-02`, 5555.2)
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      start: result.current.ytdStartValue,
+      change: result.current.ytdChange,
+      ignored: result.current.ytdAnchorIgnored,
+    }
+    unmount()
+    return out
+  }
+
+  it('reproduce la captura: el año arranca en el ancla envenenada', async () => {
+    // Sin el día vecino no hay con qué juzgarla y se usa igual que siempre:
+    // eso es lo que estaba pasando en producción.
+    const r = await run([poisoned, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(9305.22, 2)
+    // 9,968.11 − 9,305.22 − 3,945 = −3,282.11, el número EXACTO de la captura.
+    expect(r.change).toBeCloseTo(-3282.11, 2)
+    expect(r.ignored).toBe(0)
+  })
+
+  it('con el día siguiente enfrente deja de usarse y el año es GANANCIA', async () => {
+    const r = await run([poisoned, jan2, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5555.2, 2)
+    // 9,968.11 − 5,555.2 − 3,945 = +467.91
+    expect(r.change).toBeCloseTo(467.91, 2)
+    expect(r.ignored).toBe(1)
+  })
+
+  it('una calibración que CUADRA con su vecino se sigue usando', async () => {
+    // El control positivo: sin él, "el año da ganancia" podría significar que
+    // la app dejó de usar TODA calibración, que es otro bug.
+    const buena = { ...poisoned, netWorthUSD: 5500, totalActivosUSD: 5500 }
+    const r = await run([buena, jan2, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5500, 2)
+    expect(r.ignored).toBe(0)
+  })
+
+  it('un RETIRO que explica la caída protege la calibración', async () => {
+    // Si de verdad salieron 3,750 el 1 de enero, el archivo no se está
+    // contradiciendo y el ancla se respeta.
+    const items = [acct()]
+    const conRetiro = [
+      ...deps,
+      { id: 'w1', type: 'WITHDRAWAL', symbol: 'CASH', totalAmount: 3750, currency: 'USD', date: `${yr}-01-01`, _source: 'ibkr' },
+    ]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: conRetiro, snapshots: [poisoned, jan2, snap(`${yr}-06-15`, 8000)] },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    expect(result.current.ytdAnchorIgnored).toBe(0)
+    expect(result.current.ytdStartValue).toBeCloseTo(9305.22, 2)
+    unmount()
+  })
+})
