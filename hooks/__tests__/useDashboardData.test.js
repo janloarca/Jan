@@ -1095,3 +1095,88 @@ describe('FASE NL: el ancla del YTD sale de UN doc, y ese doc puede estar mal', 
     expect(typeof r.start).toBe('number')
   })
 })
+
+// ⛔ FASE NN. La OTRA especie de calibración, y por qué FASE NL no la tocó.
+//
+// Segundo reporte del usuario con las mismas tres capturas: `YTD -$3,296.15
+// (-26.73%) · calibrado` sobre un patrimonio de $9,954.07 con $3,945.00 de
+// aportes. Despejando el ancla: 9,954.07 − 3,945 + 3,296.15 = 9,305.22, el
+// MISMO valor al centavo que la ronda anterior, aunque la reparación de FASE
+// NL ya estaba desplegada.
+//
+// Esa invariancia es el dato: un doc que un backfill reescribe habría cambiado
+// de valor. Uno que se COMPUTA en vivo desde un porcentaje guardado, no.
+//
+// Se afirma sobre DÓLARES por la misma razón de siempre: el % depende del
+// reloj (Dietz pondera los flujos por el tiempo que faltaba).
+describe('FASE NN: una calibración por CUENTA se aplica en memoria, no en el archivo', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 9954.07, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+    { id: 'd2', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1350, currency: 'USD', date: `${yr}-02-26`, _source: 'ibkr' },
+    { id: 'd3', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1145, currency: 'USD', date: `${yr}-04-10`, _source: 'ibkr' },
+  ]
+  const snap = (date, v, over = {}) => ({
+    id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily', ...over,
+  })
+  // El NAV REAL del broker para diciembre, el mismo 5,432.98 que la Hoja del
+  // usuario muestra en su columna Dic 25.
+  const brokerNav = snap('2025-12-31', 5432.98, { id: '2025-12-31~nav~ibkr', _source: 'ibkr' })
+  // El ancla del año, ya correcta en el archivo.
+  const anchor = snap(`${yr}-01-01`, 5432.98, { _source: 'backfill', _transactional: true })
+  // La calibración POR CUENTA que CalibrateReturnModal escribe cuando el
+  // usuario copia el % de su broker (el paso 4 del viaje de IBKR preselecciona
+  // la cuenta 'ibkr'). Nunca entra a la serie de NAV: se aplica al leer.
+  const accountCal = {
+    id: `${yr}-01-01~cal~ibkr`, date: `${yr}-01-01`,
+    netWorthUSD: 9305.22, totalActivosUSD: 9305.22,
+    _account: 'ibkr', _accountName: 'Interactive Brokers',
+    _source: 'manual', _calibrated: true, _calibrationKind: 'ytd',
+  }
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      start: result.current.ytdStartValue,
+      change: result.current.ytdChange,
+      ignored: result.current.ytdCalIgnored,
+    }
+    unmount()
+    return out
+  }
+
+  it('reproduce la captura: el arranque sale del % calibrado y no del ancla del archivo', async () => {
+    // Sin NAV del broker no hay contra qué juzgarla, así que se aplica igual
+    // que siempre: eso es lo que estaba pasando en producción.
+    const r = await run([anchor, accountCal, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(9305.22, 2)
+    // 9,954.07 − 9,305.22 − 3,945 = −3,296.15, el número EXACTO de la captura.
+    expect(r.change).toBeCloseTo(-3296.15, 2)
+  })
+
+  it('con el NAV real del broker enfrente, deja de aplicarse y el año es GANANCIA', async () => {
+    const r = await run([brokerNav, anchor, accountCal, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5432.98, 2)
+    expect(r.change).toBeCloseTo(576.09, 2)
+    expect(r.ignored).toBe(1)
+  })
+
+  it('una calibración que CUADRA con el broker se sigue aplicando', async () => {
+    // El control positivo: sin él, "el año da ganancia" podría significar que
+    // la app dejó de aplicar TODA calibración, que es otro bug.
+    const buena = { ...accountCal, netWorthUSD: 5500, totalActivosUSD: 5500 }
+    const r = await run([brokerNav, anchor, buena, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5500, 2)
+    expect(r.ignored).toBe(0)
+  })
+})

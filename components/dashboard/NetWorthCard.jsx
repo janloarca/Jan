@@ -182,7 +182,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, pricesUpdate = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0, pricesUpdate = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -654,6 +654,17 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               <span className="font-mono tabular-nums">{formatCurrency(cv(ytdStartValue), displayCur)}</span>
               {ytdStartTs ? ` · ${formatDate(new Date(ytdStartTs))}` : ''}
               {ANCHOR_SRC_LABEL[ytdStartSrc] ? ` · ${ANCHOR_SRC_LABEL[ytdStartSrc][lang === 'es' ? 'es' : 'en']}` : ''}
+            </p>
+          )}
+          {/* FASE NN: una calibración que el NAV real del broker contradice se
+              deja de aplicar, y eso hay que DECIRLO. El usuario tecleó ese
+              porcentaje y sigue guardado; si el arranque cambia sin una
+              palabra, la app se ve como que le borró el trabajo. */}
+          {hasBreakdown && ytdCalIgnored > 0 && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+              {lang === 'es'
+                ? `Se está ignorando ${ytdCalIgnored === 1 ? 'una calibración' : `${ytdCalIgnored} calibraciones`} de cuenta: el % que copiaste no cuadra con el valor que tu broker reporta para esa fecha. Vuelve a copiarlo desde tu broker para usarlo.`
+                : `Ignoring ${ytdCalIgnored === 1 ? 'one account calibration' : `${ytdCalIgnored} account calibrations`}: the % you copied does not match the value your broker reports for that date. Copy it again from your broker to use it.`}
             </p>
           )}
           {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (
