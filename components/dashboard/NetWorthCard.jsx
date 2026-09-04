@@ -182,7 +182,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0, pricesUpdate = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0, ytdAnchorIgnored = 0, pricesUpdate = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -490,6 +490,18 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           </span>
         )}
       </div>
+
+      {/* ⛔ FASE NP. El aviso va FUERA del panel expandible, a diferencia del de
+          FASE NN: acá lo que se dejó de usar es el ancla del AÑO, o sea el
+          número grande de arriba cambió de valor. Un arranque que cambia sin
+          una palabra se lee como que la app borró el trabajo del usuario. */}
+      {ytdAnchorIgnored > 0 && (
+        <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
+          {lang === 'es'
+            ? `No se está usando ${ytdAnchorIgnored === 1 ? 'una calibración' : `${ytdAnchorIgnored} calibraciones`} como arranque del año: el valor que sale de ese % no cuadra con lo que la app midió el día de al lado, sin que haya entrado ni salido dinero. Vuelve a copiar el % desde tu broker para usarlo.`
+            : `Not using ${ytdAnchorIgnored === 1 ? 'one calibration' : `${ytdAnchorIgnored} calibrations`} as the year's starting point: the value that % solves to does not match what the app measured the very next day, with no money moving in or out. Copy the % again from your broker to use it.`}
+        </p>
+      )}
 
       {/* What is behind the YTD number, by institution and then by holding.
           Each row is (value today − value on Jan 1) minus the money you moved

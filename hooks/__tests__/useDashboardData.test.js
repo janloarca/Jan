@@ -1069,8 +1069,12 @@ describe('FASE NL: el ancla del YTD sale de UN doc, y ese doc puede estar mal', 
     return out
   }
 
+  // ⛔ El vecino está LEJOS a propósito (FASE NP): con una observación real a
+  // un día, el ancla envenenada ya no se usa, porque el archivo se estaría
+  // contradiciendo a sí mismo. Acá se aísla el mecanismo de FASE NL, que es la
+  // calibración que SOLO el NAV del broker puede refutar.
   it('reproduce la captura: el ancla envenenada inventa una pérdida del tamaño de los depósitos', async () => {
-    const r = await run([poisoned, real(`${yr}-01-02`, 5555), real(`${yr}-06-15`, 8000)])
+    const r = await run([poisoned, real(`${yr}-02-15`, 5555), real(`${yr}-06-15`, 8000)])
     expect(r.start).toBeCloseTo(9305.22, 2)
     // 10,032.65 − 9,305.22 − 3,945 = −3,217.57, el número EXACTO de la captura.
     expect(r.change).toBeCloseTo(-3217.57, 2)
@@ -1090,7 +1094,7 @@ describe('FASE NL: el ancla del YTD sale de UN doc, y ese doc puede estar mal', 
   it('el ancla y su fuente se exponen para que el panel pueda decirlos', async () => {
     // Sin esto, la única forma de saber contra qué se estaba midiendo era
     // despejar el Dietz a mano desde una captura del teléfono.
-    const r = await run([poisoned, real(`${yr}-01-02`, 5555), real(`${yr}-06-15`, 8000)])
+    const r = await run([poisoned, real(`${yr}-02-15`, 5555), real(`${yr}-06-15`, 8000)])
     expect(r.src).toBe('manual')
     expect(typeof r.start).toBe('number')
   })
@@ -1178,5 +1182,99 @@ describe('FASE NN: una calibración por CUENTA se aplica en memoria, no en el ar
     const r = await run([brokerNav, anchor, buena, snap(`${yr}-06-15`, 8000)])
     expect(r.start).toBeCloseTo(5500, 2)
     expect(r.ignored).toBe(0)
+  })
+})
+
+// ⛔ FASE NP. El ancla GLOBAL calibrada que sus propios vecinos contradicen.
+//
+// TERCER reporte del usuario, mismo número al centavo, con NL y NN ya
+// desplegadas: patrimonio $9,968.11, aportes $3,945.00, y la gráfica midiendo
+// -$3,282.11 desde el arranque del año. Despejando: 9,968.11 − 3,945 +
+// 3,282.11 = 9,305.22 OTRA VEZ.
+//
+// Y la gráfica DIBUJA ese punto ("Mayor caída del período -40.3%, 1 ene → 2
+// ene"), lo que descarta la especie por cuenta: chartSnapshots no sintetiza
+// anclas 'ytd'. Es un doc GLOBAL calibrado en el archivo, o sea el territorio
+// de FASE NL, que no lo tocó porque exige NAV real del broker para ese día y
+// composeDailyTotals SALTA todo día sin NAV arrastrable.
+//
+// El 2 de enero, medido en vivo, vale 9,305.22 × (1 − 0.403) = 5,555.2.
+describe('FASE NP: el ancla del archivo que su día vecino contradice', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 9968.11, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+    { id: 'd2', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1350, currency: 'USD', date: `${yr}-02-26`, _source: 'ibkr' },
+    { id: 'd3', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1145, currency: 'USD', date: `${yr}-04-10`, _source: 'ibkr' },
+  ]
+  const snap = (date, v, over = {}) => ({
+    id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily', ...over,
+  })
+  const poisoned = snap(`${yr}-01-01`, 9305.22, { _source: 'manual', _calibrated: true, _calibrationKind: 'ytd' })
+  const jan2 = snap(`${yr}-01-02`, 5555.2)
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      start: result.current.ytdStartValue,
+      change: result.current.ytdChange,
+      ignored: result.current.ytdAnchorIgnored,
+    }
+    unmount()
+    return out
+  }
+
+  it('reproduce la captura: el año arranca en el ancla envenenada', async () => {
+    // Sin el día vecino no hay con qué juzgarla y se usa igual que siempre:
+    // eso es lo que estaba pasando en producción.
+    const r = await run([poisoned, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(9305.22, 2)
+    // 9,968.11 − 9,305.22 − 3,945 = −3,282.11, el número EXACTO de la captura.
+    expect(r.change).toBeCloseTo(-3282.11, 2)
+    expect(r.ignored).toBe(0)
+  })
+
+  it('con el día siguiente enfrente deja de usarse y el año es GANANCIA', async () => {
+    const r = await run([poisoned, jan2, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5555.2, 2)
+    // 9,968.11 − 5,555.2 − 3,945 = +467.91
+    expect(r.change).toBeCloseTo(467.91, 2)
+    expect(r.ignored).toBe(1)
+  })
+
+  it('una calibración que CUADRA con su vecino se sigue usando', async () => {
+    // El control positivo: sin él, "el año da ganancia" podría significar que
+    // la app dejó de usar TODA calibración, que es otro bug.
+    const buena = { ...poisoned, netWorthUSD: 5500, totalActivosUSD: 5500 }
+    const r = await run([buena, jan2, snap(`${yr}-06-15`, 8000)])
+    expect(r.start).toBeCloseTo(5500, 2)
+    expect(r.ignored).toBe(0)
+  })
+
+  it('un RETIRO que explica la caída protege la calibración', async () => {
+    // Si de verdad salieron 3,750 el 1 de enero, el archivo no se está
+    // contradiciendo y el ancla se respeta.
+    const items = [acct()]
+    const conRetiro = [
+      ...deps,
+      { id: 'w1', type: 'WITHDRAWAL', symbol: 'CASH', totalAmount: 3750, currency: 'USD', date: `${yr}-01-01`, _source: 'ibkr' },
+    ]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: conRetiro, snapshots: [poisoned, jan2, snap(`${yr}-06-15`, 8000)] },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    expect(result.current.ytdAnchorIgnored).toBe(0)
+    expect(result.current.ytdStartValue).toBeCloseTo(9305.22, 2)
+    unmount()
   })
 })
