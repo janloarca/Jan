@@ -8,6 +8,7 @@ import { todayLocalISO } from '@/lib/localDate'
 import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER, debtTermLabel } from './utils'
 import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
+import { explainMovement, movementNote } from '@/lib/movementContext'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
 import { buildSheetDebtPaymentTransaction } from '@/lib/transferTx'
 import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
@@ -866,6 +867,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const [editingItemId, setEditingItemId] = useState(null)
   const [blockMsg, setBlockMsg] = useState(null)
   const [saveMsg, setSaveMsg] = useState(null)
+  // La deducción de a dónde fue (o de dónde vino) el dinero. Va en su propia
+  // línea y no pegada a "guardado": son dos cosas distintas, y el hecho que
+  // explica el movimiento es lo que de verdad vale leer.
+  const [saveNote, setSaveNote] = useState(null)
   // La edición queda EN ESPERA hasta que el usuario diga qué significa. Ver
   // lib/spreadsheetEdit.js: la app no puede saberlo, solo quien teclea.
   const [pendingEdit, setPendingEdit] = useState(null)
@@ -938,8 +943,27 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 ? (lang === 'es' ? ' y aporte registrado' : ', contribution recorded')
                 : (lang === 'es' ? ' y retiro registrado' : ', withdrawal recorded'))
             : ''
+      // ⛔ FASE NF. La assumption de para qué se movió el dinero. Se DEDUCE de
+      // lo que ya está en el archivo y se DICE; no se pregunta nada más (la
+      // única pregunta es la que el usuario acaba de contestar) y no se escribe
+      // ningún vínculo: ver la cabecera de lib/movementContext.js.
+      const moved = flow ? flow.type : (debtPayment ? 'DEBT_PAYMENT' : null)
+      if (moved) {
+        const found = explainMovement({
+          item, date: (flow || debtPayment).date, kind: moved, items, transactions,
+        })
+        setSaveNote(movementNote(found, {
+          kind: moved,
+          lang,
+          fmt: (a, c) => `${c} ${Number(a).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        }))
+      } else {
+        setSaveNote(null)
+      }
       setSaveMsg((lang === 'es' ? `${label}: guardado` : `${label}: saved`) + extra)
-      setTimeout(() => setSaveMsg(null), 2600)
+      // Una frase que explica a dónde fue el dinero necesita más de 2.6s para
+      // leerse; un "guardado" a secas no.
+      setTimeout(() => { setSaveMsg(null); setSaveNote(null) }, moved ? 6000 : 2600)
     } catch (e) {
       console.error('[spreadsheet] no se pudo guardar', e)
       setBlockMsg(lang === 'es'
@@ -1572,9 +1596,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         </div>
       )}
       {saveMsg && !blockMsg && (
-        <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-medium"
-          style={{ backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)', border: '1px solid var(--alert-success-border)' }}>
-          &#10003; {saveMsg}
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs space-y-1"
+          style={{ backgroundColor: 'var(--alert-success-bg)', border: '1px solid var(--alert-success-border)' }}>
+          <div className="font-medium" style={{ color: 'var(--accent-green)' }}>&#10003; {saveMsg}</div>
+          {saveNote && <div data-testid="save-note" style={{ color: 'var(--text-secondary)' }}>{saveNote}</div>}
         </div>
       )}
       {/* El reporte del recálculo. Un "nada que corregir" cierra la pregunta
