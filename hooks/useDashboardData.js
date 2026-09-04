@@ -14,6 +14,7 @@ import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { nextFailCount, NORMAL_INTERVAL_MS } from '@/lib/ibkrRetryPolicy'
 import { ibkrSyncDecision, bumpAttempts, ibkrDayKey } from '@/lib/ibkrSchedule'
 
@@ -1033,13 +1034,52 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
     if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
 
+    // ⛔ FASE NR. El tercer modo: AGREGAR HISTORIA a las posiciones que ya
+    // están, sin pisar lo de hoy y sin borrar nada.
+    //
+    // Un archivo NO es lo mismo que el sync por API, y tratarlos igual corrompe
+    // el portafolio en las dos direcciones: (a) un statement es la foto de un
+    // momento PASADO, así que su cantidad y su precio pueden ser más viejos que
+    // lo que el sync en vivo ya escribió, y el modo 'merge' los pisa; (b) un
+    // statement no es un reporte de liquidación, así que "no viene en este
+    // archivo" significa que cubre otro período u otra cuenta, jamás "el
+    // usuario lo vendió", y las tres reglas de borrado de más abajo sí lo leen
+    // así. El motor ya existía (lib/brokerReconcile.js, modo 'enrich') y lo
+    // ofrecía FileImportModal; lo que faltaba era este camino, que es por donde
+    // el viaje de IBKR manda a subir el archivo.
+    const enrichOnly = mode === 'enrich'
+    if (enrichOnly) {
+      const rec = reconcileBrokerPositions({
+        incoming: data.items || [],
+        existing: itemsNow,
+        source: 'ibkr',
+        tag,
+        mode: 'enrich',
+      })
+      newItems.push(...rec.newItems)
+      updateOps.push(...rec.updateItems.map(u => ({ id: u.id, fields: u.fields })))
+      for (const item of rec.newItems) {
+        if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
+          newLots.push({
+            symbol: item.symbol,
+            quantity: item.quantity,
+            costBasis: item.purchasePrice,
+            currency: item.currency || 'USD',
+            acquisitionDate: item.acquisitionDate || new Date().toLocaleDateString('en-CA'),
+            institution: item.institution || 'Interactive Brokers',
+            ...(tag.portfolioId ? { portfolioId: tag.portfolioId } : {}),
+          })
+        }
+      }
+    }
+
     if (mode === 'replace') {
       itemsNow.filter(it =>
         it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       ).forEach(it => deleteIds.push(it.id))
     }
 
-    for (const item of data.items) {
+    for (const item of enrichOnly ? [] : data.items) {
       let existing = null
       if (mode === 'merge') {
         existing = itemsNow.find(it => {
@@ -1099,8 +1139,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const toUSDFrom = (v, cur) => (cur && cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
     const newSnaps = planEquitySnapshotWrites(data.equityHistory || [], snapshotsNow, toUSDFrom)
 
+    // ⛔ FASE NR. Las TRES reglas de borrado que siguen leen la ausencia de un
+    // símbolo en el feed como evidencia. Eso vale para un sync en vivo (el
+    // broker está reportando lo que hay AHORA) y es falso para un archivo, que
+    // puede cubrir otro período u otra cuenta. En modo enrich no se borra nada.
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
-    itemsNow.forEach(it => {
+    if (!enrichOnly) itemsNow.forEach(it => {
       if (deleteIds.includes(it.id)) return
       const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
       if (isIbkr && (it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
@@ -1113,7 +1157,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // y por lo tanto nunca se borraba: seguía en el portafolio para siempre con
     // su última cantidad y precio. Los guardas que impiden que un reporte
     // parcial vacíe la cartera viven en lib/ibkrVanishedPositions.js.
-    vanishedIbkrPositionIds({
+    if (!enrichOnly) vanishedIbkrPositionIds({
       storedItems: itemsNow,
       feedItems: data.items || [],
       feedAccounts: data.accounts || [],
@@ -1121,7 +1165,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }).forEach((id) => { if (!deleteIds.includes(id)) deleteIds.push(id) })
     const deleteSet = new Set(deleteIds)
     const afterCleanup = itemsNow.filter(it => !deleteSet.has(it.id))
-    afterCleanup.forEach(it => {
+    if (!enrichOnly) afterCleanup.forEach(it => {
       if (it._source === 'ibkr') return
       const sym = (it.symbol || '').toUpperCase()
       if (!sym) return

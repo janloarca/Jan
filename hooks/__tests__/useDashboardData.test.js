@@ -1278,3 +1278,95 @@ describe('FASE NP: el ancla del archivo que su día vecino contradice', () => {
     unmount()
   })
 })
+
+// ⛔ FASE NR. El tercer modo de importación: agregar HISTORIA a la cuenta que ya
+// está, que es lo que el usuario pidió con estas palabras: "sube un excel, no
+// aparece la opción de agregar historial de la misma cuenta. Ahora solo aparece
+// agregar, que suma todo, [y] reemplazar".
+//
+// El motor ya existía (lib/brokerReconcile.js, modo 'enrich') y lo ofrecía
+// FileImportModal; lo que faltaba era ESTE camino, que es por donde el viaje de
+// IBKR manda a subir el archivo. Y no era solo una opción de menos: en 'merge'
+// un statement viejo PISA el precio y la cantidad de hoy, y las tres reglas de
+// borrado leen "no viene en el archivo" como "se vendió".
+describe('FASE NR: importar un archivo sin pisar lo de hoy ni borrar nada', () => {
+  const ibkr = (o = {}) => item({
+    id: 'ib1', symbol: 'MA', name: 'MASTERCARD INC - A', _source: 'ibkr',
+    institution: 'Interactive Brokers', quantity: 1.69, currentPrice: 585.71,
+    purchasePrice: 591.91, acquisitionDate: '2026-08-01', ...o,
+  })
+  // La misma posición tal como viene en un statement de una fecha ANTERIOR.
+  const fromFile = (o = {}) => ({
+    symbol: 'MA', name: 'MASTERCARD INC - A', type: 'Stock', _source: 'ibkr',
+    institution: 'Interactive Brokers', quantity: 1.5, currentPrice: 500,
+    purchasePrice: 480, currency: 'USD', acquisitionDate: '2024-03-11', ...o,
+  })
+
+  async function run(mode, over = {}) {
+    const bulkImport = jest.fn(async () => {})
+    const items = over.items || [ibkr()]
+    const { result, unmount } = setup({
+      firestore: { items, bulkImport }, prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    await act(async () => {
+      await result.current.handleIBKRSync({
+        items: over.feed || [fromFile()],
+        transactions: over.transactions || [],
+        equityHistory: [],
+        accounts: ['U1'],
+      }, mode)
+    })
+    unmount()
+    return bulkImport.mock.calls[0]?.[0] || null
+  }
+
+  it('enrich NO pisa el precio ni la cantidad de hoy', async () => {
+    const payload = await run('enrich')
+    expect(payload.items).toHaveLength(0)
+    const fields = payload.updateItems[0]?.fields || {}
+    expect(fields.currentPrice).toBeUndefined()
+    expect(fields.quantity).toBeUndefined()
+    expect(fields.purchasePrice).toBeUndefined()
+    // Lo que SÍ hace: traer la fecha de compra real hacia atrás. Eso es
+    // exactamente "agregar historial de la misma cuenta".
+    expect(fields.acquisitionDate).toBe('2024-03-11')
+  })
+
+  it('CONTROL: merge sí pisa, que es correcto para un sync en vivo', async () => {
+    // Sin esto, "enrich no pisa" podría pasar por haber dejado de escribir nada.
+    const payload = await run('merge')
+    const fields = payload.updateItems[0]?.fields || {}
+    expect(fields.currentPrice).toBe(500)
+    expect(fields.quantity).toBe(1.5)
+  })
+
+  it('enrich no borra una posición que el archivo no menciona', async () => {
+    // El caso que hace peligroso subir un statement viejo o de otra cuenta: un
+    // archivo no es un reporte de liquidación.
+    const items = [ibkr(), ibkr({ id: 'ib2', symbol: 'VICI', name: 'VICI Properties' })]
+    const enrich = await run('enrich', { items })
+    expect(enrich.deleteIds).toEqual([])
+
+    const merge = await run('merge', { items })
+    expect(merge.deleteIds).toContain('ib2')
+  })
+
+  it('enrich agrega las posiciones que de verdad son nuevas, con su lote', async () => {
+    const payload = await run('enrich', {
+      feed: [fromFile(), fromFile({ symbol: 'VICI', name: 'VICI Properties' })],
+    })
+    expect(payload.items.map(i => i.symbol)).toEqual(['VICI'])
+    expect(payload.lots).toHaveLength(1)
+  })
+
+  it('el historial se importa igual: transacciones y NAV nunca dependen del modo', async () => {
+    // Es LA razón por la que el usuario sube el archivo; si el modo seguro no
+    // las trajera, elegirlo costaría justo lo que se venía a ganar.
+    const txs = [{ type: 'BUY', symbol: 'MA', date: '2024-03-11', quantity: 1.5, totalAmount: 720 }]
+    for (const mode of ['enrich', 'merge']) {
+      const payload = await run(mode, { transactions: txs })
+      expect(payload.transactions).toEqual(txs)
+    }
+  })
+})
