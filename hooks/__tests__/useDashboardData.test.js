@@ -452,6 +452,23 @@ describe('publicar a Amigos: una vez por día y con los datos ya asentados', () 
     unmount()
   })
 
+  // ⛔ La compuerta que FALTABA. `bulkWriting` cubre un import masivo en curso:
+  // bulkImport escribe en LOTES y el listener entrega cada estado intermedio,
+  // así que el portafolio se ve a medias o duplicado (FASE GB, el mecanismo que
+  // produjo la meseta de $35K). Publicar ahí manda a otras personas un YTD
+  // calculado sobre un portafolio a medio escribir, y como se estampa el día no
+  // se corrige hasta mañana. El comentario del efecto afirmaba que sus
+  // compuertas eran las mismas que las de los escritores de snapshots, y la
+  // línea real omitía esta y `ibkrAutoSyncing`.
+  it('no publica con un import masivo escribiendo', async () => {
+    const { unmount } = setup({ ...base, firestore: { items: enriched, bulkWriting: true } })
+    await act(async () => {})
+    expect(friendsCalls()).toHaveLength(0)
+    // Y no estampa el día: al terminar el import, la publicación tiene que salir.
+    expect(fakeFirestore.saveSettings.mock.calls.filter((c) => c[0]?._lastFriendsPublish)).toHaveLength(0)
+    unmount()
+  })
+
   it('una cartera vacia no publica una fila de puros guiones', async () => {
     const { unmount } = setup({ firestore: {}, prices: { enrichedItems: [] }, opts: { publishFriends: true } })
     await act(async () => {})

@@ -45,6 +45,12 @@ export default function GroupCard({
   // El servidor ordena por YTD; se reordena acá según la métrica activa para que
   // el selector "Este mes" re-rankee al instante (los nulos se van al fondo).
   const rows = [...(group.rows || [])].sort((a, b) => (b[metric] ?? -Infinity) - (a[metric] ?? -Infinity))
+  // ⛔ El puesto tiene que ser el de la MÉTRICA ACTIVA. `rank` es el del año, y
+  // usarlo con "Este mes" seleccionado numeraba una lista ordenada por mes con
+  // los puestos del año: la columna se leía 2, 1, 3, la corona marcaba al líder
+  // del año aunque no estuviera arriba, y quien tenía mes y no año salía primero
+  // con un guión. El servidor emite los dos (lib/friendsGroups.js).
+  const rankOf = (r) => (metric === 'mtd' ? r.rankMtd : r.rank)
 
   return (
     <div className="card overflow-hidden">
@@ -173,7 +179,8 @@ export default function GroupCard({
               // domingo decia de esa misma persona "no estas en la tabla".
               // Ese modulo existe justo para que las dos superficies no puedan
               // ordenar distinto sobre los mismos perfiles.
-              const isPodium = r.rank != null && r.rank <= 3
+              const rank = rankOf(r)
+              const isPodium = rank != null && rank <= 3
           const color = avatarColor(r.uid || r.displayName)
           return (
             <div key={r.uid}>
@@ -186,7 +193,7 @@ export default function GroupCard({
                   onClick={() => hasDetail && setExpanded((p) => ({ ...p, [key]: !p[key] }))}
                   className="flex-1 min-w-0 flex items-center gap-3 text-left">
                   <span className="w-6 text-center text-base shrink-0">
-                    {metric === 'mtd' && r.rank === 1 ? '👑' : isPodium ? MEDALS[r.rank - 1] : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{r.rank ?? '-'}</span>}
+                    {metric === 'mtd' && rank === 1 ? '👑' : isPodium ? MEDALS[rank - 1] : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{rank ?? '-'}</span>}
                   </span>
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                     style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`, color }}>

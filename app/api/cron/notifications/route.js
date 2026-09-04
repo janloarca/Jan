@@ -147,7 +147,16 @@ async function scanAllPrefs(db, cache) {
     }
     return out
   })()
-  if (cache) cache.promise = run
+  // ⛔ Solo se cachea si RESUELVE. Cachear la promesa antes de saberlo hacía
+  // que un hipo de Firestore en la primera cadencia dejara a todas las
+  // siguientes con CERO suscriptores sin volver a intentar: `findSubscribers`
+  // atrapa el rechazo y devuelve `via:'failed'`, así que el fallo es mudo. El
+  // 1 de enero en domingo eso son cuatro cadencias, y la anual es la única que
+  // no tiene repesca hasta el año que viene.
+  if (cache) {
+    cache.promise = run
+    run.catch(() => { if (cache.promise === run) cache.promise = null })
+  }
   return run
 }
 
