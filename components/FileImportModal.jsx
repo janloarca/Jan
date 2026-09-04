@@ -19,6 +19,7 @@ import { planCardPaymentNetting, planStatementPaymentNetting } from '@/lib/cardP
 import { flowSign, flowMagnitude, cashFlowOf } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import { walletCoverage } from '@/lib/walletCoverage'
+import { cardBalanceSummary } from '@/lib/cardBalance'
 import { applyCategoryToMatchingRows, learnablesFrom } from '@/lib/importLearning'
 import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
@@ -1477,6 +1478,50 @@ When done, give me the .xlsx file ready to download.`
                   ))}
                 </div>
               )}
+              {/* Cuánto se debe en esta tarjeta. Va DESPUÉS de la insignia de
+                  reconciliación a propósito: primero "la lectura cuadra",
+                  después "y esto es lo que debés".
+
+                  El número lo IMPRIME el banco y la reconciliación NO lo cubre
+                  (compara los totales de los grupos de detalle contra la
+                  re-suma de filas; el saldo se lee de un regex aparte), así que
+                  se dice de dónde sale en vez de presentarlo como verificado.
+
+                  Las dos monedas van separadas y jamás sumadas: sumarlas
+                  necesita una tasa, y una tasa faltante devuelve el monto crudo
+                  en silencio. Y "no se pudo leer" se DICE, porque un cero
+                  afirmaría que no debés nada. */}
+              {biData.card && (() => {
+                const bal = cardBalanceSummary(biData.card)
+                return (
+                  <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                    style={bal.ok
+                      ? { borderColor: 'var(--alert-info-border)', backgroundColor: 'var(--alert-info-bg)', color: 'var(--text-primary)' }
+                      : { borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                    {bal.ok ? (
+                      <>
+                        <span className="block font-medium">
+                          {t('Saldo al corte:', 'Balance at cut date:')}{' '}
+                          {bal.lines.map((l) => l.text).join(' · ')}
+                          {bal.cutDate ? ` · ${formatFinanceDate(bal.cutDate)}` : ''}
+                        </span>
+                        <span className="block mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                          {bal.owes
+                            ? t('Es la cifra que imprime el banco, no la calculamos nosotros. Cada moneda va por su lado.',
+                                'This is the figure the bank prints, not one we compute. Each currency stands on its own.')
+                            : t('Esta tarjeta cerró en cero: no debes nada al corte.',
+                                'This card closed at zero: nothing owed at the cut date.')}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="block">
+                        {t('No pudimos leer el saldo al corte de este estado. Los movimientos de abajo sí se leyeron; solo falta esa cifra.',
+                           'We could not read the closing balance on this statement. The rows below did parse; only that figure is missing.')}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
               {/* El crédito por intereses bonificados entra como ingreso, pero
                   el cargo de intereses que bonifica vive en el RESUMEN del
                   estado, no en la tabla de movimientos, y de ahí no se importa
