@@ -175,6 +175,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const snapshotsRef = useRef(snapshots)
   snapshotsRef.current = snapshots
 
+  // ⛔ FASE NT. Las calibraciones que la app está IGNORANDO, con su razón.
+  //
+  // FASE NN y FASE NP dejaron de APLICAR dos especies de calibración (la por
+  // cuenta que contradice el NAV del broker, y el ancla global que sus propios
+  // vecinos contradicen), y la tarjeta lo dice. Pero `CalibrateReturnModal`
+  // recibe las listas YA filtradas (`snapshots`, `accountCalibrations`), así
+  // que una calibración ignorada no aparecía en "Calibraciones activas": ni se
+  // veía ni se podía QUITAR (ese botón es la única puerta de borrado), y el
+  // aviso mandaba a "copiar el % otra vez" sin que hubiera forma de ver cuál.
+  // Esta lista es ADITIVA: los filtros de NN/NP no se mueven, solo se expone
+  // lo que descartaron. La razón viaja como código (`_ignoredReason`) y el
+  // texto lo pone la UI, para que el hook no lleve copy.
+  const ignoredCalibrations = useMemo(() => {
+    const out = []
+    for (const c of contradictedCals) out.push({ ...c, _ignoredReason: 'broker-nav' })
+    if (contradictedAnchors.size > 0) {
+      for (const s of snapshotsAll) {
+        if (s._calibrated && contradictedAnchors.has(s.date)) out.push({ ...s, _ignoredReason: 'neighbor' })
+      }
+    }
+    return out
+  }, [contradictedCals, contradictedAnchors, snapshotsAll])
+
   // FASE GB. Declarada AQUÍ (antes de los efectos escritores que la llevan en
   // sus deps) porque una deps array se evalúa en render: referenciarla antes
   // de su declaración sería un ReferenceError, no un undefined silencioso.
@@ -2888,13 +2911,27 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // now only IBKR has real steps (lib/brokerCompletion.js); this block is
   // written broker-agnostic so a future broker's own steps slot in without
   // changes here.
+  //
+  // ⛔ Toda llave que un predicado de lib/brokerCompletion.js o lib/ibkrJourney.js
+  // desestructura TIENE que estar en este literal: un predicado que lee una
+  // llave ausente no falla, devuelve `undefined` y su paso queda "pendiente"
+  // para siempre. `ibkrNavDays` se perdió exactamente así en un merge (#157) y
+  // el paso 2 del viaje de IBKR quedó imposible de marcar durante semanas.
+  // Lo vigila lib/__tests__/completionStateKeys.test.js (FASE NT).
   const brokerCompletionState = useMemo(() => ({
     ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrSnapshotSpanDays: computeIbkrSnapshotSpanDays(snapshots),
+    // Cuántos días de NAV real del broker hay en el archivo (FASE IH): el paso
+    // "traer tus últimos ~365 días" se cuenta por documentos, no por span.
+    ibkrNavDays: (snapshots || []).filter((s) => s && s._source === 'ibkr' && s.date).length,
     hasQuarterlyHistory: (snapshots || []).some((s) => s && s._source === 'ibkr_quarterly'),
     hasIbkrCalibration: accountCalibrations.some((c) => c && c._account === 'ibkr'),
+    // FASE NT: cuántas calibraciones de IBKR se copiaron y la app está
+    // ignorando (FASE NN). El paso sigue pendiente, que es lo correcto, pero
+    // "pendiente" a secas se lee como que el paso 4 se deshizo solo.
+    ibkrCalibrationIgnored: ignoredCalibrations.filter((c) => c._account === 'ibkr').length,
     earliestNeededDays: computeEarliestNeededDays(portfolioItems),
-  }), [settings, snapshots, accountCalibrations, portfolioItems])
+  }), [settings, snapshots, accountCalibrations, ignoredCalibrations, portfolioItems])
 
   const ibkrDataComplete = useMemo(
     () => hasCompleteBrokerData('ibkr', null, brokerCompletionState),
@@ -3544,6 +3581,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ytdStartValue,
     ytdCalIgnored: contradictedCals.size,
     ytdAnchorIgnored: contradictedAnchors.size,
+    // FASE NT: las calibraciones ignoradas, con su razón, para que el modal las
+    // liste (y deje quitarlas) en vez de esconderlas con las listas filtradas.
+    ignoredCalibrations,
     // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
     // un ancla equivocada se ve en vez de tener que despejarse a mano.
     ytdStartTs, ytdStartSrc,

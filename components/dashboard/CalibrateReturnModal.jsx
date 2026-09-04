@@ -29,7 +29,14 @@ import { hasRealObservationAt } from '@/lib/snapshotSelect'
 // work rather than completing it. The IBKR journey orchestrator listens so the
 // step carries the user forward on its own instead of sitting on its success
 // message with a primary button that still reads "Save".
-export default function CalibrateReturnModal({ onClose, onSaved, preferredAccount = null, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
+// ignoredCalibrations (FASE NT): the calibrations the app is NOT applying
+// (FASE NN: an account calibration that contradicts the broker's NAV; FASE NP:
+// a global anchor its own neighbours contradict), each with `_ignoredReason`.
+// They are NOT in `snapshots`/`accountSnapshots`, which arrive already
+// filtered, so without this list an ignored calibration was invisible here:
+// it could not be seen and, since "Quitar" is the only delete door, it could
+// not be removed either, while the card kept saying "copy the % again".
+export default function CalibrateReturnModal({ onClose, onSaved, preferredAccount = null, netWorth, transactions, convert, baseCurrency = 'USD', snapshots = [], accountSnapshots = [], ignoredCalibrations = [], items = [], saveSnapshot, deleteSnapshot, lang = 'es' }) {
   useEscClose(onClose)
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
@@ -98,13 +105,36 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
   // ones arrive separately (they are not part of the NAV series).
   const globalCalibrated = (snapshots || []).filter((s) => s && s._calibrated && s.date)
   const accountCalibrated = (accountSnapshots || []).filter((s) => s && s._calibrated && s.date)
+  // The ignored ones join the list with their reason, so the row can be read
+  // AND removed. They are excluded from the active lists on purpose: nothing
+  // here re-applies them, this only makes them visible.
+  const ignored = (ignoredCalibrations || []).filter((s) => s && s._calibrated && s.date)
+  const IGNORED_REASON = {
+    'broker-nav': t(
+      'ignorada: el % no cuadra con el NAV que tu broker reporta para esa fecha',
+      'ignored: the % does not match the NAV your broker reports for that date'
+    ),
+    neighbor: t(
+      'ignorada: el valor no cuadra con lo medido el día de al lado, sin movimientos de dinero',
+      'ignored: the value does not match what was measured the very next day, with no money moving'
+    ),
+  }
   const allCalibrated = [
     ...accountCalibrated.map((s) => ({ ...s, _label: s._accountName || s._account })),
     ...globalCalibrated.map((s) => ({ ...s, _label: t('Todo el portafolio', 'Whole portfolio') })),
+    ...ignored.map((s) => ({
+      ...s,
+      _label: s._account ? (s._accountName || s._account) : t('Todo el portafolio', 'Whole portfolio'),
+      _ignoredText: IGNORED_REASON[s._ignoredReason] || t('ignorada', 'ignored'),
+    })),
   ]
+  const hasIgnored = ignored.length > 0
+  // An ignored calibration still occupies its period: re-saving REPLACES it
+  // (same doc id), which is exactly the remedy, so the amber dot has to say so.
   const calForSelected = (kind) => isGlobal
-    ? globalCalibrated.some((s) => s._calibrationKind === kind)
+    ? globalCalibrated.some((s) => s._calibrationKind === kind) || ignored.some((s) => !s._account && s._calibrationKind === kind)
     : accountCalibrated.some((s) => s._calibrationKind === kind && s._account === selKey)
+      || ignored.some((s) => s._calibrationKind === kind && s._account === selKey)
 
   // Default inception date: earliest dated transaction or snapshot we know.
   const earliestKnown = (() => {
@@ -362,11 +392,22 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
 
           {allCalibrated.length > 0 && (
             <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
-              <p className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{t('Calibraciones activas', 'Active calibrations')}</p>
+              {/* FASE NT: with an ignored one in the list, "activas" would be
+                  false for that row; the heading says what the list IS. */}
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                {hasIgnored ? t('Calibraciones guardadas', 'Saved calibrations') : t('Calibraciones activas', 'Active calibrations')}
+              </p>
               {allCalibrated.map((s) => (
-                <div key={s.id || s.date} className="flex items-center justify-between text-xs">
-                  <span style={{ color: 'var(--text-secondary)' }}>
+                <div key={s.id || `${s.date}~${s._account || 'global'}~${s._calibrationKind || ''}`}
+                  className="flex items-center justify-between gap-2 text-xs"
+                  data-calibration-row={s._ignoredText ? 'ignored' : 'active'}>
+                  <span className="min-w-0" style={{ color: 'var(--text-secondary)' }}>
                     {s._label} · {KIND_LABEL[s._calibrationKind] || s._calibrationKind || 'YTD'} · {formatDate(s.date)}
+                    {s._ignoredText && (
+                      <span className="block text-[11px] leading-snug mt-0.5" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {s._ignoredText}
+                      </span>
+                    )}
                   </span>
                   <button type="button" disabled={saving} onClick={() => removeCalibration(s)}
                     className="px-2 py-0.5 rounded transition-colors hover:bg-white/5"

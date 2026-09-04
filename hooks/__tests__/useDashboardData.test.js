@@ -1185,6 +1185,83 @@ describe('FASE NN: una calibración por CUENTA se aplica en memoria, no en el ar
   })
 })
 
+// FASE NT. Lo que NN dejó de aplicar tiene que poder VERSE: el hook expone las
+// calibraciones ignoradas con su razón, y el checklist del broker sabe cuántas
+// de IBKR hay. Mismo fixture que FASE NN.
+describe('FASE NT: las calibraciones ignoradas se exponen con su razón', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 9954.07, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+  ]
+  const snap = (date, v, over = {}) => ({
+    id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily', ...over,
+  })
+  const brokerNav = snap('2025-12-31', 5432.98, { id: '2025-12-31~nav~ibkr', _source: 'ibkr' })
+  const anchor = snap(`${yr}-01-01`, 5432.98, { _source: 'backfill', _transactional: true })
+  const accountCal = {
+    id: `${yr}-01-01~cal~ibkr`, date: `${yr}-01-01`,
+    netWorthUSD: 9305.22, totalActivosUSD: 9305.22,
+    _account: 'ibkr', _accountName: 'Interactive Brokers',
+    _source: 'manual', _calibrated: true, _calibrationKind: 'ytd',
+  }
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      ignored: result.current.ignoredCalibrations,
+      state: result.current.brokerCompletionState,
+      active: result.current.accountCalibrations,
+    }
+    unmount()
+    return out
+  }
+
+  it('la calibración por cuenta contradicha sale en ignoredCalibrations con razón broker-nav', async () => {
+    const r = await run([brokerNav, anchor, accountCal, snap(`${yr}-06-15`, 8000)])
+    expect(r.ignored).toHaveLength(1)
+    expect(r.ignored[0]).toMatchObject({ id: accountCal.id, _account: 'ibkr', _ignoredReason: 'broker-nav' })
+    // Y NO está entre las activas: exponerla no la re-aplica.
+    expect(r.active.some((c) => c.id === accountCal.id)).toBe(false)
+    expect(r.state.ibkrCalibrationIgnored).toBe(1)
+    expect(r.state.hasIbkrCalibration).toBe(false)
+  })
+
+  it('una que cuadra no se lista como ignorada y el checklist la cuenta como hecha', async () => {
+    const buena = { ...accountCal, netWorthUSD: 5500, totalActivosUSD: 5500 }
+    const r = await run([brokerNav, anchor, buena, snap(`${yr}-06-15`, 8000)])
+    expect(r.ignored).toEqual([])
+    expect(r.state.ibkrCalibrationIgnored).toBe(0)
+    expect(r.state.hasIbkrCalibration).toBe(true)
+  })
+
+  it('el ancla GLOBAL que su vecino contradice sale con razón neighbor', async () => {
+    const poisoned = snap(`${yr}-01-01`, 9305.22, { _source: 'manual', _calibrated: true, _calibrationKind: 'ytd' })
+    const r = await run([poisoned, snap(`${yr}-01-02`, 5555.2), snap(`${yr}-06-15`, 8000)])
+    expect(r.ignored).toHaveLength(1)
+    expect(r.ignored[0]).toMatchObject({ id: poisoned.id, _ignoredReason: 'neighbor' })
+    expect(r.ignored[0]._account).toBeUndefined()
+    // No es de IBKR: el checklist del broker no la cuenta.
+    expect(r.state.ibkrCalibrationIgnored).toBe(0)
+  })
+
+  it('brokerCompletionState trae ibkrNavDays (el paso 2 del viaje depende de él)', async () => {
+    const r = await run([brokerNav, anchor, snap(`${yr}-06-15`, 8000)])
+    expect(r.state.ibkrNavDays).toBe(1)
+    const { ibkrJourneyProgress } = require('../../lib/ibkrJourney')
+    expect(ibkrJourneyProgress(r.state).steps.find((s) => s.id === 'history').done).toBe(true)
+  })
+})
+
 // ⛔ FASE NP. El ancla GLOBAL calibrada que sus propios vecinos contradicen.
 //
 // TERCER reporte del usuario, mismo número al centavo, con NL y NN ya

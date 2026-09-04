@@ -459,7 +459,7 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, ignoredCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     dataLoading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
@@ -2202,7 +2202,7 @@ export default function DashboardPage() {
       {modalShown === 'calibrate' && (
         <CalibrateReturnModal
           netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
-          snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
+          snapshots={snapshots} accountSnapshots={accountCalibrations} ignoredCalibrations={ignoredCalibrations} items={portfolioItems}
           saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
           lang={lang} onClose={handleCloseModal}
           // Inside the IBKR walkthrough the account being onboarded IS IBKR.

@@ -72,10 +72,13 @@ export default function BrokerCompletionModal({
     const isDone = step.done(completionState)
     const isSkippable = !isDone && step.skippable && step.skippable(completionState)
     const action = ACTIONS[step.id]
+    // FASE NT: el aviso del paso (una calibración ignorada) reemplaza la
+    // descripción en el fallback de StepJourney, igual que en el panel.
+    const attention = step.attention ? step.attention(completionState) : null
     return {
       key: step.id,
       title: step.title,
-      desc: step.desc,
+      desc: attention || step.desc,
       icon: KIND_ICON[step.kind],
       status: isDone ? 'done' : isSkippable ? 'skippable' : (i === firstOpenIdx ? 'active' : 'todo'),
       action: action ? { label: t('Hacer', 'Do it'), onClick: () => { onClose(); action() } } : null,
