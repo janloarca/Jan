@@ -30,6 +30,10 @@ import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 //        Todo mes cacheado tiene el bucket con el valor del grupo COMPLETO
 //        horneado, así que dejarlo vivo lo sumaría encima de las posiciones
 //        reconstruidas (el doble conteo de FASE FT, por la puerta de al lado).
+//   v34 (4 sep 2026, FASE NS): una posición de IBKR ya VENDIDA se reconstruye
+//        desde el ledger de trades (IBKR_CLOSED_KEY_PREFIX). Todo mes cacheado
+//        se calculó sin esas filas, y el chequeo de "¿este mes ya se calculó?"
+//        lo da por cubierto, así que sin el bump nunca se volverían a pedir.
 
 let _db = null
 let _auth = null
