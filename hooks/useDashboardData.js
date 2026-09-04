@@ -26,7 +26,7 @@ import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapsh
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -93,9 +93,24 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // dedup, backfill, scoped returns) or they would read as catastrophic drops.
   // Every consumer below uses the filtered `snapshots`; only the calibration
   // math in the returnYTD memo reads `accountCalibrations`.
-  const accountCalibrations = useMemo(
+  // ⛔ FASE NN: el filtro va AQUÍ, en la única definición, y no en cada
+  // consumidor. Una calibración por cuenta se aplica en memoria en CUATRO
+  // sitios (los anclas sintéticos del chart, el ancla del YTD, la de
+  // desde-el-inicio, y el checklist del broker); filtrar en uno solo dejaría a
+  // los otros tres midiendo contra un arranque que la app ya declaró falso, y
+  // las superficies volverían a contradecirse. El doc NO se borra: se deja de
+  // aplicar, así que re-calibrar sigue siendo un camino abierto.
+  const rawAccountCalibrations = useMemo(
     () => (rawSnapshots || []).filter((s) => s && s._account && s._calibrated && s.date),
     [rawSnapshots]
+  )
+  const contradictedCals = useMemo(
+    () => new Set(contradictedAccountCalibrations(rawAccountCalibrations, rawSnapshots)),
+    [rawAccountCalibrations, rawSnapshots]
+  )
+  const accountCalibrations = useMemo(
+    () => rawAccountCalibrations.filter((c) => !contradictedCals.has(c)),
+    [rawAccountCalibrations, contradictedCals]
   )
   const snapshots = useMemo(
     () => (rawSnapshots || []).filter((s) => !(s && s._account)),
@@ -3450,6 +3465,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
     // año, donde un % sin su base se lee contra la columna equivocada.
     ytdStartValue,
+    ytdCalIgnored: contradictedCals.size,
     // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
     // un ancla equivocada se ve en vez de tener que despejarse a mano.
     ytdStartTs, ytdStartSrc,
