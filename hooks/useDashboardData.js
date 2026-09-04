@@ -116,10 +116,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // La serie de NAV cruda: todo lo que no es un ancla por cuenta. La consumen
   // los REPARADORES, que tienen que poder ver el doc envenenado para
   // reescribirlo; todo lo que LEE usa `snapshots`, más abajo.
-  const snapshotsAll = useMemo(
-    () => (rawSnapshots || []).filter((s) => !(s && s._account)),
-    [rawSnapshots]
-  )
+  //
+  // FASE NU: y nada fechado DESPUES de hoy (UTC, la convencion de los ids de
+  // snapshot). Un doc del futuro no es una observacion, y como la serie se
+  // ordena por fecha se volvia el "ultimo snapshot" del portafolio (el CSV de
+  // PortfolioAnalyst del usuario traia el mes en curso fechado al 30 de
+  // septiembre un 4 de septiembre). No se borra: cuando esa fecha llegue, el
+  // sync de ese dia lo reescribe con el NAV real (planEquitySnapshotWrites
+  // actualiza el doc de ESE broker cuando el valor cambia).
+  const snapshotsAll = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return (rawSnapshots || []).filter((s) => s && !s._account && !(s.date && s.date > today))
+  }, [rawSnapshots])
 
   // ⛔ FASE LH. Espejo en ref de items para la reconciliación de IBKR.
   // handleIBKRSync corre DESPUÉS de una descarga de hasta ~90s, así que leer
