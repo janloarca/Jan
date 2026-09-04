@@ -219,6 +219,27 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   )
 })
 
+// El % de la columna: qué parte del patrimonio de HOY es esta fila.
+//
+// ⛔ Vivía SOLO en las filas de categoría, así que en un portafolio de 18
+// posiciones la columna tenía DOS valores y veinte celdas vacías: "el % no
+// funciona" (reporte del usuario, con captura). El denominador es el MISMO
+// para todas las filas (`grandTotal`), así que una categoría sigue siendo
+// exactamente la suma de sus hijas y las dos lecturas no pueden divergir.
+//
+// "<1%" en vez de "0%" a propósito: un cero AFIRMA que la fila no pesa nada, y
+// una posición de $50 dentro de $10,000 sí pesa. Es chica, no nula.
+//
+// Sin denominador devuelve null y no se imprime: un porcentaje sobre cero no
+// es 0%, es una división que no se puede hacer.
+export function shareLabel(value, total) {
+  if (!total) return null
+  const p = Math.abs((Number(value) || 0) / total) * 100
+  if (!isFinite(p)) return null
+  if (p > 0 && p < 0.5) return '<1%'
+  return `${p.toFixed(0)}%`
+}
+
 export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onAddTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
@@ -614,6 +635,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // presence-only check below is exactly what ran before this fix.
   const monthGenRef = useRef({})
 
+  // Cuántas veces se reintentó un año cuyo proveedor de precios no contestó, y
+  // el aviso que lo dice. Un reintento sin techo martillaría a un proveedor
+  // caído de verdad; sin ningún reintento, un hipo de un minuto congela el año.
+  const MAX_DEGRADED_TRIES = 3
+  const degradedTriesRef = useRef({})
+  const [degradedNotice, setDegradedNotice] = useState(null)
+
   // yoy's target months don't depend on selectedYear at all (every year
   // shows at once), so it gets its own constant key — without this, toggling
   // INTO yoy right after monthly had already finished fetching selectedYear
@@ -705,8 +733,44 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
     let cancelled = false
     import('@/lib/historicalValues').then(({ getHistoricalItemValues }) => {
-      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions, snapshots).then(async (data) => {
+      const diag = {}
+      getHistoricalItemValues(itemsWithCategory, missingMonths, convert, baseCurrency, lots, transactions, snapshots, diag).then(async (data) => {
         if (cancelled) return
+        // ⛔ Un mes computado sin que el proveedor contestara NO se guarda.
+        //
+        // El defecto que cierra, reportado con captura: un año entero de meses
+        // pasados en "-" mientras el año siguiente se veía perfecto. Cuando el
+        // fetch de precios falla (cuota, red, 5xx) cada posición cae a su
+        // respaldo y el resultado se veía igual que una respuesta buena. Se
+        // guardaba, y a partir de ahí el chequeo de "¿ya se calculó este mes?"
+        // lo encontraba cubierto y no lo volvía a pedir NUNCA: un hipo de un
+        // minuto congelaba el año para siempre. Es el invariante 5 de la serie
+        // histórica (FASE HJ, "un consumidor que PERSISTE nunca escribe desde
+        // una respuesta degradada") en la superficie que aquella pasada no tocó.
+        //
+        // 'unavailable' es solo el proveedor que no contestó, nunca un símbolo
+        // que legítimamente no cotiza (un bono, una cuenta): ese sigue siendo
+        // 'flat' y se cachea como siempre, o si no un portafolio de puros
+        // activos estáticos no podría guardar un solo mes.
+        const unavailable = Object.values(diag).filter(d => d.source === 'unavailable')
+        if (unavailable.length > 0) {
+          const tries = (degradedTriesRef.current[fetchedKey] || 0) + 1
+          degradedTriesRef.current[fetchedKey] = tries
+          setDegradedNotice({
+            count: unavailable.length,
+            names: unavailable.slice(0, 3).map(d => d.symbol || d.name).filter(Boolean),
+            gaveUp: tries >= MAX_DEGRADED_TRIES,
+          })
+          setLoadingHistory(false)
+          // Sin estampar `lastFetchedYearRef` el efecto vuelve a intentarlo en
+          // cuanto algo lo re-ejecute (cambiar de año, recargar). El techo evita
+          // martillar un proveedor que está caído de verdad; pasado el techo se
+          // estampa y se deja de pedir, con el aviso a la vista.
+          if (tries >= MAX_DEGRADED_TRIES) lastFetchedYearRef.current = fetchedKey
+          return
+        }
+        setDegradedNotice(null)
+        degradedTriesRef.current[fetchedKey] = 0
         lastFetchedYearRef.current = fetchedKey
         Object.keys(data).forEach((mk) => { monthGenRef.current[mk] = generation })
         setHistoricalItems(prev => {
@@ -774,6 +838,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     }
     setRecalculating(true)
     setRecalcReport(null)
+    // Apretar el botón es pedir otro intento: el techo de reintentos del efecto
+    // automático se reinicia, o si no el aviso mandaría a tocarlo y no serviría.
+    degradedTriesRef.current = {}
     try {
       const itemsWithCategory = items.map(it => ({ ...it, _category: getTypeCategory(it) }))
       const diag = {}
@@ -781,6 +848,12 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const data = await getHistoricalItemValues(
         itemsWithCategory, pastMonths, convert, baseCurrency, lots, transactions, snapshots, diag,
       )
+      // Misma regla que el efecto automático: un mes computado sin que el
+      // proveedor contestara se muestra pero NO se guarda, o congelaría el año.
+      const unavailable = Object.values(diag).filter(d => d.source === 'unavailable')
+      setDegradedNotice(unavailable.length > 0
+        ? { count: unavailable.length, names: unavailable.slice(0, 3).map(d => d.symbol || d.name).filter(Boolean), gaveUp: true }
+        : null)
       setHistoricalItems(prev => {
         const merged = { ...prev }
         Object.entries(data).forEach(([mk, itemData]) => {
@@ -791,15 +864,20 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       })
       let written = 0
       for (const mk of Object.keys(data)) {
+        if (unavailable.length > 0) break
         if (Object.keys(data[mk]).length === 0) continue
         try {
           await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { replace: true })
           written++
         } catch { /* best-effort: un mes que no se pudo guardar se recomputa la próxima */ }
       }
-      // El siguiente render del efecto automático no debe deshacer esto.
-      Object.keys(data).forEach((mk) => { monthGenRef.current[mk] = generation })
-      lastFetchedYearRef.current = fetchKey
+      // El siguiente render del efecto automático no debe deshacer esto. Con
+      // una corrida degradada NO se estampa: el año queda pendiente de un
+      // intento bueno en vez de quedarse con el estimado.
+      if (unavailable.length === 0) {
+        Object.keys(data).forEach((mk) => { monthGenRef.current[mk] = generation })
+        lastFetchedYearRef.current = fetchKey
+      }
       setRecalcReport({ months: written, sources: Object.values(diag) })
     } catch (err) {
       setRecalcReport({ error: err?.message || String(err) })
@@ -1635,6 +1713,29 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           {saveNote && <div data-testid="save-note" style={{ color: 'var(--text-secondary)' }}>{saveNote}</div>}
         </div>
       )}
+      {/* El proveedor de precios no contestó: los meses de este año NO se
+          guardaron, así que lo que se ve es un estimado y se vuelve a pedir
+          solo. Sin este aviso, un año entero de "-" se ve idéntico a "esos
+          meses no existieron", que es exactamente el reporte que lo destapó. */}
+      {degradedNotice && (
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs" data-testid="degraded-notice"
+          style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)', border: '1px solid var(--alert-warn-border)' }}>
+          <span className="font-medium">
+            {t(`No se pudieron traer los precios de ${degradedNotice.count} ${degradedNotice.count === 1 ? 'activo' : 'activos'}.`,
+               `Couldn't fetch prices for ${degradedNotice.count} ${degradedNotice.count === 1 ? 'asset' : 'assets'}.`)}
+          </span>{' '}
+          <span>
+            {t('Estos meses son un estimado y no se guardaron.',
+               'These months are an estimate and were not saved.')}{' '}
+            {degradedNotice.gaveUp
+              ? t('Toca "Recalcular" para volver a intentarlo.', 'Tap "Recompute" to try again.')
+              : t('Se reintenta solo.', 'It retries on its own.')}
+          </span>
+          {degradedNotice.names.length > 0 && (
+            <span style={{ color: 'var(--text-muted)' }}> ({degradedNotice.names.join(', ')}{degradedNotice.count > degradedNotice.names.length ? '...' : ''})</span>
+          )}
+        </div>
+      )}
       {/* El reporte del recálculo. Un "nada que corregir" cierra la pregunta
           igual que un "8 meses reescritos": lo que no puede volver a pasar es
           que la respuesta sea invisible. Y decir de dónde salió CADA activo es
@@ -1731,7 +1832,6 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           </thead>
 
           {categories.map(cat => {
-            const pct = grandTotal !== 0 ? (cat.total / grandTotal) * 100 : 0
             const isCollapsed = collapsed[cat.key]
             const accent = CATEGORY_ACCENT[cat.key] || '#64748b'
 
@@ -1759,7 +1859,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       {isDebtsRow && <InfoTip text={DEBT_CLARIFICATION[lang]} />}
                     </div>
                   </td>
-                  <td className="text-right py-3 px-1 font-semibold text-sm" style={{ color: 'var(--text-muted)' }}>{Math.abs(pct).toFixed(0)}%</td>
+                  <td className="text-right py-3 px-1 font-semibold text-sm" style={{ color: 'var(--text-muted)' }}>{shareLabel(cat.total, grandTotal) || ''}</td>
                   {showOriginal && <td className="text-center py-3 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>{baseCurrency || 'USD'}</td>}
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
@@ -1848,7 +1948,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>{inst.name}</span>
                             <span className="text-xs ml-1.5" style={{ color: 'var(--text-muted)' }}>{isInstCollapsed ? '>' : 'v'}</span>
                           </td>
-                          <td />
+                          <td className="text-right py-2 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>{shareLabel(inst.total, grandTotal) || ''}</td>
                           {showOriginal && <td className="text-center py-2 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                             {singleCurrency || baseCurrency || 'USD'}
                           </td>}
@@ -1924,7 +2024,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 )}
                               </div>
                             </td>
-                            <td />
+                            <td className="text-right py-2.5 px-1 text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{shareLabel(getItemValue(item), grandTotal) || ''}</td>
                             {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? 'var(--accent-blue)' : 'var(--text-muted)', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
