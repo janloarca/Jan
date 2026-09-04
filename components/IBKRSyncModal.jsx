@@ -53,6 +53,27 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
   )
 }
 
+// El desglose que alimenta TODOS los avisos post-import (multi-cuenta, cero
+// depositos, historial corto, la caja forense). Vive a nivel de modulo porque
+// las DOS ramas que escriben `result` lo necesitan y dos copias es como una se
+// queda atras: la del camino de ARCHIVO no lo tenia, asi que `sections` quedaba
+// null, `hasWarnings` falso, y el modal se autocerraba a los 5s anunciando
+// "Sincronizacion exitosa" sobre un import al que le faltaban secciones.
+function importBreakdown(data, accounts) {
+  const tx = data.transactions || []
+  const count = (types) => tx.filter((t) => types.includes((t.type || '').toUpperCase())).length
+  const eq = data.equityHistory || []
+  return {
+    equityOldest: eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+    sections: data.sections || null,
+    impTrades: count(['BUY', 'SELL']),
+    impFlows: count(['DEPOSIT', 'WITHDRAWAL']),
+    impDividends: count(['DIVIDEND']),
+    impFees: count(['FEE', 'TAX', 'INTEREST']),
+    accounts: accounts || data.accounts || [],
+  }
+}
+
 function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
   // When there is no value history, don't auto-close: the user needs time to read
   // the warning and reach for the Activity Statement complement.
@@ -468,19 +489,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         // Skip preview for merge mode — go straight to done
         setSyncStatus('importing')
         await onSyncComplete(data, 'merge')
-        const _tx = data.transactions || []
-        const _c = (types) => _tx.filter((t) => types.includes((t.type || '').toUpperCase())).length
         setResult({
           items: data.items.length,
           transactions: data.transactions.length,
           equityHistory: (data.equityHistory || []).length,
-          equityOldest: (data.equityHistory || []).reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
-          sections: data.sections || null,
-          impTrades: _c(['BUY', 'SELL']),
-          impFlows: _c(['DEPOSIT', 'WITHDRAWAL']),
-          impDividends: _c(['DIVIDEND']),
-          impFees: _c(['FEE', 'TAX', 'INTEREST']),
-          accounts: data.accounts || [],
+          ...importBreakdown(data),
           syncedAt: data.syncedAt,
           mode: 'merge',
         })
@@ -742,7 +755,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           items: dataToImport.items.length,
           transactions: dataToImport.transactions.length,
           equityHistory: (dataToImport.equityHistory || []).length,
-          accounts: activeAccounts,
+          // El MISMO desglose que la rama de API: sin el, ningun aviso se
+          // mostraba en el camino de archivo y el modal se cerraba solo.
+          // Se calcula sobre dataToImport (lo que de verdad entro, ya filtrado
+          // por las cuentas activas) y no sobre el preview completo.
+          ...importBreakdown(dataToImport, activeAccounts),
           syncedAt: dataToImport.syncedAt || new Date().toISOString(),
           mode: confirmMode,
         })
@@ -1302,14 +1319,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     </p>
                   </div>
 
-                  {/* Activity Statement is the recommended source: it carries the full
-                      NAV history + dated trades + deposits + fees, so it fixes the
-                      "returns start from today" case when the Flex Query lacks Equity
-                      Summary. */}
+                  {/* FASE KE ya habia determinado que el Activity Statement NO trae
+                      serie diaria de NAV (su "Change in NAV" es un bloque de resumen,
+                      no una tabla con fecha) y corrigio el texto del rescate de
+                      arriba. ESTE bloque se quedo con la afirmacion vieja, asi que el
+                      mismo archivo decia las dos cosas: la linea 111 "no trae el valor
+                      diario" y esta "trae el historial de valor completo", ademas
+                      RECOMENDANDOLO. Quien leia esta bajaba el archivo equivocado y
+                      volvia al mismo problema. Lo que si trae, y por lo que vale la
+                      pena, son las operaciones con fecha, los depositos y las
+                      comisiones. */}
                   <div className="px-3 py-2.5 rounded-lg text-xs leading-relaxed"
                     style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--text-secondary)' }}>
-                    <span className="font-semibold" style={{ color: 'var(--accent-blue)' }}>{t('Recomendado: Activity Statement.', 'Recommended: Activity Statement.')}</span>
-                    <span> {t('Es el que trae el historial de valor completo para que tus retornos midan todo el año.', 'It brings the full value history so your returns measure the whole year.')}</span>
+                    <span className="font-semibold" style={{ color: 'var(--accent-blue)' }}>{t('Para el historial de valor: el Flex Query en XML.', 'For the value history: the Flex Query in XML.')}</span>
+                    <span> {t('Es el único que trae el valor diario de tu cuenta, con la sección "Net Asset Value (NAV) in Base". El Activity Statement sirve para lo otro: tus operaciones con fecha, depósitos y comisiones.', 'It is the only one carrying your daily account value, via the "Net Asset Value (NAV) in Base" section. The Activity Statement is for the rest: dated trades, deposits and commissions.')}</span>
                   </div>
 
                   <div className="space-y-5 pl-1">
@@ -1488,14 +1511,14 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     desc: preview._fromFile
                       ? t('Reemplaza precio y cantidad con los del archivo. Ojo: si el archivo es de una fecha vieja, tu saldo de hoy retrocede a esa fecha.',
                            'Replaces price and quantity with the file\'s. Careful: if the file is from an old date, today\'s balance rolls back to that date.')
-                      : t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
-                           'Updates prices and quantities for existing positions. Adds new ones. Deletes nothing.'),
+                      : t('Actualiza precios y cantidades, agrega las nuevas y retira las que tu broker ya no reporta (las que vendiste). No toca nada que hayas escrito a mano.',
+                           'Updates prices and quantities, adds new ones, and removes the ones your broker no longer reports (the ones you sold). It never touches anything you typed yourself.'),
                   })
                   opts.push({
                     key: 'replace', accent: 'var(--accent-red)', bg: 'var(--alert-error-bg)',
                     title: `♻️ ${t('Sustituir todo', 'Replace all')}`,
-                    desc: t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
-                             'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors.'),
+                    desc: t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores. Ojo: alcanza también a las que tecleaste a mano si las guardaste bajo Interactive Brokers.',
+                             'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors. Careful: it also reaches ones you typed yourself if you filed them under Interactive Brokers.'),
                   })
                   return (
                     <div className={`grid gap-3 ${opts.length > 2 ? 'grid-cols-1' : 'grid-cols-2'}`}>

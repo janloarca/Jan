@@ -509,8 +509,19 @@ export default function DashboardPage() {
     if (modal === 'ibkr') ibkrWasConnectedRef.current = ibkrConnected
   }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // El hint tiene que ser un STRING o nada. Los dos call sites lo cablean como
+  // `onClick: onImport` (QuickActionsCard, Header), y un onClick entrega el
+  // MouseEvent como primer argumento: con `bh || null` ese evento es truthy y
+  // quedaba guardado COMO hint. Consecuencias medidas, todas silenciosas:
+  // `brokerHint === 'ibkr'` fallaba, asi que el `accept` del input no incluia
+  // .xml y el Flex Query que las propias instrucciones mandan a descargar
+  // aparecia GRIS en el dialogo del sistema; y `getBrokerHowTo(evento)` daba
+  // undefined, asi que la pantalla perdia las instrucciones de IBKR.
+  //
+  // Es la misma trampa que FASE GQ4 pago con `onSkip`, y se cierra igual: en el
+  // punto UNICO, no en cada caller, para que el proximo no vuelva a caer.
   const handleOpenImport = useCallback((bh) => {
-    setImportBrokerHint(bh || null)
+    setImportBrokerHint(typeof bh === 'string' && bh ? bh : null)
     setModal('import')
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
