@@ -480,7 +480,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError, ratesUpdate, ratesStale,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, ytdStartValue, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
+    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
     annualDividends, estimatedAnnualIncome, incomeVerification,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -1574,6 +1574,7 @@ export default function DashboardPage() {
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail} ytdBreakdownTerms={ytdBreakdownTerms}
+              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc}
               ytdDegradedAccounts={ytdDegradedAccounts}
               pricesUpdate={pricesUpdate}
             />

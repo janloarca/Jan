@@ -26,7 +26,7 @@ import { corruptSnapshotRunIds, feEraSuspectDailyIds } from '@/lib/corruptSnapsh
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -472,9 +472,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const composedAll = composeDailyTotals({
           gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
         })
+        // FASE NL: una calibración GLOBAL que la composición contradice. Es el
+        // único doc que ningún reparador podía tocar (su `_source:'manual'` la
+        // disfraza de transcripción del usuario), así que un ancla de año mal
+        // despejada quedaba congelada para siempre.
+        const contradictedCal = new Set(contradictedCalibrationDates(snapshots, composedAll))
         const rewriteSet = new Set([
           ...gaps,
           ...divergentDailyDates(snapshots, composedAll),
+          ...contradictedCal,
         ])
         const fills = composedAll.filter((f) => rewriteSet.has(f.date))
         for (const f of fills) {
@@ -484,6 +490,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             totalActivosUSD: f.total,
             totalDebtUSD: currentDebtUSD,
             _source: 'backfill',
+            // saveSnapshot FUSIONA: sin apagarlos, el doc quedaría con el valor
+            // bueno y todavía marcado como calibrado.
+            ...(contradictedCal.has(f.date) ? CLEARED_CALIBRATION_FIELDS : {}),
             // Un doc compuesto es tan flow-aware como un NAV real: su mitad de
             // broker ES la medición del broker (que ya contiene el efecto de
             // los depósitos) y la manual es reconstrucción transaccional.
@@ -3441,6 +3450,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
     // año, donde un % sin su base se lee contra la columna equivocada.
     ytdStartValue,
+    // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
+    // un ancla equivocada se ve en vez de tener que despejarse a mano.
+    ytdStartTs, ytdStartSrc,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome, incomeVerification,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,

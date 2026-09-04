@@ -182,7 +182,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, pricesUpdate = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, pricesUpdate = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -633,6 +633,27 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               {lang === 'es'
                 ? '. Eso no es rendimiento y por eso se descuenta acá; la gráfica de esa cuenta no lo descuenta, así que va a mostrar otro número.'
                 : '. That is not performance, so it is netted out here; that account\'s chart does not net it, so it will show a different figure.'}
+            </p>
+          )}
+          {/* ⛔ FASE NL. El valor con el que arrancó el año, dicho de frente.
+              TODO el YTD (el número grande, su %, y cada fila de este panel)
+              cuelga de este único dato, y el panel nunca lo enunciaba: cuando
+              el usuario reportó "los números no encajan del todo", la única
+              forma de saber contra qué se estaba midiendo fue despejar el
+              ancla del Dietz a mano desde una captura (salió 9,305.22 contra
+              los 5,432.98 que el propio broker reporta para diciembre). Es la
+              lección de FASE HP otra vez: un dato que la app ya tiene y no
+              muestra cuesta una ronda entera de diagnóstico.
+
+              Va como UNA línea y no como la tabla de términos que FASE KK
+              quitó a pedido del usuario: acá el panel ya cuadra, esto es el
+              punto de partida, no un volcado forense. */}
+          {hasBreakdown && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartValue > 0 && (
+            <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {lang === 'es' ? 'Arranque del año: ' : 'Year-start: '}
+              <span className="font-mono tabular-nums">{formatCurrency(cv(ytdStartValue), displayCur)}</span>
+              {ytdStartTs ? ` · ${formatDate(new Date(ytdStartTs))}` : ''}
+              {ANCHOR_SRC_LABEL[ytdStartSrc] ? ` · ${ANCHOR_SRC_LABEL[ytdStartSrc][lang === 'es' ? 'es' : 'en']}` : ''}
             </p>
           )}
           {hasBreakdown && Array.isArray(ytdDegradedAccounts) && ytdDegradedAccounts.length > 0 && (
