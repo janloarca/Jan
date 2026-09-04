@@ -650,16 +650,27 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // "passed" that month, so it was never marked missing and never re-fetched
     // (FASE DS — this is what left Bonos Corporativos/VITALI blank for months
     // it demonstrably existed).
-    // getHistoricalItemValues never writes an IBKR item under its OWN id (see
-    // IBKR_UNKNOWN_KEY_PREFIX) — it collapses every IBKR position into one
-    // synthetic per-institution bucket instead. Checking `monthData[it.id]`
-    // for those items would never find anything, so every IBKR-eligible month
-    // read as permanently "missing" and got re-fetched (and re-saved) on every
-    // render that touched this effect's deps, however long it had already been
-    // computed correctly — the cache literally could never catch up.
-    const cacheKeyFor = (it) => it._source === 'ibkr'
-      ? `${IBKR_UNKNOWN_KEY_PREFIX}${it.institution || ''}__${getTypeCategory(it)}`
-      : it.id
+    // ⛔ Un item de IBKR puede quedar representado de DOS formas y las dos
+    // cuentan como "este mes ya se calculó".
+    //
+    // Con ledger de trades se reconstruye por posición y se escribe bajo su
+    // PROPIO id (FASE NJ); sin él se colapsa en el bucket sintético por
+    // institución+categoría (IBKR_UNKNOWN_KEY_PREFIX). Preguntar solo por el
+    // bucket, como antes, dejaría a una posición reconstruida sin encontrar
+    // nada y el mes se leería "faltante" para siempre: se re-fetcheaba y
+    // re-guardaba en CADA render que tocara las deps de este efecto, o sea el
+    // caché no podía alcanzar nunca (la enfermedad que este chequeo ya pagó
+    // una vez, con el bucket).
+    //
+    // Y hay un tercer caso que ninguna de las dos llaves cubre: una posición
+    // reconstruida puede no tener fila en un mes porque su cantidad era CERO
+    // (todavía no la tenías, o ya la vendiste), lo cual es una respuesta
+    // legítima y no un hueco. Por eso, para IBKR, alcanza con que el mes tenga
+    // ALGUNA entrada de la cuenta: si el motor la consideró, el mes está
+    // calculado. Sigue siendo suficiente para el caso de FASE DS a nivel de
+    // cuenta (un broker recién conectado no tiene NINGUNA entrada en esos
+    // meses y sí se re-fetchea).
+    const bucketKeyFor = (it) => `${IBKR_UNKNOWN_KEY_PREFIX}${it.institution || ''}__${getTypeCategory(it)}`
     const cached = historicalItemsRef.current || {}
     const missingMonths = pastMonths.filter(mk => {
       if (generation > 0 && monthGenRef.current[mk] !== generation) return true
@@ -670,7 +681,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         const acq = effAcqTs(it)
         return acq == null || acq <= end
       })
-      return eligible.some(it => !monthData[cacheKeyFor(it)])
+      let anyIbkr = null
+      const covered = (it) => {
+        if (monthData[it.id]) return true
+        if (it._source !== 'ibkr') return false
+        if (monthData[bucketKeyFor(it)]) return true
+        if (anyIbkr == null) {
+          anyIbkr = Object.keys(monthData).some(k =>
+            k.startsWith(IBKR_UNKNOWN_KEY_PREFIX) || ibkrIdsRef.current.has(k))
+        }
+        return anyIbkr
+      }
+      return eligible.some(it => !covered(it))
     })
     if (missingMonths.length === 0) {
       lastFetchedYearRef.current = fetchKey
