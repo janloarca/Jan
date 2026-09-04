@@ -7,7 +7,7 @@ import { niceScale, pctDecimals } from '@/lib/niceAxis'
 import { indexBalanceEvents } from '@/lib/historicalValues'
 import { isBankLikeItem } from '@/lib/contributions'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { buildNavByDate, composeDailyTotals, divergentDailyDates, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { buildNavByDate, composeDailyTotals, divergentDailyDates, contradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, staleBackfillDates, windowDates, navAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { staticValueAt } from '@/lib/staticOverlay'
@@ -1472,9 +1472,12 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         brokerConnectedTs: brokerConnectedTsOf(srcItems),
       })
       const divergent = divergentDailyDates(srcSnapshots, composed)
-      const targets = new Set([...gaps, ...divergent])
+      // FASE NL: misma regla que el backfill automático, o si no las dos
+      // superficies volverían a escribir historias distintas.
+      const contradictedCal = new Set(contradictedCalibrationDates(srcSnapshots, composed))
+      const targets = new Set([...gaps, ...divergent, ...contradictedCal])
       const fills = composed.filter((f) => targets.has(f.date))
-      push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}`)
+      push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}${contradictedCal.size > 0 ? ` · ${t('calibraciones contradichas por el broker', 'calibrations the broker contradicts')}: ${contradictedCal.size}` : ''}`)
 
       if (fills.length === 0) {
         push(t('Nada que corregir: el historial ya está bien.', 'Nothing to fix: history is already correct.'))
@@ -1495,6 +1498,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
           // se ignoraba `data.transactional`, así que una serie rebobinada a
           // través del ledger real se archivaba marcada como si no lo fuera.
           _transactional: f.composed ? true : !!data.transactional,
+          ...(contradictedCal.has(f.date) ? CLEARED_CALIBRATION_FIELDS : {}),
         })
         written++
         if (written % 25 === 0) push(`${t('Escribiendo', 'Writing')}... ${written}/${fills.length}`)
