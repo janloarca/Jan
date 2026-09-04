@@ -14,6 +14,8 @@ import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { normalizeIbkrCredentials, ibkrCredentialMessage } from '@/lib/ibkrCredentials'
+import { retryCannotFix, ibkrFixActionLabel, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -238,7 +240,7 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, cooldownUntil = 0, onSyncFailure, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
   const trapRef = useFocusTrap()
   // Connected = a usable token (legacy client copy OR migrated to the server
   // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
@@ -428,13 +430,41 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     // de lo que un sync por API tiene que hacer.
     const apiMode = syncMode === 'enrich' ? 'merge' : syncMode
     if (syncMode === 'enrich') { setSyncMode('merge'); syncModeTouchedRef.current = false }
-    // Use the typed token, or '__stored__' to sync from the server vault without the
-    // client ever handling the token.
-    const typed = token.trim()
-    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
-    if (!effToken || !queryId.trim()) {
-      setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
+    // ⛔ La MISMA validación de forma que la primera conexión, y no un chequeo
+    // de "no vacío" como antes. Esta es la puerta de quien YA está conectado y
+    // viene a cambiar credenciales, o sea justo el momento de pegar el token en
+    // el campo del Query ID: sin esto ese error salía a la red y gastaba un
+    // intento fallido, que es la moneda con la que se compra el bloqueo de
+    // IBKR. El servidor tampoco lo atajaba: acepta cualquier alfanumérico de
+    // hasta 50 caracteres como Query ID, y un Flex Token pasa ese filtro.
+    const creds = normalizeIbkrCredentials({ token, queryId, hasVaultCreds })
+    if (!creds.ok) {
+      setError(ibkrCredentialMessage(creds.reason, lang))
       setShowConfig(true)
+      return
+    }
+    // Los valores NORMALIZADOS, nunca los del formulario: un espacio invisible
+    // al final de un token pegado se guarda y mata cada sync posterior.
+    const typed = creds.typedToken
+    const effToken = creds.token
+    // ⛔ El enfriamiento protegía el pill del header y NO este modal, que es de
+    // donde salen "Reintentar" y "Sincronizar ahora": o sea la superficie con
+    // los botones más prominentes se saltaba entera la única defensa contra el
+    // lazo error → toque → error que termina en bloqueo. Va acá, en el punto
+    // ÚNICO por el que pasan los tres botones, y no en cada uno: así el próximo
+    // botón que alguien agregue lo hereda en vez de volver a abrir el hueco.
+    //
+    // Un token RECIÉN TECLEADO se salta la espera a propósito: el enfriamiento
+    // existe para frenar la repetición del MISMO intento, y una credencial
+    // nueva es información nueva. Sin esta excepción, un bloqueo de una hora
+    // dejaría al usuario sin poder ni siquiera probar el token que acaba de
+    // generar, que es justo el arreglo que le estamos pidiendo.
+    const waitMs = typed ? 0 : ibkrCooldownRemainingMs(cooldownUntil)
+    if (waitMs > 0) {
+      setError(lang === 'es'
+        ? `IBKR nos pidió esperar. Lo reintentamos ${formatCooldown(waitMs, lang)}.`
+        : `IBKR asked us to wait. We will retry ${formatCooldown(waitMs, lang)}.`)
+      if (isConnected) { setStep('connected') } else { setShowConfig(true) }
       return
     }
     setSyncing(true)
@@ -450,7 +480,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     try {
       const { syncIBKR } = await import('@/lib/ibkrSync')
 
-      const data = await syncIBKR(effToken, queryId.trim(), {
+      const data = await syncIBKR(effToken, creds.queryId, {
         signal: controller.signal,
         onStatus: (status, current, total) => {
           setSyncStatus(status)
@@ -466,10 +496,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           // FASE KC: lanza si el servidor no confirmó, en vez de marcar
           // `_ibkrVaultMigrated` sobre un vault vacío (que deja a la app
           // diciendo "conectado" y sincronizando con '__stored__' para siempre).
-          await saveIbkrCredentials(typed, queryId.trim())
+          await saveIbkrCredentials(typed, creds.queryId)
           setHasVaultCreds(true)
           setCredWarning('')
-          onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+          onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: creds.queryId, _ibkrVaultMigrated: true })
         } catch (e) {
           // El sync SÍ funcionó y los datos ya entraron, así que esto no es un
           // fallo de la importación: es que no pudimos recordar el token. Va en
@@ -512,6 +542,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       } else {
         setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
         setErrorCode(err.errorCode || '')
+        // Un fallo de ESTA pantalla también arma el enfriamiento: antes solo lo
+        // hacía el pill, así que sincronizar desde el modal era invisible para
+        // toda la protección aunque gastara exactamente el mismo intento real
+        // contra IBKR.
+        onSyncFailure?.(err.errorCode || 'UNKNOWN')
         if (isConnected) { setStep('connected') } else { setShowConfig(true) }
         if (ibkrHistory.items.length > 0) setShowHistory(true)
       }
@@ -521,7 +556,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setPollProgress(null)
       abortRef.current = null
     }
-  }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
+  }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, lang, ibkrHistory.items.length, isConnected, cooldownUntil, onSyncFailure])
 
   // FASE GQ: the FIRST-time connect used to block on the live Flex round trip
   // (up to ~90s of polling, per SyncStepper above) before the user could do
@@ -541,37 +576,22 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // FASE HX) needs `_ibkrConnectedAt` to be the ONLY thing that changes on
   // this path.
   const handleQuickConnect = useCallback(async () => {
-    const typed = token.trim()
-    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
-    if (!effToken || !queryId.trim()) {
-      setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
-      setShowConfig(true)
-      return
-    }
     // Validación de FORMA antes de la pantalla "Credenciales guardadas ✓": ese
     // check verde promete que el sync va a correr solo, así que unas
-    // credenciales que no PUEDEN funcionar no deben llegar ahí. Un Query ID es
-    // un número corto (p.ej. 1603751); letras significan que se pegó otra cosa,
-    // y 15+ dígitos son la firma de haber pegado el TOKEN en el campo
-    // equivocado. El token es una cadena larga: menos de 15 caracteres es un
-    // pegado truncado. Nada de esto llama a IBKR (cero intentos gastados: los
+    // credenciales que no PUEDEN funcionar no deben llegar ahí. La regla vive
+    // en lib/ibkrCredentials.js y la consultan las TRES puertas (acá,
+    // handleSync, y el wizard de ConnectionsModal): tenerla en una sola era
+    // exactamente por qué un usuario ya conectado no recibía ninguna
+    // validación. Nada de esto llama a IBKR (cero intentos gastados: los
     // intentos fallidos son la moneda con la que se compra el bloqueo).
-    const qid = queryId.trim()
-    if (!/^\d+$/.test(qid) || qid.length > 14) {
-      setError(/^\d+$/.test(qid)
-        ? t('Ese Query ID se ve demasiado largo: parece el token. El Query ID es el número corto de tu Flex Query (p.ej. 1603751).',
-            'That Query ID looks too long: it looks like the token. The Query ID is your Flex Query\'s short number (e.g. 1603751).')
-        : t('El Query ID solo lleva números (p.ej. 1603751). Revisa que no hayas pegado otra cosa.',
-            'The Query ID is numbers only (e.g. 1603751). Check you did not paste something else.'))
+    const creds = normalizeIbkrCredentials({ token, queryId, hasVaultCreds })
+    if (!creds.ok) {
+      setError(ibkrCredentialMessage(creds.reason, lang))
       setShowConfig(true)
       return
     }
-    if (typed && typed.length < 15) {
-      setError(t('Ese token se ve demasiado corto: un Flex Token tiene 15+ caracteres. Copia el token completo desde IBKR.',
-                 'That token looks too short: a Flex Token is 15+ characters. Copy the full token from IBKR.'))
-      setShowConfig(true)
-      return
-    }
+    const typed = creds.typedToken
+    const effToken = creds.token
     setSyncing(true)
     setError('')
     setErrorCode('')
@@ -580,17 +600,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         // FASE KC: si esto lanza, el catch de abajo deja al usuario en el paso
         // de configuración con el error. Antes se seguía derecho a la pantalla
         // "Credenciales guardadas" después de no guardarlas.
-        await saveIbkrCredentials(typed, queryId.trim())
+        await saveIbkrCredentials(typed, creds.queryId)
         setHasVaultCreds(true)
       }
-      onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+      onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: creds.queryId, _ibkrVaultMigrated: true })
       setStep('journey-saved')
     } catch (err) {
       setError(err.message || t('No se pudieron guardar las credenciales. Intenta de nuevo.', 'Could not save credentials. Try again.'))
     } finally {
       setSyncing(false)
     }
-  }, [token, hasVaultCreds, queryId, uid, onSaveCredentialsPending, t])
+  }, [token, hasVaultCreds, queryId, uid, onSaveCredentialsPending, t, lang])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {
@@ -864,7 +884,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // Reintentar durante un bloqueo lo REFRESCA: cada intento cuenta como otro
   // intento fallido. Ofrecer el botón acá es ofrecer la única acción que
   // garantiza que el bloqueo no se levante.
-  const retryFeedsLockout = errorCode === 'LOCKED'
+  // ⛔ La MISMA pregunta que se hace el pill del header, y no una copia con
+  // otro alcance: antes esto solo cubría LOCKED, así que sobre un token vencido
+  // el botón más prominente del modal seguía diciendo "Reintentar" y cada toque
+  // gastaba otro intento fallido, que es la moneda con la que se compra el
+  // bloqueo de IBKR.
+  const retryFeedsLockout = retryCannotFix(errorCode)
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
@@ -923,7 +948,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <div className="mt-2 flex items-center gap-4">
                   {retryFeedsLockout ? (
                     <button onClick={() => { setStep('config'); setShowConfig(true) }} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
-                      {t('Pegar un token nuevo', 'Paste a new token')} →
+                      {ibkrFixActionLabel(errorCode, lang)} →
                     </button>
                   ) : (
                     <button onClick={handleSync} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
@@ -1029,7 +1054,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <button onClick={() => { setStep('config'); setShowConfig(true) }}
                     className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
                     style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                    {t('Pegar un token nuevo', 'Paste a new token')}
+                    {ibkrFixActionLabel(errorCode, lang)}
                   </button>
                   <button onClick={handleSync}
                     className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"

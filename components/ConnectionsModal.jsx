@@ -19,6 +19,7 @@ import ModalMount from '@/components/ui/ModalMount'
 import useModalExit from '@/hooks/useModalExit'
 import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { normalizeIbkrCredentials, ibkrCredentialMessage } from '@/lib/ibkrCredentials'
 
 // Not a lib/brokerRegistry.js entry: IBKR's /api/brokers/ibkr endpoint takes
 // {token, queryId}, not the generic {fields: [...]} shape every registry
@@ -141,11 +142,25 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     // already-configured account (where popping the checklist unprompted
     // would just be noise on top of a routine credential update).
     const wasFreshConnect = !ibkrConfigured
+    // ⛔ La TERCERA puerta de credenciales, y hasta ahora la única sin ninguna
+    // validación: mandaba los valores CRUDOS al vault mientras guardaba el
+    // queryId ya recortado en settings, o sea el mismo dato quedaba escrito de
+    // dos formas distintas en dos lugares. Un token pegado desde una página web
+    // se lleva un espacio al final, se guarda CON el espacio, y a partir de ahí
+    // cada sync falla con un error que se lee como "token inválido" sin que
+    // nada apunte al espacio. La regla es la misma de las otras dos puertas
+    // (lib/ibkrCredentials.js) y lo que se guarda son sus valores normalizados.
+    const creds = normalizeIbkrCredentials({ token: ibkrToken, queryId: ibkrQueryId })
+    if (!creds.ok) {
+      setIbkrError(ibkrCredentialMessage(creds.reason, lang))
+      setIbkrSaving(false)
+      return
+    }
     try {
       const res = await authFetch('/api/brokers/ibkr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save-credentials', token: ibkrToken, queryId: ibkrQueryId }),
+        body: JSON.stringify({ action: 'save-credentials', token: creds.token, queryId: creds.queryId }),
       })
       if (res.ok) {
         setIbkrConfigured(true)
@@ -156,7 +171,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
         // sees the connection. The token stays server-side only (vault); we persist
         // the queryId + a migration flag. Without this the vault holds creds but the
         // app still thinks IBKR is unconnected and re-prompts for the token.
-        onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: ibkrQueryId.trim(), _ibkrVaultMigrated: true })
+        onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: creds.queryId, _ibkrVaultMigrated: true })
         // Continue straight into "llevar al 100%" instead of dropping the user
         // back on the connections list to go find that button themselves — the
         // user's own complaint: "hacer los pasos bien... mas UI paso por paso
