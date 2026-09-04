@@ -611,6 +611,15 @@ export default function DashboardPage() {
     // Omitirlo es seguro y es lo que este archivo hacía antes: showToast es un
     // useCallback con deps [], o sea su identidad nunca cambia.
   }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil, settings?._ibkrAutoSyncFailCount])
+
+  // Un fallo del MODAL arma el mismo enfriamiento que un fallo del pill, desde
+  // la misma decisión (`ibkrFailureFeedback`). Antes el modal no reportaba nada
+  // hacia arriba, así que sincronizar desde ahí gastaba un intento real contra
+  // IBKR que ninguna protección de la app llegaba a ver.
+  const handleIbkrSyncFailure = useCallback((code) => {
+    const fb = ibkrFailureFeedback(code, lang, { failCount: settings?._ibkrAutoSyncFailCount })
+    setIbkrCooldownUntil(fb.cooldownMs > 0 ? Date.now() + fb.cooldownMs : 0)
+  }, [lang, settings?._ibkrAutoSyncFailCount])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
@@ -1952,6 +1961,11 @@ export default function DashboardPage() {
           }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
+          // El MISMO enfriamiento que el pill del header: sin esto, "Reintentar"
+          // y "Sincronizar ahora" del modal se lo saltaban entero, que es la
+          // superficie donde más fácil es caer en el lazo error → toque → error.
+          cooldownUntil={ibkrCooldownUntil}
+          onSyncFailure={handleIbkrSyncFailure}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null, _ibkrAutoSyncFailCount: 0, _ibkrAttemptsToday: null, _ibkrLastUpstreamError: null }) }}
           // FASE GQ: fired by the non-blocking first-connect (handleQuickConnect
           // in IBKRSyncModal) BEFORE any sync has actually run — deliberately

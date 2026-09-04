@@ -1472,6 +1472,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         _ibkrAutoSyncError: err.message,
         _ibkrAutoSyncErrorCode: code,
         _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+        // ⛔ Un intento manual fallido cuesta EXACTAMENTE lo mismo en IBKR que
+        // uno automático: su bloqueo se compra con intentos fallidos, sin
+        // importar quién los disparó. Antes esta rama no gastaba presupuesto ni
+        // subía el contador de fallos, así que el usuario podía martillar el
+        // pill y el modal indefinidamente mientras la propia protección de la
+        // app (el techo diario y la regla de "este bloqueo ya no se levanta")
+        // nunca se enteraba de nada.
+        //
+        // Solo al FALLAR: un manual exitoso ya corta el auto-sync del día por
+        // `synced-today`, así que cobrarle presupuesto sería cobrar dos veces.
+        _ibkrAttemptsToday: bumpAttempts(settings?._ibkrAttemptsToday, ibkrDayKey()),
+        _ibkrAutoSyncFailCount: nextFailCount(settings?._ibkrAutoSyncFailCount),
       })
       return { ok: false, error: err.message, errorCode: code }
     } finally {
