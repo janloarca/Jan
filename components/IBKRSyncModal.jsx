@@ -241,21 +241,24 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // en ámbar en la pantalla final en vez de en rojo, y con la acción concreta.
   const [credWarning, setCredWarning] = useState('')
   const [showConfig, setShowConfig] = useState(!isConnected)
-  // First-time explainer: tells the user how the connection actually works
-  // (IBKR only shares what their Flex Query is configured to share, and its
-  // period rules everything). Open by default the FIRST time only (FASE GM2:
-  // lives inline in the same screen now, not a full-screen gate to dismiss);
-  // any manual toggle after that is remembered so it doesn't reopen uninvited.
-  const [showExplainer, setShowExplainer] = useState(() => {
-    if (isConnected) return false
-    try { return !localStorage.getItem('chispudo-ibkr-explained') } catch { return true }
-  })
-  const toggleExplainer = () => {
-    setShowExplainer((v) => {
-      try { localStorage.setItem('chispudo-ibkr-explained', '1') } catch {}
-      return !v
-    })
-  }
+  // Explicador de seguridad: cómo funciona la conexión (IBKR solo comparte lo
+  // que el Flex Query tenga configurado, y su período gobierna todo).
+  //
+  // ⛔ FASE NM: CERRADO por defecto, y la razón es la inversión que producía.
+  // Esta pantalla solo la ve un primerizo (`isConnected` false; re-entrar a
+  // cambiar credenciales que YA funcionan conserva handleSync). Un primerizo
+  // por definición NO tiene un Flex Web Service Token: es algo que hay que ir
+  // a crear dentro de IBKR. Y la pantalla abría ~90 palabras de tranquilidad
+  // sobre cifrado mientras dejaba PLEGADO "Cómo conseguir tu clave de API",
+  // o sea abría lo que no hace falta para actuar y escondía lo único que sí.
+  // Las dos cosas compiten por el mismo espacio antes del pliegue: FASE IH2
+  // gastó ese presupuesto plegando las instrucciones (con ellas abiertas los
+  // campos caían fuera de la vista), así que la que tiene que ceder es esta.
+  // Sigue a un toque de distancia, que es donde vive una tranquilidad: se
+  // ofrece, no se impone. Con esto además desaparece la llave de localStorage
+  // que solo servía para recordar el primer despliegue.
+  const [showExplainer, setShowExplainer] = useState(false)
+  const toggleExplainer = () => setShowExplainer((v) => !v)
   const [showHistory, setShowHistory] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
   const [pollProgress, setPollProgress] = useState(null)

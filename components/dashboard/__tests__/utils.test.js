@@ -800,8 +800,38 @@ describe('ibkrAttentionNeeded', () => {
 
   it('fatal codes (TOKEN_EXPIRED / INVALID_QUERY) also wait the 5 business days', () => {
     // Previously they alarmed from the very first failed attempt.
+    // FASE NM: la gracia se conserva ENTERA sobre una conexión que ya
+    // funcionó, que es la regla que el usuario fijó ("ayer se conectó").
     expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', lastAutoSync: tueBefore }, wed)).toBe(false)
     expect(ibkrAttentionNeeded({ errorCode: 'INVALID_QUERY', lastSync: tueBefore }, wed)).toBe(false)
+  })
+
+  // ⛔ FASE NM. La gracia existe porque IBKR de verdad no contesta fuera de
+  // horario de mercado. Un código FATAL es lo contrario: IBKR contestó, y
+  // contestó un veredicto. Sobre una conexión que NUNCA sincronizó, esperar
+  // cinco días sobre esa respuesta deja un check verde ("Credenciales
+  // guardadas · se actualizará solo") encima de algo que el broker ya rechazó.
+  it('un código FATAL sobre una conexión que nunca sincronizó alarma YA', () => {
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', connectedAt: tueBefore }, wed)).toBe(true)
+    expect(ibkrAttentionNeeded({ errorCode: 'INVALID_QUERY', connectedAt: tueBefore }, wed)).toBe(true)
+    // Incluso guardadas hace un minuto: el veredicto no mejora esperando.
+    const hoy = new Date('2026-08-12T11:59:00Z').toISOString()
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', connectedAt: hoy }, wed)).toBe(true)
+  })
+
+  it('un código TRANSITORIO sobre esa MISMA conexión sigue esperando', () => {
+    // El control que acota la excepción: si "nunca sincronizó" alarmara por sí
+    // solo, el fusible corto de 2 días que FASE HX quitó volvería por la
+    // puerta de al lado y el fin de semana de IBKR gritaría lobo otra vez.
+    for (const code of ['TIMEOUT', 'RATE_LIMITED', 'LOCKED', 'UNKNOWN']) {
+      expect(ibkrAttentionNeeded({ errorCode: code, connectedAt: tueBefore }, wed)).toBe(false)
+    }
+  })
+
+  it('un sync exitoso previo devuelve la gracia completa a un código fatal', () => {
+    // Los dos lados de la frontera sobre el MISMO código y el MISMO reloj.
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', connectedAt: tueBefore }, wed)).toBe(true)
+    expect(ibkrAttentionNeeded({ errorCode: 'TOKEN_EXPIRED', connectedAt: tueBefore, lastAutoSync: tueBefore }, wed)).toBe(false)
   })
 
   it('the clock is the MOST RECENT stamp, never a first-truthy || walk', () => {
