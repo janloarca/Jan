@@ -613,7 +613,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => {
     const now = new Date()
     const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
-    if (dividendsProcessedRef.current === todayKey) return
+    // FASE OA. La llave de "ya corri hoy" lleva ADEMAS la configuracion de
+    // ingreso de los activos programados (nunca cantidad ni precio: un tick
+    // de mercado no puede re-disparar escrituras). Antes era solo el dia, y
+    // el motor corria UNA vez por montaje: un bono agregado despues, con
+    // calendario y "ya recibi estos pagos", no escribia sus cupones hasta la
+    // siguiente recarga, asi que la Hoja los mostraba en cero y el reporte
+    // del usuario ("al agregar un bono pagadero semestral no lo leyo") era
+    // literal. Re-correr es seguro: cada pago se deduplica por MES.
+    const scheduleSig = enrichedItems
+      .filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous'))
+      .map((it) => [it.id, it.incomeAmount || 0, it.incomeRate || 0, it.incomeMode || '', it.rateType || '',
+        (it.incomeMonths || []).join(','), it.incomeMonthsExplicit ? 1 : 0, it.incomePayDay || '',
+        it.incomeFrequency || '', it.dividendAction || '', it.incomeDestination || '', it.balanceAsOf || '',
+        it.acquisitionDate || '', (it.excludedPayDates || []).join(',')].join(':'))
+      .sort().join('|')
+    const runKey = `${todayKey}#${scheduleSig}`
+    if (dividendsProcessedRef.current === runKey) return
     // pricesFetching (not just pricesLoading) guards every write here: loading
     // only ever arms on the session's FIRST price fetch (see useMarketPrices),
     // so without pricesFetching a background poll returning a transiently bad
@@ -630,7 +646,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const scheduled = enrichedItems.filter((it) =>
       (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous')
     )
-    if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
+    if (scheduled.length === 0) { dividendsProcessedRef.current = runKey; return }
 
     // ⛔ FASE MU. Este reloj es UTC y `balanceAsOf` es LOCAL (FASE MS: un día
     // calendario que el usuario vivió). En Guatemala las dos convenciones
@@ -980,7 +996,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     processDividends().then(() => {
-      dividendsProcessedRef.current = todayKey
+      dividendsProcessedRef.current = runKey
     }).catch((err) => console.error('[dividends]', err))
     return () => { cancelled = true }
   }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])

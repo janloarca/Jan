@@ -238,9 +238,15 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid period', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
+    // FASE OA: solo se valida la forma del simbolo de lo que SI se va a pedir
+    // a un proveedor. Un activo estatico (bono, banco, inmueble) lleva un
+    // simbolo SINTETICO armado del nombre ("BONO-AZUCAR-2027", con acentos o
+    // un `%` si el nombre los trae) que jamas sale a la red: rechazar la
+    // peticion ENTERA por el (400) dejaba la grafica, el ancla del YTD y el
+    // backfill sin respuesta para todo el portafolio por un nombre tecleado.
     for (const it of items) {
       const sym = (it.symbol || '').trim()
-      if (sym && !SYMBOL_RE.test(sym)) {
+      if (sym && isMarketPriced(it) && !SYMBOL_RE.test(sym)) {
         return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST' }, { status: 400 })
       }
     }

@@ -15,6 +15,7 @@ import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
+import { spreadsheetInputSig, cachedMonthIsCurrent } from '@/lib/spreadsheetSig'
 // El MISMO parser que usa todo camino de import. Su cabecera documenta por qué
 // existe: las implementaciones por archivo convertían "150,25" en 15025 y
 // "1.234,56" en 1.23456, y esos números pasaban validación y aterrizaban en
@@ -538,6 +539,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // live recompute lands, never blanked first. Skips its own mount (nothing
   // to invalidate yet, and bumping here would force every cold load into a
   // live recompute even when the Firestore cache is already sufficient).
+  // FASE OA. La firma que viaja al doc de cada mes cacheado: los MISMOS
+  // strings que invalidan en sesion, hasheados. Un mes guardado con otra
+  // firma (o sin ella) se recomputa al montar, que es lo que la invalidacion
+  // en memoria no podia hacer entre sesiones (lib/spreadsheetSig.js).
+  const inputSig = useMemo(() => spreadsheetInputSig([snapshotSig, txSig, lotSig, itemContentSig]),
+    [snapshotSig, txSig, lotSig, itemContentSig])
+  // Firma con la que se guardo cada mes que hoy esta en memoria: la que trajo
+  // el cache al cargar, o la de HOY cuando el recomputo de esta sesion lo
+  // acaba de escribir. Ref y no estado: solo la lee missingMonths.
+  const cachedSigRef = useRef({})
   const contentMountedRef = useRef(false)
   const [generation, setGeneration] = useState(0)
   useEffect(() => {
@@ -567,7 +578,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       // would sit on "-" forever waiting for an answer that already came.
       setCacheProbed(true)
       if (cancelled || !data) return
-      const { __currencies = {}, ...monthData } = data
+      const { __currencies = {}, __sigs = {}, ...monthData } = data
+      toLoad.forEach(mk => { cachedSigRef.current[mk] = __sigs[mk] || null })
       setHistoricalItems(prev => {
         const next = { ...prev }
         toLoad.forEach(mk => {
@@ -629,8 +641,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const val = it.isDebt ? -getItemValue(it) : getItemValue(it)
       if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '', category: getTypeCategory(it), institution: it.institution || '' }
     })
-    onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD')
-  }, [onSaveItemSnapshots, items, currentMonthKey, baseCurrency])
+    onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD', { sig: inputSig })
+  }, [onSaveItemSnapshots, items, currentMonthKey, baseCurrency, inputSig])
 
   // What the compute effect below READS to decide which months are missing, kept
   // in a ref on purpose. `historicalItems` cannot be a dependency of that effect:
@@ -741,6 +753,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       if (generation > 0 && monthGenRef.current[mk] !== generation) return true
       const monthData = cached[mk]
       if (!monthData) return true
+      // FASE OA: un mes que vino del cache con OTRA firma de insumos (o sin
+      // firma) no se da por bueno solo por existir: es el hueco por el que un
+      // cupon escrito en otra sesion nunca llegaba a los meses ya guardados.
+      if (!cachedMonthIsCurrent(cachedSigRef.current[mk], inputSig)) return true
       const end = monthEndOf(mk)
       const eligible = itemsWithIds.filter(it => {
         const acq = effAcqTs(it)
@@ -830,7 +846,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setLoadingHistory(false)
         for (const mk of Object.keys(data)) {
           if (Object.keys(data[mk]).length > 0) {
-            try { await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD') } catch {}
+            try {
+              await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { sig: inputSig })
+              cachedSigRef.current[mk] = inputSig
+            } catch {}
           }
         }
       }).catch(() => { setLoadingHistory(false) })
@@ -845,7 +864,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // sigs deliberately exclude currentPrice, so a price refresh no longer
     // throws away work in progress.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, cacheProbed, generation])
+  }, [itemContentSig, txSig, lotSig, snapshotSig, inputSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, cacheProbed, generation])
 
   // "Recalcular": el MISMO cómputo del efecto de arriba, pero disparable y con
   // reporte.
@@ -904,7 +923,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (unavailable.length > 0) break
         if (Object.keys(data[mk]).length === 0) continue
         try {
-          await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { replace: true })
+          await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { replace: true, sig: inputSig })
+          cachedSigRef.current[mk] = inputSig
           written++
         } catch { /* best-effort: un mes que no se pudo guardar se recomputa la próxima */ }
       }
@@ -920,7 +940,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       setRecalcReport({ error: err?.message || String(err) })
     }
     setRecalculating(false)
-  }, [recalculating, months, currentMonthKey, onSaveItemSnapshots, items, convert, baseCurrency, lots, transactions, snapshots, generation, fetchKey, t])
+  }, [recalculating, months, currentMonthKey, onSaveItemSnapshots, items, convert, baseCurrency, lots, transactions, snapshots, generation, fetchKey, inputSig, t])
 
   // El botón de refrescar del header de /spreadsheet dispara lo MISMO, que es
   // literalmente lo que pidió el usuario ("o utilizar el botón de refresh propio
@@ -2053,7 +2073,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         // Sub-unit crypto amounts (0.00000547 BTC) round to "0"
                         // at 4 decimals and read as a missing quantity: give
                         // fractional amounts room before falling back.
-                        const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: qty < 1 ? 8 : 4 }) : null
+                        // FASE OA: un bono/alternativo con cantidad distinta de 1 tambien
+                        // la muestra. Es la unica pista visible de que su valor es
+                        // cantidad x monto y no el monto que el usuario tecleo.
+                        const qtyLabel = (market ? qty : (qty && qty !== 1)) ? qty.toLocaleString(undefined, { maximumFractionDigits: qty < 1 ? 8 : 4 }) : null
                         // The cell shows the total value, so the editor edits value
                         // too (quantity is derived from the price on save).
                         const editVal = Math.abs(val).toFixed(2)
