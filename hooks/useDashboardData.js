@@ -5,7 +5,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget, marketYieldFallback } from '@/lib/autoDividends'
@@ -913,7 +913,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // se paga entero (ver la cabecera de esa función).
           amount = monthlyIncomeAmount({
             balance, qty,
-            isPerShare: /stock|etf|fund|crypto/i.test(it.type || ''),
+            // FASE OC: el predicado vive en utils y lo comparten la
+            // proyección anual y el rendimiento efectivo, así que el motor no
+            // puede pagar una cosa y la card proyectar otra.
+            isPerShare: isPerShareIncome(it),
             incomeMode: it.incomeMode || marketYieldFallback(it)?.incomeMode,
             incomeRate: it.incomeRate || marketYieldFallback(it)?.incomeRate,
             incomeAmount: it.incomeAmount,
