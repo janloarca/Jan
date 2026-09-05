@@ -7,9 +7,9 @@ import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { accountValue } from '@/lib/transferFields'
+import { closesWholeLot, exceedsHolding, formatQtyPlain } from '@/lib/lotClose'
 import { todayLocalISO } from '@/lib/localDate'
 
-const QTY_EPSILON = 0.0001
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
 // Sale figures must be in the item's ORIGINAL currency (the one its lots' costBasis
@@ -60,7 +60,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
     setError('')
 
     if (qtySell <= 0) { setError(t('Ingresa una cantidad valida', 'Enter a valid quantity')); return }
-    if (qtySell > (item.quantity || 0) + QTY_EPSILON) { setError(t('No puedes vender mas de lo que tienes', 'Cannot sell more than you own')); return }
+    if (exceedsHolding(qtySell, item.quantity)) { setError(t('No puedes vender mas de lo que tienes', 'Cannot sell more than you own')); return }
     if (price <= 0) { setError(t('Ingresa un precio de venta valido', 'Enter a valid sale price')); return }
     // "Queda en el portafolio" SIN cuenta elegida caía al else-if de abajo y la
     // venta se ejecutaba igual: la posición bajaba y el dinero no aterrizaba en
@@ -75,7 +75,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
     try {
       // Build the source item update
       const newQty = (item.quantity || 0) - qtySell
-      const itemFields = newQty <= QTY_EPSILON
+      const itemFields = closesWholeLot(qtySell, item.quantity)
         ? { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true }
         : { quantity: newQty }
 
@@ -89,6 +89,12 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         description: `${t('Venta', 'Sale')} ${qtySell} ${item.name || item.symbol} @ ${price}`,
         date: saleDate,
         totalAmount: proceeds,
+        // FASE OB. La fila de venta no traía cantidad ni precio unitario, así
+        // que el rebobinado por trades (lib/portfolioRewind.js) y toda lectura
+        // que pregunte "cuántas unidades salieron" veían una venta sin
+        // unidades. Misma forma que escribe el adaptador de IBKR.
+        quantity: qtySell,
+        pricePerUnit: price,
         currency: origCur,
         _linkedItemId: item.id,
       }]
@@ -212,7 +218,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className={labelCls}>{t('Cantidad a vender', 'Quantity to sell')}</label>
-              <button type="button" onClick={() => setQuantity((item.quantity || 0).toString())}
+              <button type="button" onClick={() => setQuantity(formatQtyPlain(item.quantity))}
                 className="text-xs text-red-400 hover:text-red-300 transition-colors">{t('Vender todo', 'Sell all')}</button>
             </div>
             {/* AmountInput y NO type="number": con teclado en español el separador

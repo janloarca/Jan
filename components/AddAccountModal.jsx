@@ -522,6 +522,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.incomeFrequency = divInfo.frequency
           item.dividendYield = marketDivOverride ? (parseAmount(form.incomeRate) || 0) : divInfo.dividendYield
           item.dividendAction = form.dividendAction || 'cash'
+          if (marketDivOverride) {
+            // FASE OB. El override escribía SOLO `dividendYield`, que el motor
+            // de pagos no lee: con `incomeAmount` en 0 y sin `incomeRate` el
+            // activo quedaba fuera de `scheduled` y "Editar manualmente"
+            // apagaba los pagos automáticos en silencio. Lo que el motor
+            // consume es el par `incomeMode`/`incomeRate` (más el día), así
+            // que se escribe en la forma que ya usa un bono.
+            item.incomeMode = 'percent'
+            item.incomeRate = parseAmount(form.incomeRate) || 0
+            item.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
+          }
         }
       } else if (isProperty) {
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
@@ -809,6 +820,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               costBasis: price,
               currency: item.currency || 'USD',
               acquisitionDate: row.date,
+              // FASE OB. Sin institución, el cierre FIFO de una venta en OTRO
+              // broker se comía este lote (el filtro por institución cae a
+              // "todos" cuando ninguno la trae), y dos posiciones del mismo
+              // símbolo con la misma fecha, cantidad y costo colapsaban en UN
+              // solo documento. `itemId` deja al lote con dueño: borrar la
+              // posición se lleva SUS lotes, no los del hermano por símbolo.
+              institution: item.institution || '',
+              ...(itemId ? { itemId } : {}),
               ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
             })
           }
@@ -832,6 +851,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             costBasis: lotCost,
             currency: item.currency || 'USD',
             acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            // Ver el comentario del lote por fila de arriba (FASE OB).
+            institution: item.institution || '',
+            ...(itemId ? { itemId } : {}),
             ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
           })
         }

@@ -12,6 +12,7 @@ import { toRawItem } from '@/lib/rawItem'
 import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
 import { getItemValue } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
+import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
@@ -173,7 +174,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     try {
       await onDeleteTransaction(tx.id)
     } catch (e) {
-      setError(e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement'))
+      // FASE OB. El código crudo ('reversal-refused') no le dice nada a nadie.
+      setError(e?.code === 'reversal-refused'
+        ? t('No se borro: una cuenta no tiene saldo suficiente para devolver este movimiento. Ajusta su saldo primero.',
+            'Not deleted: an account does not hold enough to give this movement back. Adjust its balance first.')
+        : (e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement')))
     }
     setConfirmDeleteTxId(null)
     setDeletingTxId(null)
@@ -411,6 +416,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         currency: itemCurrency,
         _linkedItemId: item.id,
         _source: 'manual_contribution',
+        // FASE OB. Esta fila mueve el saldo en la misma operación: la marca
+        // permite deshacerla al borrarla (lib/cashflowReversal.js).
+        _balanceMoved: true,
         ...(txType === 'DIVIDEND' && isBankLike ? { _reinvested: true } : {}),
       }
 
@@ -549,7 +557,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // Dividend settings (market assets)
       if (isMarket) {
         updated.dividendAction = form.dividendAction
-        if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
+        // FASE OB. Misma regla que la rama de abajo (FASE HV2): reinvertir y
+        // tener destino son excluyentes. Acá el destino SOBREVIVÍA al cambio,
+        // y la limpieza del motor seguía debitando esa cuenta por cupones que
+        // ya iban a acciones.
+        if (updated.dividendAction === 'reinvest') updated.incomeDestination = ''
+        else if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
       }
 
       // Income settings (non-market assets)
@@ -1204,7 +1217,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             cuentas, no solo quita la fila. Misma redaccion que
                             la tarjeta de movimientos recientes, desde
                             lib/transferReversal.js. */}
-                        {confirming && reversalLines(transferReversalPlan(tx, allItems || existingItems || []), lang, txMoney).map((line, k) => (
+                        {confirming && [
+                          ...reversalLines(transferReversalPlan(tx, allItems || existingItems || []), lang, txMoney),
+                          ...cashflowReversalLines(cashflowReversalPlan(tx, allItems || existingItems || []), lang, txMoney),
+                        ].map((line, k) => (
                           <div key={k} className="text-[11px] pb-1" style={{ color: 'var(--text-muted)' }}>{line}</div>
                         ))}
                         </div>

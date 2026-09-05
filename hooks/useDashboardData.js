@@ -8,10 +8,11 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
-import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
+import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget, marketYieldFallback } from '@/lib/autoDividends'
 import { verifyIncomeForItems } from '@/lib/dividendVerify'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
+import { cashflowReversalPlan } from '@/lib/cashflowReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
@@ -622,8 +623,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // del usuario ("al agregar un bono pagadero semestral no lo leyo") era
     // literal. Re-correr es seguro: cada pago se deduplica por MES.
     const scheduleSig = enrichedItems
-      .filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous'))
-      .map((it) => [it.id, it.incomeAmount || 0, it.incomeRate || 0, it.incomeMode || '', it.rateType || '',
+      .filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous'
+        || marketYieldFallback(it)))
+      .map((it) => [it.id, it.incomeAmount || 0, it.incomeRate || 0, it.dividendYield || 0, it.incomeMode || '', it.rateType || '',
         (it.incomeMonths || []).join(','), it.incomeMonthsExplicit ? 1 : 0, it.incomePayDay || '',
         it.incomeFrequency || '', it.dividendAction || '', it.incomeDestination || '', it.balanceAsOf || '',
         it.acquisitionDate || '', (it.excludedPayDates || []).join(',')].join(':'))
@@ -644,7 +646,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
-      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous')
+      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous'
+        || marketYieldFallback(it))
     )
     if (scheduled.length === 0) { dividendsProcessedRef.current = runKey; return }
 
@@ -722,6 +725,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // they carry _destinationCredited:false to say so. Older payments have
         // no flag at all and were all credited, so they still reverse.
         if (tx._destinationCredited === false) return
+        // FASE OB. Un pago REINVERTIDO nunca tocó el destino: subió la
+        // cantidad del propio activo. Revertirlo del destino le quitaba a la
+        // cuenta un dinero que nunca recibió (cambiar una acción a
+        // "reinvertir" en EditAccountModal dejaba el destino puesto, y cada
+        // limpieza debitaba el banco por cupones que fueron a acciones).
+        if (tx._reinvested === true) return
         const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
         if (!(amt > 0)) return
         const key = it.incomeDestination
@@ -735,8 +744,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // in a month where the REAL one is already recorded. Deleting them also
         // reverses the credit out of the destination account, which is the whole
         // point: a duplicated coupon leaves the destination permanently high.
+        // FASE OB. El calendario de la limpieza es el MISMO con el que el motor
+        // PAGA (abajo: `incomeMonths`, o los doce meses si no hay lista). Antes
+        // se gateaba en `incomeMonthsExplicit`, que una acción con dividendo
+        // detectado (AddAccountModal, rama de mercado) nunca estampa, así que
+        // la limpieza caía a "conservar solo el más nuevo" y borraba el cupón
+        // trimestral anterior EN CADA corrida, debitando el destino por un
+        // pago que sí llegó. `incomeMonthsExplicit` sigue gateando solo el
+        // BACKFILL, que es donde una lista supuesta sí inventaría historia.
+        const cleanupMonths = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0
+          ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
         const stale = new Set(
-          redundantAutoDividendIds(transactions, it, it.incomeMonths, it.incomeMonthsExplicit === true)
+          redundantAutoDividendIds(transactions, it, cleanupMonths, true)
         )
         if (stale.size > 0 && deleteTransaction) {
           for (const tx of transactions) {
@@ -820,6 +839,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // agosto con día de pago 1, se escribía un mes entero de interés
             // fechado el 1 de agosto.
             if (acqDay && dateStr < acqDay) continue
+            // FASE OB. Un activo VENDIDO por completo (SellModal estampa
+            // `saleDate`/`soldFully`) deja de pagar el día de la venta: sin
+            // esto un bono liquidado seguía escribiendo cupones y acreditando
+            // el destino por dinero que ya no existe.
+            if (it.soldFully && it.saleDate && dateStr > it.saleDate) continue
             // FASE HV. Un ingreso que se REINVIERTE en la propia cuenta ya está
             // adentro del saldo que el usuario tecleó: el saldo de hoy de una
             // cuenta que compone contiene todo lo que compuso hasta hoy. Backfillear
@@ -843,7 +867,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               // FASE KS. Esta rama no tenia NINGUN chequeo de fecha de compra,
               // asi que una cuenta creada el 20 de agosto con dia de pago 1
               // escribia su primer pago fechado el 1 de agosto.
-              if (!acqDay || dateStr >= acqDay) {
+              const soldBefore = it.soldFully && it.saleDate && dateStr > it.saleDate
+              if ((!acqDay || dateStr >= acqDay) && !soldBefore) {
                 monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
               }
             }
@@ -889,7 +914,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           amount = monthlyIncomeAmount({
             balance, qty,
             isPerShare: /stock|etf|fund|crypto/i.test(it.type || ''),
-            incomeMode: it.incomeMode, incomeRate: it.incomeRate, incomeAmount: it.incomeAmount,
+            incomeMode: it.incomeMode || marketYieldFallback(it)?.incomeMode,
+            incomeRate: it.incomeRate || marketYieldFallback(it)?.incomeRate,
+            incomeAmount: it.incomeAmount,
             rateType: it.rateType, rateMin: it.rateMin, rateMax: it.rateMax,
             accrual: it.accrual, acquisitionDay: acqDay, payDate: dateStr,
             incomeMonths: payMonths, incomePayDay: it.incomePayDay || 1,
@@ -959,6 +986,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 currency: incomeCurrency,
                 acquisitionDate: dateStr,
                 institution: it.institution || '',
+                itemId: it.id,
               })
             } catch (e) { console.error('[dividend-reinvest-lot]', e.message) }
           } else if (it.incomeDestination && credited) {
@@ -3340,6 +3368,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       return
     }
 
+    // FASE OB. Un aporte, retiro o gasto que MOVIÓ un saldo al escribirse lo
+    // devuelve al borrarse (solo si la fila lo dice: `_balanceMoved`). Mismo
+    // batch atómico que una transferencia, con el ítem y el borrado juntos.
+    const cash = tx && !skipBalanceReversal ? cashflowReversalPlan(tx, enrichedItems) : null
+    if (cash) {
+      if (cash.refused) {
+        const err = new Error('reversal-refused')
+        err.code = 'reversal-refused'
+        err.sides = ['account']
+        throw err
+      }
+      if (cash.side) {
+        await reverseTransfer({ fromId: cash.side.id, fromFields: cash.side.fields, toId: null, toFields: null, txId })
+        return
+      }
+      // La cuenta ya no existe, o es de mercado: se borra a secas, como antes.
+      await deleteTransaction(txId)
+      return
+    }
+
     const credit = tx && !skipBalanceReversal && dividendCreditTarget(tx, enrichedItems)
     if (credit) {
       const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
@@ -3362,7 +3410,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // Solo si ese activo tiene calendario: es la misma condición con la que
       // processDividends decide a quién le genera pagos.
       const canRegenerate = src && (src.incomeAmount > 0 || src.incomeRate > 0
-        || (src.rateType === 'variable' && src.rateMin > 0) || src.rateType === 'continuous')
+        || (src.rateType === 'variable' && src.rateMin > 0) || src.rateType === 'continuous' || marketYieldFallback(src))
       if (canRegenerate) {
         // El acumulador evita que dos borrados seguidos del MISMO activo se
         // pisen: `enrichedItems` viaja capturado en este callback, así que el
@@ -3398,8 +3446,34 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         await applyDestinationDelta(credit.dest, newAmt - oldAmt, credit.currency)
       }
     }
-    await updateTransaction(txId, fields)
-  }, [transactions, enrichedItems, applyDestinationDelta, updateTransaction])
+    let patch = fields
+    // FASE OB. Corregir a mano un pago que escribió el motor lo convierte en
+    // un REGISTRO del usuario: sigue siendo `_source:'auto'` y la limpieza
+    // lo trataba como fabricado. Moverle la fecha al día real (el cupón de
+    // junio que de verdad cayó el 5 de julio) hacía que el motor lo BORRARA
+    // por caer fuera del calendario, revirtiera el saldo del destino, y
+    // volviera a fabricar el de junio. Ahora la fila pasa a ser manual y el
+    // mes que dejó queda EXCLUIDO, que es lo que el usuario afirmó: en ese
+    // mes no hubo pago.
+    if (tx && (tx.type || '').toUpperCase() === 'DIVIDEND' && tx._source === 'auto') {
+      patch = { ...fields, _source: 'manual_edit' }
+      const newDate = typeof fields?.date === 'string' ? fields.date : null
+      if (newDate && tx.date && newDate.slice(0, 7) !== String(tx.date).slice(0, 7) && tx._linkedItemId && updateItem) {
+        const src = enrichedItems.find((it) => it.id === tx._linkedItemId)
+        if (src) {
+          const already = excludedPayRef.current.get(src.id) || []
+          const prevList = [...new Set([...(Array.isArray(src.excludedPayDates) ? src.excludedPayDates : []), ...already])]
+          if (!isPayDateExcluded(prevList, tx.date)) {
+            const next = [...prevList, tx.date]
+            excludedPayRef.current.set(src.id, next)
+            try { await updateItem(src.id, { excludedPayDates: next }) }
+            catch (e) { console.error('[update-tx-exclude]', e.message) }
+          }
+        }
+      }
+    }
+    await updateTransaction(txId, patch)
+  }, [transactions, enrichedItems, applyDestinationDelta, updateTransaction, updateItem])
 
   // Accept: writes an ordinary DEPOSIT/WITHDRAWAL (symbol 'CASH', no
   // _linkedItemId — mirrors how a REAL IBKR cash transaction is shaped,
