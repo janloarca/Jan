@@ -1487,6 +1487,29 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       const targets = new Set([...gaps, ...divergent, ...contradictedCal])
       const fills = composed.filter((f) => targets.has(f.date))
       push(`${t('Huecos', 'Gaps')}: ${gaps.length} · ${t('escrituras corruptas', 'corrupt writes')}: ${divergent.length}${contradictedCal.size > 0 ? ` · ${t('calibraciones contradichas', 'contradicted calibrations')}: ${contradictedCal.size}` : ''}`)
+      // El conteo solo ya costó rondas enteras de "¿cuál día, y cuánto
+      // cambia?" (la lección de FASE HP otra vez). Se imprimen las primeras
+      // fechas divergentes con guardado-vs-real, leyendo el doc 'daily' con
+      // el MISMO snapshotAssetsUSD que usa divergentDailyDates para que este
+      // reporte no pueda discrepar de por qué esa fecha se marcó.
+      if (divergent.length > 0) {
+        const storedByDate = new Map()
+        for (const s of (srcSnapshots || [])) {
+          if (!s || !s.date || s._account || s._calibrated) continue
+          if ((s._source || 'daily') !== 'daily') continue
+          storedByDate.set(s.date, snapshotAssetsUSD(s))
+        }
+        const composedByDate = new Map(composed.map((c) => [c.date, c.total]))
+        divergent.slice(0, 8).forEach((d) => {
+          const before = storedByDate.get(d)
+          const after = composedByDate.get(d)
+          if (!Number.isFinite(before) || !Number.isFinite(after)) return
+          push(`  ${formatDate(`${d}T00:00:00Z`)}: ${t('guardado', 'stored')} ${before.toFixed(2)} → ${t('real', 'real')} ${after.toFixed(2)}`)
+        })
+        if (divergent.length > 8) {
+          push(`  ${t(`... y ${divergent.length - 8} más`, `... and ${divergent.length - 8} more`)}`)
+        }
+      }
       // Un ancla contradicha para la que NO hay composición (broker conectado
       // sin NAV arrastrable a esa fecha) no se puede reescribir: la app deja de
       // usarla al leer (ver contradictedAnchors en useDashboardData) y esto lo
