@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
+import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
 
 export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [], convert, baseCurrency }) {
   const itemName = (id) => {
@@ -15,6 +16,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
   // return, and the user needs to remove it, but a one-tap delete next to every
   // row is how real history gets destroyed by accident.
   const [confirmId, setConfirmId] = useState(null)
+  const [deleteError, setDeleteError] = useState(null)
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [dateRange, setDateRange] = useState('all')
 
@@ -276,7 +278,18 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                   {onDeleteTransaction && tx.id && (
                     confirmId === tx.id ? (
                       <span className="flex items-center gap-1">
-                        <button onClick={() => { onDeleteTransaction(tx.id); setConfirmId(null) }}
+                        <button onClick={async () => {
+                          // FASE OB. Se ESPERA y se atrapa: antes el borrado se
+                          // disparaba sin await, así que un rehuse (la cuenta no
+                          // puede devolver el saldo) moría como promesa sin
+                          // manejar y la fila desaparecía de la vista con el
+                          // movimiento intacto en el archivo.
+                          setDeleteError(null)
+                          try { await onDeleteTransaction(tx.id); setConfirmId(null) }
+                          catch (e) {
+                            setDeleteError({ id: tx.id, code: e?.code || null, message: e?.message || '' })
+                          }
+                        }}
                           className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
                           style={{ backgroundColor: 'var(--text-negative)', color: 'var(--bg-card)' }}>
                           {lang === 'es' ? 'Borrar' : 'Delete'}
@@ -317,9 +330,22 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                   cuanto vuelve a cada lado. La redaccion vive en
                   lib/transferReversal.js, compartida con el historial de la
                   cuenta, que es la otra pantalla con este boton. */}
-              {confirmId === tx.id && reversalLines(transferReversalPlan(tx, items), lang, formatCurrency).map((line, k) => (
+              {confirmId === tx.id && [
+                ...reversalLines(transferReversalPlan(tx, items), lang, formatCurrency),
+                ...cashflowReversalLines(cashflowReversalPlan(tx, items), lang, formatCurrency),
+              ].map((line, k) => (
                 <div key={k} className="text-xs pb-2 -mt-1 pl-12" style={{ color: 'var(--text-muted)' }}>{line}</div>
               ))}
+              {deleteError?.id === tx.id && (
+                <div className="text-xs pb-2 -mt-1 pl-12" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {deleteError.code === 'reversal-refused'
+                    ? (lang === 'es'
+                      ? 'No se borro: una cuenta no tiene saldo suficiente para devolver este movimiento. Ajusta su saldo primero.'
+                      : 'Not deleted: an account does not hold enough to give this movement back. Adjust its balance first.')
+                    : (lang === 'es' ? 'No se pudo borrar el movimiento.' : 'Could not delete the movement.')}
+                  {deleteError.code !== 'reversal-refused' && deleteError.message ? ` ${deleteError.message}` : ''}
+                </div>
+              )}
               </div>
             ))}
           </div>

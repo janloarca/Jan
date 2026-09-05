@@ -224,7 +224,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
           const { itemFields, newLot, lotClose } = buildContributionFields({
             item: balanceTarget, amount: num, date, isAdd: false, currency: effectiveCurrency,
           })
-          await onExecuteContribution({ itemId: balanceTarget.id, itemFields, transaction: feeTx, newLot, lotClose })
+          // FASE OB. La marca dice que ESTA fila movió el saldo, y es lo que
+          // permite deshacerla al borrarla (lib/cashflowReversal.js).
+          await onExecuteContribution({ itemId: balanceTarget.id, itemFields, transaction: { ...feeTx, _balanceMoved: true }, newLot, lotClose })
         } else {
           await onAddTransaction(feeTx)
         }
@@ -342,7 +344,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
             isAdd,
             currency: effectiveCurrency,
           })
-          await onExecuteContribution({ itemId: balanceTarget.id, itemFields, transaction, newLot, lotClose })
+          await onExecuteContribution({ itemId: balanceTarget.id, itemFields, transaction: { ...transaction, _balanceMoved: true }, newLot, lotClose })
         } else {
           await onAddTransaction(transaction)
         }
