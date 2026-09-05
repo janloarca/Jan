@@ -143,8 +143,14 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
       // La cantidad solo se normaliza cuando la guardada NO SIRVE: forzar 1
       // sobre un bien con cantidad legítima le cambia el Costo (cantidad x
       // precio de compra) sin que nadie haya editado esa columna.
+      // FASE OA. La celda MUESTRA cantidad x precio (getItemValue), asi que lo
+      // que se teclea es el TOTAL y el precio que se guarda es POR UNIDAD:
+      // sobre un bien con cantidad 5, escribir el total en `currentPrice`
+      // multiplicaba el valor por 5 en la siguiente lectura (5,000 tecleados
+      // se leian 25,000). Con cantidad 1 (el caso comun) no cambia nada.
       const qty = Number(item.quantity)
-      const patch = { currentPrice: price }
+      const usableQty = Number.isFinite(qty) && qty > 0 ? qty : 1
+      const patch = { currentPrice: price / usableQty }
       if (!Number.isFinite(qty) || qty <= 0) patch.quantity = 1
       onUpdateItem(item.id, patch)
       setRejectMsg('')

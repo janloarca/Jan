@@ -1115,7 +1115,7 @@ export function useFirestoreItems() {
   // computa solo los meses faltantes y por lo tanto NO conoce el mes completo,
   // conserva el merge de siempre: reemplazar desde ahí borraría lo que no
   // recomputó.
-  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency, { replace = false } = {}) => {
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency, { replace = false, sig = null } = {}) => {
     if (!uid || !monthKey || !itemsData) return
     // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
     if (items.some((i) => i._source === 'demo')) return
@@ -1138,6 +1138,11 @@ export function useFirestoreItems() {
       savedAt: new Date().toISOString(),
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
+      // FASE OA: con que insumos se calculo este mes (lib/spreadsheetSig.js).
+      // loadItemSnapshots lo devuelve y la Hoja lo compara con la firma de
+      // HOY: un mes cuya firma no coincide (o que no la trae) se recomputa en
+      // vez de darse por bueno solo por existir.
+      ...(sig ? { _sig: sig } : {}),
     }).filter(([, v]) => v !== undefined))
     await fs.setDoc(ref, snapData, fullWrite ? undefined : { merge: true })
   }, [uid, items])
@@ -1146,6 +1151,7 @@ export function useFirestoreItems() {
     if (!uid || !monthKeys || monthKeys.length === 0) return {}
     const result = {}
     const currencies = {}
+    const sigs = {}
     const { db, fs } = await getFirebase()
     await Promise.all(monthKeys.map(async (key) => {
       try {
@@ -1155,11 +1161,12 @@ export function useFirestoreItems() {
           if ((data._version || 0) >= SNAPSHOT_VERSION) {
             result[key] = data.items || {}
             if (data._currency) currencies[key] = data._currency
+            if (data._sig) sigs[key] = data._sig
           }
         }
       } catch {}
     }))
-    return { ...result, __currencies: currencies }
+    return { ...result, __currencies: currencies, __sigs: sigs }
   }, [uid])
 
   // FASE GB. Mientras un bulkImport está escribiendo, la colección de items

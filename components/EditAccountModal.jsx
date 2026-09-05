@@ -728,6 +728,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         } else if (isMarket) {
           const unitPrice = Number(rawItem.currentPrice) || parseAmount(form.currentPrice)
           flowDelta = ((updated.quantity || 0) - rawQty) * unitPrice
+        } else {
+          // FASE OA. Un bono/alternativo guardado con cantidad distinta de 1
+          // (la forma que deja el bug de la cantidad heredada al cambiar de
+          // tipo) no entraba a NINGUNA rama: cambiarle la cantidad no
+          // preguntaba nada y no escribia ningun movimiento. Su valor es
+          // cantidad x valor de compra, asi que el delta que importa es el del
+          // TOTAL, la misma pregunta que ya se hace para una cuenta de saldo.
+          flowDelta = ((updated.quantity || 0) * (updated.purchasePrice || 0)) - (rawQty * rawPP)
         }
       }
       if (Math.abs(flowDelta) > 0.01) {
@@ -945,13 +953,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
+                <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={isMarket
+                  ? t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')
+                  : t('Para un bono o un alternativo lo normal es cantidad 1 con el monto completo en el valor de compra. Si pones más de 1, el valor de compra se lee POR UNIDAD y el total es cantidad × valor.', 'For a bond or an alternative the norm is quantity 1 with the full amount as the purchase value. If you set more than 1, the purchase value is read PER UNIT and the total is quantity × value.')} /></label>
                 <input id="edit-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
                   type="text" inputMode="decimal" className={inputCls} />
               </div>
               <div>
                 <label htmlFor="edit-purchase-price" className={labelCls}>
-                  {isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} {t('en', 'in')} {form.currency}
+                  {isMarket ? t('Precio compra', 'Buy price') : ((parseQuantity(form.quantity) || 1) === 1 ? t('Valor compra', 'Purchase value') : t('Valor compra por unidad', 'Purchase value per unit'))} {t('en', 'in')} {form.currency}
                   <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} />
                 </label>
                 <input id="edit-purchase-price" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}

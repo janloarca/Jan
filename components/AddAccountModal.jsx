@@ -239,6 +239,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const isAlternative = type === 'Alternative'
   const isCrypto = type === 'Crypto'
   const isDebt = type === 'Debt'
+
+  // FASE OA. La cantidad SOLO existe como campo para un activo de mercado.
+  // Para todo lo demas (bono, banco, inmueble, alternativo, deuda) el monto
+  // que se teclea ES el total y la cantidad es 1 por construccion, asi que
+  // aqui se decide UNA sola vez y la leen el guardado, el pie de "Valor
+  // total" y todas las vistas previas. Antes cada una hacia su propio
+  // `parseQuantity(form.quantity) || ...` sobre un campo que sobrevivia al
+  // cambio de tipo: teclear cantidad 5 en Acciones, volver, elegir Bono y
+  // poner 1000 guardaba un bono de 5 x 1000 = 5,000... y la Hoja lo leia
+  // como 5 unidades de 1,000 (el reporte real del usuario: "me aparecia
+  // 50000 cuando debia ser 5000" al capturar cinco bonos de 1,000).
+  const effectiveQuantity = () => (isMarketAsset ? parseQuantity(form.quantity) : 1)
   const currentTypeInfo = TYPES.find(tp => tp.key === type)
 
   // If the schedule the user just configured (months + pay day) plus the
@@ -450,7 +462,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (!form.acquisitionDate && !guidedType) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
 
-    const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
+    const qty = effectiveQuantity()
     const price = parseAmount(form.purchasePrice)
     if (!isBank && price <= 0) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
@@ -533,7 +545,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       } else {
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
-        item.quantity = qty || 1
+        // Siempre 1: el monto tecleado es el total (ver effectiveQuantity).
+        item.quantity = 1
         item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseAmount(form.currentPrice)
       }
@@ -707,6 +720,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           const oldPrice = duplicateWarning.purchasePrice || 0
           item.quantity = oldQty + qty
           item.purchasePrice = oldQty + qty > 0 ? (oldQty * oldPrice + qty * price) / (oldQty + qty) : oldPrice
+        } else if (!isMarketAsset && !item.isDebt) {
+          // FASE OA. "Agregar a posicion" sobre un bono/banco/alternativo
+          // sobreescribia el item con el monto NUEVO (un bono de 5,000 al que
+          // se le agregaban 1,000 quedaba en 1,000) y ademas escribia el
+          // DEPOSIT de apertura por el monto completo. Un activo de saldo
+          // tiene cantidad 1 y su monto vive en los precios, asi que agregar
+          // es SUMAR en los dos campos; el deposito (abajo, via isMerge) queda
+          // solo con el dinero que entro ahora.
+          const oldQty = Number(duplicateWarning.quantity) || 1
+          const oldPurchase = (duplicateWarning.purchasePrice || 0) * oldQty
+          const oldCurrent = (duplicateWarning.currentPrice || duplicateWarning.purchasePrice || 0) * oldQty
+          const newCurrent = parseAmount(form.currentPrice) || price
+          item.quantity = 1
+          item.purchasePrice = oldPurchase + price
+          if (item.currentPrice != null || duplicateWarning.currentPrice != null) item.currentPrice = oldCurrent + newCurrent
+          if (duplicateWarning.entryFee && item.entryFee == null) item.entryFee = duplicateWarning.entryFee
+          else if (duplicateWarning.entryFee && item.entryFee != null) item.entryFee = (duplicateWarning.entryFee || 0) + item.entryFee
         }
       }
 
@@ -760,7 +790,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // On an "Add to position" merge the item now carries the COMBINED quantity
       // and weighted-average cost — the lot and the DEPOSIT must record only THIS
       // purchase, or the historical share count double-counts (old lots + combined).
-      const isMerge = !!duplicateWarning && isMarketAsset
+      // FASE OA: tambien para un activo de saldo (la suma de arriba), asi el
+      // DEPOSIT registra SOLO este aporte y no el saldo combinado.
+      const isMerge = !!duplicateWarning && !item.isDebt
       const lotQty = isMerge ? qty : item.quantity
       const lotCost = isMerge ? price : item.purchasePrice
 
@@ -945,7 +977,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -1651,7 +1683,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
                     style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
-                    {t('Monto fijo mensual', 'Fixed monthly amount')}
+                    {t('Monto fijo por pago', 'Fixed amount per payment')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
@@ -1823,7 +1855,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     automatic backfill silently assuming they were all
                     received once the account is saved. */}
                 {pastDuePayDates.length > 0 && (() => {
-                  const qty = parseQuantity(form.quantity) || 1
+                  const qty = effectiveQuantity() || 1
                   const price = parseAmount(form.purchasePrice)
                   const balance = qty * price
                   // Con devengo diario cada mes vale distinto (28 dias no son
@@ -1996,7 +2028,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         denominator of every return % for this asset. */}
                     {parseAmount(form.entryFee) > 0 && (() => {
                       const fee = parseAmount(form.entryFee) || 0
-                      const typed = (parseQuantity(form.quantity) || 1) * (parseAmount(form.purchasePrice))
+                      const typed = (effectiveQuantity() || 1) * (parseAmount(form.purchasePrice))
                       const fmtM = (v) => `${form.currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       return (
                         <div className="mt-2">
@@ -2168,7 +2200,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         that automatically, this is a manual snapshot the user
                         updates whenever they hear about a new round. */}
                     {!form.ownershipPct && parseAmount(form.roundValuation) > 0 && (() => {
-                      const invested = (parseQuantity(form.quantity) || 1) * (parseAmount(form.purchasePrice))
+                      const invested = (effectiveQuantity() || 1) * (parseAmount(form.purchasePrice))
                       if (invested <= 0) return null
                       const suggested = (invested / parseAmount(form.roundValuation)) * 100
                       return (
@@ -2320,7 +2352,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 accounts belong in Movimientos, mixing them here would inflate
                 the deposit math). Rows EXPLAIN the total, they don't add to it. */}
             {isNewMoney && !isDebt && !duplicateWarning && (() => {
-              const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const qty = effectiveQuantity()
               const price = parseAmount(form.purchasePrice)
               const cur = parseAmount(form.currentPrice)
               // Market: rows must cover the COST (shares don't grow on their own).
@@ -2368,7 +2400,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             })()}
 
             {(() => {
-              const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const qty = effectiveQuantity()
               const price = parseAmount(form.purchasePrice)
               const cur = parseAmount(form.currentPrice)
               const total = isDebt ? price : qty * (cur || price)
