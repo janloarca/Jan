@@ -17,6 +17,7 @@
 
 import { useState } from 'react'
 import { Check, ChevronRight, Minus } from 'lucide-react'
+import { journeyProgressLabel } from '@/lib/ibkrJourney'
 
 const RING_SIZE = 46
 const RING_STROKE = 4
@@ -84,10 +85,11 @@ export default function BrokerProgressPanel({
         {!compact && (
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{brokerName}</p>
         )}
+        {/* La MISMA frase que la barra del viaje, desde la misma función: eran
+            dos textos escritos a mano y por eso podían contradecirse sobre el
+            mismo viaje (la barra contaba pantallas, este panel requisitos). */}
         <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-          {complete
-            ? t('Todo listo', 'All set')
-            : t(`${satisfied} de ${total} listos`, `${satisfied} of ${total} done`)}
+          {journeyProgressLabel(progress, lang)}
         </p>
         <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
           {complete
@@ -138,7 +140,11 @@ export default function BrokerProgressPanel({
                 style={isDone
                   ? { backgroundColor: 'var(--accent-green)', color: 'var(--bg-card)' }
                   : isSkippable
-                    ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }
+                    // Un paso innecesario CUENTA para el 100%, así que no
+                    // puede pintarse igual que uno pendiente: era byte a byte
+                    // el mismo círculo gris que un `todo` sin turno, o sea el
+                    // anillo decía 100% sobre una fila que se leía sin hacer.
+                    ? { backgroundColor: 'color-mix(in srgb, var(--accent-green) 16%, transparent)', color: 'var(--accent-green)' }
                     : isNext
                       ? { backgroundColor: 'var(--bg-card)', color: 'var(--accent-blue)', border: '2px solid var(--accent-blue)' }
                       : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
