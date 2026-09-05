@@ -1274,6 +1274,31 @@ export function solveDietzStartValue({ endValue, startTs, endTs, transactions, c
 // currency. `balance` is qty × price (also in the item's currency). Both the
 // Ingresos card and estimatedAnnualIncome (InsightCards/GoalTracker) must use this —
 // they previously implemented different subsets and disagreed on rate-based items.
+// FASE OC. ¿El monto fijo (`incomeAmount`) es POR ACCIÓN o por pago?
+//
+// Para una acción, un ETF, un fondo o una cripto con dividendo detectado,
+// `incomeAmount` es lo que Yahoo reporta: el ÚLTIMO DIVIDENDO POR ACCIÓN
+// (`divData.lastAmount`, estampado por useMarketPrices y por el alta). Para un
+// bono o un alternativo es lo que el usuario tecleó en "Monto fijo por pago":
+// el cupón entero. El motor de pagos (`processDividends`) siempre lo supo y por
+// eso multiplica por la cantidad en el primer caso (`isPerShare`).
+//
+// EL BUG: la proyección anual y el rendimiento efectivo leían `incomeAmount`
+// como si SIEMPRE fuera por pago, así que una acción de 100 unidades con
+// dividendo trimestral de 0.83 proyectaba **3.32 al año** sobre pagos reales
+// de 83 (332 al año): la card de Ingresos Pasivos, el "Ingreso anual est." del
+// tablero, los correos y el PDF decían cien veces menos que lo que el motor
+// escribía cada trimestre, y la verificación contra el ledger del broker
+// (lib/dividendVerify.js) veía un `mismatch` de 100x sobre una posición sana.
+//
+// ⛔ Esta es la ÚNICA definición del predicado y la usan el motor, la
+// proyección y el rendimiento efectivo. Con dos copias, el motor pagaría una
+// cosa y la card proyectaría otra sobre el mismo activo, que es literalmente
+// el defecto que esto cierra (hay un guardián de fuente que lo exige).
+export function isPerShareIncome(item) {
+  return /stock|etf|fund|crypto/i.test(item?.type || '')
+}
+
 export function projectItemAnnualIncome(item, balance) {
   // FASE KT. Devengo diario: la tasa tecleada es EFECTIVA ANUAL, asi que la
   // proyeccion del anio es la tasa a secas. Va PRIMERO y explicito aunque
@@ -1292,7 +1317,9 @@ export function projectItemAnnualIncome(item, balance) {
   }
   if (item.incomeAmount > 0 && item.incomeMonths) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
-    return (item.incomeAmount * payCount)
+    // FASE OC: por acción se multiplica por la cantidad, igual que el motor.
+    const perPayment = isPerShareIncome(item) ? item.incomeAmount * (item.quantity || 1) : item.incomeAmount
+    return (perPayment * payCount)
   }
   if (item.incomeMode === 'percent' && item.incomeRate > 0) {
     return balance * (item.incomeRate / 100)
@@ -1313,7 +1340,10 @@ export function getEffectiveYield(item) {
     const payCount = Array.isArray(item.incomeMonths) ? item.incomeMonths.length : 12
     if (payCount === 0) return null
     const cost = (item.purchasePrice || 0) * (item.quantity || 1)
-    if (cost > 0) return (item.incomeAmount * payCount) / cost * 100
+    // FASE OC: mismo predicado que el motor y la proyección. Sin él, el
+    // dividendo por acción se dividía entre el costo de TODAS las acciones.
+    const perPayment = isPerShareIncome(item) ? item.incomeAmount * (item.quantity || 1) : item.incomeAmount
+    if (cost > 0) return (perPayment * payCount) / cost * 100
   }
   return null
 }
