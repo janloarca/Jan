@@ -1717,6 +1717,7 @@ export default function DashboardPage() {
                       onIntegrations={handleOpenConnections} onReview={handleOpenReview}
                       itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
                       ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
+                      ibkrProgress={ibkrProgress}
                     />
                   </CardBoundary>
                 </div>
@@ -1938,7 +1939,7 @@ export default function DashboardPage() {
           onSkip={advanceIbkrJourney}
           onExit={exitIbkrJourney}
           onJump={openIbkrJourneyStep}
-          doneSteps={ibkrProgress.steps.filter((s) => s.done).map((s) => s.step)}
+          progress={ibkrProgress}
           lang={lang}
         />
       )}
