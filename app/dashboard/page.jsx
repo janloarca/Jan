@@ -1837,7 +1837,7 @@ export default function DashboardPage() {
           onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction} onUpdateFinanceTransaction={updateFinanceTransaction}
-          existingFinanceTransactions={financeTransactions}
+          existingFinanceTransactions={financeTransactions} convert={convert}
           ingestRules={ingestRules} onLearnCategories={learnCategories}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}

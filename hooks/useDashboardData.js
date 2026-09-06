@@ -635,6 +635,46 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
+  // FASE OF. Tres piezas que hacen que el motor no pueda acreditar dos veces
+  // el mismo cupón POR CONSTRUCCIÓN, y no por la suerte del orden de los ecos
+  // de Firestore (lo que FASE OE dejó anotado como endurecimiento pendiente).
+  //
+  // El mecanismo que abría la puerta: `addToDestination` escribe el destino
+  // con `updateItem`, que es OPTIMISTA, así que `items` (y con ellos
+  // `enrichedItems`, una dep de este efecto) cambian A MITAD de la corrida.
+  // El cleanup marcaba `cancelled` en la corrida en vuelo y el efecto
+  // arrancaba OTRA de inmediato, con `dividendsProcessedRef` todavía sin
+  // estampar (se estampa al terminar). Esa segunda corrida deduplica por mes
+  // leyendo `transactions`, y `addTransaction` NO es optimista: la fila que la
+  // primera corrida acaba de escribir solo está ahí si el eco del listener ya
+  // llegó. Cuando llega, todo bien; cuando no, el mismo cupón se escribe otra
+  // vez bajo el MISMO id (o sea una sola fila en el archivo) y el destino se
+  // acredita OTRA vez: la firma exacta de FASE DH, "480 en el Fondo Líquido
+  // con UNA transacción que lo explique".
+  //
+  //   dividendsRunningRef  no arranca una corrida mientras otra está en vuelo;
+  //                        en su lugar deja pedida una re-corrida.
+  //   dividendsRerunRef    esa re-corrida pendiente, que se dispara al
+  //                        terminar (vía `dividendsTick`), con deps FRESCAS.
+  //   dividendsPaidRef     lo que ESTA sesión ya escribió, por activo y mes:
+  //                        el dedup que no depende de ningún eco.
+  //
+  // Una corrida cancelada a mitad NO estampa `dividendsProcessedRef`: dejó
+  // trabajo sin hacer, y estamparla lo saltaría hasta mañana. La re-corrida
+  // termina en un número finito de vueltas porque cada una paga estrictamente
+  // menos (el set de pagados solo crece) y una que no escribe nada no mueve
+  // ninguna dep.
+  const dividendsRunningRef = useRef(false)
+  const dividendsRerunRef = useRef(false)
+  const dividendsPaidRef = useRef(new Set())
+  // Las filas que esta sesión ya BORRÓ (con su reversa aplicada) o ya
+  // ACREDITÓ (reparación de un backfill): la misma idea que `dividendsPaidRef`
+  // para las otras dos escrituras del motor que mueven un saldo. Sin esto, una
+  // corrida cancelada y retomada antes de que `transactions` refleje el
+  // borrado volvería a encontrar la fila vieja y a restar su reversa del
+  // destino por segunda vez.
+  const dividendsHandledTxRef = useRef(new Set())
+  const [dividendsTick, setDividendsTick] = useState(0)
   useEffect(() => {
     const now = new Date()
     const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
@@ -656,6 +696,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       .sort().join('|')
     const runKey = `${todayKey}#${scheduleSig}`
     if (dividendsProcessedRef.current === runKey) return
+    // FASE OF: nunca dos corridas a la vez. Ver el bloque de arriba.
+    if (dividendsRunningRef.current) { dividendsRerunRef.current = true; return }
     // pricesFetching (not just pricesLoading) guards every write here: loading
     // only ever arms on the session's FIRST price fetch (see useMarketPrices),
     // so without pricesFetching a background poll returning a transiently bad
@@ -784,8 +826,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (stale.size > 0 && deleteTransaction) {
           for (const tx of transactions) {
             if (!tx.id || !stale.has(tx.id)) continue
+            // FASE OF: ya borrada (y revertida) en esta sesión, aunque el eco
+            // del listener todavía la traiga.
+            if (dividendsHandledTxRef.current.has(tx.id)) continue
             queueReversal(it, tx)
             await deleteTransaction(tx.id)
+            dividendsHandledTxRef.current.add(tx.id)
           }
         }
       }
@@ -813,6 +859,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (!dest) continue
         const destBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
         const pending = creditableBackfills(transactions, it, destBalance)
+          .filter((tx) => !dividendsHandledTxRef.current.has(tx.id))
         if (pending.length === 0) continue
         // One credit for the whole batch, same reason the reversal above batches:
         // addToDestination reads the balance off the item object it was handed,
@@ -822,6 +869,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const cur = pending[0].currency || it._originalCurrency || 'USD'
         try {
           await addToDestination(dest, total, cur)
+          // FASE OF: el crédito ya ocurrió; ninguna corrida posterior de esta
+          // sesión puede volver a contarlo, llegue o no el eco de la marca.
+          for (const tx of pending) dividendsHandledTxRef.current.add(tx.id)
           if (updateTransaction) {
             for (const tx of pending) {
               if (cancelled) return
@@ -912,6 +962,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // really landed, so an exact-date check saw no payment and wrote a
           // second one, crediting the destination account twice for good.
           if (hasDividendInMonth(transactions, it, dateStr)) continue
+          // FASE OF. Lo que esta sesión YA escribió, sin depender de que el
+          // eco de `transactions` haya llegado.
+          const paidKey = `${it.id || it.symbol}|${dateStr.slice(0, 7)}`
+          if (dividendsPaidRef.current.has(paidKey)) continue
 
         try {
           const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
@@ -1000,6 +1054,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // cleanup must not "reverse" a credit that never happened.
             ...(!isReinvest && it.incomeDestination ? { _destinationCredited: credited } : {}),
           })
+          // Se estampa DESPUÉS de que la fila quedó escrita (un fallo del
+          // write no puede dejar el mes "pagado" para toda la sesión) y ANTES
+          // del crédito al destino, que es la escritura que re-dispara el
+          // efecto.
+          dividendsPaidRef.current.add(paidKey)
 
           if (isReinvest) {
             const priceForReinvest = originalPrice > 0 ? originalPrice : 1
@@ -1050,11 +1109,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
 
+    dividendsRunningRef.current = true
+    dividendsRerunRef.current = false
     processDividends().then(() => {
-      dividendsProcessedRef.current = runKey
+      // Solo una corrida COMPLETA cierra la llave: una cancelada a mitad dejó
+      // activos sin procesar y la re-corrida de abajo los retoma.
+      if (!cancelled) dividendsProcessedRef.current = runKey
     }).catch((err) => console.error('[dividends]', err))
+      .finally(() => {
+        dividendsRunningRef.current = false
+        if (dividendsRerunRef.current || cancelled) {
+          dividendsRerunRef.current = false
+          setDividendsTick((t) => t + 1)
+        }
+      })
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert, dividendsTick])
 
   // handleRefresh is declared further below, right after useBenchmark() — it
   // needs refetchBenchmark in its dependency array, and that array is
