@@ -66,7 +66,7 @@ function FriendsPageInner() {
   const {
     enrichedItems, returnYTDRaw, returnMTDRaw, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
     dailyChange, totalAssets, profile, settings, dataLoading, saveProfile, saveSettings,
-    ytdResolved, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing,
+    ytdResolved, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, scopedView,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   // ⛔ Las MISMAS compuertas que el tablero, y no una lista propia: esta
@@ -78,7 +78,7 @@ function FriendsPageInner() {
   // ganaba la mal gateada.
   const publishBlocked = publishBlockedBy({
     dataLoading, pricesLoading, pricesFetching, ratesLoading,
-    bulkWriting, ibkrAutoSyncing, ytdResolved,
+    bulkWriting, ibkrAutoSyncing, ytdResolved, scopedView,
   })
 
   // Las tres cifras de tu tarjeta cuelgan de dos piezas asíncronas que asientan

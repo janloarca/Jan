@@ -460,6 +460,7 @@ export default function DashboardPage() {
   // Data layer
   const {
     items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, ignoredCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    scopedView, viewTransactions,
     dataLoading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
@@ -1142,7 +1143,12 @@ export default function DashboardPage() {
     try {
       const { generateReport } = await import('@/lib/generateReport')
       await generateReport({
-        items: enrichedItems, snapshots: augmentedSnapshots, transactions,
+        // FASE OG: los MISMOS ítems y movimientos que PrintSummary (la vista
+        // que se está mirando). Con `enrichedItems` acá y `portfolioItems`
+        // allá, un portafolio seleccionado producía dos reportes distintos
+        // del mismo botón, y este mezclaba ítems del todo con un YTD del
+        // subconjunto.
+        items: portfolioItems, snapshots: augmentedSnapshots, transactions: viewTransactions,
         netWorth, totalAssets, lang,
         returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
         annualDividends, estimatedAnnualIncome,
@@ -1160,7 +1166,7 @@ export default function DashboardPage() {
       // rojo para lo grave o irreversible.
       showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF', 'warn')
     }
-  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
+  }, [enrichedItems, portfolioItems, augmentedSnapshots, viewTransactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     // Sin guard esto armaba un resumen de "Patrimonio Neto: $0.00 · Posiciones:
@@ -1606,12 +1612,13 @@ export default function DashboardPage() {
               ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdCalIgnored={ytdCalIgnored} ytdAnchorIgnored={ytdAnchorIgnored}
               ytdDegradedAccounts={ytdDegradedAccounts}
               pricesUpdate={pricesUpdate}
+              scopedView={scopedView}
             />
             </CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
@@ -2209,7 +2216,7 @@ export default function DashboardPage() {
       <ModalMount closing={modalClosing}>
       {modalShown === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={augmentedSnapshots} transactions={transactions}
+          snapshots={augmentedSnapshots} transactions={viewTransactions}
           returnYTD={returnYTD} ytdChange={ytdChange}
           returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
           ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
