@@ -182,7 +182,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0, ytdAnchorIgnored = 0, pricesUpdate = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0, ytdAnchorIgnored = 0, pricesUpdate = null, scopedView = false }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -495,6 +495,19 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           FASE NN: acá lo que se dejó de usar es el ancla del AÑO, o sea el
           número grande de arriba cambió de valor. Un arranque que cambia sin
           una palabra se lee como que la app borró el trabajo del usuario. */}
+      {/* FASE OG: con un portafolio o una entidad seleccionados el archivo de
+          snapshots (patrimonio COMPLETO) no aplica: el YTD sale de la
+          reconstrucción de este subconjunto, y lo que solo se mide contra el
+          archivo (el mes, el riesgo, el historial) no se muestra en vez de
+          medirse contra el universo equivocado. Se dice, porque un "-" sin
+          razón se lee como que algo se rompió (la lección de FASE JK). */}
+      {scopedView && (
+        <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es'
+            ? 'Solo lo seleccionado: el rendimiento se reconstruye para este subconjunto. El mes, el riesgo y el historial archivado se miden sobre tu patrimonio completo y no se muestran aquí.'
+            : 'Selection only: the return is rebuilt for this subset. Month, risk and archived history are measured on your whole net worth and are not shown here.'}
+        </p>
+      )}
       {ytdAnchorIgnored > 0 && (
         <p className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
           {lang === 'es'

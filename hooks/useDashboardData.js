@@ -40,6 +40,7 @@ import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { buildPublishPayload, publishDayKey, shouldPublishToday, publishBlockedBy } from '@/lib/friendsPublish'
+import { isScopedView, transactionsForItems } from '@/lib/portfolioScope'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -289,6 +290,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (activePortfolio === '__all__') return entityItems
     return entityItems.filter((it) => (it.portfolioId || '__default__') === activePortfolio)
   }, [entityItems, activePortfolio])
+
+  // ⛔ FASE OG. Con un portafolio o una entidad seleccionados, `totalAssets`
+  // mide un SUBCONJUNTO mientras el archivo de snapshots (único por usuario,
+  // escrito desde `enrichedItems` a propósito) mide el TODO. Medido con el
+  // hook real: dos portafolios que ganaron +10% cada uno imprimían -26.67% y
+  // -63.33% con uno de los dos seleccionado, porque el ancla del año era el
+  // snapshot del patrimonio completo. Ver lib/portfolioScope.js.
+  //
+  // Lo que se escopa acá, y solo acá: los MOVIMIENTOS (por vínculo al ítem,
+  // la misma regla con la que la gráfica escopa por institución) y la
+  // reconstrucción del ancla (jan1Value, abajo). Lo que se DECLARA no
+  // disponible: los snapshots (augmentedSnapshots/chartSnapshots vacíos), o
+  // sea el mes, el riesgo y el historial archivado. Los escritores de fondo
+  // (snapshot diario, backfill, dividendos, limpieza) siguen leyendo
+  // `enrichedItems`/`snapshotsAll` y no se enteran.
+  const scopedView = isScopedView({ activePortfolio, activeEntity })
+  const viewTransactions = useMemo(
+    () => (scopedView ? transactionsForItems(transactions, portfolioItems, enrichedItems) : transactions),
+    [scopedView, transactions, portfolioItems, enrichedItems]
+  )
 
   // Daily snapshot
   const snapshotSavedRef = useRef(null)
@@ -1644,8 +1665,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // existieran. Un día que solo tiene NAV de broker se queda y el augment lo
   // completa, comportamiento de siempre.
   const augmentedSnapshots = useMemo(
-    () => augmentSnapshots(preferFullPortfolioPerDay(snapshots), portfolioItems, convert),
-    [snapshots, portfolioItems, convert]
+    // FASE OG: con vista escopada el archivo describe OTRO universo (el
+    // patrimonio completo) y no puede anclar nada de lo que se muestra: lista
+    // vacía, y cada consumidor cae a su estado de "sin datos" o a la
+    // reconstrucción por ítem, que sí se escopa. Nunca a un número inventado.
+    () => (scopedView ? [] : augmentSnapshots(preferFullPortfolioPerDay(snapshots), portfolioItems, convert)),
+    [scopedView, snapshots, portfolioItems, convert]
   )
   const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
 
@@ -1691,8 +1716,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // New capital never appears in either, so a deposit can't masquerade as gain.
   // The math itself is a pure helper (computeDayChange) so it can be tested.
   const dailyChange = useMemo(
-    () => computeDayChange({ items: portfolioItems, transactions, netWorth, convert, baseCurrency }),
-    [netWorth, portfolioItems, transactions, convert, baseCurrency]
+    // FASE OG: el ingreso de HOY se cuenta sobre los movimientos del universo
+    // que se muestra; un cupón que cayó en un ítem de OTRO portafolio no es
+    // "hoy" de este.
+    () => computeDayChange({ items: portfolioItems, transactions: viewTransactions, netWorth, convert, baseCurrency }),
+    [netWorth, portfolioItems, viewTransactions, convert, baseCurrency]
   )
 
   const yearlyChange = useMemo(() => {
@@ -1753,7 +1781,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // that received the whole BUY/SELL ledger and got rewound strongly negative,
         // collapsing jan1Value while netWorth excluded it → the YTD Dietz exploded
         // (start and end measuring different portfolios).
-        const jan1Items = enrichedItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+        // FASE OG: y el MISMO universo que `totalAssets` cuando hay un
+        // portafolio seleccionado. `portfolioItems` ES `enrichedItems` (misma
+        // referencia) sin scope, así que el caso común no cambia un byte.
+        const jan1Items = portfolioItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1764,7 +1795,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // distinto para toda cuenta con rendimiento que se reinvierte
           // (ClubCashIn, los fondos líquidos de IDC).
           body: JSON.stringify(buildHistoryRequestBody({
-            items: jan1Items, transactions, lots, convert,
+            items: jan1Items, transactions: viewTransactions, lots, convert,
             period: 'YTD', breakdown: true,
           })),
         })
@@ -1862,7 +1893,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, lots, transactions, convert, baseCurrency])
+  }, [enrichedItems, portfolioItems, viewTransactions, lots, convert, baseCurrency])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the Dietz math
   // depends on the SOURCE of the start anchor:
@@ -1878,8 +1909,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // semantics as a synced ibkr transaction, so a hold-flat baseline that
     // pre-dates deposits implicitly must exclude them too, for the same
     // double-count reason ibkr transactions are excluded here.
-    () => (transactions || []).filter((tx) => tx._source !== 'ibkr' && tx._source !== 'inferred_flow'),
-    [transactions]
+    () => (viewTransactions || []).filter((tx) => tx._source !== 'ibkr' && tx._source !== 'inferred_flow'),
+    [viewTransactions]
   )
   // A transcribed quarter-end NAV is a real broker observation too: it already
   // contains deposits and withdrawals, so the Dietz must net the flows against
@@ -1922,6 +1953,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (extra.length === 0) return snapshots
     return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [accountCalibrations, snapshots, portfolioItems, convert])
+  // FASE OG: la gráfica recibe la lista vacía con vista escopada y cae a su
+  // reconstrucción por API (la misma vía de sus vistas por institución), que
+  // sí mide el subconjunto. Un snapshot del patrimonio completo dibujado
+  // encima de un `currentTotal` escopado es un acantilado en "hoy".
+  const viewChartSnapshots = useMemo(() => (scopedView ? [] : chartSnapshots), [scopedView, chartSnapshots])
 
   // ── FASE LU: el RENDIMIENTO mide activos, la deuda queda fuera ────────────
   // ⛔ Decisión del usuario (28 ago 2026): "la deuda tampoco debería de afectar
@@ -1935,7 +1971,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     [portfolioItems]
   )
   const debtIds = useMemo(() => new Set(debtIdsSig ? debtIdsSig.split('|') : []), [debtIdsSig])
-  const assetTransactions = useMemo(() => assetOnlyFlows(transactions, debtIds), [transactions, debtIds])
+  // FASE OG: los flujos del universo que se está mostrando (viewTransactions),
+  // no los del usuario entero: un depósito a un portafolio que no está en
+  // pantalla no es un flujo de lo que sí está.
+  const assetTransactions = useMemo(() => assetOnlyFlows(viewTransactions, debtIds), [viewTransactions, debtIds])
   const assetDietzTransactions = useMemo(() => assetOnlyFlows(dietzTransactions, debtIds), [dietzTransactions, debtIds])
 
   const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
@@ -2909,7 +2948,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // snapshots: un comentario que contradice a su código.
     if (publishBlockedBy({
       dataLoading, pricesLoading, pricesFetching, ratesLoading,
-      bulkWriting, ibkrAutoSyncing, ytdResolved,
+      bulkWriting, ibkrAutoSyncing, ytdResolved, scopedView,
     })) return
     const payload = buildPublishPayload({
       // Los CRUDOS, no los que muestra el tablero: la banda la aplica
@@ -3777,8 +3816,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   return {
     // Raw Firestore data
-    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots: viewChartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
+    // FASE OG: la vista escopada y sus movimientos (ver lib/portfolioScope.js).
+    scopedView, viewTransactions,
     dataLoading, loadError,
 
     // Firestore actions
