@@ -14,7 +14,7 @@ const FEE_PRESETS = {
   debts: { label: 'Interest', defaultPct: 0 },
 }
 
-export default function FeeAnalysis({ items, netWorth, lang }) {
+export default function FeeAnalysis({ items, netWorth, lang, convert = null, baseCurrency = null }) {
   const t = (es, en) => lang === 'es' ? es : en
 
   const analysis = useMemo(() => {
@@ -30,7 +30,14 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
 
       let feeAmount = 0
       if (it.managementFee > 0) {
-        feeAmount += it.managementFeeType === 'fixed' ? it.managementFee : value * (it.managementFee / 100)
+        // FASE OE. `value` ya viene en la moneda BASE (el ítem llega
+        // enriquecido); una comisión FIJA se teclea en la moneda del ÍTEM, así
+        // que sumarla cruda mezclaba las dos ($50 de un fondo en dólares
+        // contaban como Q50 con base en quetzales). Un porcentaje no tiene
+        // moneda y se aplica sobre el valor ya convertido, como siempre.
+        const fixedCur = it._originalCurrency || it.currency || 'USD'
+        const fixed = convert && baseCurrency ? convert(it.managementFee, fixedCur, baseCurrency) : it.managementFee
+        feeAmount += it.managementFeeType === 'fixed' ? fixed : value * (it.managementFee / 100)
       }
       if (it.expenseRatio > 0) {
         feeAmount += value * (it.expenseRatio / 100)
@@ -65,7 +72,7 @@ export default function FeeAnalysis({ items, netWorth, lang }) {
       : 0
 
     return { totalFees, totalValue, avgPct: totalValue > 0 ? (totalFees / totalValue) * 100 : 0, categories, tenYearImpact, compoundImpact }
-  }, [items])
+  }, [items, convert, baseCurrency])
 
   if (analysis.totalFees <= 0 && analysis.categories.length === 0) return null
 

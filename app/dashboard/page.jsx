@@ -274,7 +274,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
       )}
       {activeTab === 'fees' && (
-        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} /></CardBoundary>
+        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'quality' && (
         <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
@@ -2306,6 +2306,8 @@ export default function DashboardPage() {
           startItemId={reviewTarget.itemId}
           onlyWithFindings={reviewTarget.guided}
           institutionFilter={reviewTarget.institution}
+          convert={convert}
+          baseCurrency={baseCurrency}
         />
       )}
       </ModalMount>
