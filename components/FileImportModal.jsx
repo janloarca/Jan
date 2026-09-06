@@ -15,9 +15,10 @@ import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
 import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
-import { planCardPaymentNetting, planStatementPaymentNetting } from '@/lib/cardPaymentNetting'
+import { planCardPaymentNetting, planStatementPaymentNetting, acceptNettingSuggestions } from '@/lib/cardPaymentNetting'
 import { flowSign, flowMagnitude, cashFlowOf } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
+import { formatCurrency } from '@/components/dashboard/utils'
 import { walletCoverage } from '@/lib/walletCoverage'
 import { cardBalanceSummary } from '@/lib/cardBalance'
 import { planCardDebtSync, describeCardDebtLine } from '@/lib/cardDebt'
@@ -86,6 +87,9 @@ function parseNumber(val) {
 // listens to it to ADVANCE to the next step instead of dropping the user back
 // on the dashboard wondering whether more steps exist (the reported bug).
 export default function FileImportModal({ onClose, onImportItems, onImportTransaction, onImportSnapshot, onAddLot, onAddFinanceTransaction, onUpdateFinanceTransaction, onUpdateItem, onDeleteItem, onBulkImport, existingItems, existingLots = [], existingFinanceTransactions = [], ingestRules = [], onLearnCategories = null, activePortfolio, activeEntity = 'default', lang = 'es', brokerHint = null, onImportComplete = null, journeyActive = false, ibkrSyncBusy = false, apiAlreadySyncs = false,
+  // FASE OF. Tasas de la app, SOLO para SUGERIR un pago de tarjeta hecho en
+  // otra moneda (ver lib/cardPaymentNetting.js). Sin ella no se sugiere nada.
+  convert = null,
   // Desde qué pantalla se abrió. Solo cambia el TEXTO: desde Flujo uno importa
   // movimientos, no un portafolio, y decir lo contrario (o hablar de
   // "posiciones" cuando un estado de tarjeta no se reconoce) manda a buscar el
@@ -129,6 +133,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // Pagos a la tarjeta que este estado del BANCO explica: la otra mitad de un
   // movimiento entre cuentas propias. Ver lib/cardPaymentNetting.js.
   const [biNetting, setBiNetting] = useState(null)
+  // FASE OF. Las sugerencias de pago en OTRA moneda que el usuario ACEPTÓ (por
+  // índice de fila del estado). `biNetting` es siempre el plan EFECTIVO (base
+  // + aceptadas); la base se guarda aparte para volver a decidir al desmarcar.
+  const [biNettingBase, setBiNettingBase] = useState(null)
+  const [biNettingAccepted, setBiNettingAccepted] = useState(new Set())
   const [walletStats, setWalletStats] = useState(null)
   const [biSelected, setBiSelected] = useState(new Set())
   const [stmtAccount, setStmtAccount] = useState('')
@@ -235,9 +244,11 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           // como gasto, y esta fila de pago entraría como ingreso sin que nada
           // las empareje. Se aparta ANTES de reconciliar, igual que del otro
           // lado. Ver lib/cardPaymentNetting.js.
-          const netting = planStatementPaymentNetting(parsed.transactions, existingFinanceTransactions)
+          const netting = planStatementPaymentNetting(parsed.transactions, existingFinanceTransactions, { convert })
           const importable = parsed.transactions.filter((_, i) => !netting.rowIndexes.has(i))
           const match = reconcileStatement(importable, existingFinanceTransactions)
+          setBiNettingBase(netting)
+          setBiNettingAccepted(new Set())
           setBiNetting(netting)
           // La moneda sale de las filas, no de una constante: un estado que
           // no sea guatemalteco se etiquetaba GTQ pase lo que pase. Gana la más
@@ -317,7 +328,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } finally {
       setPdfReading(false)
     }
-  }, [lang, hydrateFromPdf, existingFinanceTransactions])
+  }, [lang, hydrateFromPdf, existingFinanceTransactions, convert])
 
   const handleFile = useCallback(async (file) => {
     setError('')
@@ -516,12 +527,14 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         // Un débito que paga tu propia tarjeta no es un gasto: el gasto fue la
         // compra, que ya está registrada del lado de la tarjeta. Se aparta
         // ANTES de reconciliar para que ni siquiera sea candidato a importarse.
-        const netting = planCardPaymentNetting(parsed.transactions, existingFinanceTransactions)
+        const netting = planCardPaymentNetting(parsed.transactions, existingFinanceTransactions, { convert })
         const importable = parsed.transactions.filter((_, i) => !netting.rowIndexes.has(i))
         // Reconcile against what's already recorded: only truly-new rows get
         // imported; re-uploading the same statement yields zero additions.
         const match = matchStatement(importable, existingFinanceTransactions)
         setBiData(parsed)
+        setBiNettingBase(netting)
+        setBiNettingAccepted(new Set())
         setBiNetting(netting)
         setBiMatch(match)
         setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
@@ -541,7 +554,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     } catch (err) {
       setError(lang === 'es' ? `Error leyendo archivo: ${err.message}` : `Error reading file: ${err.message}`)
     }
-  }, [lang, existingFinanceTransactions, existingItems, handlePdf])
+  }, [lang, existingFinanceTransactions, existingItems, handlePdf, convert])
 
   const handlePaste = useCallback(() => {
     if (!pasteText.trim()) return
@@ -620,6 +633,35 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setPreview(items)
     setStep('preview')
   }, [rawData, mapping, detectedBroker, brokerHint])
+
+  // FASE OF. Marcar o desmarcar una sugerencia de pago en otra moneda vuelve
+  // a decidir TODO lo que cuelga del neteo (qué filas entran, contra qué se
+  // reconcilian, cuáles vienen marcadas), porque aceptar una aparta una fila
+  // que hasta ese momento era importable. Se recalcula desde la BASE y desde
+  // las filas parseadas, nunca parchando el plan efectivo.
+  const toggleNettingSuggestion = useCallback((index) => {
+    if (!biNettingBase || !biData?.transactions) return
+    const next = new Set(biNettingAccepted)
+    if (next.has(index)) next.delete(index)
+    else next.add(index)
+    const plan = acceptNettingSuggestions(biNettingBase, next)
+    const importable = biData.transactions.filter((_, i) => !plan.rowIndexes.has(i))
+    if (plan.direction === 'card') {
+      const match = reconcileStatement(importable, existingFinanceTransactions)
+      setBiMatch(match)
+      setWalletStats(walletCoverage(match))
+      setBiSelected(new Set([
+        ...match.newTxs.map((_, i) => `n${i}`),
+        ...match.review.map((x, i) => (x.defaultSame ? null : `r${i}`)).filter(Boolean),
+      ]))
+    } else {
+      const match = matchStatement(importable, existingFinanceTransactions)
+      setBiMatch(match)
+      setBiSelected(new Set(match.newTxs.map((_, i) => `n${i}`)))
+    }
+    setBiNettingAccepted(next)
+    setBiNetting(plan)
+  }, [biNettingBase, biNettingAccepted, biData, existingFinanceTransactions])
 
   const doImport = useCallback(async () => {
     setImporting(true)
@@ -1663,6 +1705,54 @@ When done, give me the .xlsx file ready to download.`
                       : t('Es dinero que se movió entre cuentas tuyas, así que el gasto ya está del lado de la tarjeta. La fila que la tarjeta registró como ingreso deja de contar también, para no sumar el mismo dinero dos veces.',
                            'That money moved between your own accounts, so the expense is already on the card side. The row the card recorded as income stops counting too, so the same money is not added twice.')}
                   </span>
+                </div>
+              )}
+              {/* FASE OF. Un pago en OTRA moneda no se netea solo: el banco
+                  convirtió con su spread y la tasa de la app solo puede
+                  SUGERIRLO. Apagado por default; marcarlo aparta el débito y
+                  degrada su contraparte igual que un par exacto. */}
+              {biNetting && (biNetting.suggestions || []).length > 0 && (
+                <div className="px-3 py-2 mb-3 rounded-lg border text-xs"
+                  style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+                  <span className="block font-medium">
+                    {biNetting.direction === 'card'
+                      ? t(`${biNetting.suggestions.length} pago(s) a esta tarjeta podría(n) estar ya registrado(s) en otra moneda`,
+                           `${biNetting.suggestions.length} payment(s) to this card may already be recorded in another currency`)
+                      : t(`${biNetting.suggestions.length} débito(s) en otra moneda podría(n) ser un pago a tu tarjeta`,
+                           `${biNetting.suggestions.length} debit(s) in another currency may be a payment to your card`)}
+                  </span>
+                  <span className="block mt-0.5 opacity-80">
+                    {t('El monto no coincide al centavo porque el banco convirtió con su propio tipo de cambio, así que no se netean solos. Si es el mismo pago, marcalo: la fila no se importa y su contraparte deja de contar como ingreso o gasto.',
+                       'The amount does not match to the cent because the bank converted at its own rate, so they are not netted automatically. If it is the same payment, check it: the row is not imported and its counterpart stops counting as income or expense.')}
+                  </span>
+                  <ul className="mt-2 space-y-1">
+                    {biNetting.suggestions.map((sug) => {
+                      const rowCur = sug.row.currency || 'GTQ'
+                      const txCur = sug.match.currency || 'GTQ'
+                      const pct = (sug.deviation * 100).toFixed(1)
+                      return (
+                        <li key={sug.index}>
+                          <label className="flex items-start gap-2 cursor-pointer" style={{ color: 'var(--text-primary)' }}>
+                            <input type="checkbox" className="mt-0.5 rounded"
+                              checked={biNettingAccepted.has(sug.index)}
+                              onChange={() => toggleNettingSuggestion(sug.index)}
+                              aria-label={t('Es el mismo pago', 'Same payment')} />
+                            <span>
+                              <span className="font-medium">{formatCurrency(sug.row.amount, rowCur)}</span>
+                              {' · '}{formatFinanceDate(sug.row.date)}
+                              {' ↔ '}
+                              <span className="font-medium">{formatCurrency(sug.match.amount, txCur)}</span>
+                              {' · '}{formatFinanceDate(sug.match.date)}
+                              <span className="block opacity-70">
+                                {t(`tasa implícita ${sug.impliedRate.toFixed(4)} · la app tiene ${sug.appRate.toFixed(4)} (${pct}% de diferencia)`,
+                                   `implied rate ${sug.impliedRate.toFixed(4)} · app rate ${sug.appRate.toFixed(4)} (${pct}% off)`)}
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
               )}
               {/* Cobertura de la captura automática, medida contra los
