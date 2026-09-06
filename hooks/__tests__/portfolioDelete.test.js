@@ -1,4 +1,4 @@
-// FASE OH. Borrar un portafolio dejaba a sus ítems y lotes con un
+// FASE OI. Borrar un portafolio dejaba a sus ítems y lotes con un
 // `portfolioId` MUERTO (invisibles en todo portafolio seleccionable, visibles
 // solo en "Todos"), a diferencia de deleteEntity, que re-ubica ANTES de borrar.
 // Se prueba con el hook REAL (useFirestoreItems) sobre el doble de Firestore.
@@ -38,7 +38,7 @@ const base = () => ({
   },
 })
 
-describe('FASE OH: deletePortfolio re-ubica lo que quedaba adentro', () => {
+describe('FASE OI: deletePortfolio re-ubica lo que quedaba adentro', () => {
   it('los ítems y lotes del portafolio borrado pierden su etiqueta (vuelven al default) y el doc se va', async () => {
     const hook = boot(base())
     await settle()

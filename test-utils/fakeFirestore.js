@@ -7,7 +7,7 @@
 // para probar filtros de consulta. Se monta con jest.doMock('firebase/firestore').
 // Precedente: test-utils/hookHarness.js.
 
-// FASE OH. `deleteField()` devuelve un centinela y las dos rutas de update
+// FASE OI. `deleteField()` devuelve un centinela y las dos rutas de update
 // (updateDoc y batch.update) QUITAN la llave en vez de guardar el centinela,
 // que es lo que hace Firestore. Sin esto, re-ubicar un doc (borrar su
 // `portfolioId`/`entityId`) no se puede probar con el hook real.

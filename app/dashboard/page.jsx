@@ -497,10 +497,10 @@ export default function DashboardPage() {
   // rankea al lado de filas de hoy. Ver lib/friendsPublish.js.
   } = useDashboardData({ user, lang, activePortfolio, activeEntity, publishFriends: true })
 
-  // FASE OH. Borrar el portafolio (o la entidad) que está SELECCIONADA dejaba
+  // FASE OI. Borrar el portafolio (o la entidad) que está SELECCIONADA dejaba
   // `activePortfolio`/`activeEntity` apuntando a un id que ya no existe: el
   // selector, que no lo encuentra, imprime "Todos", y el cuerpo filtra por el
-  // id muerto. Antes de FASE OH eso mostraba el subconjunto huérfano bajo el
+  // id muerto. Antes de FASE OI eso mostraba el subconjunto huérfano bajo el
   // rótulo "Todos"; con la re-ubicación de deletePortfolio mostraría un
   // portafolio VACÍO (la pantalla de bienvenida) bajo ese mismo rótulo. Las
   // dos son la app contradiciéndose: la vista vuelve a "Todos" al borrar lo

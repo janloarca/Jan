@@ -1058,7 +1058,7 @@ export function useFirestoreItems() {
     return id
   }, [uid])
 
-  // FASE OH. Un portafolio es una ETIQUETA sobre ítems y lotes, no un
+  // FASE OI. Un portafolio es una ETIQUETA sobre ítems y lotes, no un
   // contenedor: borrar solo su doc dejaba a todo lo de adentro con un
   // `portfolioId` muerto, invisible en cualquier portafolio seleccionable y
   // visible solo en "Todos" (deleteEntity, en useEntities.js, ya re-ubica
