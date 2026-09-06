@@ -6,7 +6,8 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import BusyLabel from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
-import { accountValue } from '@/lib/transferFields'
+import { accountValue, creditFields } from '@/lib/transferFields'
+import { buildSaleTransactions } from '@/lib/saleTx'
 import { closesWholeLot, exceedsHolding, formatQtyPlain } from '@/lib/lotClose'
 import { todayLocalISO } from '@/lib/localDate'
 
@@ -79,40 +80,13 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         ? { quantity: 0, currentPrice: 0, purchasePrice: 0, saleDate, salePrice: price, soldFully: true }
         : { quantity: newQty }
 
-      // SELL transaction (+ WITHDRAWAL if the money leaves the portfolio).
-      // _linkedItemId ties it to the sold asset; _destinationItemId (set below
-      // for '__stay__') records WHERE the proceeds landed so history and the
-      // completeness engine can follow the money.
-      const transactions = [{
-        type: 'SELL',
-        symbol: item.symbol || '',
-        description: `${t('Venta', 'Sale')} ${qtySell} ${item.name || item.symbol} @ ${price}`,
-        date: saleDate,
-        totalAmount: proceeds,
-        // FASE OB. La fila de venta no traía cantidad ni precio unitario, así
-        // que el rebobinado por trades (lib/portfolioRewind.js) y toda lectura
-        // que pregunte "cuántas unidades salieron" veían una venta sin
-        // unidades. Misma forma que escribe el adaptador de IBKR.
-        quantity: qtySell,
-        pricePerUnit: price,
-        currency: origCur,
-        _linkedItemId: item.id,
-      }]
-
-      let destId, destFields, destLot
-      if (destination === '__exit__') {
-        transactions.push({
-          type: 'WITHDRAWAL',
-          symbol: item.symbol || '',
-          description: `${t('Retiro', 'Withdrawal')} - ${item.name || item.symbol}`,
-          date: saleDate,
-          totalAmount: proceeds,
-          currency: origCur,
-          _linkedItemId: item.id,
-          _origin: 'external',
-        })
-      } else if (destination === '__stay__' && destinationId) {
-        const dest = existingItems.find((it) => it.id === destinationId)
+      // FASE OD. Las filas las arma `buildSaleTransactions` (lib/saleTx.js), el
+      // único constructor: con nonce (dos ventas iguales el mismo día ya no
+      // colapsan en un doc) y con las marcas que permiten deshacer la venta al
+      // borrar su fila. Acá solo se decide el destino del dinero.
+      let destId, destFields, destLot, dest = null, destAmount = 0, destKind = null, destAddQty = 0
+      if (destination === '__stay__' && destinationId) {
+        dest = existingItems.find((it) => it.id === destinationId)
         // Un id que ya no resuelve (cuenta borrada con el modal abierto) NO
         // puede degradar a "vender sin acreditar a nadie": mismo silencio que
         // el guard de arriba existe para impedir.
@@ -121,40 +95,59 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           setError(t('Esa cuenta ya no existe. Elige otra.', 'That account no longer exists. Pick another.'))
           return
         }
-        {
-          // Proceeds are in the SOLD asset's currency; the destination stores raw
-          // values in ITS OWN currency — convert before crediting, or a USD sale
-          // into a GTQ account credits ~7.8× less than reality.
-          const destCur = dest._originalCurrency || dest.currency || origCur
-          const proceedsInDest = (convert && destCur !== origCur)
-            ? convert(proceeds, origCur, destCur)
-            : proceeds
-          transactions[0]._destinationItemId = dest.id
-          if (BANK_RE.test(dest.type || '')) {
-            const newBal = origPriceOf(dest) + proceedsInDest
-            destId = dest.id
-            destFields = { currentPrice: newBal, purchasePrice: newBal }
-          } else {
-            // Buying more of a market asset with the proceeds: bump quantity AND
-            // create a matching lot so lots stay consistent with item.quantity
-            // (otherwise FIFO/cost-basis breaks per the lots model). Use the dest's
-            // ORIGINAL price/currency so the new lot's costBasis matches the lots
-            // convention.
-            const destPrice = origPriceOf(dest) || 1
-            const addQty = proceedsInDest / destPrice
-            destId = dest.id
-            destFields = { quantity: (dest.quantity || 0) + addQty }
-            destLot = {
-              symbol: (dest.symbol || '').toUpperCase(),
-              quantity: addQty,
-              costBasis: destPrice,
-              acquisitionDate: saleDate,
-              institution: dest.institution || '',
-              currency: dest._originalCurrency || dest.currency || origCur,
-            }
+        // Proceeds are in the SOLD asset's currency; the destination stores raw
+        // values in ITS OWN currency — convert before crediting, or a USD sale
+        // into a GTQ account credits ~7.8× less than reality.
+        const destCur = dest._originalCurrency || dest.currency || origCur
+        const proceedsInDest = (convert && destCur !== origCur)
+          ? convert(proceeds, origCur, destCur)
+          : proceeds
+        destAmount = proceedsInDest
+        if (BANK_RE.test(dest.type || '')) {
+          // FASE OD. Se APUNTA al valor con `creditFields`, la MISMA función
+          // que usan las transferencias (FASE JD3), y no `precio + monto`:
+          // esa fórmula escribía el saldo en el precio sin mirar la cantidad,
+          // así que una cuenta VACIADA (cantidad 0) recibía la venta y seguía
+          // leyéndose en 0, y una con cantidad 2 acreditaba el doble.
+          destFields = creditFields(dest, proceedsInDest)
+          if (!destFields) {
+            setSaving(false)
+            setError(t('Esa cuenta no tiene un valor con el que trabajar. Elige otra.', 'That account has no usable value. Pick another.'))
+            return
+          }
+          destId = dest.id
+          destKind = 'bank'
+        } else {
+          // Buying more of a market asset with the proceeds: bump quantity AND
+          // create a matching lot so lots stay consistent with item.quantity
+          // (otherwise FIFO/cost-basis breaks per the lots model). Use the dest's
+          // ORIGINAL price/currency so the new lot's costBasis matches the lots
+          // convention.
+          const destPrice = origPriceOf(dest) || 1
+          const addQty = proceedsInDest / destPrice
+          destId = dest.id
+          destFields = { quantity: (dest.quantity || 0) + addQty }
+          destKind = 'market'
+          destAddQty = addQty
+          destLot = {
+            symbol: (dest.symbol || '').toUpperCase(),
+            quantity: addQty,
+            costBasis: destPrice,
+            acquisitionDate: saleDate,
+            institution: dest.institution || '',
+            currency: dest._originalCurrency || dest.currency || origCur,
           }
         }
       }
+
+      const { transactions } = buildSaleTransactions({
+        item, qtySell, price, proceeds, saleDate, currency: origCur,
+        soldFully: !!itemFields.soldFully,
+        // Los precios RAW (en la moneda del activo), que una venta total pone
+        // en cero: son lo que la reversa restaura.
+        prevItemFields: { quantity: item.quantity || 0, currentPrice: item._originalPrice ?? item.currentPrice ?? 0, purchasePrice: item._originalPurchasePrice ?? item.purchasePrice ?? 0 },
+        destination, dest, destAmount, destKind, destAddQty, lang,
+      })
 
       // Single atomic transaction: source qty + SELL/WITHDRAWAL txs +
       // destination credit + destination lot + source-lot FIFO close all commit

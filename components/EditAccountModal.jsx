@@ -13,6 +13,7 @@ import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributio
 import { getItemValue } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
+import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
@@ -77,7 +78,7 @@ function FxHint({ amount, from, to, convert, t }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, lots = [], onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -167,6 +168,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // que el aviso de la confirmación no se lea como otra moneda o escala.
   const txMoney = (amount, currency) =>
     `${currency || form.currency} ${Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // FASE OD. Los planificadores de reversa razonan sobre precios RAW (en la
+  // moneda del ítem): `existingItems` es la lista cruda de Firestore y
+  // `allItems` (el tablero) viene ENRIQUECIDA con precios en la base. Con la
+  // enriquecida, el aviso de "no tiene saldo para devolver" juzgaba una cuenta
+  // en quetzales contra su valor en dólares.
+  const planItems = (existingItems && existingItems.length) ? existingItems : (allItems || [])
   const handleDeleteTx = async (tx) => {
     if (confirmDeleteTxId !== tx.id) { setConfirmDeleteTxId(tx.id); return }
     if (!onDeleteTransaction) return
@@ -178,6 +185,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       setError(e?.code === 'reversal-refused'
         ? t('No se borro: una cuenta no tiene saldo suficiente para devolver este movimiento. Ajusta su saldo primero.',
             'Not deleted: an account does not hold enough to give this movement back. Adjust its balance first.')
+        // FASE OD. Una venta que no se puede deshacer trae su razon en el mensaje.
         : (e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement')))
     }
     setConfirmDeleteTxId(null)
@@ -1218,8 +1226,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             la tarjeta de movimientos recientes, desde
                             lib/transferReversal.js. */}
                         {confirming && [
-                          ...reversalLines(transferReversalPlan(tx, allItems || existingItems || []), lang, txMoney),
-                          ...cashflowReversalLines(cashflowReversalPlan(tx, allItems || existingItems || []), lang, txMoney),
+                          ...reversalLines(transferReversalPlan(tx, planItems), lang, txMoney),
+                          ...cashflowReversalLines(cashflowReversalPlan(tx, planItems), lang, txMoney),
+                          // FASE OD. Borrar una VENTA la deshace (o dice por que no).
+                          ...saleReversalLines(saleReversalPlan(tx, planItems, lots, transactions || []), lang, txMoney),
                         ].map((line, k) => (
                           <div key={k} className="text-[11px] pb-1" style={{ color: 'var(--text-muted)' }}>{line}</div>
                         ))}

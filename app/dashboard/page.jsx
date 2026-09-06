@@ -1759,7 +1759,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
+            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lots={lots} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
             {/* DataQualityCard (HO-03) se movió a la pestaña "Calidad" de la
                 card de Análisis: mide qué tan confiable es tu historia, que es
                 análisis, no actividad reciente. */}
@@ -2254,7 +2254,7 @@ export default function DashboardPage() {
           onUpdateTransaction={updateTransactionWithReversal}
           onExecuteContribution={executeContribution}
           onCreateDestination={addItem}
-          transactions={transactions}
+          transactions={transactions} lots={lots}
           baseCurrency={baseCurrency}
           convert={convert}
           existingItems={items} lang={lang}

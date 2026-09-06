@@ -13,6 +13,7 @@ import { verifyIncomeForItems } from '@/lib/dividendVerify'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
 import { cashflowReversalPlan } from '@/lib/cashflowReversal'
+import { saleReversalPlan, saleRefusalText } from '@/lib/saleReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
@@ -81,7 +82,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
+    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution, bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -245,6 +246,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     })
   }, [rawEnriched, rates, convert, baseCurrency])
+
+  // FASE OD. Los ítems con los que se PLANIFICA una reversa de saldo.
+  //
+  // ⛔ Nunca `enrichedItems`: sus precios ya vienen convertidos a la moneda
+  // BASE, y los planificadores (transferReversalPlan, cashflowReversalPlan,
+  // saleReversalPlan) calculan `accountValue` sobre lo que reciben y escriben
+  // ese número de vuelta como precio RAW del ítem (balanceFields). Con base
+  // USD, deshacer una transferencia de Q2,500 desde una cuenta de Q10,000
+  // escribía `currentPrice: 3798.70` en vez de 12,500 (la cuenta perdía
+  // Q8,700 de un clic), y borrar un aporte marcado `_balanceMoved` sobre esa
+  // misma cuenta sana se REHUSABA (Q3,000 > $1,298 de "saldo"). Reproducido
+  // con el hook real. Las dos superficies de confirmación reciben los ítems
+  // crudos y por eso sus líneas decían el número correcto mientras la
+  // escritura hacía otra cosa.
+  //
+  // Se devuelven los precios en la moneda del propio ítem (`_originalPrice`,
+  // que para un activo de mercado es la cotización viva y para una cuenta de
+  // saldo es lo guardado) y se conserva todo lo demás del enriquecido.
+  const reversalItems = useMemo(() => enrichedItems.map((it) => ({
+    ...it,
+    currentPrice: it._originalPrice ?? it.currentPrice,
+    purchasePrice: it._originalPurchasePrice ?? it.purchasePrice,
+  })), [enrichedItems])
 
   const entityItems = useMemo(() => {
     if (activeEntity === '__all__') return enrichedItems
@@ -3344,7 +3368,32 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // de la fila en un solo batch) en vez del `applyDestinationDelta` de abajo,
     // que hace un update suelto y para dos lados podría dejar la mitad hecha.
     // Quién recibe qué lo decide `transferReversalPlan`, puro y con tests.
-    const reversal = tx && !skipBalanceReversal ? transferReversalPlan(tx, enrichedItems) : null
+    // FASE OD. Una VENTA borrada se deshace entera (posición, lotes, destino y
+    // su retiro compañero) o se rehúsa con su razón; una fila sin marcas (de
+    // antes de esta versión) se borra a secas, y la confirmación ya avisó que
+    // eso no devuelve nada. Ver lib/saleReversal.js.
+    const salePlan = tx && !skipBalanceReversal ? saleReversalPlan(tx, reversalItems, lots, transactions) : null
+    if (salePlan) {
+      if (salePlan.refused === 'unmarked' || salePlan.refused === 'item-missing') {
+        await deleteTransaction(txId)
+        return
+      }
+      if (salePlan.refused) {
+        const err = new Error(saleRefusalText(salePlan.refused, lang))
+        err.code = 'sale-refused'
+        err.reason = salePlan.refused
+        throw err
+      }
+      await reverseSaleAtomic({
+        itemId: salePlan.item.id, itemFields: salePlan.item.fields,
+        lotWrites: salePlan.lots, deleteLotIds: salePlan.deleteLotIds,
+        destId: salePlan.dest?.id || null, destFields: salePlan.dest?.fields || null,
+        txIds: [txId, ...salePlan.companions],
+      })
+      return
+    }
+
+    const reversal = tx && !skipBalanceReversal ? transferReversalPlan(tx, reversalItems) : null
     if (reversal) {
       if (!reversalWritesSomething(reversal)) {
         // Las dos cuentas se borraron: no hay saldo que devolver y la fila ya
@@ -3374,7 +3423,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // FASE OB. Un aporte, retiro o gasto que MOVIÓ un saldo al escribirse lo
     // devuelve al borrarse (solo si la fila lo dice: `_balanceMoved`). Mismo
     // batch atómico que una transferencia, con el ítem y el borrado juntos.
-    const cash = tx && !skipBalanceReversal ? cashflowReversalPlan(tx, enrichedItems) : null
+    const cash = tx && !skipBalanceReversal ? cashflowReversalPlan(tx, reversalItems) : null
     if (cash) {
       if (cash.refused) {
         const err = new Error('reversal-refused')
@@ -3430,7 +3479,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     await deleteTransaction(txId)
-  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem, reverseTransfer])
+  }, [transactions, enrichedItems, reversalItems, lots, lang, applyDestinationDelta, deleteTransaction, updateItem, reverseTransfer, reverseSaleAtomic])
 
   // No hay rama TRANSFER acá, y es a propósito: el botón de editar está
   // suprimido para las filas de transferencia (`EditAccountModal`, la condición
