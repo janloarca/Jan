@@ -1252,13 +1252,13 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     <div className="text-4xl mb-3">{brokerInfo ? brokerInfo.icon : '📊'}</div>
                     <p className="text-white font-medium mb-1">{t('Arrastra tu archivo aquí', 'Drag your file here')}</p>
                     <p className="text-slate-500 text-sm">{t('o haz clic para seleccionar', 'or click to browse')}</p>
-                    <p className="text-slate-600 text-xs mt-3">{brokerHint === 'ibkr' ? '.xml, .xlsx, .xls, .csv, .pdf' : '.xlsx, .xls, .csv, .pdf'}</p>
+                    <p className="text-slate-600 text-xs mt-3">.xml, .xlsx, .xls, .csv, .pdf</p>
                   </>
                 )}
                 <input
                   ref={fileRef}
                   type="file"
-                  accept={brokerHint === 'ibkr' ? '.xml,.xlsx,.xls,.csv,.pdf' : '.xlsx,.xls,.csv,.pdf'}
+                  accept=".xml,.xlsx,.xls,.csv,.pdf"
                   className="hidden"
                   onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
                 />
