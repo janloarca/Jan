@@ -4,8 +4,9 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, formatDate, formatMonth } from './utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
+import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
 
-export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [], convert, baseCurrency }) {
+export default function RecentTransactions({ transactions, lang, onExportCSV, onDeleteTransaction, items = [], lots = [], convert, baseCurrency }) {
   const itemName = (id) => {
     if (!id) return null
     const it = items.find((i) => i.id === id)
@@ -333,6 +334,8 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
               {confirmId === tx.id && [
                 ...reversalLines(transferReversalPlan(tx, items), lang, formatCurrency),
                 ...cashflowReversalLines(cashflowReversalPlan(tx, items), lang, formatCurrency),
+                // FASE OD. Borrar una VENTA la deshace (o dice por que no).
+                ...saleReversalLines(saleReversalPlan(tx, items, lots, transactions), lang, formatCurrency),
               ].map((line, k) => (
                 <div key={k} className="text-xs pb-2 -mt-1 pl-12" style={{ color: 'var(--text-muted)' }}>{line}</div>
               ))}
@@ -342,8 +345,10 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                     ? (lang === 'es'
                       ? 'No se borro: una cuenta no tiene saldo suficiente para devolver este movimiento. Ajusta su saldo primero.'
                       : 'Not deleted: an account does not hold enough to give this movement back. Adjust its balance first.')
-                    : (lang === 'es' ? 'No se pudo borrar el movimiento.' : 'Could not delete the movement.')}
-                  {deleteError.code !== 'reversal-refused' && deleteError.message ? ` ${deleteError.message}` : ''}
+                    : deleteError.code === 'sale-refused'
+                      ? deleteError.message
+                      : (lang === 'es' ? 'No se pudo borrar el movimiento.' : 'Could not delete the movement.')}
+                  {deleteError.code !== 'reversal-refused' && deleteError.code !== 'sale-refused' && deleteError.message ? ` ${deleteError.message}` : ''}
                 </div>
               )}
               </div>

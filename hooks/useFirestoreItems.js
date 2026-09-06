@@ -861,23 +861,55 @@ export function useFirestoreItems() {
         }
       }
 
-      transactions.forEach((t) => {
-        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(t)), strip({ ...t, createdAt: new Date().toISOString() }))
-      })
-
-      if (destId && destFields) {
-        tx.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
-      }
+      // FASE OD. La fila SELL lleva estampado QUÉ lotes cerró (y qué lote creó
+      // en el destino), porque es lo único que permite deshacer la venta al
+      // borrarla (lib/saleReversal.js). Solo este escritor lo sabe: los cierres
+      // se deciden acá adentro, leyendo los lotes en la misma transacción.
+      const lotCloses = closes.map((c) => (closesWholeLot(c.closable, c.lot.quantity)
+        ? { lotId: c.lot.id, closable: c.closable, whole: true }
+        : { lotId: c.lot.id, closable: c.closable, whole: false, closedId: closedLotDocId(c.lot, lotClose.date) }))
+      let destLotId = null
       if (destLot) {
         // FASE OB. El lote del destino tiene dueño: el ítem al que se acreditó.
         if (destId && !destLot.itemId) destLot = { ...destLot, itemId: destId }
         const qty = Math.round((destLot.quantity || 0) * 1e8)
         const cost = Math.round((destLot.costBasis || 0) * 100)
         const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
-        const lid = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
-        tx.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
+        destLotId = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+      }
+
+      transactions.forEach((t) => {
+        const marked = (t.type || '').toUpperCase() === 'SELL'
+          ? { ...t, _lotCloses: lotCloses, ...(destLotId ? { _destLotId: destLotId } : {}) }
+          : t
+        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(t)), strip({ ...marked, createdAt: new Date().toISOString() }))
+      })
+
+      if (destId && destFields) {
+        tx.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
+      }
+      if (destLot) {
+        tx.set(fs.doc(db, `users/${uid}/lots`, destLotId), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
       }
     })
+  }, [uid])
+
+  // FASE OD. Deshacer una venta: el ítem, sus lotes, la cuenta destino y las
+  // filas (la SELL y su retiro compañero) en UN solo batch, por la misma razón
+  // que la venta se escribe en una sola transacción: nada puede quedar a
+  // medias. Qué se escribe lo decide `saleReversalPlan` (puro, con tests);
+  // acá solo se aplica.
+  const reverseSaleAtomic = useCallback(async ({ itemId, itemFields, lotWrites = [], deleteLotIds = [], destId, destFields, txIds = [] }) => {
+    if (!uid) throw new Error('No uid')
+    if (!itemId || !txIds.length) throw new Error('Sale reversal has nothing to apply')
+    const { db, fs } = await getFirebase()
+    const batch = fs.writeBatch(db)
+    batch.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields || {}))
+    for (const w of lotWrites) batch.update(fs.doc(db, `users/${uid}/lots`, w.id), strip(w.fields || {}))
+    for (const id of deleteLotIds) batch.delete(fs.doc(db, `users/${uid}/lots`, id))
+    if (destId && destFields && Object.keys(strip(destFields)).length) batch.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
+    for (const id of txIds) batch.delete(fs.doc(db, `users/${uid}/transactions`, id))
+    await batch.commit()
   }, [uid])
 
   const executeContribution = useCallback(async ({ itemId, itemFields, transaction, newLot, lotClose, prefFields }) => {
@@ -1317,7 +1349,7 @@ export function useFirestoreItems() {
     deleteFinanceTransactionsByIds,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
-    transferFunds, reverseTransfer, executeSaleAtomic, executeContribution,
+    transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution,
     bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile, saveIncomePlan,

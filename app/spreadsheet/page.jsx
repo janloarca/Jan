@@ -439,7 +439,7 @@ export default function SpreadsheetPage() {
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
           onDeleteTransaction={deleteTransactionWithReversal} onUpdateTransaction={updateTransactionWithReversal}
           onCreateDestination={addItem}
-          transactions={transactions} baseCurrency={baseCurrency} convert={convert} />
+          transactions={transactions} lots={lots} baseCurrency={baseCurrency} convert={convert} />
       )}
       </ModalMount>
 
