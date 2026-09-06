@@ -6,6 +6,7 @@ import { transactionDocId } from '@/lib/transactionDocId'
 import { roundQty, closesWholeLot, closedLotDocId } from '@/lib/lotClose'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
+import { planPortfolioDelete } from '@/lib/portfolioDelete'
 // Historial de bumps de SNAPSHOT_VERSION (el número vive en lib/snapshotVersion.js
 // para que el lector del servidor use la MISMA vara). Cada bump es porque un doc
 // ya cacheado quedó con una reconstrucción que el merge NUNCA corrige por su
@@ -1057,11 +1058,35 @@ export function useFirestoreItems() {
     return id
   }, [uid])
 
+  // FASE OH. Un portafolio es una ETIQUETA sobre ítems y lotes, no un
+  // contenedor: borrar solo su doc dejaba a todo lo de adentro con un
+  // `portfolioId` muerto, invisible en cualquier portafolio seleccionable y
+  // visible solo en "Todos" (deleteEntity, en useEntities.js, ya re-ubica
+  // ANTES de borrar por esta misma razón; esta era la copia que se quedó
+  // atrás). Se re-ubica al default quitando la etiqueta, en lotes, y ANTES de
+  // borrar el doc: al revés, un fallo a mitad de camino deja el portafolio
+  // desaparecido con sus ítems huérfanos, que es exactamente el defecto.
+  // Qué docs entran lo decide lib/portfolioDelete.js sobre las colecciones
+  // que el listener ya tiene en memoria (cero lecturas extra).
   const deletePortfolio = useCallback(async (portfolioId) => {
     if (!uid) return
+    const plan = planPortfolioDelete(portfolioId, { items, lots, transactions })
+    if (plan.refused) return
     const { db, fs } = await getFirebase()
+    const rehome = async (coll, ids) => {
+      for (let i = 0; i < ids.length; i += 30) {
+        const batch = fs.writeBatch(db)
+        for (const id of ids.slice(i, i + 30)) {
+          batch.update(fs.doc(db, `users/${uid}/${coll}`, id), { portfolioId: fs.deleteField() })
+        }
+        await batch.commit()
+      }
+    }
+    await rehome('items', plan.itemIds)
+    await rehome('lots', plan.lotIds)
+    await rehome('transactions', plan.transactionIds)
     await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
-  }, [uid])
+  }, [uid, items, lots, transactions])
 
   // v3: static-item historical values are now currency-converted to base.
   // v4: market-asset past-month share counts are reconstructed from real trade

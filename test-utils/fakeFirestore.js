@@ -7,6 +7,20 @@
 // para probar filtros de consulta. Se monta con jest.doMock('firebase/firestore').
 // Precedente: test-utils/hookHarness.js.
 
+// FASE OH. `deleteField()` devuelve un centinela y las dos rutas de update
+// (updateDoc y batch.update) QUITAN la llave en vez de guardar el centinela,
+// que es lo que hace Firestore. Sin esto, re-ubicar un doc (borrar su
+// `portfolioId`/`entityId`) no se puede probar con el hook real.
+const DELETE_SENTINEL = { __deleteField: true }
+const applyUpdate = (cur, data) => {
+  const next = { ...(cur || {}) }
+  for (const [k, v] of Object.entries(data || {})) {
+    if (v === DELETE_SENTINEL) delete next[k]
+    else next[k] = v
+  }
+  return next
+}
+
 function makeFake(initial) {
   const store = JSON.parse(JSON.stringify(initial || {}))
   const listeners = []
@@ -23,6 +37,7 @@ function makeFake(initial) {
     query: (coll) => coll,
     orderBy: () => ({}),
     where: () => ({}),
+    deleteField: () => DELETE_SENTINEL,
     getDocs: async (c) => snapOf(c.__coll || c.__path),
     getDoc: async (r) => {
       const d = ensure(r.__path)[r.__id]
@@ -37,7 +52,7 @@ function makeFake(initial) {
     updateDoc: async (r, data) => {
       const cur = ensure(r.__path)[r.__id]
       if (cur === undefined) throw new Error('not-found:' + r.__path + '/' + r.__id)
-      ensure(r.__path)[r.__id] = { ...cur, ...data }
+      ensure(r.__path)[r.__id] = applyUpdate(cur, data)
       notify()
     },
     writeBatch: () => {
@@ -49,7 +64,7 @@ function makeFake(initial) {
         commit: async () => {
           for (const [kind, r, d, o] of ops) {
             if (kind === 'delete') delete ensure(r.__path)[r.__id]
-            else if (kind === 'update') ensure(r.__path)[r.__id] = { ...(ensure(r.__path)[r.__id] || {}), ...d }
+            else if (kind === 'update') ensure(r.__path)[r.__id] = applyUpdate(ensure(r.__path)[r.__id], d)
             else ensure(r.__path)[r.__id] = o && o.merge ? { ...(ensure(r.__path)[r.__id] || {}), ...d } : { ...d }
           }
           notify()

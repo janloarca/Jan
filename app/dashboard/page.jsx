@@ -136,6 +136,7 @@ import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
 // wears the same card: same shell, same header shape, same segmented control.
@@ -495,6 +496,23 @@ export default function DashboardPage() {
   // se queda congelada en la foto de la última visita mientras el grupo la
   // rankea al lado de filas de hoy. Ver lib/friendsPublish.js.
   } = useDashboardData({ user, lang, activePortfolio, activeEntity, publishFriends: true })
+
+  // FASE OH. Borrar el portafolio (o la entidad) que está SELECCIONADA dejaba
+  // `activePortfolio`/`activeEntity` apuntando a un id que ya no existe: el
+  // selector, que no lo encuentra, imprime "Todos", y el cuerpo filtra por el
+  // id muerto. Antes de FASE OH eso mostraba el subconjunto huérfano bajo el
+  // rótulo "Todos"; con la re-ubicación de deletePortfolio mostraría un
+  // portafolio VACÍO (la pantalla de bienvenida) bajo ese mismo rótulo. Las
+  // dos son la app contradiciéndose: la vista vuelve a "Todos" al borrar lo
+  // que se estaba mirando, y solo entonces (borrar otro no mueve la vista).
+  const handleDeletePortfolio = useCallback(async (portfolioId) => {
+    await deletePortfolio(portfolioId)
+    setActivePortfolio((cur) => activePortfolioAfterDelete(cur, portfolioId))
+  }, [deletePortfolio])
+  const handleDeleteEntity = useCallback(async (entityId) => {
+    await deleteEntity(entityId)
+    setActiveEntity((cur) => (cur === entityId ? '__all__' : cur))
+  }, [deleteEntity])
 
   // Las reglas por comercio que el usuario enseñó corrigiendo categorías. El
   // MISMO hook que usa Flujo, no una segunda carga: el importador de esta
@@ -1537,7 +1555,7 @@ export default function DashboardPage() {
           {portfolios && portfolios.length > 0 && (
             <PortfolioSelector
               portfolios={portfolios} activePortfolio={activePortfolio}
-              onSelect={setActivePortfolio} onAdd={addPortfolio} onDelete={deletePortfolio} lang={lang}
+              onSelect={setActivePortfolio} onAdd={addPortfolio} onDelete={handleDeletePortfolio} lang={lang}
             />
           )}
         </div>
@@ -2123,7 +2141,7 @@ export default function DashboardPage() {
           entities={entities}
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
-          onDeleteEntity={deleteEntity}
+          onDeleteEntity={handleDeleteEntity}
           onOpenConnections={handleOpenConnections}
           onExportBackup={() => {
             const data = {
