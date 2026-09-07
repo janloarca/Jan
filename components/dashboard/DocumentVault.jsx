@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useDocumentVault } from '@/hooks/useDocumentVault'
+import { useAutoDisarm } from '@/hooks/useAutoDisarm'
 import BusyLabel from '@/components/ui/BusyLabel'
 
 const FILE_ICONS = {
@@ -24,6 +25,9 @@ export default function DocumentVault({ uid, itemId, lang }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+  // FASE ND: el "Confirmar" quedaba armado para siempre (sin botón de No y sin
+  // timeout): un toque de curiosidad dejaba el documento a un toque de borrarse.
+  useAutoDisarm(confirmDelete, () => setConfirmDelete(null))
   const fileRef = useRef()
 
   const t = (es, en) => lang === 'es' ? es : en
