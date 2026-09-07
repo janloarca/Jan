@@ -5,6 +5,7 @@ import { CATEGORY_COLORS } from '@/lib/financeCategories'
 import { cashFlowOf, flowSign, flowMagnitude, isReversal } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import CategoryEditor from '@/components/finance/CategoryEditor'
+import SegmentedTabs from '@/components/ui/SegmentedTabs'
 
 // The month's ledger. Two layouts on purpose: a table from `sm` up, and one
 // card per row below it. A five-column table on a phone needs sideways
@@ -181,10 +182,13 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
 
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Transacciones', 'Transactions')}</h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="card-title">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+            {t('MOVIMIENTOS', 'TRANSACTIONS')}
+          </h3>
           {filtered.length > 0 && (
             <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>
               {filtered.length} · {shownTotal >= 0 ? '+' : '-'}Q{fmt(Math.abs(shownTotal))}
@@ -192,19 +196,25 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
           )}
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex bg-theme-base rounded-lg border border-glass-border text-xs shrink-0">
-            {[
+          {/* El primitivo compartido, no una cuarta copia a mano. Esto ERA la
+              firma de `SegmentedTabs` (pastillas sobre un riel) escrita a
+              pulso: sin `role="tablist"`, sin `aria-selected` y con objetivos
+              de 24px justos, o sea SC 2.5.8 pasando con cero margen. La
+              pastilla activa deja de ser azul con blanco fijo y pasa a la
+              elevada de siempre: un punto más sutil, y a cambio Flujo habla el
+              mismo idioma que Análisis, Asignación, Costos y la Hoja. */}
+          <SegmentedTabs
+            tabs={[
               { key: 'ALL', label: t('Todos', 'All') },
               { key: 'INCOME', label: t('Ingresos', 'Income') },
               { key: 'EXPENSE', label: t('Gastos', 'Expenses') },
-            ].map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                className="px-3 py-1.5 transition-colors rounded-lg"
-                style={filter === f.key ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' } : { color: 'var(--text-secondary)' }}>
-                {f.label}
-              </button>
-            ))}
-          </div>
+            ]}
+            value={filter}
+            onChange={setFilter}
+            deps={[lang]}
+            ariaLabel={t('Filtrar movimientos', 'Filter transactions')}
+            className="shrink-0"
+          />
           <input
             type="text"
             value={search}

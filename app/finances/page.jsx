@@ -34,12 +34,29 @@ import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
+import PageBanner from '@/components/ui/PageBanner'
+// ErrorBoundary y NO CardBoundary a propósito, y la razón medida es más
+// angosta de lo que parece: aquel envuelve en un <div> SIEMPRE, así que una
+// card que se auto-oculta (cinco de las de Flujo lo hacen) deja un nodo vacío
+// en el DOM. Medido en el navegador con las dos, mismo contenido: ErrorBoundary
+// deja 1 nodo y CardBoundary 2.
+//
+// ⛔ Lo que ese nodo de más NO hace es abrir un hueco, y conviene dejarlo
+// escrito porque es la conclusión natural y es falsa: un div vacío sin borde ni
+// padding se auto-colapsa, su margen se colapsa a través y la card siguiente
+// arranca en el mismo sitio (top=0 en los dos lados, en los cuatro escenarios).
+// La razón para preferir este es la otra: no agrega nodo, y su fallback es
+// bilingüe y sobre tokens de tema, mientras el de CardBoundary imprime el id
+// crudo de la card con clases de tema oscuro.
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { computeMonthlyAnalysis, buildFinanceInsights } from '@/lib/financeMonth'
 import { detectRecurringCharges, annualPaymentsOfMonth } from '@/lib/recurringCharges'
 import { isTransferCategory } from '@/lib/financeCategories'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
+import { commitmentsHaveContent, yearInViewHasContent } from '@/lib/financeSections'
 import PageTour from '@/components/dashboard/PageTour'
+import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import { Wallet, Zap } from 'lucide-react'
 import { authFetch } from '@/lib/authFetch'
 
@@ -114,7 +131,15 @@ export default function FinancesPage() {
     saveIncomePlan,
   } = useFirestoreItems()
 
-  const { convert, loading: ratesLoading, refresh: refreshRates } = useExchangeRates()
+  // `error` y `stale` se estaban TIRANDO, y no son lo mismo. Sin tasa,
+  // `convert` devuelve el monto CRUDO: una fila en dólares se suma 1:1 a los
+  // quetzales, casi ocho veces de más, sin que nada lo diga. `stale` es otra
+  // cosa y el propio hook lo documenta: una tasa vieja es una respuesta
+  // EXITOSA degradada.
+  const {
+    convert, loading: ratesLoading, refresh: refreshRates,
+    error: ratesError, stale: ratesStale,
+  } = useExchangeRates()
   // Las reglas por comercio que el usuario enseñó. El hook las comparte con el
   // importador del tablero, que antes clasificaba con cero reglas aprendidas.
   const { rules: ingestRules, learn: learnCategory, learnMany: handleLearnCategories } = useIngestRules(user)
@@ -256,24 +281,70 @@ export default function FinancesPage() {
   // lib/recategorize.js for exactly what it refuses to touch.
   const [recatBusy, setRecatBusy] = useState(false)
   const [recatDone, setRecatDone] = useState(null)
+  const [recatFailed, setRecatFailed] = useState(0)
 
   const recatPlan = useMemo(
     () => planRecategorize(financeTransactions, { rules: ingestRules }),
     [financeTransactions, ingestRules]
   )
 
+  // ¿Qué secciones tienen algo debajo? Las cards se auto-ocultan cuando no
+  // tienen contenido, así que sin esto una sección entera podía dibujar su
+  // encabezado sobre nada. Se pregunta con los MISMOS selectores puros que usa
+  // cada card (`lib/financeSections.js`): una sola fuente de verdad, cero
+  // umbrales duplicados acá.
+  const hasCommitments = useMemo(
+    () => commitmentsHaveContent(financeTransactions, { convert }),
+    [financeTransactions, convert]
+  )
+  const hasYearInView = useMemo(
+    () => yearInViewHasContent(financeTransactions, year, convert),
+    [financeTransactions, year, convert]
+  )
+
+  // ¿Hay algún movimiento en otra moneda? Flujo está denominado en GTQ, así que
+  // si TODO se registró en quetzales una caída del tipo de cambio no mueve un
+  // solo número de esta pantalla, y avisar sería ruido.
+  const hasForeignRows = useMemo(
+    () => financeTransactions.some((tx) => (tx.currency || FINANCE_CURRENCY) !== FINANCE_CURRENCY),
+    [financeTransactions]
+  )
+
+  // El mes ELEGIDO tiene movimientos, que no es lo mismo que la cuenta tenga
+  // historia: moverse a un mes anterior a cuando empezaste es normal.
+  const monthHasMovements = monthTransactions.length > 0
+  const monthLabel = useMemo(() => {
+    try {
+      const d = new Date(Date.UTC(year, month, 1))
+      const name = d.toLocaleDateString(lang === 'es' ? 'es-GT' : 'en-US', { month: 'long', timeZone: 'UTC' })
+      return `${name} ${year}`
+    } catch { return `${month + 1}/${year}` }
+  }, [month, year, lang])
+
   const handleRecategorizeAll = useCallback(async () => {
     if (recatPlan.length === 0) return
     setRecatBusy(true)
     let done = 0
+    let failed = 0
     for (const change of recatPlan) {
+      // ⛔ SE LEE EL VALOR DE RETORNO, no basta con no lanzar.
+      // `updateFinanceTransaction` NUNCA lanza: atrapa su error, loguea y
+      // devuelve `false` (hooks/useFirestoreItems.js). Así que el `catch` que
+      // había acá era código MUERTO y `done++` contaba una escritura fallida
+      // como éxito, o sea la app reportaba "Listo: N reclasificados" sobre
+      // filas que Firestore nunca recibió. Es el mismo defecto que FASE LO/LC
+      // ya cerró en el importador. El try/catch se queda igual por si un caller
+      // futuro sí lanza.
+      let ok = false
       try {
-        await updateFinanceTransaction(change.id, { category: change.to })
-        done++
-      } catch { /* keep going: one failed write must not strand the rest */ }
+        ok = await updateFinanceTransaction(change.id, { category: change.to }) !== false
+      } catch { ok = false }
+      if (ok) done++
+      else failed++
     }
     setRecatBusy(false)
     setRecatDone(done)
+    setRecatFailed(failed)
   }, [recatPlan, updateFinanceTransaction])
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -293,19 +364,32 @@ export default function FinancesPage() {
   }
 
   if (authLoading || (user && dataLoading)) {
-    // Structural skeleton instead of a bare spinner — same treatment the
-    // dashboard and spreadsheet already get.
-    return (
-      <div className="min-h-screen bg-theme-base">
-        {/* Mismo ancho y mismo ritmo que PageShell, para que el borde del
-            contenido no salte cuando llegan los datos. */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-            <SkeletonCard /><SkeletonCard /><SkeletonCard />
-          </div>
-          <SkeletonTable />
+    const skeleton = (
+      <>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard />
         </div>
-      </div>
+        <SkeletonTable />
+      </>
+    )
+    // Sin usuario todavía no hay Header que dibujar (y AuthGate está encima con
+    // su propio splash de pantalla completa), así que ahí el marco pelado es lo
+    // correcto. El `!user` de abajo redirige en el render siguiente.
+    if (!user) return <div className="min-h-screen bg-theme-base" />
+    // ⛔ EL ESQUELETO VA DENTRO DE `PageShell`, NO EN UN `app/finances/loading.jsx`.
+    // El defecto era que este bloque copiaba a mano el ancho y el ritmo de
+    // PageShell pero NO montaba Header ni MobileNav, así que la barra superior
+    // aparecía de golpe cuando llegaban los datos. Un `loading.jsx` NO lo
+    // arregla: ese cubre la carga del SEGMENTO de servidor y acá la espera es
+    // del listener de Firestore, en el cliente, cuando el loading.jsx ya se
+    // descartó. Agregarlo dejaría un TERCER estado de carga en fila (splash de
+    // AuthGate -> loading.jsx -> este esqueleto), y `app/dashboard/loading.jsx`
+    // documenta en su cabecera que es la ÚNICA ruta con ese patrón y que
+    // finanzas gatea inline a propósito.
+    return (
+      <PageShell user={user} lang={lang} setLang={handleSetLang} settings={settings} width="wide">
+        {skeleton}
+      </PageShell>
     )
   }
 
@@ -434,10 +518,29 @@ export default function FinancesPage() {
         }
       />
 
+        {/* El tipo de cambio, cuando de verdad afecta a esta pantalla. Son DOS
+            avisos porque son dos cosas distintas: un ERROR significa que las
+            filas en otra moneda se están sumando SIN convertir (el respaldo de
+            `convert` es el monto crudo), y `stale` significa que la conversión
+            SÍ ocurrió, con la última tasa conocida. Degradar en silencio es
+            peor que fallar, y esta pantalla no lo tenía cubierto. */}
+        {hasForeignRows && ratesError && (
+          <PageBanner tone="error" actionLabel={t('Reintentar', 'Retry')} onAction={refreshRates}>
+            {t('No se pudo traer el tipo de cambio, así que los movimientos en otra moneda se están sumando SIN convertir. Las cifras de abajo quedan mal hasta que se recupere.',
+               'Exchange rates could not be fetched, so movements in another currency are being added up WITHOUT conversion. The figures below are wrong until it recovers.')}
+          </PageBanner>
+        )}
+        {hasForeignRows && !ratesError && ratesStale && (
+          <PageBanner tone="info" icon="refresh" actionLabel={t('Actualizar', 'Refresh')} onAction={refreshRates}>
+            {t('Estás viendo la última tasa de cambio conocida, no la de ahora.',
+               'You are seeing the last known exchange rate, not the current one.')}
+          </PageBanner>
+        )}
+
         {/* A brand-new user sees the empty state directly, not a stack of Q0.00
             cards and blank breakdowns with the guidance buried below the fold. */}
         {financeTransactions.length > 0 && <>
-        <MonthStatusBar
+        {monthHasMovements && <ErrorBoundary cardId="FL-01" lang={lang}><MonthStatusBar
           status={analysis.status}
           partialMonth={analysis.partialMonth}
           daysElapsed={analysis.daysElapsed}
@@ -447,7 +550,7 @@ export default function FinancesPage() {
           onToggleReminder={handleToggleReminder}
           reminderEmail={settings?.financeReminderEmail || user?.email || ''}
           lang={lang}
-        />
+        /></ErrorBoundary>}
         {recatPlan.length > 0 && (
           <InlineNotice
             tone="info"
@@ -461,53 +564,63 @@ export default function FinancesPage() {
             )}
           </InlineNotice>
         )}
-        {recatPlan.length === 0 && recatDone != null && (
+        {recatPlan.length === 0 && recatDone != null && recatFailed === 0 && (
           <InlineNotice tone="success">
             {t(`Listo: ${recatDone} reclasificados.`, `Done: ${recatDone} reclassified.`)}
+          </InlineNotice>
+        )}
+        {/* Un fallo de escritura hoy se infiere de que el contador de arriba no
+            bajó del todo, que es pedirle al usuario que lo deduzca. Se dice. */}
+        {recatFailed > 0 && (
+          <InlineNotice tone="warn" actionLabel={t('Reintentar', 'Retry')} onAction={handleRecategorizeAll} busy={recatBusy}>
+            {t(`${recatDone} reclasificados, pero ${recatFailed} no se pudieron guardar. Vuelve a intentar.`,
+               `${recatDone} reclassified, but ${recatFailed} could not be saved. Try again.`)}
           </InlineNotice>
         )}
         {/* Lo que de verdad pasa cuando un ahorro sale en -245%: no es que se
             gastara tres veces el sueldo, es que el sueldo todavía no está
             registrado. Decirlo es más útil que pintar el número de rojo. */}
-        {analysis.incomeLooksUnlogged && (
+        {monthHasMovements && analysis.incomeLooksUnlogged && (
           <InlineNotice tone="warn">
             {t('Este mes no tiene ningún ingreso recurrente registrado (salario, renta, freelance), así que el resultado de abajo mide gastos contra casi nada. Agrega tu ingreso del mes y las cifras cuadran.',
                'This month has no recurring income logged (salary, rent, freelance), so the result below measures spending against almost nothing. Add your income for the month and the figures line up.')}
           </InlineNotice>
         )}
 
-        <FinanceSummaryCards income={income} expenses={expenses}
-          momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
-          momComparable={analysis.momComparable}
-          momTitle={momTitle}
-          annualInMonth={annualInMonth}
-          lang={lang} />
-
-        {/* El anio en una vista (feature 5): doce columnas REALES con el punto
-            de los pagos anuales; tocar un mes salta a el. Solo transacciones,
-            jamas el plan (regla dura de incomePlan.js). */}
-        <YearInViewCard
-          transactions={financeTransactions}
-          convert={convert}
-          year={year}
-          month={month + 1}
-          onSelectMonth={(m, y) => { setMonth(m); setYear(y) }}
-          lang={lang}
-        />
+        {/* Lo que es del MES. El bloque grande está gateado en que la CUENTA
+            tenga historia, no el mes elegido, así que moverse a un mes sin
+            movimientos dibujaba igual tres cards en Q0.00 y dos desgloses
+            vacíos. Un mes vacío ahora lo DICE en una línea; las secciones que
+            no son del mes (compromisos, el año, el perfil) se quedan enteras,
+            porque sus datos siguen siendo ciertos. */}
+        {monthHasMovements ? <>
+        <ErrorBoundary cardId="FL-02" lang={lang}>
+          <FinanceSummaryCards income={income} expenses={expenses}
+            momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
+            momComparable={analysis.momComparable}
+            momTitle={momTitle}
+            annualInMonth={annualInMonth}
+            lang={lang} />
+        </ErrorBoundary>
 
         {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
             eran cuatro cards dibujando el mismo dinero dos veces por lado. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+          <ErrorBoundary cardId="FL-03a" lang={lang}>
           <BreakdownCard
-            title={t('Gastos', 'Expenses')}
+            title={t('GASTOS', 'EXPENSES')}
+            dotColor="var(--accent-red)"
             groups={analysis.groups}
             total={analysis.expenses}
             silentReason={deltaSilentReason}
             momTitle={momTitle}
             lang={lang}
           />
+          </ErrorBoundary>
+          <ErrorBoundary cardId="FL-03b" lang={lang}>
           <BreakdownCard
-            title={t('Ingresos', 'Income')}
+            title={t('INGRESOS', 'INCOME')}
+            dotColor="var(--accent-green)"
             groups={analysis.incomeGroups}
             total={analysis.income}
             silentReason={deltaSilentReason}
@@ -515,57 +628,91 @@ export default function FinancesPage() {
             emptyText={t('Sin ingresos registrados este mes', 'No income logged this month')}
             lang={lang}
           />
+          </ErrorBoundary>
         </div>
 
-        <FinanceInsights insights={monthInsights} lang={lang} />
+        <ErrorBoundary cardId="FL-04" lang={lang}><FinanceInsights insights={monthInsights} lang={lang} /></ErrorBoundary>
+        </> : (
+          <div className="card p-4 sm:p-5 text-center">
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {t(`Sin movimientos en ${monthLabel}.`, `No movements in ${monthLabel}.`)}
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              {t('Cambia de mes arriba, o agrega un movimiento.', 'Switch months above, or add a movement.')}
+            </p>
+          </div>
+        )}
 
+        {/* "¿A qué estoy amarrado hacia adelante?" Plata ya comprometida, que es
+            otra pregunta que "cuánto gasté este mes". Cerrada por default: se
+            consulta, no se lee de corrido. El encabezado solo existe si alguna
+            de las tres cards tiene contenido (las tres se auto-ocultan). */}
+        {hasCommitments && (
+        <SectionCollapse title={t('Compromisos', 'Commitments')} id="commitments">
         {/* Cuotas activas: sale del campo `installment` que los estados ya
             traían. Recibe el HISTORIAL completo (los planes cruzan meses) y el
             mes seleccionado para la línea de "cuánto de este mes son cuotas".
             Se oculta sola sin planes. */}
-        <InstallmentPlansCard
-          transactions={financeTransactions}
-          convert={convert}
-          monthKey={analysis.key}
-          monthExpenses={analysis.expenses}
-          lang={lang}
-        />
+        <ErrorBoundary cardId="FL-05" lang={lang}>
+          <InstallmentPlansCard
+            transactions={financeTransactions}
+            convert={convert}
+            monthKey={analysis.key}
+            monthExpenses={analysis.expenses}
+            lang={lang}
+          />
+        </ErrorBoundary>
 
         {/* La nomina de cargos recurrentes detectada del propio historial
             (feature 3 del plan): total mensual, alzas de precio y el cargo que
             este mes no cayo. Describe, no presupuesta. */}
-        <RecurringChargesCard
-          transactions={financeTransactions}
-          convert={convert}
-          lang={lang}
-        />
+        <ErrorBoundary cardId="FL-06" lang={lang}>
+          <RecurringChargesCard
+            transactions={financeTransactions}
+            convert={convert}
+            lang={lang}
+          />
+        </ErrorBoundary>
 
         {/* Cuanto tardas en pagar lo que gastas con la tarjeta: cada pago ataca
             el gasto mas viejo que sigue sin pagar (FIFO). Recibe el historial
             COMPLETO, no el mes: un cargo puede tardar varios meses en pagarse y
             recortarlo al mes seleccionado cortaria la cola a la mitad. */}
-        <DebtAgingCard
-          transactions={financeTransactions}
-          lang={lang}
-        />
+        <ErrorBoundary cardId="FL-07" lang={lang}>
+          <DebtAgingCard
+            transactions={financeTransactions}
+            lang={lang}
+          />
+        </ErrorBoundary>
+        </SectionCollapse>
+        )}
 
+        {/* "¿Qué pasó, fila por fila?" El triage va acá porque habla de esas
+            mismas filas. Abierta por default: es el segundo motivo por el que
+            se entra a esta pantalla. */}
+        <SectionCollapse title={t('Movimientos', 'Transactions')} id="ledger" defaultOpen>
         {/* Triage de "Otros Gastos" por COMERCIO, ordenado por dinero: recibe
             el historial completo (una regla por comercio arregla todos sus
             meses). Se oculta sola cuando no queda nada que clasificar. */}
-        <UnclassifiedTriage
-          transactions={financeTransactions}
-          convert={convert}
-          onApply={handleTriageApply}
-          lang={lang}
-        />
+        <ErrorBoundary cardId="FL-08" lang={lang}>
+          <UnclassifiedTriage
+            transactions={financeTransactions}
+            convert={convert}
+            onApply={handleTriageApply}
+            lang={lang}
+          />
+        </ErrorBoundary>
 
-        <FinanceTransactionList
-          transactions={monthTransactions}
-          onDelete={deleteFinanceTransaction}
-          onRecategorize={handleRecategorize}
-          onToggleAnnual={handleToggleAnnual}
-          lang={lang}
-        />
+        <ErrorBoundary cardId="FL-09" lang={lang}>
+          <FinanceTransactionList
+            transactions={monthTransactions}
+            onDelete={deleteFinanceTransaction}
+            onRecategorize={handleRecategorize}
+            onToggleAnnual={handleToggleAnnual}
+            lang={lang}
+          />
+        </ErrorBoundary>
+        </SectionCollapse>
         </>}
 
         {financeTransactions.length === 0 && (
@@ -595,21 +742,50 @@ export default function FinancesPage() {
           </div>
         )}
 
-        {/* El plan del año. Va fuera del bloque que exige transacciones: se
-            puede planear el año sin haber registrado un solo movimiento, y de
-            hecho es lo primero que alguien nuevo puede hacer acá. */}
-        <IncomePlanCalendar
-          plan={incomePlan}
-          onSave={saveIncomePlan}
-          financeTransactions={financeTransactions}
-          convert={convert}
-          lang={lang}
-        />
+        {/* "¿Cómo va el año?" Las dos son de horizonte anual y estaban separadas
+            por media pantalla.
 
-        {/* Moved here from Settings: nobody found it there, and this data is
-            time-sensitive — it belongs next to the money it describes. */}
-        <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
-          goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
+            ⛔ Esta sección y la del perfil van FUERA del gate de cuenta vacía, y
+            no es un descuido. Meterlas adentro le quitaría a un usuario sin una
+            sola transacción la única forma de configurar su perfil o de planear
+            su año ANTES de importar nada, que es justo cuando quiere hacerlo. El
+            gate se reparte por ORIGEN del dato: lo que se DERIVA de
+            transacciones va adentro, lo que el usuario TECLEA va afuera. */}
+        <SectionCollapse title={t('El año', 'The year')} id="year">
+          {/* El año en una vista: doce columnas REALES con el punto de los
+              pagos anuales; tocar un mes salta a él. Solo transacciones, jamás
+              el plan (regla dura de incomePlan.js). Se auto-oculta sin datos. */}
+          {hasYearInView && (
+            <ErrorBoundary cardId="FL-10" lang={lang}>
+              <YearInViewCard
+                transactions={financeTransactions}
+                convert={convert}
+                year={year}
+                month={month + 1}
+                onSelectMonth={(m, y) => { setMonth(m); setYear(y) }}
+                lang={lang}
+              />
+            </ErrorBoundary>
+          )}
+          <ErrorBoundary cardId="FL-11" lang={lang}>
+            <IncomePlanCalendar
+              plan={incomePlan}
+              onSave={saveIncomePlan}
+              financeTransactions={financeTransactions}
+              convert={convert}
+              lang={lang}
+            />
+          </ErrorBoundary>
+        </SectionCollapse>
+
+        {/* Configuración, no lectura del mes. Moved here from Settings: nobody
+            found it there, and this data is time-sensitive. */}
+        <SectionCollapse title={t('Mi perfil', 'My profile')} id="profile">
+          <ErrorBoundary cardId="FL-12" lang={lang}>
+            <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
+              goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
+          </ErrorBoundary>
+        </SectionCollapse>
 
       <ModalMount closing={modalClosing}>
       {modalShown === 'add' && (
