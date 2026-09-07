@@ -6,6 +6,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
+import { scopeTagFor } from '@/lib/scopeTag'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
@@ -765,12 +766,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.incomeDestination = form.incomeDestination
       }
 
-      if (activePortfolio && activePortfolio !== '__all__') {
-        item.portfolioId = activePortfolio
-      }
-      if (activeEntity && activeEntity !== 'default') {
-        item.entityId = activeEntity
-      }
+      // FASE OJ: la etiqueta de alcance sale de lib/scopeTag.js, la única
+      // definición (vivía copiada aquí, en el importador y en el sync de IBKR).
+      Object.assign(item, scopeTagFor(activePortfolio, activeEntity))
 
       // The user already answered "¿de dónde vino este dinero?" right here in
       // this form — the data-completeness engine (lib/dataCompleteness.js)
@@ -828,7 +826,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               // posición se lleva SUS lotes, no los del hermano por símbolo.
               institution: item.institution || '',
               ...(itemId ? { itemId } : {}),
-              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+              ...scopeTagFor(activePortfolio, 'default'),
             })
           }
           if (onAddTransaction) {
@@ -838,7 +836,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               date: row.date,
               totalAmount: rowAmt, currency: item.currency || 'USD',
               ...(itemId ? { _linkedItemId: itemId } : {}),
-              ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+              ...scopeTagFor('__all__', activeEntity),
               _source: 'manual_new_account',
             })
           }
@@ -854,7 +852,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             // Ver el comentario del lote por fila de arriba (FASE OB).
             institution: item.institution || '',
             ...(itemId ? { itemId } : {}),
-            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+            ...scopeTagFor(activePortfolio, 'default'),
           })
         }
 
@@ -889,7 +887,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             date: item.acquisitionDate || new Date().toISOString().split('T')[0],
             totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
             ...(itemId ? { _linkedItemId: itemId } : {}),
-            ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+            ...scopeTagFor('__all__', activeEntity),
             _source: 'manual_new_account',
           })
         }
@@ -910,10 +908,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             const { itemFields } = buildContributionFields({ item: destAcct, amount: debtAmt, date: proceedsDate, isAdd: true, currency: item.currency || 'USD' })
             await onExecuteContribution({ itemId: destAcct.id, itemFields })
             const tx = buildLoanProceedsTransaction({ debtItem: debtForTx, toItem: destAcct, amount: debtAmt, date: proceedsDate })
-            if (tx) await onAddTransaction({ ...tx, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+            if (tx) await onAddTransaction({ ...tx, ...scopeTagFor('__all__', activeEntity) })
           } else {
             const tx = buildLoanProceedsOutsideTransaction({ debtItem: debtForTx, amount: debtAmt, date: proceedsDate })
-            if (tx) await onAddTransaction({ ...tx, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+            if (tx) await onAddTransaction({ ...tx, ...scopeTagFor('__all__', activeEntity) })
           }
         }
       }

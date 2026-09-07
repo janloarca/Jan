@@ -137,6 +137,7 @@ import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
+import { scopeTagFor } from '@/lib/scopeTag'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
 // wears the same card: same shell, same header shape, same segmented control.
@@ -470,7 +471,7 @@ export default function DashboardPage() {
     deleteTransactionWithReversal, updateTransactionWithReversal,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
-    addPortfolio, deletePortfolio,
+    addPortfolio, deletePortfolio, addItemInScope,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
     bulkImport,
@@ -1892,7 +1893,7 @@ export default function DashboardPage() {
             return id
           }}
           onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang}
@@ -2036,7 +2037,9 @@ export default function DashboardPage() {
               if (existing) {
                 await updateItem(existing.id, { currentPrice: item.currentPrice, quantity: item.quantity, _source: 'blockchain' })
               } else {
-                await addItem(item)
+                // FASE OJ: con un portafolio seleccionado la posición nace con
+                // su etiqueta, o desaparece de la vista al instante.
+                await addItemInScope(item)
               }
             }
             for (const tx of (syncTxs || [])) await addTransaction(tx)
@@ -2068,7 +2071,7 @@ export default function DashboardPage() {
               if (existing) {
                 await updateItem(existing.id, { quantity: item.quantity, _source: 'ledger', _walletAddress: item._walletAddress })
               } else {
-                await addItem(item)
+                await addItemInScope(item) // FASE OJ, ver Blockchain arriba.
                 newKeys.add(item._walletAddress || item.symbol)
               }
             }
@@ -2211,9 +2214,7 @@ export default function DashboardPage() {
             }
             // Reconcile instead of blind-inserting: bulkImport mints a new id per
             // item, so the old path duplicated the whole portfolio on every sync.
-            const tag = {}
-            if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
-            if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+            const tag = scopeTagFor(activePortfolio, activeEntity)
             const { newItems, updateItems, deleteIds } = reconcileBrokerPositions({
               incoming: mapped, existing: items, source, tag,
             })
@@ -2278,7 +2279,7 @@ export default function DashboardPage() {
           onDeleteTransaction={deleteTransactionWithReversal}
           onUpdateTransaction={updateTransactionWithReversal}
           onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           transactions={transactions} lots={lots}
           baseCurrency={baseCurrency}
           convert={convert}
@@ -2530,7 +2531,7 @@ export default function DashboardPage() {
             return id
           }}
           onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           onConnectBroker={handleOpenConnections}

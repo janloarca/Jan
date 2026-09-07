@@ -7,6 +7,7 @@ import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
+import { scopeTagFor, tagForScope } from '@/lib/scopeTag'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget, marketYieldFallback } from '@/lib/autoDividends'
 import { verifyIncomeForItems } from '@/lib/dividendVerify'
@@ -1223,9 +1224,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Tag imported items with the active portfolio/entity so they're never
     // filtered out of the current view (items without these fields get hidden
     // when a specific portfolio/entity is selected).
-    const tag = {}
-    if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
-    if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+    const tag = scopeTagFor(activePortfolio, activeEntity)
 
     // ⛔ FASE NR. El tercer modo: AGREGAR HISTORIA a las posiciones que ya
     // están, sin pisar lo de hoy y sin borrar nada.
@@ -3814,6 +3813,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // esa sugerencia, va con el usuario decidiendo y viéndola marcada, como ya
   // hace `suggestSavingsRate` en la proyección: no jalada en silencio.
 
+  // FASE OJ. Todo ítem que se crea con un portafolio o una entidad
+  // seleccionados tiene que nacer con esa etiqueta, o desaparece de la vista
+  // en el mismo instante (portfolioItems filtra por ella). El alta manual, el
+  // importador y el sync de IBKR ya la ponían cada uno con su copia de la
+  // regla; la cuenta destino creada "en línea" (InlineCreateAccount), Ledger y
+  // Blockchain.com entraban por `addItem` crudo y quedaban en `__default__`.
+  // Este es el único escritor que el tablero cablea a esos tres; la regla vive
+  // en lib/scopeTag.js. Una etiqueta que el ítem ya trae gana.
+  const addItemInScope = useCallback(
+    (item) => addItem(tagForScope(item, activePortfolio, activeEntity)),
+    [addItem, activePortfolio, activeEntity]
+  )
+
   return {
     // Raw Firestore data
     items, snapshots, chartSnapshots: viewChartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
@@ -3823,7 +3835,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     dataLoading, loadError,
 
     // Firestore actions
-    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
+    addItem, addItemInScope, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     migrateMisplacedNav,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,

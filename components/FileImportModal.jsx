@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { scopeTagFor } from '@/lib/scopeTag'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { detectBI, parseBI } from '@/lib/parsers/biParser'
@@ -682,12 +683,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
           if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${errors[0]}`)
           continue
         }
-        if (activePortfolio && activePortfolio !== '__all__') {
-          item.portfolioId = activePortfolio
-        }
-        if (activeEntity && activeEntity !== 'default') {
-          item.entityId = activeEntity
-        }
+        Object.assign(item, scopeTagFor(activePortfolio, activeEntity)) // FASE OJ, lib/scopeTag.js
         await onImportItems(item)
         if (onAddLot && item.symbol && item.quantity > 0 && item.purchasePrice > 0 && !/debt|deuda/i.test(item.type || '')) {
           const lotSym = (item.symbol || '').toUpperCase()
@@ -709,7 +705,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               currency: item.currency || 'USD',
               acquisitionDate: lotDate,
               institution: itemInst,
-              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+              ...scopeTagFor(activePortfolio, 'default'),
             })
           }
         }
@@ -979,11 +975,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     setError('')
     setImportProgress({ done: 0, total: 0 })
 
-    const tagged = (obj) => ({
-      ...obj,
-      ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
-      ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
-    })
+    const tagged = (obj) => ({ ...obj, ...scopeTagFor(activePortfolio, activeEntity) }) // FASE OJ
 
     const deleteIds = []
     if (ibkrImportMode === 'replace' && existingItems) {
