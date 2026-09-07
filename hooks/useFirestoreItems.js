@@ -36,6 +36,12 @@ import { planPortfolioDelete } from '@/lib/portfolioDelete'
 //        desde el ledger de trades (IBKR_CLOSED_KEY_PREFIX). Todo mes cacheado
 //        se calculó sin esas filas, y el chequeo de "¿este mes ya se calculó?"
 //        lo da por cubierto, así que sin el bump nunca se volverían a pedir.
+//   v35 (7 sep 2026, FASE OK): vender un ítem estático con destino "Queda en
+//        el portafolio" ya empuja un evento -monto para el ítem VENDIDO
+//        (`indexBalanceEvents` ganó esa rama en su SELL, con OK del usuario).
+//        Todo mes cacheado de un ítem que se vendió así tiene su historia
+//        horneada en $0.00 para todos los meses, y el merge nunca lo corrige
+//        solo.
 
 let _db = null
 let _auth = null
