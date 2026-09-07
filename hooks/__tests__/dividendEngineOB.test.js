@@ -177,7 +177,10 @@ describe('FASE OB: borrar con reversa', () => {
     expect(fakeFirestore.reverseTransfer).toHaveBeenCalledTimes(1)
     const call = fakeFirestore.reverseTransfer.mock.calls[0][0]
     expect(call.fromId).toBe('bank1')
-    expect(call.fromFields).toEqual({ currentPrice: 9500, purchasePrice: 9500 })
+    // FASE OM: la reversa es una foto nueva del saldo, así que sella
+    // `balanceAsOf` igual que cualquier otro movimiento que pasa por
+    // `debitFields`/`creditFields` (lib/transferFields.js).
+    expect(call.fromFields).toEqual({ currentPrice: 9500, purchasePrice: 9500, balanceAsOf: TODAY })
     expect(call.txId).toBe('d1')
     expect(fakeFirestore.deleteTransaction).not.toHaveBeenCalled()
     unmount()

@@ -6,6 +6,10 @@ const { buildSaleTransactions } = require('../../lib/saleTx')
 const { saleReversalPlan } = require('../../lib/saleReversal')
 
 const UID = 'u1'; const P = (c) => `users/${UID}/${c}`
+// El reloj fijo de `bootDashboard` (2026-09-05T15:00:00Z = 09:00 en
+// Guatemala, mismo día calendario), para que `todayLocalISO()` sea
+// determinista en las aserciones de FASE OM.
+const TODAY = '2026-09-05'
 const RATES = { USD: 1, GTQ: 7.7 }
 const convert = (amt, from, to) => (!from || !to || from === to ? amt : amt / RATES[from] * RATES[to])
 
@@ -53,23 +57,26 @@ describe('D. la reversa de saldo razona en la moneda del item, no en la base', (
     await act(async () => { await hook.result.current.deleteTransactionWithReversal('tr1') })
     const [[call]] = ff.reverseTransfer.mock.calls
     expect(call.fromId).toBe('gtq')
-    expect(call.fromFields).toEqual({ currentPrice: 12500, purchasePrice: 12500 })
-    expect(call.toFields).toEqual({ currentPrice: 5000, purchasePrice: 5000 })
+    // FASE OM: `debitFields`/`creditFields` sellan `balanceAsOf` en cada
+    // escritura, incluida la reversa de una transferencia: es una foto nueva
+    // del saldo tan real como cualquier otra.
+    expect(call.fromFields).toEqual({ currentPrice: 12500, purchasePrice: 12500, balanceAsOf: TODAY })
+    expect(call.toFields).toEqual({ currentPrice: 5000, purchasePrice: 5000, balanceAsOf: TODAY })
   })
   it('borrar un aporte _balanceMoved sobre esa cuenta sana NO se rehusa y la deja en Q7,000', async () => {
     const { ff, hook } = bootDashboard({ items: [gtq(), usd()], transactions: [tr, dep] })
     await settle()
     await act(async () => { await hook.result.current.deleteTransactionWithReversal('dep1') })
     expect(ff.reverseTransfer).toHaveBeenCalledTimes(1)
-    expect(ff.reverseTransfer.mock.calls[0][0].fromFields).toEqual({ currentPrice: 7000, purchasePrice: 7000 })
+    expect(ff.reverseTransfer.mock.calls[0][0].fromFields).toEqual({ currentPrice: 7000, purchasePrice: 7000, balanceAsOf: TODAY })
   })
   it('control: una cuenta en la moneda base se comporta igual que siempre', async () => {
     const tr2 = { ...tr, id: 'tr2', symbol: 'BANCO-USD', totalAmount: 300, currency: 'USD', _originItemId: 'usd', _linkedItemId: 'gtq', _toAmount: 2310, _toCurrency: 'GTQ' }
     const { ff, hook } = bootDashboard({ items: [gtq(), usd()], transactions: [tr2] })
     await settle()
     await act(async () => { await hook.result.current.deleteTransactionWithReversal('tr2') })
-    expect(ff.reverseTransfer.mock.calls[0][0].fromFields).toEqual({ currentPrice: 5624.68, purchasePrice: 5624.68 })
-    expect(ff.reverseTransfer.mock.calls[0][0].toFields).toEqual({ currentPrice: 7690, purchasePrice: 7690 })
+    expect(ff.reverseTransfer.mock.calls[0][0].fromFields).toEqual({ currentPrice: 5624.68, purchasePrice: 5624.68, balanceAsOf: TODAY })
+    expect(ff.reverseTransfer.mock.calls[0][0].toFields).toEqual({ currentPrice: 7690, purchasePrice: 7690, balanceAsOf: TODAY })
   })
 })
 
@@ -95,7 +102,10 @@ describe('B. borrar una fila SELL desde el tablero', () => {
     expect(ff.reverseSaleAtomic.mock.calls[0][0]).toEqual({
       itemId: 'aapl', itemFields: { quantity: 10 },
       lotWrites: [{ id: 'l1', fields: { quantity: 10 } }], deleteLotIds: ['l1-closed-2026-08-01-1000000000'],
-      destId: 'bank', destFields: { currentPrice: 1000, purchasePrice: 1000 },
+      // FASE OM: `debitFields` (lib/saleReversal.js usa `debitFields` de
+      // transferFields.js) sella `balanceAsOf` igual que cualquier otra
+      // escritura de saldo.
+      destId: 'bank', destFields: { currentPrice: 1000, purchasePrice: 1000, balanceAsOf: TODAY },
       txIds: ['sell1', 'w1'],
     })
   })
