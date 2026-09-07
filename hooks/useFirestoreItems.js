@@ -144,6 +144,10 @@ async function deleteAllDocsIn(db, fs, path) {
 export function useFirestoreItems() {
   const initCache = readInitCache()
   const [items, setItems] = useState(initCache?.items || [])
+  // Espejo en render, para que `addItem` (deps [uid]) vea los ítems de HOY
+  // sin arrastrar `items` a sus dependencias.
+  const itemsRef = useRef(items)
+  itemsRef.current = items
   const [snapshots, setSnapshots] = useState(initCache?.snapshots || [])
   const [transactions, setTransactions] = useState(initCache?.transactions || [])
   const [alerts, setAlerts] = useState(initCache?.alerts || [])
@@ -285,7 +289,13 @@ export function useFirestoreItems() {
       const { id: _removed, ...raw } = item
       const data = sanitizeImportItem(raw)
       const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
-      await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
+      // FASE OL. Con un id que YA existe (el merge de "Agregar a posición")
+      // esto es un merge sobre el doc: estampar `createdAt: hoy` ahí borraba
+      // cuándo nació el ítem, y `effectiveAcqDate` (lib/historicalValues.js)
+      // cae a `createdAt` cuando no hay fecha de adquisición. Un doc existente
+      // conserva el suyo (o sigue sin él, si nunca lo tuvo).
+      const exists = !!item.id && itemsRef.current.some((it) => it.id === item.id)
+      await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, ...(exists ? {} : { createdAt: new Date().toISOString() }) }, { merge: true })
       return id
     } catch (e) {
       console.error('[addItem] Write failed:', e)

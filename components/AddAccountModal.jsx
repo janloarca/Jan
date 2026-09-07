@@ -7,6 +7,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 import { scopeTagFor } from '@/lib/scopeTag'
+import { mergeCurrencyOf, mergeCurrencyConflict, mergedAcquisitionDate, mergePositionFields } from '@/lib/mergePosition'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
@@ -462,6 +463,21 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // hace disparar `no-acq-date` en el boletín.
     if (!form.acquisitionDate && !guidedType) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
+    // FASE OL. "Agregar a posición" solo puede sumar en la moneda del ítem que
+    // ya existe: la moneda se elige en ESTE paso, después del aviso de
+    // duplicado, y sin este guard Q5,000 + $1,000 se guardaban como $6,000.
+    // Se presiembra al aceptar el merge; si aun así difiere, se rehúsa y se
+    // dicen las dos (nunca se convierte: lib/mergePosition.js).
+    if (duplicateWarning && !isDebt) {
+      const conflict = mergeCurrencyConflict(duplicateWarning, form.currency)
+      if (conflict) {
+        setError(t(
+          `${duplicateWarning.name} está guardado en ${conflict.existing} y esto está en ${conflict.typed}: no se pueden sumar. Elegí ${conflict.existing} para agregar a esa posición, o volvé y creá el activo aparte.`,
+          `${duplicateWarning.name} is saved in ${conflict.existing} and this is in ${conflict.typed}: they cannot be added together. Pick ${conflict.existing} to add to that position, or go back and create it separately.`
+        ))
+        return
+      }
+    }
 
     const qty = effectiveQuantity()
     const price = parseAmount(form.purchasePrice)
@@ -491,6 +507,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         .sort((a, b) => a.date.localeCompare(b.date))
     }
     const effectiveAcqDate = useTimeline ? tlRows[0].date : form.acquisitionDate
+    // La fecha de ESTA compra: la del lote y del DEPOSIT. En un merge el ítem
+    // conserva la suya (la más vieja), así que las dos ya no son la misma cosa.
+    const purchaseDate = effectiveAcqDate || new Date().toISOString().split('T')[0]
 
     setSaving(true)
     try {
@@ -724,31 +743,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         }
       }
 
-      // Merge with existing if duplicate accepted
+      // Merge with existing if duplicate accepted. La aritmética (FASE OA) y
+      // la fecha viven en lib/mergePosition.js, con sus tests; ver la cabecera
+      // de ese módulo para los tres defectos que esto cierra (FASE OL).
       if (duplicateWarning) {
         item.id = duplicateWarning.id
-        if (isMarketAsset && item.quantity > 0) {
-          const oldQty = duplicateWarning.quantity || 0
-          const oldPrice = duplicateWarning.purchasePrice || 0
-          item.quantity = oldQty + qty
-          item.purchasePrice = oldQty + qty > 0 ? (oldQty * oldPrice + qty * price) / (oldQty + qty) : oldPrice
-        } else if (!isMarketAsset && !item.isDebt) {
-          // FASE OA. "Agregar a posicion" sobre un bono/banco/alternativo
-          // sobreescribia el item con el monto NUEVO (un bono de 5,000 al que
-          // se le agregaban 1,000 quedaba en 1,000) y ademas escribia el
-          // DEPOSIT de apertura por el monto completo. Un activo de saldo
-          // tiene cantidad 1 y su monto vive en los precios, asi que agregar
-          // es SUMAR en los dos campos; el deposito (abajo, via isMerge) queda
-          // solo con el dinero que entro ahora.
-          const oldQty = Number(duplicateWarning.quantity) || 1
-          const oldPurchase = (duplicateWarning.purchasePrice || 0) * oldQty
-          const oldCurrent = (duplicateWarning.currentPrice || duplicateWarning.purchasePrice || 0) * oldQty
-          const newCurrent = parseAmount(form.currentPrice) || price
-          item.quantity = 1
-          item.purchasePrice = oldPurchase + price
-          if (item.currentPrice != null || duplicateWarning.currentPrice != null) item.currentPrice = oldCurrent + newCurrent
-          if (duplicateWarning.entryFee && item.entryFee == null) item.entryFee = duplicateWarning.entryFee
-          else if (duplicateWarning.entryFee && item.entryFee != null) item.entryFee = (duplicateWarning.entryFee || 0) + item.entryFee
+        Object.assign(item, mergePositionFields({
+          existing: duplicateWarning, item, isMarketAsset, qty, price,
+          newCurrent: parseAmount(form.currentPrice) || price,
+        }))
+        if (!item.isDebt) {
+          const merged = mergedAcquisitionDate(duplicateWarning.acquisitionDate, purchaseDate)
+          if (merged) item.acquisitionDate = merged
         }
       }
 
@@ -768,7 +774,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       // FASE OJ: la etiqueta de alcance sale de lib/scopeTag.js, la única
       // definición (vivía copiada aquí, en el importador y en el sync de IBKR).
-      Object.assign(item, scopeTagFor(activePortfolio, activeEntity))
+      // FASE OL: en un merge NO se re-etiqueta. El aviso de duplicado busca en
+      // TODOS los ítems (existingItems es la lista completa), así que "agregar
+      // a esa posición" bajo el portafolio A con la posición viviendo en B la
+      // MOVÍA a A con el monto sumado; la posición se queda donde estaba.
+      if (!duplicateWarning) Object.assign(item, scopeTagFor(activePortfolio, activeEntity))
 
       // The user already answered "¿de dónde vino este dinero?" right here in
       // this form — the data-completeness engine (lib/dataCompleteness.js)
@@ -848,7 +858,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             quantity: lotQty,
             costBasis: lotCost,
             currency: item.currency || 'USD',
-            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            acquisitionDate: purchaseDate,
             // Ver el comentario del lote por fila de arriba (FASE OB).
             institution: item.institution || '',
             ...(itemId ? { itemId } : {}),
@@ -884,7 +894,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           await onAddTransaction({
             type: 'DEPOSIT', symbol: item.symbol || '',
             description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}${feeOnEntry > 0 ? ` (${t('incl. corretaje', 'incl. brokerage')})` : ''}`,
-            date: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            date: purchaseDate,
             totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
             ...(itemId ? { _linkedItemId: itemId } : {}),
             ...scopeTagFor('__all__', activeEntity),
@@ -901,7 +911,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (item.isDebt && !duplicateWarning) {
         const debtAmt = (item.quantity || 1) * (item.purchasePrice || 0)
         const debtForTx = { ...item, id: itemId }
-        const proceedsDate = item.acquisitionDate || new Date().toISOString().split('T')[0]
+        const proceedsDate = purchaseDate
         if (debtAmt > 0 && itemId && onAddTransaction && loanProceeds !== 'none') {
           const destAcct = loanProceeds !== 'outside' ? existingItems.find(it => it.id === loanProceeds) : null
           if (destAcct && onExecuteContribution) {
@@ -1147,7 +1157,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
                 <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '-'}): {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => { setStep(2) }}
+                  <button type="button" onClick={() => { set('currency', mergeCurrencyOf(duplicateWarning)); setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 40%, transparent)' }}>
                     <span className="block">{t('Agregar a posición', 'Add to position')}</span>
                     <span className="block text-xs opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
@@ -1181,6 +1191,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
           {/* === STEP 2 === */}
           {step === 2 && (<>
+            {/* FASE OL: en un merge, decir a QUÉ se está agregando, en qué
+                moneda, y que la fecha de abajo es la de ESTE aporte. */}
+            {duplicateWarning && !isDebt && (
+              <div className="p-3 rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 30%, transparent)', color: 'var(--text-secondary)' }}>
+                <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Agregando a', 'Adding to')} {duplicateWarning.name}{duplicateWarning.institution ? ` (${duplicateWarning.institution})` : ''}</span>
+                {' · '}
+                {t(`guardado en ${mergeCurrencyOf(duplicateWarning)}`, `saved in ${mergeCurrencyOf(duplicateWarning)}`)}
+                {duplicateWarning.acquisitionDate ? ` · ${t('conserva su fecha de compra', 'keeps its purchase date')} ${duplicateWarning.acquisitionDate}` : ''}
+                {'. '}
+                {t('La fecha de abajo es la de este aporte.', 'The date below is this contribution\'s.')}
+              </div>
+            )}
             {/* Position details */}
             {isMarketAsset && (
               <div className="grid grid-cols-2 gap-3">
