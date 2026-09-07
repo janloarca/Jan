@@ -1474,3 +1474,67 @@ describe('FASE NR: importar un archivo sin pisar lo de hoy ni borrar nada', () =
     }
   })
 })
+
+// ⛔ FASE OM (extensión de la spec congelada liquidFundYield.js, OK explícito
+// del usuario, 6 sep 2026). Reinvertir en un ítem de SALDO (Bank) es que el
+// interés SUME al saldo: no hay "acciones" que comprar. La rama vieja trataba
+// `originalPrice` como precio POR UNIDAD y hacía `newShares = amount/precio`,
+// que para un fondo de $5,000 pagando $50 produce 0.01: no una fracción de
+// nada, un residuo que corrompe `quantity` un poco más cada mes. Downstream
+// eso rompe dos lecturas que asumen quantity=1 (EditAccountModal, que escribe
+// el precio SIN dividir por cantidad; y esta misma rama, que desplaza precios
+// asumiendo cantidad fija).
+describe('FASE OM: reinvertir en un ítem de saldo no corrompe la cantidad', () => {
+  const fondo = (over = {}) => item({
+    id: 'f1', name: 'Fondo', symbol: 'FONDO', type: 'Bank',
+    quantity: 1, currentPrice: 5000, purchasePrice: 5000, _originalPrice: 5000,
+    currency: 'USD', _originalCurrency: 'USD',
+    acquisitionDate: '2026-06-15', createdAt: '2026-06-15',
+    incomeMode: 'percent', incomeRate: 12, incomePayDay: 1,
+    incomeMonths: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], incomeMonthsExplicit: true,
+    dividendAction: 'reinvest',
+    ...over,
+  })
+
+  async function reinvestido({ items }) {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-01T18:00:00Z'))
+    const { unmount } = setup({ firestore: { items }, prices: { enrichedItems: items } })
+    for (let i = 0; i < 20; i++) await act(async () => { await Promise.resolve() })
+    // Toma la ÚLTIMA escritura de este ítem que trae `purchasePrice`: es la
+    // firma del motor de dividendos, distinta de la de un sanador de cantidad
+    // (`resurrectedBalanceFixes`/`zeroQuantityBalanceFixes`), que solo escribe
+    // `{quantity}` a secas y puede correr antes en la misma pasada.
+    const patch = fakeFirestore.updateItem.mock.calls
+      .map(([id, fields]) => (id === 'f1' ? fields : null))
+      .filter((f) => f && 'purchasePrice' in f)
+      .pop() || null
+    unmount()
+    jest.useRealTimers()
+    return patch
+  }
+
+  it('los dos precios se desplazan por el interés del mes, como un aporte', async () => {
+    const patch = await reinvestido({ items: [fondo()] })
+    expect(patch).not.toBeNull()
+    // 12% anual / 12 meses sobre $5,000 = $50.
+    expect(patch.purchasePrice).toBeCloseTo(5050, 6)
+    expect(patch.currentPrice).toBeCloseTo(5050, 6)
+  })
+
+  it('la cantidad se queda en 1: el patch no la reescribe', async () => {
+    const patch = await reinvestido({ items: [fondo()] })
+    expect(patch.quantity).toBeUndefined()
+  })
+
+  // REGRESIÓN NEGATIVA (documentada, no ejecutable sin revertir el código): la
+  // rama vieja hacía `newShares = amount/originalPrice` = 50/5000 = 0.01 y
+  // escribía `quantity: qty + newShares` = 1.01. Verificado con dientes
+  // revirtiendo `isBankLikeItem(it)` a `false` en el guard: las dos
+  // aserciones de arriba fallan (el patch no trae `purchasePrice`/
+  // `currentPrice`, sino `quantity: 1.01`).
+
+  it('una cantidad ya rota (0) se normaliza a 1 en vez de multiplicar el residuo', async () => {
+    const patch = await reinvestido({ items: [fondo({ quantity: 0 })] })
+    expect(patch.quantity).toBe(1)
+  })
+})

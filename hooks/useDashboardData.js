@@ -37,6 +37,7 @@ import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
 import { zeroQuantityBalanceFixes, resurrectedBalanceFixes } from '@/lib/zeroQuantityHeal'
+import { isBankLikeItem, balanceQuantityPatch } from '@/lib/contributions'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
@@ -1011,6 +1012,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // pago 1 acreditaba un mes COMPLETO el 1 de septiembre por once días
           // de tenencia. Solo las ramas de TASA; un monto fijo es contractual y
           // se paga entero (ver la cabecera de esa función).
+          // ⛔ FASE OM (extensión de liquidFundYield.js, OK explícito del
+          // usuario). El devengo diario mira esto SOLO cuando el ingreso se
+          // REINVIERTE en la propia cuenta: ahí el devengo del mes vuelve a
+          // sumarse sobre el MISMO saldo que la foto acaba de sellar, así que
+          // si la foto cayó a mitad de este mes hay que devengar solo los días
+          // de después (ver dailyAccrual.js). En destino-a-otra-cuenta no
+          // aplica: ese pago es un evento discreto que llega completo o no
+          // llega, decidido por `credited` más abajo contra el sello del
+          // DESTINO, no del origen. `accrualCutoff` se queda en `null` fuera
+          // de ese caso; ver el nombre `accrualBalanceAsOf` más abajo.
+          let accrualCutoff = null
+          if (it.dividendAction === 'reinvest') accrualCutoff = it.balanceAsOf
           amount = monthlyIncomeAmount({
             balance, qty,
             // FASE OC: el predicado vive en utils y lo comparten la
@@ -1023,6 +1036,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             rateType: it.rateType, rateMin: it.rateMin, rateMax: it.rateMax,
             accrual: it.accrual, acquisitionDay: acqDay, payDate: dateStr,
             incomeMonths: payMonths, incomePayDay: it.incomePayDay || 1,
+            accrualBalanceAsOf: accrualCutoff,
           }, payMonths.length || 12)
 
           // Net recurring fees out of each payment so the income reflects what
@@ -1082,7 +1096,38 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // efecto.
           dividendsPaidRef.current.add(paidKey)
 
-          if (isReinvest) {
+          if (isReinvest && isBankLikeItem(it)) {
+            // ⛔ FASE OM (extensión de liquidFundYield.js, OK explícito del
+            // usuario el 6 sep 2026). Para un ítem de SALDO, "reinvertir" es
+            // que el interés SUMA al saldo (el saldo ES el precio): no hay
+            // "acciones" que comprar. La rama de abajo trataba `originalPrice`
+            // como un precio POR UNIDAD y hacía `newShares = amount/precio`,
+            // que para un fondo de $5,000 pagando $50 da 0.01 — no una
+            // fracción de nada, un residuo que corrompe `quantity` un poco
+            // más cada mes (1, 1.01, 1.02...). Downstream, esa cantidad
+            // drifteada rompe DOS lecturas que asumen quantity=1: el guardado
+            // directo de EditAccountModal (que escribe precio SIN dividir por
+            // cantidad) y esta misma rama de contribución
+            // (`buildContributionFields`, que desplaza precios asumiendo
+            // cantidad fija). Acá se desplazan los DOS precios por el monto,
+            // igual que un aporte manual, y la cantidad se normaliza solo si
+            // ya estaba rota (nunca se pisa una cantidad legítima != 1, la
+            // misma regla que ese motor comparte).
+            //
+            // Nota: NO se usa `buildContributionFields`, que además sella la
+            // foto con HOY. Reseñarla en cada corrida automática rompería el
+            // prorrateo de FASE OM en un backfill de varios meses: el mes 2
+            // vería ese sello en el futuro relativo a su propia fecha y se
+            // devengaría en cero. Este escritor deja el campo intacto, a
+            // propósito, y nunca lo toca.
+            const oldPurchase = Number(it.purchasePrice) || 0
+            const nextCurrent = Math.max(0, originalPrice + amount)
+            await updateItem(it.id, {
+              purchasePrice: Math.max(0, oldPurchase + amount),
+              currentPrice: nextCurrent,
+              ...balanceQuantityPatch(it, nextCurrent),
+            })
+          } else if (isReinvest) {
             const priceForReinvest = originalPrice > 0 ? originalPrice : 1
             const newShares = amount / priceForReinvest
             await updateItem(it.id, { quantity: qty + newShares })
