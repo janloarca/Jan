@@ -73,7 +73,7 @@ export default function SpreadsheetPage() {
 
   const {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
-    snapshots, addItem, updateItem, deleteItem, portfolioItems, convert, rates,
+    snapshots, addItem, addItemInScope, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
     addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
     addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
@@ -438,7 +438,7 @@ export default function SpreadsheetPage() {
           onDelete={deleteItem} existingItems={items} lang={lang}
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
           onDeleteTransaction={deleteTransactionWithReversal} onUpdateTransaction={updateTransactionWithReversal}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           transactions={transactions} lots={lots} baseCurrency={baseCurrency} convert={convert} />
       )}
       </ModalMount>
@@ -450,7 +450,7 @@ export default function SpreadsheetPage() {
           onAdd={addItem}
           onAddTransaction={addTransaction}
           onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           existingItems={items}
           lang={lang}
           defaults={addModalDefaults}
