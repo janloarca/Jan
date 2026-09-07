@@ -22,6 +22,7 @@ import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
+import { useAutoDisarm } from '@/hooks/useAutoDisarm'
 import DiscardHint from '@/components/ui/DiscardHint'
 
 const ACCOUNT_TYPES = [
@@ -159,6 +160,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // FASE ND: sin esto el "Confirmar" quedaba armado para siempre: tocar
+  // Eliminar por error dejaba el borrado a un toque el resto de la edición.
+  useAutoDisarm(confirmDelete, () => setConfirmDelete(false))
   // Same tap-to-confirm pattern as deleting the whole account, but scoped to
   // one row: a duplicate (e.g. a double-submitted backfill) needs a way to
   // remove just that one movement without leaving the modal.
@@ -2059,8 +2063,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               every accordion, even with Rendimiento expanded. Stacks on mobile
               (Eliminar+total on top, Cancelar/Guardar full-width below) so four
               controls don't get squeezed onto one 375px-wide row. */}
-          <div className="sticky bottom-0 -mx-6 -mb-6 mt-2 px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-b-[20px]"
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-2 px-6 py-4 rounded-b-[20px]"
             style={{ background: 'var(--bg-card)', backdropFilter: 'var(--glass-blur-strong)', WebkitBackdropFilter: 'var(--glass-blur-strong)', borderTop: '1px solid var(--card-border,#38383A)' }}>
+            {/* FASE ND: la consecuencia del borrado (qué activos quedan
+                desvinculados) vivía DESPUÉS de esta barra en el DOM, o sea
+                debajo del pliegue: armar "Confirmar" no la mostraba nunca.
+                Dentro de la barra sticky es visible por construcción, arriba
+                del botón que la ejecuta. */}
+            {confirmDelete && referencedBy.length > 0 && (
+              <div className="mb-3 p-3 border rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)' }}>
+                {t('Estos activos reciben pagos de este activo y serán desvinculados:', 'These assets receive payments from this asset and will be unlinked:')}
+                <ul className="mt-1 space-y-0.5">
+                  {referencedBy.map(it => <li key={it.id}>• {it.name || it.symbol}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="flex items-center gap-3 order-2 sm:order-1">
               <button type="button" onClick={handleDelete}
                 className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
@@ -2122,17 +2140,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 {<BusyLabel busy={saving} lang={lang}>{onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}</BusyLabel>}
               </button>
             </div>
-          </div>
-
-          {/* Delete warning */}
-          {confirmDelete && referencedBy.length > 0 && (
-            <div className="p-3 border rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)' }}>
-              {t('Estos activos reciben pagos de este activo y serán desvinculados:', 'These assets receive payments from this asset and will be unlinked:')}
-              <ul className="mt-1 space-y-0.5">
-                {referencedBy.map(it => <li key={it.id}>• {it.name || it.symbol}</li>)}
-              </ul>
             </div>
-          )}
+          </div>
         </form>
       </div>
     </div>

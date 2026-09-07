@@ -37,9 +37,15 @@ export default function NotificationCenter({ items, transactions, lang, settings
       if (notifMaturity && it.maturityDate) {
         const info = getMaturityInfo(it)
         if (info && !info.expired && info.days <= 90) {
+          // FASE ND: la escalada URGENTE (<=30 días) lleva id propio. Con un
+          // solo id, descartar el aviso de "vence en 3 meses" silenciaba
+          // también el de "vence en 3 DÍAS", que es el que no puede perderse.
+          // El id pelado se conserva para la variante warning a propósito:
+          // los descartes ya guardados en localStorage siguen valiendo.
+          const urgent = info.days <= 30
           notifs.push({
-            id: `mat-${it.id}`,
-            type: info.days <= 30 ? 'urgent' : 'warning',
+            id: urgent ? `mat-${it.id}-urgent` : `mat-${it.id}`,
+            type: urgent ? 'urgent' : 'warning',
             icon: '📅',
             textEs: `${it.name || it.symbol} vence en ${info.label}`,
             textEn: `${it.name || it.symbol} matures in ${info.label}`,
@@ -53,8 +59,13 @@ export default function NotificationCenter({ items, transactions, lang, settings
         const lastVal = new Date(it.lastValuationDate)
         const daysSince = Math.floor((now - lastVal) / 86400000)
         if (daysSince > 180) {
+          // FASE ND: el descarte era PERMANENTE (el id no cambiaba nunca), o
+          // sea "recuérdamelo después" no existía: una valuación que envejece
+          // otro medio año volvía a estar igual de vieja y el aviso jamás
+          // regresaba. El bucket de 180 días hace que cada medio año adicional
+          // sea un aviso nuevo; dentro del mismo bucket el descarte persiste.
           notifs.push({
-            id: `val-${it.id}`,
+            id: `val-${it.id}-${Math.floor(daysSince / 180)}`,
             type: 'info',
             icon: '📊',
             textEs: `${it.name || it.symbol}: valuación manual tiene ${Math.floor(daysSince / 30)} meses`,
@@ -105,8 +116,14 @@ export default function NotificationCenter({ items, transactions, lang, settings
         return s + amt
       }, 0)
       const shown = formatCurrency(totalDiv, single || base)
+      // FASE ND: el id era la constante `div-recent`, así que UN descarte
+      // mataba la categoría entera para siempre: el cupón del próximo semestre
+      // nunca volvía a anunciarse. Llavear por la fecha del pago más reciente
+      // hace que un pago NUEVO sea un aviso nuevo, y descartar el actual siga
+      // descartado mientras no entre dinero nuevo.
+      const latestDiv = recentDivs.reduce((m, tx) => (tx.date > m ? tx.date : m), '')
       notifs.push({
-        id: `div-recent`,
+        id: `div-recent-${latestDiv}`,
         type: 'positive',
         icon: '💰',
         textEs: `${recentDivs.length} dividendo(s) recibido(s) esta semana: ${shown}`,
@@ -176,6 +193,15 @@ export default function NotificationCenter({ items, transactions, lang, settings
           </div>
         )
       })}
+      {/* FASE ND: el corte en 5 era mudo. Un aviso escondido y uno inexistente
+          se ven igual desde afuera; con el conteo, al menos se sabe que hay
+          más (descartar los de arriba los va revelando). */}
+      {notifications.length > 5 && (
+        <p className="px-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {t(`+${notifications.length - 5} avisos más: descarta los de arriba para verlos`,
+             `+${notifications.length - 5} more notices: dismiss the ones above to see them`)}
+        </p>
+      )}
     </div>
   )
 }
