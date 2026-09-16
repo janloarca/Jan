@@ -17,7 +17,12 @@ import { suggestCategoryForLabel } from '@/lib/merchantLabels'
 // vez ese cobro entra clasificado y además se puede mostrar "DONALD · mecánico"
 // en vez de un código de banco.
 
-export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual = null, lang = 'es' }) {
+// `model` (opcional): la taxonomía del usuario resuelta
+// (lib/financeCategoryModel). Cuando llega, las fichas son las que el usuario
+// de verdad tiene — incluidas las que agregó y sin las que escondió — y con SUS
+// rótulos. Sin él, el comportamiento es el de siempre: las de fábrica, en
+// español. Es opcional para que ningún caller viejo cambie de conducta.
+export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual = null, lang = 'es', model = null }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [label, setLabel] = useState(tx?.userLabel || '')
   // FASE LJ. La marca de pago anual/semestral. Aplica AL INSTANTE con su
@@ -30,7 +35,19 @@ export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual =
   const inputRef = useRef(null)
   const boxRef = useRef(null)
 
-  const categories = tx?.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE
+  const side = tx?.type === 'INCOME' ? 'INCOME' : 'EXPENSE'
+  // La categoría VIGENTE de esta fila entra siempre a la lista aunque esté
+  // escondida del selector: si no, la única forma de ver cuál tiene puesta
+  // sería no tocarla, y esconder habría escondido un dato.
+  const categories = model
+    ? (() => {
+      const picks = model.pickable(side)
+      return picks.some((c) => c.key === tx?.category) || !tx?.category
+        ? picks
+        : [model.entry(tx.category) || { key: tx.category, label: tx.category, labelEn: tx.category, color: 'var(--text-muted)' }, ...picks]
+    })()
+    : (tx?.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE)
+      .map((c) => ({ key: c, label: c, labelEn: c, color: CATEGORY_COLORS[c] || 'var(--text-muted)' }))
   // Solo se sugiere sobre gasto: no hay tabla de oficios para un ingreso, y
   // proponer algo ahí sería inventar.
   const suggestion = tx?.type === 'INCOME' ? null : suggestCategoryForLabel(label)
@@ -109,16 +126,16 @@ export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual =
         <div className="flex flex-wrap gap-1">
           {categories.map((cat) => (
             <button
-              key={cat}
-              onClick={() => apply(cat)}
+              key={cat.key}
+              onClick={() => apply(cat.key)}
               className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md text-xs border transition-colors hover:bg-theme-elevated"
               style={{
-                borderColor: cat === tx?.category ? 'var(--accent-blue)' : 'var(--card-border)',
+                borderColor: cat.key === tx?.category ? 'var(--accent-blue)' : 'var(--card-border)',
                 color: 'var(--text-secondary)',
               }}
             >
-              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[cat] || 'var(--text-muted)' }} />
-              {cat}
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color || 'var(--text-muted)' }} />
+              {lang === 'es' ? cat.label : (cat.labelEn || cat.label)}
             </button>
           ))}
         </div>
