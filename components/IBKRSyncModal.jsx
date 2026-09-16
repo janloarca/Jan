@@ -7,12 +7,15 @@ import { formatDate } from '@/components/dashboard/utils'
 import { CheckCircle, Lock, ChevronDown, ChevronUp, Upload, RefreshCw, Info } from 'lucide-react'
 import { parseIBKRFile, formatIBKRFileResult, detectIBKRFileKind, pickSectionedCsvFromWorkbook } from '@/lib/parsers/ibkrFileParser'
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { authFetch } from '@/lib/authFetch'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { normalizeIbkrCredentials, ibkrCredentialMessage } from '@/lib/ibkrCredentials'
+import { retryCannotFix, ibkrFixActionLabel, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -50,6 +53,27 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
       </p>
     </div>
   )
+}
+
+// El desglose que alimenta TODOS los avisos post-import (multi-cuenta, cero
+// depositos, historial corto, la caja forense). Vive a nivel de modulo porque
+// las DOS ramas que escriben `result` lo necesitan y dos copias es como una se
+// queda atras: la del camino de ARCHIVO no lo tenia, asi que `sections` quedaba
+// null, `hasWarnings` falso, y el modal se autocerraba a los 5s anunciando
+// "Sincronizacion exitosa" sobre un import al que le faltaban secciones.
+function importBreakdown(data, accounts) {
+  const tx = data.transactions || []
+  const count = (types) => tx.filter((t) => types.includes((t.type || '').toUpperCase())).length
+  const eq = data.equityHistory || []
+  return {
+    equityOldest: eq.reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
+    sections: data.sections || null,
+    impTrades: count(['BUY', 'SELL']),
+    impFlows: count(['DEPOSIT', 'WITHDRAWAL']),
+    impDividends: count(['DIVIDEND']),
+    impFees: count(['FEE', 'TAX', 'INTEREST']),
+    accounts: accounts || data.accounts || [],
+  }
 }
 
 function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
@@ -216,7 +240,7 @@ function DoneStep({ result, onClose, onComplementFile, credWarning, t }) {
   )
 }
 
-export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
+export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, savedQueryId, vaultMigrated = false, syncSummary = null, onSaveCredentials, onSaveCredentialsPending, onApiSyncSuccess, onDisconnect, lang = 'es', uid, lastSyncTime, cooldownUntil = 0, onSyncFailure, existingItems = [], existingTransactions = [], existingSnapshots = [], journeyActive = false }) {
   const trapRef = useFocusTrap()
   // Connected = a usable token (legacy client copy OR migrated to the server
   // vault) AND a query id. Mirrors ibkrConnected in useDashboardData: judging by
@@ -232,6 +256,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   const [result, setResult] = useState(null)
   const [preview, setPreview] = useState(null)
   const [syncMode, setSyncMode] = useState('merge')
+  // ⛔ FASE NR. La elección MANUAL manda (misma lección que FASE LH en
+  // FileImportModal): sin la ref, el efecto que recomienda 'enrich' volvería a
+  // pisar lo que el usuario acaba de tocar en cuanto cambie la identidad de
+  // `existingItems`, y esa identidad cambia con cada eco del listener.
+  const syncModeTouchedRef = useRef(false)
   const [decrypting, setDecrypting] = useState(false)
   // True when the Flex token lives in the server-side vault (settings/ibkr), so a
   // sync can run with '__stored__' without the client ever handling the token.
@@ -394,13 +423,48 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   }
 
   const handleSync = useCallback(async () => {
-    // Use the typed token, or '__stored__' to sync from the server vault without the
-    // client ever handling the token.
-    const typed = token.trim()
-    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
-    if (!effToken || !queryId.trim()) {
-      setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
+    // ⛔ FASE NR. 'enrich' es un modo de ARCHIVO y no puede sobrevivir a un
+    // cambio de camino: el modal se reusa, así que subir un archivo, elegir
+    // "Completar" y después sincronizar por API dejaría el sync en vivo sin
+    // pisar precios ni limpiar posiciones vendidas, que es justo lo contrario
+    // de lo que un sync por API tiene que hacer.
+    const apiMode = syncMode === 'enrich' ? 'merge' : syncMode
+    if (syncMode === 'enrich') { setSyncMode('merge'); syncModeTouchedRef.current = false }
+    // ⛔ La MISMA validación de forma que la primera conexión, y no un chequeo
+    // de "no vacío" como antes. Esta es la puerta de quien YA está conectado y
+    // viene a cambiar credenciales, o sea justo el momento de pegar el token en
+    // el campo del Query ID: sin esto ese error salía a la red y gastaba un
+    // intento fallido, que es la moneda con la que se compra el bloqueo de
+    // IBKR. El servidor tampoco lo atajaba: acepta cualquier alfanumérico de
+    // hasta 50 caracteres como Query ID, y un Flex Token pasa ese filtro.
+    const creds = normalizeIbkrCredentials({ token, queryId, hasVaultCreds })
+    if (!creds.ok) {
+      setError(ibkrCredentialMessage(creds.reason, lang))
       setShowConfig(true)
+      return
+    }
+    // Los valores NORMALIZADOS, nunca los del formulario: un espacio invisible
+    // al final de un token pegado se guarda y mata cada sync posterior.
+    const typed = creds.typedToken
+    const effToken = creds.token
+    // ⛔ El enfriamiento protegía el pill del header y NO este modal, que es de
+    // donde salen "Reintentar" y "Sincronizar ahora": o sea la superficie con
+    // los botones más prominentes se saltaba entera la única defensa contra el
+    // lazo error → toque → error que termina en bloqueo. Va acá, en el punto
+    // ÚNICO por el que pasan los tres botones, y no en cada uno: así el próximo
+    // botón que alguien agregue lo hereda en vez de volver a abrir el hueco.
+    //
+    // Un token RECIÉN TECLEADO se salta la espera a propósito: el enfriamiento
+    // existe para frenar la repetición del MISMO intento, y una credencial
+    // nueva es información nueva. Sin esta excepción, un bloqueo de una hora
+    // dejaría al usuario sin poder ni siquiera probar el token que acaba de
+    // generar, que es justo el arreglo que le estamos pidiendo.
+    const waitMs = typed ? 0 : ibkrCooldownRemainingMs(cooldownUntil)
+    if (waitMs > 0) {
+      setError(lang === 'es'
+        ? `IBKR nos pidió esperar. Lo reintentamos ${formatCooldown(waitMs, lang)}.`
+        : `IBKR asked us to wait. We will retry ${formatCooldown(waitMs, lang)}.`)
+      if (isConnected) { setStep('connected') } else { setShowConfig(true) }
       return
     }
     setSyncing(true)
@@ -416,7 +480,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
     try {
       const { syncIBKR } = await import('@/lib/ibkrSync')
 
-      const data = await syncIBKR(effToken, queryId.trim(), {
+      const data = await syncIBKR(effToken, creds.queryId, {
         signal: controller.signal,
         onStatus: (status, current, total) => {
           setSyncStatus(status)
@@ -432,10 +496,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           // FASE KC: lanza si el servidor no confirmó, en vez de marcar
           // `_ibkrVaultMigrated` sobre un vault vacío (que deja a la app
           // diciendo "conectado" y sincronizando con '__stored__' para siempre).
-          await saveIbkrCredentials(typed, queryId.trim())
+          await saveIbkrCredentials(typed, creds.queryId)
           setHasVaultCreds(true)
           setCredWarning('')
-          onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+          onSaveCredentials?.({ ibkrToken: null, ibkrQueryId: creds.queryId, _ibkrVaultMigrated: true })
         } catch (e) {
           // El sync SÍ funcionó y los datos ya entraron, así que esto no es un
           // fallo de la importación: es que no pudimos recordar el token. Va en
@@ -451,23 +515,15 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       // here, so a CSV workaround correctly leaves a real LOCKED state in place.
       onApiSyncSuccess?.()
 
-      if (syncMode === 'merge' && onSyncComplete) {
+      if (apiMode === 'merge' && onSyncComplete) {
         // Skip preview for merge mode — go straight to done
         setSyncStatus('importing')
         await onSyncComplete(data, 'merge')
-        const _tx = data.transactions || []
-        const _c = (types) => _tx.filter((t) => types.includes((t.type || '').toUpperCase())).length
         setResult({
           items: data.items.length,
           transactions: data.transactions.length,
           equityHistory: (data.equityHistory || []).length,
-          equityOldest: (data.equityHistory || []).reduce((min, e) => (!min || (e.date && e.date < min)) ? e.date : min, null),
-          sections: data.sections || null,
-          impTrades: _c(['BUY', 'SELL']),
-          impFlows: _c(['DEPOSIT', 'WITHDRAWAL']),
-          impDividends: _c(['DIVIDEND']),
-          impFees: _c(['FEE', 'TAX', 'INTEREST']),
-          accounts: data.accounts || [],
+          ...importBreakdown(data),
           syncedAt: data.syncedAt,
           mode: 'merge',
         })
@@ -486,6 +542,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       } else {
         setError(err.message || t('Error conectando con IBKR.', 'Error connecting to IBKR.'))
         setErrorCode(err.errorCode || '')
+        // Un fallo de ESTA pantalla también arma el enfriamiento: antes solo lo
+        // hacía el pill, así que sincronizar desde el modal era invisible para
+        // toda la protección aunque gastara exactamente el mismo intento real
+        // contra IBKR.
+        onSyncFailure?.(err.errorCode || 'UNKNOWN')
         if (isConnected) { setStep('connected') } else { setShowConfig(true) }
         if (ibkrHistory.items.length > 0) setShowHistory(true)
       }
@@ -495,7 +556,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setPollProgress(null)
       abortRef.current = null
     }
-  }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, ibkrHistory.items.length, isConnected])
+  }, [token, hasVaultCreds, queryId, onSaveCredentials, onApiSyncSuccess, onSyncComplete, uid, syncMode, t, lang, ibkrHistory.items.length, isConnected, cooldownUntil, onSyncFailure])
 
   // FASE GQ: the FIRST-time connect used to block on the live Flex round trip
   // (up to ~90s of polling, per SyncStepper above) before the user could do
@@ -515,37 +576,22 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // FASE HX) needs `_ibkrConnectedAt` to be the ONLY thing that changes on
   // this path.
   const handleQuickConnect = useCallback(async () => {
-    const typed = token.trim()
-    const effToken = typed || (hasVaultCreds ? '__stored__' : '')
-    if (!effToken || !queryId.trim()) {
-      setError(t('Ingresa tu token y Query ID.', 'Enter your token and Query ID.'))
-      setShowConfig(true)
-      return
-    }
     // Validación de FORMA antes de la pantalla "Credenciales guardadas ✓": ese
     // check verde promete que el sync va a correr solo, así que unas
-    // credenciales que no PUEDEN funcionar no deben llegar ahí. Un Query ID es
-    // un número corto (p.ej. 1603751); letras significan que se pegó otra cosa,
-    // y 15+ dígitos son la firma de haber pegado el TOKEN en el campo
-    // equivocado. El token es una cadena larga: menos de 15 caracteres es un
-    // pegado truncado. Nada de esto llama a IBKR (cero intentos gastados: los
+    // credenciales que no PUEDEN funcionar no deben llegar ahí. La regla vive
+    // en lib/ibkrCredentials.js y la consultan las TRES puertas (acá,
+    // handleSync, y el wizard de ConnectionsModal): tenerla en una sola era
+    // exactamente por qué un usuario ya conectado no recibía ninguna
+    // validación. Nada de esto llama a IBKR (cero intentos gastados: los
     // intentos fallidos son la moneda con la que se compra el bloqueo).
-    const qid = queryId.trim()
-    if (!/^\d+$/.test(qid) || qid.length > 14) {
-      setError(/^\d+$/.test(qid)
-        ? t('Ese Query ID se ve demasiado largo: parece el token. El Query ID es el número corto de tu Flex Query (p.ej. 1603751).',
-            'That Query ID looks too long: it looks like the token. The Query ID is your Flex Query\'s short number (e.g. 1603751).')
-        : t('El Query ID solo lleva números (p.ej. 1603751). Revisa que no hayas pegado otra cosa.',
-            'The Query ID is numbers only (e.g. 1603751). Check you did not paste something else.'))
+    const creds = normalizeIbkrCredentials({ token, queryId, hasVaultCreds })
+    if (!creds.ok) {
+      setError(ibkrCredentialMessage(creds.reason, lang))
       setShowConfig(true)
       return
     }
-    if (typed && typed.length < 15) {
-      setError(t('Ese token se ve demasiado corto: un Flex Token tiene 15+ caracteres. Copia el token completo desde IBKR.',
-                 'That token looks too short: a Flex Token is 15+ characters. Copy the full token from IBKR.'))
-      setShowConfig(true)
-      return
-    }
+    const typed = creds.typedToken
+    const effToken = creds.token
     setSyncing(true)
     setError('')
     setErrorCode('')
@@ -554,17 +600,17 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         // FASE KC: si esto lanza, el catch de abajo deja al usuario en el paso
         // de configuración con el error. Antes se seguía derecho a la pantalla
         // "Credenciales guardadas" después de no guardarlas.
-        await saveIbkrCredentials(typed, queryId.trim())
+        await saveIbkrCredentials(typed, creds.queryId)
         setHasVaultCreds(true)
       }
-      onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: queryId.trim(), _ibkrVaultMigrated: true })
+      onSaveCredentialsPending?.({ ibkrToken: null, ibkrQueryId: creds.queryId, _ibkrVaultMigrated: true })
       setStep('journey-saved')
     } catch (err) {
       setError(err.message || t('No se pudieron guardar las credenciales. Intenta de nuevo.', 'Could not save credentials. Try again.'))
     } finally {
       setSyncing(false)
     }
-  }, [token, hasVaultCreds, queryId, uid, onSaveCredentialsPending, t])
+  }, [token, hasVaultCreds, queryId, uid, onSaveCredentialsPending, t, lang])
 
   const handleCancel = useCallback(() => {
     if (abortRef.current) {
@@ -632,7 +678,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
         ))
       }
 
-      setPreview(data)
+      // ⛔ FASE NR. La marca viaja en el PREVIEW y no se deduce de `importMode`
+      // al renderizar: esa pestaña es un estado de UI que el usuario puede
+      // mover después de que el archivo se leyó, y de qué camino salieron estos
+      // datos es un hecho del momento en que se leyeron.
+      setPreview({ ...data, _fromFile: true })
       setSelectedAccounts(null)
       setStep('preview')
     } catch (err) {
@@ -641,6 +691,25 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       setSyncing(false)
     }
   }, [t, syncMode, onSyncComplete])
+
+  // ⛔ FASE NR. Ensayo del match, con la MISMA función que corre la importación,
+  // para que la recomendación sea evidencia y no una corazonada: "encontramos N
+  // de estas posiciones" en vez de pedirle al usuario que adivine cuál modo es
+  // seguro. Puro, sin escrituras.
+  const enrichMatched = useMemo(() => {
+    if (!preview?._fromFile || !preview?.items?.length) return 0
+    return reconcileBrokerPositions({
+      incoming: preview.items,
+      existing: existingItems || [],
+      source: 'ibkr',
+      mode: 'enrich',
+    }).matched
+  }, [preview, existingItems])
+
+  useEffect(() => {
+    if (syncModeTouchedRef.current) return
+    if (preview?._fromFile) setSyncMode(enrichMatched > 0 ? 'enrich' : 'merge')
+  }, [preview, enrichMatched])
 
   const handleFileDrop = useCallback((e) => {
     e.preventDefault()
@@ -680,6 +749,10 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
       accounts: activeAccounts,
     } : preview
 
+    // ⛔ FASE NR. 'enrich' solo tiene sentido sobre un archivo. El modal se
+    // reusa entre los dos caminos, así que se acota acá: un preview que no
+    // salió de un archivo jamás confirma en ese modo.
+    const confirmMode = (syncMode === 'enrich' && !preview._fromFile) ? 'merge' : syncMode
     const totalItems = dataToImport.items.length + dataToImport.transactions.length + (dataToImport.equityHistory || []).length
     const timeoutMs = Math.max(120000, totalItems * 1500)
     const MAX_RETRIES = 1
@@ -691,7 +764,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           setTimeout(() => reject(new Error(t('La importación tardó demasiado. Intenta de nuevo.', 'Import took too long. Please try again.'))), timeoutMs)
         )
         await Promise.race([
-          onSyncComplete(dataToImport, syncMode, (done, total) => {
+          onSyncComplete(dataToImport, confirmMode, (done, total) => {
             progress.done = done
             progress.total = total
             setImportProgress({ done, total })
@@ -702,9 +775,13 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
           items: dataToImport.items.length,
           transactions: dataToImport.transactions.length,
           equityHistory: (dataToImport.equityHistory || []).length,
-          accounts: activeAccounts,
+          // El MISMO desglose que la rama de API: sin el, ningun aviso se
+          // mostraba en el camino de archivo y el modal se cerraba solo.
+          // Se calcula sobre dataToImport (lo que de verdad entro, ya filtrado
+          // por las cuentas activas) y no sobre el preview completo.
+          ...importBreakdown(dataToImport, activeAccounts),
           syncedAt: dataToImport.syncedAt || new Date().toISOString(),
-          mode: syncMode,
+          mode: confirmMode,
         })
         setStep('done')
         return
@@ -807,7 +884,12 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
   // Reintentar durante un bloqueo lo REFRESCA: cada intento cuenta como otro
   // intento fallido. Ofrecer el botón acá es ofrecer la única acción que
   // garantiza que el bloqueo no se levante.
-  const retryFeedsLockout = errorCode === 'LOCKED'
+  // ⛔ La MISMA pregunta que se hace el pill del header, y no una copia con
+  // otro alcance: antes esto solo cubría LOCKED, así que sobre un token vencido
+  // el botón más prominente del modal seguía diciendo "Reintentar" y cada toque
+  // gastaba otro intento fallido, que es la moneda con la que se compra el
+  // bloqueo de IBKR.
+  const retryFeedsLockout = retryCannotFix(errorCode)
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ibkr-modal-title">
@@ -866,7 +948,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 <div className="mt-2 flex items-center gap-4">
                   {retryFeedsLockout ? (
                     <button onClick={() => { setStep('config'); setShowConfig(true) }} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
-                      {t('Pegar un token nuevo', 'Paste a new token')} →
+                      {ibkrFixActionLabel(errorCode, lang)} →
                     </button>
                   ) : (
                     <button onClick={handleSync} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
@@ -972,7 +1054,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   <button onClick={() => { setStep('config'); setShowConfig(true) }}
                     className="w-full py-3 rounded-xl transition-all text-sm font-medium flex items-center justify-center gap-2"
                     style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
-                    {t('Pegar un token nuevo', 'Paste a new token')}
+                    {ibkrFixActionLabel(errorCode, lang)}
                   </button>
                   <button onClick={handleSync}
                     className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
@@ -1262,14 +1344,20 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     </p>
                   </div>
 
-                  {/* Activity Statement is the recommended source: it carries the full
-                      NAV history + dated trades + deposits + fees, so it fixes the
-                      "returns start from today" case when the Flex Query lacks Equity
-                      Summary. */}
+                  {/* FASE KE ya habia determinado que el Activity Statement NO trae
+                      serie diaria de NAV (su "Change in NAV" es un bloque de resumen,
+                      no una tabla con fecha) y corrigio el texto del rescate de
+                      arriba. ESTE bloque se quedo con la afirmacion vieja, asi que el
+                      mismo archivo decia las dos cosas: la linea 111 "no trae el valor
+                      diario" y esta "trae el historial de valor completo", ademas
+                      RECOMENDANDOLO. Quien leia esta bajaba el archivo equivocado y
+                      volvia al mismo problema. Lo que si trae, y por lo que vale la
+                      pena, son las operaciones con fecha, los depositos y las
+                      comisiones. */}
                   <div className="px-3 py-2.5 rounded-lg text-xs leading-relaxed"
                     style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--text-secondary)' }}>
-                    <span className="font-semibold" style={{ color: 'var(--accent-blue)' }}>{t('Recomendado: Activity Statement.', 'Recommended: Activity Statement.')}</span>
-                    <span> {t('Es el que trae el historial de valor completo para que tus retornos midan todo el año.', 'It brings the full value history so your returns measure the whole year.')}</span>
+                    <span className="font-semibold" style={{ color: 'var(--accent-blue)' }}>{t('Para el historial de valor: el Flex Query en XML.', 'For the value history: the Flex Query in XML.')}</span>
+                    <span> {t('Es el único que trae el valor diario de tu cuenta, con la sección "Net Asset Value (NAV) in Base". El Activity Statement sirve para lo otro: tus operaciones con fecha, depósitos y comisiones.', 'It is the only one carrying your daily account value, via the "Net Asset Value (NAV) in Base" section. The Activity Statement is for the rest: dated trades, deposits and commissions.')}</span>
                   </div>
 
                   <div className="space-y-5 pl-1">
@@ -1418,31 +1506,65 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                 </div>
               )}
 
-              {/* Sync mode selector — shown first for visibility */}
+              {/* Sync mode selector — shown first for visibility.
+                  ⛔ FASE NR. El tercer modo ('enrich') aparece SOLO cuando el
+                  preview salió de un ARCHIVO, y ahí es el recomendado: un
+                  statement es la foto de un momento pasado, así que "Actualizar"
+                  puede pisar el precio y la cantidad de HOY con los del archivo.
+                  En el sync por API "Actualizar" sí es lo correcto (el broker
+                  está reportando lo de ahora) y por eso ahí no se ofrece. */}
               <div className="bg-theme-base/50 rounded-xl p-4 border border-glass-border/40">
                 <p className="text-xs text-white font-medium mb-3">
                   {t('¿Cómo importar?', 'How to import?')}
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setSyncMode('merge')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'merge' ? 'border-glass-border hover:border-slate-500' : ''}`}
-                    style={syncMode === 'merge' ? { borderColor: 'var(--accent-blue)', backgroundColor: 'var(--alert-info-bg)' } : undefined}>
-                    <p className="text-sm text-white font-medium">🔄 {t('Actualizar', 'Update')}</p>
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                      {t('Actualiza precios y cantidades de posiciones existentes. Agrega nuevas posiciones. No borra nada.',
-                         'Updates prices and quantities for existing positions. Adds new ones. Deletes nothing.')}
-                    </p>
-                  </button>
-                  <button onClick={() => setSyncMode('replace')}
-                    className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== 'replace' ? 'border-glass-border hover:border-slate-500' : ''}`}
-                    style={syncMode === 'replace' ? { borderColor: 'var(--accent-red)', backgroundColor: 'var(--alert-error-bg)' } : undefined}>
-                    <p className="text-sm text-white font-medium">♻️ {t('Sustituir todo', 'Replace all')}</p>
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                      {t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores.',
-                         'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors.')}
-                    </p>
-                  </button>
-                </div>
+                {(() => {
+                  const opts = []
+                  if (preview._fromFile) {
+                    opts.push({
+                      key: 'enrich', accent: 'var(--accent-green)', bg: 'var(--alert-success-bg)',
+                      title: `📎 ${t('Completar lo que ya tengo', 'Fill in what I already have')}`,
+                      desc: enrichMatched > 0
+                        ? t(`Encontramos ${enrichMatched} de estas posiciones en tu cuenta. Les agrega las fechas y los movimientos que falten, sin tocar tu precio ni tu cantidad de hoy, y sin borrar nada.`,
+                             `We found ${enrichMatched} of these positions in your account. It adds the missing dates and movements, without touching today's price or quantity, and deletes nothing.`)
+                        : t('Ninguna de estas posiciones está todavía en tu cuenta, así que se agregarán todas.',
+                             'None of these positions are in your account yet, so all of them will be added.'),
+                    })
+                  }
+                  opts.push({
+                    key: 'merge', accent: 'var(--accent-blue)', bg: 'var(--alert-info-bg)',
+                    title: `🔄 ${t('Actualizar', 'Update')}`,
+                    desc: preview._fromFile
+                      ? t('Reemplaza precio y cantidad con los del archivo. Ojo: si el archivo es de una fecha vieja, tu saldo de hoy retrocede a esa fecha.',
+                           'Replaces price and quantity with the file\'s. Careful: if the file is from an old date, today\'s balance rolls back to that date.')
+                      : t('Actualiza precios y cantidades, agrega las nuevas y retira las que tu broker ya no reporta (las que vendiste). No toca nada que hayas escrito a mano.',
+                           'Updates prices and quantities, adds new ones, and removes the ones your broker no longer reports (the ones you sold). It never touches anything you typed yourself.'),
+                  })
+                  opts.push({
+                    key: 'replace', accent: 'var(--accent-red)', bg: 'var(--alert-error-bg)',
+                    title: `♻️ ${t('Sustituir todo', 'Replace all')}`,
+                    desc: t('Borra TODAS las posiciones de IBKR anteriores y reimporta desde cero. Útil si hay errores. Ojo: alcanza también a las que tecleaste a mano si las guardaste bajo Interactive Brokers.',
+                             'Deletes ALL previous IBKR positions and reimports from scratch. Useful to fix errors. Careful: it also reaches ones you typed yourself if you filed them under Interactive Brokers.'),
+                  })
+                  return (
+                    <div className={`grid gap-3 ${opts.length > 2 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      {opts.map((opt) => (
+                        <button key={opt.key} onClick={() => { syncModeTouchedRef.current = true; setSyncMode(opt.key) }}
+                          className={`px-4 py-3 rounded-lg text-left transition-all border-2 ${syncMode !== opt.key ? 'border-glass-border hover:border-slate-500' : ''}`}
+                          style={syncMode === opt.key ? { borderColor: opt.accent, backgroundColor: opt.bg } : undefined}>
+                          <p className="text-sm text-white font-medium">
+                            {opt.title}
+                            {opt.key === 'enrich' && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--alert-success-bg)', color: 'var(--accent-green)' }}>
+                                {t('recomendado', 'recommended')}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1 leading-relaxed">{opt.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
                 <p className="text-xs text-slate-600 mt-2">
                   {t('El historial de transacciones y NAV se importa siempre (no se duplica).',
                      'Transaction history and NAV are always imported (no duplicates).')}

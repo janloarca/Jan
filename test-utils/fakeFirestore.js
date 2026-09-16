@@ -1,0 +1,94 @@
+// Doble de `firebase/firestore` para probar los caminos de ESCRITURA de
+// useFirestoreItems (cascadas de borrado, lotes, batches) con el hook REAL.
+//
+// Es un mapa en memoria de `ruta -> { id -> doc }` con getDocs/onSnapshot/
+// setDoc/updateDoc/deleteDoc/writeBatch. `query`/`where` NO filtran (devuelven
+// la colección entera), así que sirve para asertar QUÉ documentos quedan, no
+// para probar filtros de consulta. Se monta con jest.doMock('firebase/firestore').
+// Precedente: test-utils/hookHarness.js.
+
+// FASE OI. `deleteField()` devuelve un centinela y las dos rutas de update
+// (updateDoc y batch.update) QUITAN la llave en vez de guardar el centinela,
+// que es lo que hace Firestore. Sin esto, re-ubicar un doc (borrar su
+// `portfolioId`/`entityId`) no se puede probar con el hook real.
+const DELETE_SENTINEL = { __deleteField: true }
+const applyUpdate = (cur, data) => {
+  const next = { ...(cur || {}) }
+  for (const [k, v] of Object.entries(data || {})) {
+    if (v === DELETE_SENTINEL) delete next[k]
+    else next[k] = v
+  }
+  return next
+}
+
+function makeFake(initial) {
+  const store = JSON.parse(JSON.stringify(initial || {}))
+  const listeners = []
+  const ensure = (p) => (store[p] = store[p] || {})
+  const notify = () => listeners.forEach((l) => l())
+  const snapOf = (path) => ({
+    docs: Object.entries(ensure(path)).map(([id, data]) => ({
+      id, data: () => ({ ...data }), ref: { __path: path, __id: id },
+    })),
+  })
+  const fs = {
+    collection: (db, path) => ({ __coll: path }),
+    doc: (db, path, id) => ({ __path: path, __id: id }),
+    query: (coll) => coll,
+    orderBy: () => ({}),
+    where: () => ({}),
+    deleteField: () => DELETE_SENTINEL,
+    getDocs: async (c) => snapOf(c.__coll || c.__path),
+    getDoc: async (r) => {
+      const d = ensure(r.__path)[r.__id]
+      return { exists: () => d !== undefined, data: () => ({ ...d }), id: r.__id }
+    },
+    deleteDoc: async (r) => { delete ensure(r.__path)[r.__id]; notify() },
+    setDoc: async (r, data, opts) => {
+      const cur = ensure(r.__path)[r.__id]
+      ensure(r.__path)[r.__id] = opts && opts.merge && cur ? { ...cur, ...data } : { ...data }
+      notify()
+    },
+    updateDoc: async (r, data) => {
+      const cur = ensure(r.__path)[r.__id]
+      if (cur === undefined) throw new Error('not-found:' + r.__path + '/' + r.__id)
+      ensure(r.__path)[r.__id] = applyUpdate(cur, data)
+      notify()
+    },
+    writeBatch: () => {
+      const ops = []
+      return {
+        set: (r, d, o) => ops.push(['set', r, d, o]),
+        update: (r, d) => ops.push(['update', r, d]),
+        delete: (r) => ops.push(['delete', r]),
+        commit: async () => {
+          for (const [kind, r, d, o] of ops) {
+            if (kind === 'delete') delete ensure(r.__path)[r.__id]
+            else if (kind === 'update') ensure(r.__path)[r.__id] = applyUpdate(ensure(r.__path)[r.__id], d)
+            else ensure(r.__path)[r.__id] = o && o.merge ? { ...(ensure(r.__path)[r.__id] || {}), ...d } : { ...d }
+          }
+          notify()
+        },
+      }
+    },
+    // FASE OD. `runTransaction` para probar los escritores atómicos
+    // (executeSaleAtomic). Las lecturas van primero por contrato de Firestore,
+    // así que aplicar cada escritura en el acto es equivalente para un doble en
+    // memoria sin contención.
+    runTransaction: async (db, fn) => fn({
+      get: async (target) => (target.__coll || target.__path === undefined ? snapOf(target.__coll || target.__path) : fs.getDoc(target)),
+      set: (r, d, o) => { const cur = ensure(r.__path)[r.__id]; ensure(r.__path)[r.__id] = o && o.merge && cur ? { ...cur, ...d } : { ...d }; notify() },
+      update: (r, d) => { const cur = ensure(r.__path)[r.__id]; if (cur === undefined) throw new Error('not-found:' + r.__path + '/' + r.__id); ensure(r.__path)[r.__id] = { ...cur, ...d }; notify() },
+      delete: (r) => { delete ensure(r.__path)[r.__id]; notify() },
+    }),
+    onSnapshot: (target, cb) => {
+      const path = target.__coll || target.__path
+      const fire = () => cb(snapOf(path))
+      listeners.push(fire)
+      fire()
+      return () => {}
+    },
+  }
+  return { store, fs }
+}
+module.exports = { makeFake }

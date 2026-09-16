@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { getItemValue, getTypeCategory, formatCurrency, formatDate } from './utils'
+import { getItemValue, getTypeCategory, formatCurrency, formatDate, getItemPrincipalCost, getItemCostBasis, getDividendIncomeByItem } from './utils'
 
 const CATEGORY_LABELS = {
   banks: { es: 'Banco', en: 'Bank' },
@@ -19,7 +19,7 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null, convert = null, baseCurrency = null }) {
   useEscClose(onClose)
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
@@ -201,51 +201,58 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
             {item.entryFee && <DetailRow label={t('Costo entrada', 'Entry fee')} value={formatCurrency(item.entryFee, item.currency)} />}
           </div>
 
-          {/* P&L */}
+          {/* P&L
+              FASE OE. Este bloque tenía su PROPIA fórmula de retorno y era la
+              única superficie montada que la escribía a mano: sumaba los
+              dividendos por SÍMBOLO y CRUDOS (un cupón de $240 sobre base GTQ
+              se imprimía "+GTQ 240.00", 7.7 veces menos), restaba la comisión
+              de entrada del numerador (o sea la cobraba dos veces: sobre
+              VITALI daba +2.4%, el error #1 de lib/assetLogic/
+              corporateBondWithEntryFee.js, cuando el número congelado es 3.94%)
+              y descontaba como costo YA PAGADO un año entero de comisión de
+              gestión y expense ratio, que son una proyección. Ahora pide las
+              tres funciones congeladas (ganancia contra el PRINCIPAL más el
+              ingreso que el activo GENERÓ, porcentaje entre el costo total) y
+              la atribución de dividendos por vínculo, igual que las tarjetas. */}
           {item.purchasePrice > 0 && item.currentPrice > 0 && (
             <div className="bg-theme-tertiary rounded-lg p-3 mb-4">
               {(() => {
-                const cost = (item.quantity || 1) * item.purchasePrice
-                const current = (item.quantity || 1) * item.currentPrice
-                const pnl = current - cost
-                const sym = (item.symbol || item.name || '').toUpperCase()
-                const dividendsReceived = (transactions || [])
-                  .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
-                  .reduce((s, tx) => s + (tx.totalAmount || tx.amount || 0), 0)
-                const entryFee = item.entryFee || 0
-                const mgmtFee = item.managementFee || 0
-                const mgmtFeeAmt = item.managementFeeType === 'fixed' ? mgmtFee : cost * (mgmtFee / 100)
-                const expenseAmt = cost * ((item.expenseRatio || 0) / 100)
-                const totalFees = entryFee + mgmtFeeAmt + expenseAmt
-                const totalReturn = pnl + dividendsReceived - totalFees
-                const totalReturnPct = cost > 0 ? (totalReturn / cost) * 100 : 0
+                const bc = baseCurrency || undefined
+                const value = getItemValue(item)
+                const principal = getItemPrincipalCost(item)
+                const costBasis = getItemCostBasis(item)
+                const pnl = value - principal
+                const divs = (transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && tx._linkedItemId === item.id)
+                const dividendsReceived = getDividendIncomeByItem(divs, [item], convert, bc).get(item.id) || 0
+                const entryFee = Number(item.entryFee) || 0
+                const totalReturn = pnl + dividendsReceived
+                const totalReturnPct = costBasis > 0 ? (totalReturn / costBasis) * 100 : 0
                 return (
                   <div>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs text-slate-400">{t('Retorno total', 'Total return')}</p>
                         <p className="text-lg font-bold" style={{ color: totalReturn >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                          {totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)} ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(1)}%)
+                          {totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)} ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(2)}%)
                         </p>
                       </div>
                     </div>
-                    {(dividendsReceived > 0 || totalFees > 0) && (
+                    {(dividendsReceived > 0 || entryFee > 0) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
                         <span>{t('Precio', 'Price')}: {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</span>
                         {dividendsReceived > 0 && (
                           <span style={{ color: 'var(--accent-green)' }} title={
-                            (transactions || [])
-                              .filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym)
-                              .map(tx => `${formatDate(tx.date)}: $${(tx.totalAmount || tx.amount || 0).toFixed(2)}`)
-                              .join('\n')
+                            divs.map(tx => `${formatDate(tx.date)}: ${formatCurrency(tx.totalAmount || tx.amount || 0, tx.currency || 'USD')}`).join('\n')
                           }>
                             {t('Dividendos', 'Dividends')}: +{formatCurrency(dividendsReceived)}
-                            <span className="ml-1" style={{ color: 'var(--accent-green)' }}>
-                              ({(transactions || []).filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && (tx.symbol || '').toUpperCase() === sym).length}x)
-                            </span>
+                            <span className="ml-1" style={{ color: 'var(--accent-green)' }}>({divs.length}x)</span>
                           </span>
                         )}
-                        {totalFees > 0 && <span style={{ color: 'var(--text-negative)' }}>{t('Costos', 'Fees')}: -{formatCurrency(totalFees)}</span>}
+                        {entryFee > 0 && (
+                          <span style={{ color: 'var(--text-muted)' }}>
+                            {t('Comisión de entrada', 'Entry fee')}: {formatCurrency(entryFee, item.currency || 'USD')} ({t('ya en el costo', 'already in cost')})
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

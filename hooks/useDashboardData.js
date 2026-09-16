@@ -5,15 +5,19 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
+import { scopeTagFor, tagForScope } from '@/lib/scopeTag'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
-import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget } from '@/lib/autoDividends'
+import { hasDividendInMonth, redundantAutoDividendIds, creditableBackfills, creditDestinationBalance, dividendCreditTarget, marketYieldFallback } from '@/lib/autoDividends'
 import { verifyIncomeForItems } from '@/lib/dividendVerify'
 import { unlinkedOpeningDeposits } from '@/lib/originDeposits'
 import { transferReversalPlan, reversalWritesSomething } from '@/lib/transferReversal'
+import { cashflowReversalPlan } from '@/lib/cashflowReversal'
+import { saleReversalPlan, saleRefusalText } from '@/lib/saleReversal'
 import { staleTradeDateFixes } from '@/lib/ibkrTradeDateFix'
 import { dropDeletesThatAreUpdated } from '@/lib/ibkrMergePlan'
+import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { nextFailCount, NORMAL_INTERVAL_MS } from '@/lib/ibkrRetryPolicy'
 import { ibkrSyncDecision, bumpAttempts, ibkrDayKey } from '@/lib/ibkrSchedule'
 
@@ -33,10 +37,12 @@ import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
 import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
 import { zeroQuantityBalanceFixes, resurrectedBalanceFixes } from '@/lib/zeroQuantityHeal'
+import { isBankLikeItem, balanceQuantityPatch } from '@/lib/contributions'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { buildPublishPayload, publishDayKey, shouldPublishToday, publishBlockedBy } from '@/lib/friendsPublish'
+import { isScopedView, transactionsForItems } from '@/lib/portfolioScope'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -79,7 +85,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, executeContribution, bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
+    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution, bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -115,10 +121,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // La serie de NAV cruda: todo lo que no es un ancla por cuenta. La consumen
   // los REPARADORES, que tienen que poder ver el doc envenenado para
   // reescribirlo; todo lo que LEE usa `snapshots`, más abajo.
-  const snapshotsAll = useMemo(
-    () => (rawSnapshots || []).filter((s) => !(s && s._account)),
-    [rawSnapshots]
-  )
+  //
+  // FASE NU: y nada fechado DESPUES de hoy (UTC, la convencion de los ids de
+  // snapshot). Un doc del futuro no es una observacion, y como la serie se
+  // ordena por fecha se volvia el "ultimo snapshot" del portafolio (el CSV de
+  // PortfolioAnalyst del usuario traia el mes en curso fechado al 30 de
+  // septiembre un 4 de septiembre). No se borra: cuando esa fecha llegue, el
+  // sync de ese dia lo reescribe con el NAV real (planEquitySnapshotWrites
+  // actualiza el doc de ESE broker cuando el valor cambia).
+  const snapshotsAll = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return (rawSnapshots || []).filter((s) => s && !s._account && !(s.date && s.date > today))
+  }, [rawSnapshots])
 
   // ⛔ FASE LH. Espejo en ref de items para la reconciliación de IBKR.
   // handleIBKRSync corre DESPUÉS de una descarga de hasta ~90s, así que leer
@@ -174,6 +188,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const snapshotsRef = useRef(snapshots)
   snapshotsRef.current = snapshots
 
+  // ⛔ FASE NT. Las calibraciones que la app está IGNORANDO, con su razón.
+  //
+  // FASE NN y FASE NP dejaron de APLICAR dos especies de calibración (la por
+  // cuenta que contradice el NAV del broker, y el ancla global que sus propios
+  // vecinos contradicen), y la tarjeta lo dice. Pero `CalibrateReturnModal`
+  // recibe las listas YA filtradas (`snapshots`, `accountCalibrations`), así
+  // que una calibración ignorada no aparecía en "Calibraciones activas": ni se
+  // veía ni se podía QUITAR (ese botón es la única puerta de borrado), y el
+  // aviso mandaba a "copiar el % otra vez" sin que hubiera forma de ver cuál.
+  // Esta lista es ADITIVA: los filtros de NN/NP no se mueven, solo se expone
+  // lo que descartaron. La razón viaja como código (`_ignoredReason`) y el
+  // texto lo pone la UI, para que el hook no lleve copy.
+  const ignoredCalibrations = useMemo(() => {
+    const out = []
+    for (const c of contradictedCals) out.push({ ...c, _ignoredReason: 'broker-nav' })
+    if (contradictedAnchors.size > 0) {
+      for (const s of snapshotsAll) {
+        if (s._calibrated && contradictedAnchors.has(s.date)) out.push({ ...s, _ignoredReason: 'neighbor' })
+      }
+    }
+    return out
+  }, [contradictedCals, contradictedAnchors, snapshotsAll])
+
   // FASE GB. Declarada AQUÍ (antes de los efectos escritores que la llevan en
   // sus deps) porque una deps array se evalúa en render: referenciarla antes
   // de su declaración sería un ReferenceError, no un undefined silencioso.
@@ -213,6 +250,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     })
   }, [rawEnriched, rates, convert, baseCurrency])
 
+  // FASE OD. Los ítems con los que se PLANIFICA una reversa de saldo.
+  //
+  // ⛔ Nunca `enrichedItems`: sus precios ya vienen convertidos a la moneda
+  // BASE, y los planificadores (transferReversalPlan, cashflowReversalPlan,
+  // saleReversalPlan) calculan `accountValue` sobre lo que reciben y escriben
+  // ese número de vuelta como precio RAW del ítem (balanceFields). Con base
+  // USD, deshacer una transferencia de Q2,500 desde una cuenta de Q10,000
+  // escribía `currentPrice: 3798.70` en vez de 12,500 (la cuenta perdía
+  // Q8,700 de un clic), y borrar un aporte marcado `_balanceMoved` sobre esa
+  // misma cuenta sana se REHUSABA (Q3,000 > $1,298 de "saldo"). Reproducido
+  // con el hook real. Las dos superficies de confirmación reciben los ítems
+  // crudos y por eso sus líneas decían el número correcto mientras la
+  // escritura hacía otra cosa.
+  //
+  // Se devuelven los precios en la moneda del propio ítem (`_originalPrice`,
+  // que para un activo de mercado es la cotización viva y para una cuenta de
+  // saldo es lo guardado) y se conserva todo lo demás del enriquecido.
+  const reversalItems = useMemo(() => enrichedItems.map((it) => ({
+    ...it,
+    currentPrice: it._originalPrice ?? it.currentPrice,
+    purchasePrice: it._originalPurchasePrice ?? it.purchasePrice,
+  })), [enrichedItems])
+
   const entityItems = useMemo(() => {
     if (activeEntity === '__all__') return enrichedItems
     return enrichedItems.filter((it) => (it.entityId || 'default') === activeEntity)
@@ -232,6 +292,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (activePortfolio === '__all__') return entityItems
     return entityItems.filter((it) => (it.portfolioId || '__default__') === activePortfolio)
   }, [entityItems, activePortfolio])
+
+  // ⛔ FASE OG. Con un portafolio o una entidad seleccionados, `totalAssets`
+  // mide un SUBCONJUNTO mientras el archivo de snapshots (único por usuario,
+  // escrito desde `enrichedItems` a propósito) mide el TODO. Medido con el
+  // hook real: dos portafolios que ganaron +10% cada uno imprimían -26.67% y
+  // -63.33% con uno de los dos seleccionado, porque el ancla del año era el
+  // snapshot del patrimonio completo. Ver lib/portfolioScope.js.
+  //
+  // Lo que se escopa acá, y solo acá: los MOVIMIENTOS (por vínculo al ítem,
+  // la misma regla con la que la gráfica escopa por institución) y la
+  // reconstrucción del ancla (jan1Value, abajo). Lo que se DECLARA no
+  // disponible: los snapshots (augmentedSnapshots/chartSnapshots vacíos), o
+  // sea el mes, el riesgo y el historial archivado. Los escritores de fondo
+  // (snapshot diario, backfill, dividendos, limpieza) siguen leyendo
+  // `enrichedItems`/`snapshotsAll` y no se enteran.
+  const scopedView = isScopedView({ activePortfolio, activeEntity })
+  const viewTransactions = useMemo(
+    () => (scopedView ? transactionsForItems(transactions, portfolioItems, enrichedItems) : transactions),
+    [scopedView, transactions, portfolioItems, enrichedItems]
+  )
 
   // Daily snapshot
   const snapshotSavedRef = useRef(null)
@@ -578,10 +658,69 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)
+  // FASE OF. Tres piezas que hacen que el motor no pueda acreditar dos veces
+  // el mismo cupón POR CONSTRUCCIÓN, y no por la suerte del orden de los ecos
+  // de Firestore (lo que FASE OE dejó anotado como endurecimiento pendiente).
+  //
+  // El mecanismo que abría la puerta: `addToDestination` escribe el destino
+  // con `updateItem`, que es OPTIMISTA, así que `items` (y con ellos
+  // `enrichedItems`, una dep de este efecto) cambian A MITAD de la corrida.
+  // El cleanup marcaba `cancelled` en la corrida en vuelo y el efecto
+  // arrancaba OTRA de inmediato, con `dividendsProcessedRef` todavía sin
+  // estampar (se estampa al terminar). Esa segunda corrida deduplica por mes
+  // leyendo `transactions`, y `addTransaction` NO es optimista: la fila que la
+  // primera corrida acaba de escribir solo está ahí si el eco del listener ya
+  // llegó. Cuando llega, todo bien; cuando no, el mismo cupón se escribe otra
+  // vez bajo el MISMO id (o sea una sola fila en el archivo) y el destino se
+  // acredita OTRA vez: la firma exacta de FASE DH, "480 en el Fondo Líquido
+  // con UNA transacción que lo explique".
+  //
+  //   dividendsRunningRef  no arranca una corrida mientras otra está en vuelo;
+  //                        en su lugar deja pedida una re-corrida.
+  //   dividendsRerunRef    esa re-corrida pendiente, que se dispara al
+  //                        terminar (vía `dividendsTick`), con deps FRESCAS.
+  //   dividendsPaidRef     lo que ESTA sesión ya escribió, por activo y mes:
+  //                        el dedup que no depende de ningún eco.
+  //
+  // Una corrida cancelada a mitad NO estampa `dividendsProcessedRef`: dejó
+  // trabajo sin hacer, y estamparla lo saltaría hasta mañana. La re-corrida
+  // termina en un número finito de vueltas porque cada una paga estrictamente
+  // menos (el set de pagados solo crece) y una que no escribe nada no mueve
+  // ninguna dep.
+  const dividendsRunningRef = useRef(false)
+  const dividendsRerunRef = useRef(false)
+  const dividendsPaidRef = useRef(new Set())
+  // Las filas que esta sesión ya BORRÓ (con su reversa aplicada) o ya
+  // ACREDITÓ (reparación de un backfill): la misma idea que `dividendsPaidRef`
+  // para las otras dos escrituras del motor que mueven un saldo. Sin esto, una
+  // corrida cancelada y retomada antes de que `transactions` refleje el
+  // borrado volvería a encontrar la fila vieja y a restar su reversa del
+  // destino por segunda vez.
+  const dividendsHandledTxRef = useRef(new Set())
+  const [dividendsTick, setDividendsTick] = useState(0)
   useEffect(() => {
     const now = new Date()
     const todayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
-    if (dividendsProcessedRef.current === todayKey) return
+    // FASE OA. La llave de "ya corri hoy" lleva ADEMAS la configuracion de
+    // ingreso de los activos programados (nunca cantidad ni precio: un tick
+    // de mercado no puede re-disparar escrituras). Antes era solo el dia, y
+    // el motor corria UNA vez por montaje: un bono agregado despues, con
+    // calendario y "ya recibi estos pagos", no escribia sus cupones hasta la
+    // siguiente recarga, asi que la Hoja los mostraba en cero y el reporte
+    // del usuario ("al agregar un bono pagadero semestral no lo leyo") era
+    // literal. Re-correr es seguro: cada pago se deduplica por MES.
+    const scheduleSig = enrichedItems
+      .filter((it) => (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous'
+        || marketYieldFallback(it)))
+      .map((it) => [it.id, it.incomeAmount || 0, it.incomeRate || 0, it.dividendYield || 0, it.incomeMode || '', it.rateType || '',
+        (it.incomeMonths || []).join(','), it.incomeMonthsExplicit ? 1 : 0, it.incomePayDay || '',
+        it.incomeFrequency || '', it.dividendAction || '', it.incomeDestination || '', it.balanceAsOf || '',
+        it.acquisitionDate || '', (it.excludedPayDates || []).join(',')].join(':'))
+      .sort().join('|')
+    const runKey = `${todayKey}#${scheduleSig}`
+    if (dividendsProcessedRef.current === runKey) return
+    // FASE OF: nunca dos corridas a la vez. Ver el bloque de arriba.
+    if (dividendsRunningRef.current) { dividendsRerunRef.current = true; return }
     // pricesFetching (not just pricesLoading) guards every write here: loading
     // only ever arms on the session's FIRST price fetch (see useMarketPrices),
     // so without pricesFetching a background poll returning a transiently bad
@@ -596,9 +735,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let cancelled = false
 
     const scheduled = enrichedItems.filter((it) =>
-      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous')
+      (it.incomeAmount > 0 || it.incomeRate > 0 || (it.rateType === 'variable' && it.rateMin > 0) || it.rateType === 'continuous'
+        || marketYieldFallback(it))
     )
-    if (scheduled.length === 0) { dividendsProcessedRef.current = todayKey; return }
+    if (scheduled.length === 0) { dividendsProcessedRef.current = runKey; return }
 
     // ⛔ FASE MU. Este reloj es UTC y `balanceAsOf` es LOCAL (FASE MS: un día
     // calendario que el usuario vivió). En Guatemala las dos convenciones
@@ -674,6 +814,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // they carry _destinationCredited:false to say so. Older payments have
         // no flag at all and were all credited, so they still reverse.
         if (tx._destinationCredited === false) return
+        // FASE OB. Un pago REINVERTIDO nunca tocó el destino: subió la
+        // cantidad del propio activo. Revertirlo del destino le quitaba a la
+        // cuenta un dinero que nunca recibió (cambiar una acción a
+        // "reinvertir" en EditAccountModal dejaba el destino puesto, y cada
+        // limpieza debitaba el banco por cupones que fueron a acciones).
+        if (tx._reinvested === true) return
         const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
         if (!(amt > 0)) return
         const key = it.incomeDestination
@@ -687,14 +833,28 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // in a month where the REAL one is already recorded. Deleting them also
         // reverses the credit out of the destination account, which is the whole
         // point: a duplicated coupon leaves the destination permanently high.
+        // FASE OB. El calendario de la limpieza es el MISMO con el que el motor
+        // PAGA (abajo: `incomeMonths`, o los doce meses si no hay lista). Antes
+        // se gateaba en `incomeMonthsExplicit`, que una acción con dividendo
+        // detectado (AddAccountModal, rama de mercado) nunca estampa, así que
+        // la limpieza caía a "conservar solo el más nuevo" y borraba el cupón
+        // trimestral anterior EN CADA corrida, debitando el destino por un
+        // pago que sí llegó. `incomeMonthsExplicit` sigue gateando solo el
+        // BACKFILL, que es donde una lista supuesta sí inventaría historia.
+        const cleanupMonths = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0
+          ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
         const stale = new Set(
-          redundantAutoDividendIds(transactions, it, it.incomeMonths, it.incomeMonthsExplicit === true)
+          redundantAutoDividendIds(transactions, it, cleanupMonths, true)
         )
         if (stale.size > 0 && deleteTransaction) {
           for (const tx of transactions) {
             if (!tx.id || !stale.has(tx.id)) continue
+            // FASE OF: ya borrada (y revertida) en esta sesión, aunque el eco
+            // del listener todavía la traiga.
+            if (dividendsHandledTxRef.current.has(tx.id)) continue
             queueReversal(it, tx)
             await deleteTransaction(tx.id)
+            dividendsHandledTxRef.current.add(tx.id)
           }
         }
       }
@@ -722,6 +882,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         if (!dest) continue
         const destBalance = (dest.quantity || 1) * (dest._originalPrice ?? dest.purchasePrice ?? 0)
         const pending = creditableBackfills(transactions, it, destBalance)
+          .filter((tx) => !dividendsHandledTxRef.current.has(tx.id))
         if (pending.length === 0) continue
         // One credit for the whole batch, same reason the reversal above batches:
         // addToDestination reads the balance off the item object it was handed,
@@ -731,6 +892,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const cur = pending[0].currency || it._originalCurrency || 'USD'
         try {
           await addToDestination(dest, total, cur)
+          // FASE OF: el crédito ya ocurrió; ninguna corrida posterior de esta
+          // sesión puede volver a contarlo, llegue o no el eco de la marca.
+          for (const tx of pending) dividendsHandledTxRef.current.add(tx.id)
           if (updateTransaction) {
             for (const tx of pending) {
               if (cancelled) return
@@ -772,6 +936,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // agosto con día de pago 1, se escribía un mes entero de interés
             // fechado el 1 de agosto.
             if (acqDay && dateStr < acqDay) continue
+            // FASE OB. Un activo VENDIDO por completo (SellModal estampa
+            // `saleDate`/`soldFully`) deja de pagar el día de la venta: sin
+            // esto un bono liquidado seguía escribiendo cupones y acreditando
+            // el destino por dinero que ya no existe.
+            if (it.soldFully && it.saleDate && dateStr > it.saleDate) continue
             // FASE HV. Un ingreso que se REINVIERTE en la propia cuenta ya está
             // adentro del saldo que el usuario tecleó: el saldo de hoy de una
             // cuenta que compone contiene todo lo que compuso hasta hoy. Backfillear
@@ -795,7 +964,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
               // FASE KS. Esta rama no tenia NINGUN chequeo de fecha de compra,
               // asi que una cuenta creada el 20 de agosto con dia de pago 1
               // escribia su primer pago fechado el 1 de agosto.
-              if (!acqDay || dateStr >= acqDay) {
+              const soldBefore = it.soldFully && it.saleDate && dateStr > it.saleDate
+              if ((!acqDay || dateStr >= acqDay) && !soldBefore) {
                 monthsToCheck.push({ dateStr, month: currentMonth, year: now.getUTCFullYear(), backfill: false })
               }
             }
@@ -815,6 +985,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // really landed, so an exact-date check saw no payment and wrote a
           // second one, crediting the destination account twice for good.
           if (hasDividendInMonth(transactions, it, dateStr)) continue
+          // FASE OF. Lo que esta sesión YA escribió, sin depender de que el
+          // eco de `transactions` haya llegado.
+          const paidKey = `${it.id || it.symbol}|${dateStr.slice(0, 7)}`
+          if (dividendsPaidRef.current.has(paidKey)) continue
 
         try {
           const originalPrice = it._originalPrice || it.currentPrice || it.purchasePrice || 0
@@ -838,13 +1012,31 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // pago 1 acreditaba un mes COMPLETO el 1 de septiembre por once días
           // de tenencia. Solo las ramas de TASA; un monto fijo es contractual y
           // se paga entero (ver la cabecera de esa función).
+          // ⛔ FASE OM (extensión de liquidFundYield.js, OK explícito del
+          // usuario). El devengo diario mira esto SOLO cuando el ingreso se
+          // REINVIERTE en la propia cuenta: ahí el devengo del mes vuelve a
+          // sumarse sobre el MISMO saldo que la foto acaba de sellar, así que
+          // si la foto cayó a mitad de este mes hay que devengar solo los días
+          // de después (ver dailyAccrual.js). En destino-a-otra-cuenta no
+          // aplica: ese pago es un evento discreto que llega completo o no
+          // llega, decidido por `credited` más abajo contra el sello del
+          // DESTINO, no del origen. `accrualCutoff` se queda en `null` fuera
+          // de ese caso; ver el nombre `accrualBalanceAsOf` más abajo.
+          let accrualCutoff = null
+          if (it.dividendAction === 'reinvest') accrualCutoff = it.balanceAsOf
           amount = monthlyIncomeAmount({
             balance, qty,
-            isPerShare: /stock|etf|fund|crypto/i.test(it.type || ''),
-            incomeMode: it.incomeMode, incomeRate: it.incomeRate, incomeAmount: it.incomeAmount,
+            // FASE OC: el predicado vive en utils y lo comparten la
+            // proyección anual y el rendimiento efectivo, así que el motor no
+            // puede pagar una cosa y la card proyectar otra.
+            isPerShare: isPerShareIncome(it),
+            incomeMode: it.incomeMode || marketYieldFallback(it)?.incomeMode,
+            incomeRate: it.incomeRate || marketYieldFallback(it)?.incomeRate,
+            incomeAmount: it.incomeAmount,
             rateType: it.rateType, rateMin: it.rateMin, rateMax: it.rateMax,
             accrual: it.accrual, acquisitionDay: acqDay, payDate: dateStr,
             incomeMonths: payMonths, incomePayDay: it.incomePayDay || 1,
+            accrualBalanceAsOf: accrualCutoff,
           }, payMonths.length || 12)
 
           // Net recurring fees out of each payment so the income reflects what
@@ -898,8 +1090,44 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // cleanup must not "reverse" a credit that never happened.
             ...(!isReinvest && it.incomeDestination ? { _destinationCredited: credited } : {}),
           })
+          // Se estampa DESPUÉS de que la fila quedó escrita (un fallo del
+          // write no puede dejar el mes "pagado" para toda la sesión) y ANTES
+          // del crédito al destino, que es la escritura que re-dispara el
+          // efecto.
+          dividendsPaidRef.current.add(paidKey)
 
-          if (isReinvest) {
+          if (isReinvest && isBankLikeItem(it)) {
+            // ⛔ FASE OM (extensión de liquidFundYield.js, OK explícito del
+            // usuario el 6 sep 2026). Para un ítem de SALDO, "reinvertir" es
+            // que el interés SUMA al saldo (el saldo ES el precio): no hay
+            // "acciones" que comprar. La rama de abajo trataba `originalPrice`
+            // como un precio POR UNIDAD y hacía `newShares = amount/precio`,
+            // que para un fondo de $5,000 pagando $50 da 0.01 — no una
+            // fracción de nada, un residuo que corrompe `quantity` un poco
+            // más cada mes (1, 1.01, 1.02...). Downstream, esa cantidad
+            // drifteada rompe DOS lecturas que asumen quantity=1: el guardado
+            // directo de EditAccountModal (que escribe precio SIN dividir por
+            // cantidad) y esta misma rama de contribución
+            // (`buildContributionFields`, que desplaza precios asumiendo
+            // cantidad fija). Acá se desplazan los DOS precios por el monto,
+            // igual que un aporte manual, y la cantidad se normaliza solo si
+            // ya estaba rota (nunca se pisa una cantidad legítima != 1, la
+            // misma regla que ese motor comparte).
+            //
+            // Nota: NO se usa `buildContributionFields`, que además sella la
+            // foto con HOY. Reseñarla en cada corrida automática rompería el
+            // prorrateo de FASE OM en un backfill de varios meses: el mes 2
+            // vería ese sello en el futuro relativo a su propia fecha y se
+            // devengaría en cero. Este escritor deja el campo intacto, a
+            // propósito, y nunca lo toca.
+            const oldPurchase = Number(it.purchasePrice) || 0
+            const nextCurrent = Math.max(0, originalPrice + amount)
+            await updateItem(it.id, {
+              purchasePrice: Math.max(0, oldPurchase + amount),
+              currentPrice: nextCurrent,
+              ...balanceQuantityPatch(it, nextCurrent),
+            })
+          } else if (isReinvest) {
             const priceForReinvest = originalPrice > 0 ? originalPrice : 1
             const newShares = amount / priceForReinvest
             await updateItem(it.id, { quantity: qty + newShares })
@@ -911,6 +1139,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
                 currency: incomeCurrency,
                 acquisitionDate: dateStr,
                 institution: it.institution || '',
+                itemId: it.id,
               })
             } catch (e) { console.error('[dividend-reinvest-lot]', e.message) }
           } else if (it.incomeDestination && credited) {
@@ -947,11 +1176,22 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
 
+    dividendsRunningRef.current = true
+    dividendsRerunRef.current = false
     processDividends().then(() => {
-      dividendsProcessedRef.current = todayKey
+      // Solo una corrida COMPLETA cierra la llave: una cancelada a mitad dejó
+      // activos sin procesar y la re-corrida de abajo los retoma.
+      if (!cancelled) dividendsProcessedRef.current = runKey
     }).catch((err) => console.error('[dividends]', err))
+      .finally(() => {
+        dividendsRunningRef.current = false
+        if (dividendsRerunRef.current || cancelled) {
+          dividendsRerunRef.current = false
+          setDividendsTick((t) => t + 1)
+        }
+      })
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, transactions, addTransaction, deleteTransaction, updateTransaction, updateItem, convert, dividendsTick])
 
   // handleRefresh is declared further below, right after useBenchmark() — it
   // needs refetchBenchmark in its dependency array, and that array is
@@ -1029,9 +1269,46 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Tag imported items with the active portfolio/entity so they're never
     // filtered out of the current view (items without these fields get hidden
     // when a specific portfolio/entity is selected).
-    const tag = {}
-    if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
-    if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+    const tag = scopeTagFor(activePortfolio, activeEntity)
+
+    // ⛔ FASE NR. El tercer modo: AGREGAR HISTORIA a las posiciones que ya
+    // están, sin pisar lo de hoy y sin borrar nada.
+    //
+    // Un archivo NO es lo mismo que el sync por API, y tratarlos igual corrompe
+    // el portafolio en las dos direcciones: (a) un statement es la foto de un
+    // momento PASADO, así que su cantidad y su precio pueden ser más viejos que
+    // lo que el sync en vivo ya escribió, y el modo 'merge' los pisa; (b) un
+    // statement no es un reporte de liquidación, así que "no viene en este
+    // archivo" significa que cubre otro período u otra cuenta, jamás "el
+    // usuario lo vendió", y las tres reglas de borrado de más abajo sí lo leen
+    // así. El motor ya existía (lib/brokerReconcile.js, modo 'enrich') y lo
+    // ofrecía FileImportModal; lo que faltaba era este camino, que es por donde
+    // el viaje de IBKR manda a subir el archivo.
+    const enrichOnly = mode === 'enrich'
+    if (enrichOnly) {
+      const rec = reconcileBrokerPositions({
+        incoming: data.items || [],
+        existing: itemsNow,
+        source: 'ibkr',
+        tag,
+        mode: 'enrich',
+      })
+      newItems.push(...rec.newItems)
+      updateOps.push(...rec.updateItems.map(u => ({ id: u.id, fields: u.fields })))
+      for (const item of rec.newItems) {
+        if (item.quantity > 0 && item.purchasePrice > 0 && item.type !== 'Bank') {
+          newLots.push({
+            symbol: item.symbol,
+            quantity: item.quantity,
+            costBasis: item.purchasePrice,
+            currency: item.currency || 'USD',
+            acquisitionDate: item.acquisitionDate || new Date().toLocaleDateString('en-CA'),
+            institution: item.institution || 'Interactive Brokers',
+            ...(tag.portfolioId ? { portfolioId: tag.portfolioId } : {}),
+          })
+        }
+      }
+    }
 
     if (mode === 'replace') {
       itemsNow.filter(it =>
@@ -1039,7 +1316,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       ).forEach(it => deleteIds.push(it.id))
     }
 
-    for (const item of data.items) {
+    for (const item of enrichOnly ? [] : data.items) {
       let existing = null
       if (mode === 'merge') {
         existing = itemsNow.find(it => {
@@ -1099,11 +1376,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const toUSDFrom = (v, cur) => (cur && cur !== 'USD' && convert ? convert(v || 0, cur, 'USD') : (v || 0))
     const newSnaps = planEquitySnapshotWrites(data.equityHistory || [], snapshotsNow, toUSDFrom)
 
+    // ⛔ FASE NR. Las TRES reglas de borrado que siguen leen la ausencia de un
+    // símbolo en el feed como evidencia. Eso vale para un sync en vivo (el
+    // broker está reportando lo que hay AHORA) y es falso para un archivo, que
+    // puede cubrir otro período u otra cuenta. En modo enrich no se borra nada.
     const incomingSymbols = new Set(data.items.filter(it => it.symbol).map(it => it.symbol.toUpperCase()))
-    itemsNow.forEach(it => {
+    // SOLO lo que el propio sync creo, la GUARDA 2 de ibkrVanishedPositions.js,
+    // cuyo comentario ya nombraba a ESTA rama como la peligrosa: la heuristica
+    // por nombre de institucion alcanzaba a un item que el usuario tecleo a
+    // mano y llamo "Interactive Brokers", y `quantity: 0` es como se escribe
+    // una cuenta vaciada a proposito. Borrar eso durante un sync automatico,
+    // sin preview y sin aviso, es lo que ese comentario llama imperdonable.
+    if (!enrichOnly) itemsNow.forEach(it => {
       if (deleteIds.includes(it.id)) return
-      const isIbkr = it._source === 'ibkr' || (it.institution || '').toLowerCase().includes('interactive brokers')
-      if (isIbkr && (it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
+      if (it._source !== 'ibkr') return
+      if ((it.quantity ?? 0) <= 0 && incomingSymbols.has((it.symbol || '').toUpperCase())) {
         deleteIds.push(it.id)
       }
     })
@@ -1113,23 +1400,36 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // y por lo tanto nunca se borraba: seguía en el portafolio para siempre con
     // su última cantidad y precio. Los guardas que impiden que un reporte
     // parcial vacíe la cartera viven en lib/ibkrVanishedPositions.js.
-    vanishedIbkrPositionIds({
+    if (!enrichOnly) vanishedIbkrPositionIds({
       storedItems: itemsNow,
       feedItems: data.items || [],
       feedAccounts: data.accounts || [],
       hasCashSection: (data.sections?.cashReport || 0) > 0,
     }).forEach((id) => { if (!deleteIds.includes(id)) deleteIds.push(id) })
-    const deleteSet = new Set(deleteIds)
-    const afterCleanup = itemsNow.filter(it => !deleteSet.has(it.id))
-    afterCleanup.forEach(it => {
-      if (it._source === 'ibkr') return
-      const sym = (it.symbol || '').toUpperCase()
-      if (!sym) return
-      const ibkrMatch = afterCleanup.find(other =>
-        other.id !== it.id && other._source === 'ibkr' && (other.symbol || '').toUpperCase() === sym
-      )
-      if (ibkrMatch && (it.quantity ?? 0) <= 0) deleteIds.push(it.id)
-    })
+    // ⛔ NO volver a agregar aqui un borrado por COLISION DE SIMBOLO.
+    //
+    // Vivio aqui una regla que borraba todo item con `quantity <= 0` que
+    // compartiera simbolo con uno de IBKR. Su alcance real era el contrario del
+    // que parece: todo lo que importamos lleva `_source:'ibkr'` y la regla
+    // arrancaba con `if (it._source === 'ibkr') return`, asi que lo UNICO que
+    // podia borrar eran items que el usuario tecleo a mano (o de otro broker).
+    //
+    // Y `quantity: 0` es un estado NORMAL y documentado de un item manual: asi
+    // se escribe una cuenta vaciada (lib/transferFields.js pone la cantidad en
+    // cero a proposito para que un residuo en price/cost no resucite el saldo,
+    // y hay dos sanadores construidos alrededor de esa firma). O sea la regla
+    // no distinguia un residuo de migracion de una cuenta que el usuario vacio
+    // a conciencia, y podia dispararse en un auto-sync que nadie pidio, sin
+    // preview y sin aviso.
+    //
+    // Es exactamente lo que prohibe la doctrina de lib/ibkrVanishedPositions.js,
+    // el modulo hermano que si borra bien: "Ante cualquier duda: no se borra.
+    // Una posicion de mas es un error visible que el usuario puede reportar;
+    // una cartera borrada no se recupera."
+    //
+    // El duplicado que la regla intentaba limpiar NO queda sin atender: el
+    // hallazgo `dup-suspect` (lib/dataCompleteness.js) lo detecta y se lo
+    // muestra al usuario, que es quien puede distinguir los dos casos.
 
     await bulkImport({
       items: newItems,
@@ -1378,6 +1678,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         _ibkrAutoSyncError: err.message,
         _ibkrAutoSyncErrorCode: code,
         _ibkrLastAutoSyncAttempt: new Date().toISOString(),
+        // ⛔ Un intento manual fallido cuesta EXACTAMENTE lo mismo en IBKR que
+        // uno automático: su bloqueo se compra con intentos fallidos, sin
+        // importar quién los disparó. Antes esta rama no gastaba presupuesto ni
+        // subía el contador de fallos, así que el usuario podía martillar el
+        // pill y el modal indefinidamente mientras la propia protección de la
+        // app (el techo diario y la regla de "este bloqueo ya no se levanta")
+        // nunca se enteraba de nada.
+        //
+        // Solo al FALLAR: un manual exitoso ya corta el auto-sync del día por
+        // `synced-today`, así que cobrarle presupuesto sería cobrar dos veces.
+        _ibkrAttemptsToday: bumpAttempts(settings?._ibkrAttemptsToday, ibkrDayKey()),
+        _ibkrAutoSyncFailCount: nextFailCount(settings?._ibkrAutoSyncFailCount),
       })
       return { ok: false, error: err.message, errorCode: code }
     } finally {
@@ -1397,8 +1709,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // existieran. Un día que solo tiene NAV de broker se queda y el augment lo
   // completa, comportamiento de siempre.
   const augmentedSnapshots = useMemo(
-    () => augmentSnapshots(preferFullPortfolioPerDay(snapshots), portfolioItems, convert),
-    [snapshots, portfolioItems, convert]
+    // FASE OG: con vista escopada el archivo describe OTRO universo (el
+    // patrimonio completo) y no puede anclar nada de lo que se muestra: lista
+    // vacía, y cada consumidor cae a su estado de "sin datos" o a la
+    // reconstrucción por ítem, que sí se escopa. Nunca a un número inventado.
+    () => (scopedView ? [] : augmentSnapshots(preferFullPortfolioPerDay(snapshots), portfolioItems, convert)),
+    [scopedView, snapshots, portfolioItems, convert]
   )
   const latestSnapshot = augmentedSnapshots.length > 0 ? augmentedSnapshots[augmentedSnapshots.length - 1] : null
 
@@ -1444,8 +1760,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // New capital never appears in either, so a deposit can't masquerade as gain.
   // The math itself is a pure helper (computeDayChange) so it can be tested.
   const dailyChange = useMemo(
-    () => computeDayChange({ items: portfolioItems, transactions, netWorth, convert, baseCurrency }),
-    [netWorth, portfolioItems, transactions, convert, baseCurrency]
+    // FASE OG: el ingreso de HOY se cuenta sobre los movimientos del universo
+    // que se muestra; un cupón que cayó en un ítem de OTRO portafolio no es
+    // "hoy" de este.
+    () => computeDayChange({ items: portfolioItems, transactions: viewTransactions, netWorth, convert, baseCurrency }),
+    [netWorth, portfolioItems, viewTransactions, convert, baseCurrency]
   )
 
   const yearlyChange = useMemo(() => {
@@ -1506,7 +1825,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // that received the whole BUY/SELL ledger and got rewound strongly negative,
         // collapsing jan1Value while netWorth excluded it → the YTD Dietz exploded
         // (start and end measuring different portfolios).
-        const jan1Items = enrichedItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
+        // FASE OG: y el MISMO universo que `totalAssets` cuando hay un
+        // portafolio seleccionado. `portfolioItems` ES `enrichedItems` (misma
+        // referencia) sin scope, así que el caso común no cambia un byte.
+        const jan1Items = portfolioItems.filter((it) => !it.isDebt && !isExcludedFromNetWorth(it))
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1517,7 +1839,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // distinto para toda cuenta con rendimiento que se reinvierte
           // (ClubCashIn, los fondos líquidos de IDC).
           body: JSON.stringify(buildHistoryRequestBody({
-            items: jan1Items, transactions, lots, convert,
+            items: jan1Items, transactions: viewTransactions, lots, convert,
             period: 'YTD', breakdown: true,
           })),
         })
@@ -1615,7 +1937,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, lots, transactions, convert, baseCurrency])
+  }, [enrichedItems, portfolioItems, viewTransactions, lots, convert, baseCurrency])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the Dietz math
   // depends on the SOURCE of the start anchor:
@@ -1631,8 +1953,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // semantics as a synced ibkr transaction, so a hold-flat baseline that
     // pre-dates deposits implicitly must exclude them too, for the same
     // double-count reason ibkr transactions are excluded here.
-    () => (transactions || []).filter((tx) => tx._source !== 'ibkr' && tx._source !== 'inferred_flow'),
-    [transactions]
+    () => (viewTransactions || []).filter((tx) => tx._source !== 'ibkr' && tx._source !== 'inferred_flow'),
+    [viewTransactions]
   )
   // A transcribed quarter-end NAV is a real broker observation too: it already
   // contains deposits and withdrawals, so the Dietz must net the flows against
@@ -1675,6 +1997,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (extra.length === 0) return snapshots
     return [...snapshots, ...extra].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [accountCalibrations, snapshots, portfolioItems, convert])
+  // FASE OG: la gráfica recibe la lista vacía con vista escopada y cae a su
+  // reconstrucción por API (la misma vía de sus vistas por institución), que
+  // sí mide el subconjunto. Un snapshot del patrimonio completo dibujado
+  // encima de un `currentTotal` escopado es un acantilado en "hoy".
+  const viewChartSnapshots = useMemo(() => (scopedView ? [] : chartSnapshots), [scopedView, chartSnapshots])
 
   // ── FASE LU: el RENDIMIENTO mide activos, la deuda queda fuera ────────────
   // ⛔ Decisión del usuario (28 ago 2026): "la deuda tampoco debería de afectar
@@ -1688,7 +2015,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     [portfolioItems]
   )
   const debtIds = useMemo(() => new Set(debtIdsSig ? debtIdsSig.split('|') : []), [debtIdsSig])
-  const assetTransactions = useMemo(() => assetOnlyFlows(transactions, debtIds), [transactions, debtIds])
+  // FASE OG: los flujos del universo que se está mostrando (viewTransactions),
+  // no los del usuario entero: un depósito a un portafolio que no está en
+  // pantalla no es un flujo de lo que sí está.
+  const assetTransactions = useMemo(() => assetOnlyFlows(viewTransactions, debtIds), [viewTransactions, debtIds])
   const assetDietzTransactions = useMemo(() => assetOnlyFlows(dietzTransactions, debtIds), [dietzTransactions, debtIds])
 
   const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
@@ -2662,7 +2992,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // snapshots: un comentario que contradice a su código.
     if (publishBlockedBy({
       dataLoading, pricesLoading, pricesFetching, ratesLoading,
-      bulkWriting, ibkrAutoSyncing, ytdResolved,
+      bulkWriting, ibkrAutoSyncing, ytdResolved, scopedView,
     })) return
     const payload = buildPublishPayload({
       // Los CRUDOS, no los que muestra el tablero: la banda la aplica
@@ -2844,13 +3174,27 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // now only IBKR has real steps (lib/brokerCompletion.js); this block is
   // written broker-agnostic so a future broker's own steps slot in without
   // changes here.
+  //
+  // ⛔ Toda llave que un predicado de lib/brokerCompletion.js o lib/ibkrJourney.js
+  // desestructura TIENE que estar en este literal: un predicado que lee una
+  // llave ausente no falla, devuelve `undefined` y su paso queda "pendiente"
+  // para siempre. `ibkrNavDays` se perdió exactamente así en un merge (#157) y
+  // el paso 2 del viaje de IBKR quedó imposible de marcar durante semanas.
+  // Lo vigila lib/__tests__/completionStateKeys.test.js (FASE NT).
   const brokerCompletionState = useMemo(() => ({
     ibkrConnected: !!((settings?.ibkrToken || settings?._ibkrVaultMigrated) && settings?.ibkrQueryId),
     ibkrSnapshotSpanDays: computeIbkrSnapshotSpanDays(snapshots),
+    // Cuántos días de NAV real del broker hay en el archivo (FASE IH): el paso
+    // "traer tus últimos ~365 días" se cuenta por documentos, no por span.
+    ibkrNavDays: (snapshots || []).filter((s) => s && s._source === 'ibkr' && s.date).length,
     hasQuarterlyHistory: (snapshots || []).some((s) => s && s._source === 'ibkr_quarterly'),
     hasIbkrCalibration: accountCalibrations.some((c) => c && c._account === 'ibkr'),
+    // FASE NT: cuántas calibraciones de IBKR se copiaron y la app está
+    // ignorando (FASE NN). El paso sigue pendiente, que es lo correcto, pero
+    // "pendiente" a secas se lee como que el paso 4 se deshizo solo.
+    ibkrCalibrationIgnored: ignoredCalibrations.filter((c) => c._account === 'ibkr').length,
     earliestNeededDays: computeEarliestNeededDays(portfolioItems),
-  }), [settings, snapshots, accountCalibrations, portfolioItems])
+  }), [settings, snapshots, accountCalibrations, ignoredCalibrations, portfolioItems])
 
   const ibkrDataComplete = useMemo(
     () => hasCompleteBrokerData('ibkr', null, brokerCompletionState),
@@ -3177,7 +3521,32 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // de la fila en un solo batch) en vez del `applyDestinationDelta` de abajo,
     // que hace un update suelto y para dos lados podría dejar la mitad hecha.
     // Quién recibe qué lo decide `transferReversalPlan`, puro y con tests.
-    const reversal = tx && !skipBalanceReversal ? transferReversalPlan(tx, enrichedItems) : null
+    // FASE OD. Una VENTA borrada se deshace entera (posición, lotes, destino y
+    // su retiro compañero) o se rehúsa con su razón; una fila sin marcas (de
+    // antes de esta versión) se borra a secas, y la confirmación ya avisó que
+    // eso no devuelve nada. Ver lib/saleReversal.js.
+    const salePlan = tx && !skipBalanceReversal ? saleReversalPlan(tx, reversalItems, lots, transactions) : null
+    if (salePlan) {
+      if (salePlan.refused === 'unmarked' || salePlan.refused === 'item-missing') {
+        await deleteTransaction(txId)
+        return
+      }
+      if (salePlan.refused) {
+        const err = new Error(saleRefusalText(salePlan.refused, lang))
+        err.code = 'sale-refused'
+        err.reason = salePlan.refused
+        throw err
+      }
+      await reverseSaleAtomic({
+        itemId: salePlan.item.id, itemFields: salePlan.item.fields,
+        lotWrites: salePlan.lots, deleteLotIds: salePlan.deleteLotIds,
+        destId: salePlan.dest?.id || null, destFields: salePlan.dest?.fields || null,
+        txIds: [txId, ...salePlan.companions],
+      })
+      return
+    }
+
+    const reversal = tx && !skipBalanceReversal ? transferReversalPlan(tx, reversalItems) : null
     if (reversal) {
       if (!reversalWritesSomething(reversal)) {
         // Las dos cuentas se borraron: no hay saldo que devolver y la fila ya
@@ -3204,6 +3573,26 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       return
     }
 
+    // FASE OB. Un aporte, retiro o gasto que MOVIÓ un saldo al escribirse lo
+    // devuelve al borrarse (solo si la fila lo dice: `_balanceMoved`). Mismo
+    // batch atómico que una transferencia, con el ítem y el borrado juntos.
+    const cash = tx && !skipBalanceReversal ? cashflowReversalPlan(tx, reversalItems) : null
+    if (cash) {
+      if (cash.refused) {
+        const err = new Error('reversal-refused')
+        err.code = 'reversal-refused'
+        err.sides = ['account']
+        throw err
+      }
+      if (cash.side) {
+        await reverseTransfer({ fromId: cash.side.id, fromFields: cash.side.fields, toId: null, toFields: null, txId })
+        return
+      }
+      // La cuenta ya no existe, o es de mercado: se borra a secas, como antes.
+      await deleteTransaction(txId)
+      return
+    }
+
     const credit = tx && !skipBalanceReversal && dividendCreditTarget(tx, enrichedItems)
     if (credit) {
       const amt = Number(tx.totalAmount ?? tx.amount ?? 0)
@@ -3226,7 +3615,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // Solo si ese activo tiene calendario: es la misma condición con la que
       // processDividends decide a quién le genera pagos.
       const canRegenerate = src && (src.incomeAmount > 0 || src.incomeRate > 0
-        || (src.rateType === 'variable' && src.rateMin > 0) || src.rateType === 'continuous')
+        || (src.rateType === 'variable' && src.rateMin > 0) || src.rateType === 'continuous' || marketYieldFallback(src))
       if (canRegenerate) {
         // El acumulador evita que dos borrados seguidos del MISMO activo se
         // pisen: `enrichedItems` viaja capturado en este callback, así que el
@@ -3243,7 +3632,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     }
     await deleteTransaction(txId)
-  }, [transactions, enrichedItems, applyDestinationDelta, deleteTransaction, updateItem, reverseTransfer])
+  }, [transactions, enrichedItems, reversalItems, lots, lang, applyDestinationDelta, deleteTransaction, updateItem, reverseTransfer, reverseSaleAtomic])
 
   // No hay rama TRANSFER acá, y es a propósito: el botón de editar está
   // suprimido para las filas de transferencia (`EditAccountModal`, la condición
@@ -3262,8 +3651,34 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         await applyDestinationDelta(credit.dest, newAmt - oldAmt, credit.currency)
       }
     }
-    await updateTransaction(txId, fields)
-  }, [transactions, enrichedItems, applyDestinationDelta, updateTransaction])
+    let patch = fields
+    // FASE OB. Corregir a mano un pago que escribió el motor lo convierte en
+    // un REGISTRO del usuario: sigue siendo `_source:'auto'` y la limpieza
+    // lo trataba como fabricado. Moverle la fecha al día real (el cupón de
+    // junio que de verdad cayó el 5 de julio) hacía que el motor lo BORRARA
+    // por caer fuera del calendario, revirtiera el saldo del destino, y
+    // volviera a fabricar el de junio. Ahora la fila pasa a ser manual y el
+    // mes que dejó queda EXCLUIDO, que es lo que el usuario afirmó: en ese
+    // mes no hubo pago.
+    if (tx && (tx.type || '').toUpperCase() === 'DIVIDEND' && tx._source === 'auto') {
+      patch = { ...fields, _source: 'manual_edit' }
+      const newDate = typeof fields?.date === 'string' ? fields.date : null
+      if (newDate && tx.date && newDate.slice(0, 7) !== String(tx.date).slice(0, 7) && tx._linkedItemId && updateItem) {
+        const src = enrichedItems.find((it) => it.id === tx._linkedItemId)
+        if (src) {
+          const already = excludedPayRef.current.get(src.id) || []
+          const prevList = [...new Set([...(Array.isArray(src.excludedPayDates) ? src.excludedPayDates : []), ...already])]
+          if (!isPayDateExcluded(prevList, tx.date)) {
+            const next = [...prevList, tx.date]
+            excludedPayRef.current.set(src.id, next)
+            try { await updateItem(src.id, { excludedPayDates: next }) }
+            catch (e) { console.error('[update-tx-exclude]', e.message) }
+          }
+        }
+      }
+    }
+    await updateTransaction(txId, patch)
+  }, [transactions, enrichedItems, applyDestinationDelta, updateTransaction, updateItem])
 
   // Accept: writes an ordinary DEPOSIT/WITHDRAWAL (symbol 'CASH', no
   // _linkedItemId — mirrors how a REAL IBKR cash transaction is shaped,
@@ -3443,14 +3858,29 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // esa sugerencia, va con el usuario decidiendo y viéndola marcada, como ya
   // hace `suggestSavingsRate` en la proyección: no jalada en silencio.
 
+  // FASE OJ. Todo ítem que se crea con un portafolio o una entidad
+  // seleccionados tiene que nacer con esa etiqueta, o desaparece de la vista
+  // en el mismo instante (portfolioItems filtra por ella). El alta manual, el
+  // importador y el sync de IBKR ya la ponían cada uno con su copia de la
+  // regla; la cuenta destino creada "en línea" (InlineCreateAccount), Ledger y
+  // Blockchain.com entraban por `addItem` crudo y quedaban en `__default__`.
+  // Este es el único escritor que el tablero cablea a esos tres; la regla vive
+  // en lib/scopeTag.js. Una etiqueta que el ítem ya trae gana.
+  const addItemInScope = useCallback(
+    (item) => addItem(tagForScope(item, activePortfolio, activeEntity)),
+    [addItem, activePortfolio, activeEntity]
+  )
+
   return {
     // Raw Firestore data
-    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots: viewChartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
     entityTransactions, entityFinanceTransactions,
+    // FASE OG: la vista escopada y sus movimientos (ver lib/portfolioScope.js).
+    scopedView, viewTransactions,
     dataLoading, loadError,
 
     // Firestore actions
-    addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
+    addItem, addItemInScope, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     migrateMisplacedNav,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
@@ -3500,6 +3930,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ytdStartValue,
     ytdCalIgnored: contradictedCals.size,
     ytdAnchorIgnored: contradictedAnchors.size,
+    // FASE NT: las calibraciones ignoradas, con su razón, para que el modal las
+    // liste (y deje quitarlas) en vez de esconderlas con las listas filtradas.
+    ignoredCalibrations,
     // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
     // un ancla equivocada se ve en vez de tener que despejarse a mano.
     ytdStartTs, ytdStartSrc,

@@ -15,6 +15,7 @@ import { debtBreakdown, debtMonthlyRate } from '@/lib/debtMath'
 import { InfoTip } from '../ui/Tooltip'
 import { yearEndMonthKeys } from '@/lib/yearOverYear'
 import { stripStaleIbkrEntries } from '@/lib/spreadsheetSanitize'
+import { spreadsheetInputSig, cachedMonthIsCurrent } from '@/lib/spreadsheetSig'
 // El MISMO parser que usa todo camino de import. Su cabecera documenta por qué
 // existe: las implementaciones por archivo convertían "150,25" en 15025 y
 // "1.234,56" en 1.23456, y esos números pasaban validación y aterrizaban en
@@ -31,6 +32,12 @@ import { renderStyledSheet } from '@/lib/xlsxSheet'
 // getHistoricalItemValues is already only ever reached via dynamic import
 // below, so this file never actually needs the live binding, just the string.
 const IBKR_UNKNOWN_KEY_PREFIX = '__ibkr_unknown__'
+// FASE NS. Idem para las posiciones de IBKR ya VENDIDAS (IBKR_CLOSED_KEY_PREFIX
+// en lib/historicalValues.js): `prefijo + institución + '__' + SÍMBOLO`. Cada
+// celda trae además `institution`, `category` y `symbol`, así que acá se lee
+// de la celda y no se parsea la llave.
+const IBKR_CLOSED_KEY_PREFIX = '__ibkr_closed__'
+const isClosedKey = (k) => typeof k === 'string' && k.startsWith(IBKR_CLOSED_KEY_PREFIX)
 
 // CATEGORY_ORDER ahora viene de utils (compartido con el spreadsheet adjunto
 // del correo mensual). CATEGORY_LABELS se queda local A PROPÓSITO: diverge del
@@ -340,6 +347,37 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       .map((it) => `${IBKR_UNKNOWN_KEY_PREFIX}${it.institution || ''}__${getTypeCategory(it)}`)
   ), [items])
 
+  // FASE NS. Las instituciones de IBKR que TODAVÍA tienen un item vivo. Una
+  // posición vendida no tiene item, así que su celda es huérfana por
+  // construcción; cuenta (en el TOTAL, la categoría y la institución) solo
+  // mientras el broker siga conectado, la MISMA regla de liveness que el bucket
+  // (FASE GN): borrar la cuenta se lleva también lo vendido.
+  const liveIbkrInstitutions = useMemo(() => new Set(
+    (items || []).filter((it) => it && it._source === 'ibkr').map((it) => it.institution || '')
+  ), [items])
+  const countsClosed = (k, v) => isClosedKey(k) && v && liveIbkrInstitutions.has(v.institution || '')
+
+  // FASE NS. Las posiciones ya VENDIDAS de una institución y categoría, con su
+  // valor por mes DISPLAYED, ordenadas por tamaño. UNA definición para la tabla,
+  // el CSV y el Excel: si cada superficie armara la suya, una fila podría verse
+  // en pantalla y faltar en el archivo. Solo con el broker vivo (misma regla
+  // que el TOTAL), y solo lo que tiene valor en algún mes de esta vista: una
+  // vendida en 2024 no ocupa fila en la Hoja de 2026.
+  const closedRowsFor = useCallback((instName, catKey) => {
+    if (!liveIbkrInstitutions.has(instName)) return []
+    const found = {}
+    months.forEach(mk => {
+      if (mk === currentMonthKey) return
+      Object.entries(historicalItems[mk] || {}).forEach(([k, v]) => {
+        if (!isClosedKey(k) || !v || v.institution !== instName || v.category !== catKey) return
+        if (v.value == null) return
+        if (!found[k]) found[k] = { key: k, symbol: v.symbol || k, months: {} }
+        found[k].months[mk] = v.value
+      })
+    })
+    return Object.values(found).sort((a, b) => Math.max(...Object.values(b.months)) - Math.max(...Object.values(a.months)))
+  }, [liveIbkrInstitutions, months, currentMonthKey, historicalItems])
+
   const monthlyTotals = useMemo(() => {
     const base = baseCurrency || 'USD'
     // Snapshot NAV per month — used as a fallback for months that have no per-item
@@ -427,7 +465,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         // acción normal del usuario en vez de un cambio de lógica.
         Object.entries(hist).forEach(([id, v]) => {
           if (seen.has(id)) return
-          if (!liveIbkrBucketKeys.has(id)) return
+          if (!liveIbkrBucketKeys.has(id) && !countsClosed(id, v)) return
           sum += v.value || 0
         })
         result[mk] = sum
@@ -438,7 +476,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }
     })
     return result
-  }, [snapshots, convert, baseCurrency, historicalItems, items, liveIbkrBucketKeys])
+  }, [snapshots, convert, baseCurrency, historicalItems, items, liveIbkrBucketKeys, liveIbkrInstitutions])
 
   // Months whose TOTAL comes from a snapshot NAV fallback (no per-item breakdown):
   // the category rows show "—" there while the TOTAL shows a figure, so we mark
@@ -501,6 +539,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // live recompute lands, never blanked first. Skips its own mount (nothing
   // to invalidate yet, and bumping here would force every cold load into a
   // live recompute even when the Firestore cache is already sufficient).
+  // FASE OA. La firma que viaja al doc de cada mes cacheado: los MISMOS
+  // strings que invalidan en sesion, hasheados. Un mes guardado con otra
+  // firma (o sin ella) se recomputa al montar, que es lo que la invalidacion
+  // en memoria no podia hacer entre sesiones (lib/spreadsheetSig.js).
+  const inputSig = useMemo(() => spreadsheetInputSig([snapshotSig, txSig, lotSig, itemContentSig]),
+    [snapshotSig, txSig, lotSig, itemContentSig])
+  // Firma con la que se guardo cada mes que hoy esta en memoria: la que trajo
+  // el cache al cargar, o la de HOY cuando el recomputo de esta sesion lo
+  // acaba de escribir. Ref y no estado: solo la lee missingMonths.
+  const cachedSigRef = useRef({})
   const contentMountedRef = useRef(false)
   const [generation, setGeneration] = useState(0)
   useEffect(() => {
@@ -530,7 +578,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       // would sit on "-" forever waiting for an answer that already came.
       setCacheProbed(true)
       if (cancelled || !data) return
-      const { __currencies = {}, ...monthData } = data
+      const { __currencies = {}, __sigs = {}, ...monthData } = data
+      toLoad.forEach(mk => { cachedSigRef.current[mk] = __sigs[mk] || null })
       setHistoricalItems(prev => {
         const next = { ...prev }
         toLoad.forEach(mk => {
@@ -592,8 +641,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const val = it.isDebt ? -getItemValue(it) : getItemValue(it)
       if (it.id) data[it.id] = { value: val, symbol: it.symbol || it.name || '', category: getTypeCategory(it), institution: it.institution || '' }
     })
-    onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD')
-  }, [onSaveItemSnapshots, items, currentMonthKey, baseCurrency])
+    onSaveItemSnapshots(currentMonthKey, data, baseCurrency || 'USD', { sig: inputSig })
+  }, [onSaveItemSnapshots, items, currentMonthKey, baseCurrency, inputSig])
 
   // What the compute effect below READS to decide which months are missing, kept
   // in a ref on purpose. `historicalItems` cannot be a dependency of that effect:
@@ -704,6 +753,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       if (generation > 0 && monthGenRef.current[mk] !== generation) return true
       const monthData = cached[mk]
       if (!monthData) return true
+      // FASE OA: un mes que vino del cache con OTRA firma de insumos (o sin
+      // firma) no se da por bueno solo por existir: es el hueco por el que un
+      // cupon escrito en otra sesion nunca llegaba a los meses ya guardados.
+      if (!cachedMonthIsCurrent(cachedSigRef.current[mk], inputSig)) return true
       const end = monthEndOf(mk)
       const eligible = itemsWithIds.filter(it => {
         const acq = effAcqTs(it)
@@ -716,7 +769,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (monthData[bucketKeyFor(it)]) return true
         if (anyIbkr == null) {
           anyIbkr = Object.keys(monthData).some(k =>
-            k.startsWith(IBKR_UNKNOWN_KEY_PREFIX) || ibkrIdsRef.current.has(k))
+            k.startsWith(IBKR_UNKNOWN_KEY_PREFIX) || isClosedKey(k) || ibkrIdsRef.current.has(k))
         }
         return anyIbkr
       }
@@ -793,7 +846,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         setLoadingHistory(false)
         for (const mk of Object.keys(data)) {
           if (Object.keys(data[mk]).length > 0) {
-            try { await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD') } catch {}
+            try {
+              await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { sig: inputSig })
+              cachedSigRef.current[mk] = inputSig
+            } catch {}
           }
         }
       }).catch(() => { setLoadingHistory(false) })
@@ -808,7 +864,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // sigs deliberately exclude currentPrice, so a price refresh no longer
     // throws away work in progress.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemContentSig, txSig, lotSig, snapshotSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, cacheProbed, generation])
+  }, [itemContentSig, txSig, lotSig, snapshotSig, inputSig, months, currentMonthKey, convert, baseCurrency, onSaveItemSnapshots, fetchKey, cacheEpoch, cacheProbed, generation])
 
   // "Recalcular": el MISMO cómputo del efecto de arriba, pero disparable y con
   // reporte.
@@ -867,7 +923,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (unavailable.length > 0) break
         if (Object.keys(data[mk]).length === 0) continue
         try {
-          await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { replace: true })
+          await onSaveItemSnapshots(mk, data[mk], baseCurrency || 'USD', { replace: true, sig: inputSig })
+          cachedSigRef.current[mk] = inputSig
           written++
         } catch { /* best-effort: un mes que no se pudo guardar se recomputa la próxima */ }
       }
@@ -883,7 +940,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       setRecalcReport({ error: err?.message || String(err) })
     }
     setRecalculating(false)
-  }, [recalculating, months, currentMonthKey, onSaveItemSnapshots, items, convert, baseCurrency, lots, transactions, snapshots, generation, fetchKey, t])
+  }, [recalculating, months, currentMonthKey, onSaveItemSnapshots, items, convert, baseCurrency, lots, transactions, snapshots, generation, fetchKey, inputSig, t])
 
   // El botón de refrescar del header de /spreadsheet dispara lo MISMO, que es
   // literalmente lo que pidió el usuario ("o utilizar el botón de refresh propio
@@ -1251,6 +1308,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         if (unknownCells.some(c => c !== '')) {
           rows.push([cat.label, t('Posiciones no identificadas', 'Unidentified positions'), ...unknownCells].map(esc).join(','))
         }
+        // FASE NS: una fila por posición vendida, mismas celdas que la tabla.
+        closedRowsFor(inst.name, cat.key).forEach(cr => {
+          const cells = months.map(mk => mk === currentMonthKey ? '' : (cr.months[mk] != null ? cr.months[mk].toFixed(2) : ''))
+          rows.push([cat.label, `${cr.symbol} (${t('vendida', 'sold')})`, ...cells].map(esc).join(','))
+        })
       })
     })
     rows.push(['TOTAL', '', ...months.map(mk => {
@@ -1264,7 +1326,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     a.download = viewMode === 'yoy' ? 'chispudo-spreadsheet-anual.csv' : `chispudo-spreadsheet-${selectedYear}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang, viewMode])
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, selectedYear, lang, viewMode, closedRowsFor])
 
   // El MISMO recorrido de datos que el CSV (mismas fuentes, mismos números),
   // escrito con el formato compartido de lib/xlsxSheet.js: el archivo que se
@@ -1322,6 +1384,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             values: unknownCells,
           })
         }
+        // FASE NS: las vendidas, una fila cada una, sumando al subtotal.
+        closedRowsFor(inst.name, cat.key).forEach(cr => {
+          const cells = months.map((mk, i) => {
+            if (mk === currentMonthKey) return null
+            const v = cr.months[mk]
+            if (v == null) return null
+            const r = Math.round(v * 100) / 100
+            bump(i, r)
+            return r
+          })
+          catRows.push({ kind: 'item', muted: true, label: `${cr.symbol} (${t('vendida', 'sold')})  ·  ${inst.name}`, values: cells })
+        })
       })
 
       if (catRows.length > 0) {
@@ -1370,7 +1444,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     a.download = isYoy ? 'chispudo-spreadsheet-anual.xlsx' : `chispudo-spreadsheet-${selectedYear}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
-  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang, viewMode, baseCurrency])
+  }, [categories, months, currentMonthKey, historicalItems, monthlyTotals, grandTotal, fallbackMonths, selectedYear, lang, viewMode, baseCurrency, closedRowsFor])
 
   const isCurrentYear = selectedYear === now.getFullYear()
   const prevMonthKey = months.length >= 2 ? months[months.length - 2] : null
@@ -1406,6 +1480,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   }, [historicalItems, currentItemIds])
 
   const [showRemoved, setShowRemoved] = useState(false)
+  // FASE NS: el bloque "Posiciones vendidas" de cada institución, plegado por
+  // default (la suma ya está en la fila del bloque).
+  const [showClosed, setShowClosed] = useState({})
 
   // Placed after every hook above (never between them) — an empty portfolio
   // otherwise rendered as a wall of blank category rows with nothing to click.
@@ -1899,7 +1976,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       // número volvía a aparecer en "Activos anteriores".
                       Object.entries(histMonth).forEach(([itemId, data]) => {
                         if (currentItemIds.has(itemId)) return
-                        if (!liveIbkrBucketKeys.has(itemId)) return
+                        if (!liveIbkrBucketKeys.has(itemId) && !countsClosed(itemId, data)) return
                         if (data.category !== cat.key) return
                         catHistTotal += data.value || 0
                         foundAny = true
@@ -1938,6 +2015,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                   // see IBKR_UNKNOWN_KEY_PREFIX's comment above for why.
                   const ibkrUnknownKey = `${IBKR_UNKNOWN_KEY_PREFIX}${inst.name}__${cat.key}`
                   const hasIbkrUnknown = months.some(mk => mk !== currentMonthKey && historicalItems[mk]?.[ibkrUnknownKey])
+                  // FASE NS. Las posiciones ya VENDIDAS de esta institución y
+                  // categoría (ver closedRowsFor).
+                  const closedRows = closedRowsFor(inst.name, cat.key)
+                  const closedSumAt = (mk) => {
+                    let s = null
+                    closedRows.forEach(cr => { const v = cr.months[mk]; if (v != null) s = (s || 0) + v })
+                    return s
+                  }
+                  const closedOpen = !!showClosed[instKey]
 
                   return (
                     <Fragment key={instKey}>
@@ -1967,6 +2053,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 if (it.id && histMonth[it.id]) instHistTotal += (it.isDebt ? -1 : 1) * (histMonth[it.id].value || 0)
                               })
                               if (histMonth[ibkrUnknownKey]) instHistTotal += histMonth[ibkrUnknownKey].value || 0
+                              // FASE NS: lo vendido de ESTA institución y categoría.
+                              closedRows.forEach(cr => { const v = cr.months[mk]; if (v != null) instHistTotal += v })
                             }
                             return (
                               <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -1985,7 +2073,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         // Sub-unit crypto amounts (0.00000547 BTC) round to "0"
                         // at 4 decimals and read as a missing quantity: give
                         // fractional amounts room before falling back.
-                        const qtyLabel = market && qty ? qty.toLocaleString(undefined, { maximumFractionDigits: qty < 1 ? 8 : 4 }) : null
+                        // FASE OA: un bono/alternativo con cantidad distinta de 1 tambien
+                        // la muestra. Es la unica pista visible de que su valor es
+                        // cantidad x monto y no el monto que el usuario tecleo.
+                        const qtyLabel = (market ? qty : (qty && qty !== 1)) ? qty.toLocaleString(undefined, { maximumFractionDigits: qty < 1 ? 8 : 4 }) : null
                         // The cell shows the total value, so the editor edits value
                         // too (quantity is derived from the price on save).
                         const editVal = Math.abs(val).toFixed(2)
@@ -2116,6 +2207,67 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           </Fragment>
                         )
                       })}
+
+                      {/* FASE NS. Las posiciones que el usuario YA VENDIÓ, con el
+                          valor que tenían cada mes (cantidad exacta del ledger de
+                          trades × precio de ese mes). Sin esto un mes pasado sumaba
+                          solo las posiciones de HOY y la fila del broker quedaba
+                          corta frente a su NAV real por todo lo vendido. Un bloque
+                          plegable con la suma, y adentro una fila por símbolo; la
+                          columna de hoy va vacía a propósito: hoy no se tiene. */}
+                      {(!showInst || !isInstCollapsed) && closedRows.length > 0 && (
+                        <>
+                          <tr className="border-t border-[var(--border-subtle)] cursor-pointer hover:bg-[var(--bg-card-hover)] transition-colors" style={{ backgroundColor: 'var(--bg-secondary)' }}
+                            onClick={() => setShowClosed(p => ({ ...p, [instKey]: !p[instKey] }))}
+                            data-closed-toggle={instKey}>
+                            <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 z-10`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-xs w-3 shrink-0" style={{ color: 'var(--text-muted)' }}>{closedOpen ? 'v' : '>'}</span>
+                                <span className="text-sm italic truncate" style={{ color: 'var(--text-muted)' }}>
+                                  {t('Posiciones vendidas', 'Sold positions')}
+                                </span>
+                                <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>({closedRows.length})</span>
+                              </div>
+                            </td>
+                            <td />
+                            {showOriginal && <td />}
+                            {months.map(mk => {
+                              if (mk === currentMonthKey) {
+                                return <td key={mk} className="text-right py-2.5 px-2" style={{ backgroundColor: CURRENT_COL_BG }} />
+                              }
+                              const v = closedSumAt(mk)
+                              return (
+                                <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
+                                  {v != null ? formatNum(v) : '-'}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                          {closedOpen && closedRows.map(cr => (
+                            <tr key={cr.key} className="border-t border-[var(--border-subtle)]" style={{ backgroundColor: 'var(--bg-secondary)' }} data-closed-row={cr.symbol}>
+                              <td className={`py-2 ${showInst ? 'pl-16' : 'pl-12'} pr-2 sticky left-0 z-10`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>{cr.symbol}</span>
+                                  <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{t('vendida', 'sold')}</span>
+                                </div>
+                              </td>
+                              <td />
+                              {showOriginal && <td />}
+                              {months.map(mk => {
+                                if (mk === currentMonthKey) {
+                                  return <td key={mk} className="text-right py-2 px-2 tabular-nums font-mono text-sm" style={{ backgroundColor: CURRENT_COL_BG, color: 'var(--text-muted)' }}>-</td>
+                                }
+                                const v = cr.months[mk]
+                                return (
+                                  <td key={mk} className="text-right py-2 px-2 tabular-nums font-mono text-sm" style={{ color: v != null ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                                    {v != null ? formatNum(v) : '-'}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </>
+                      )}
 
                       {/* Past months of an IBKR account are NEVER a real per-stock
                           breakdown (getHistoricalItemValues only ever knows the

@@ -3,8 +3,10 @@ import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 import { transactionDocId } from '@/lib/transactionDocId'
+import { roundQty, closesWholeLot, closedLotDocId } from '@/lib/lotClose'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
+import { planPortfolioDelete } from '@/lib/portfolioDelete'
 // Historial de bumps de SNAPSHOT_VERSION (el número vive en lib/snapshotVersion.js
 // para que el lector del servidor use la MISMA vara). Cada bump es porque un doc
 // ya cacheado quedó con una reconstrucción que el merge NUNCA corrige por su
@@ -30,6 +32,16 @@ import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 //        Todo mes cacheado tiene el bucket con el valor del grupo COMPLETO
 //        horneado, así que dejarlo vivo lo sumaría encima de las posiciones
 //        reconstruidas (el doble conteo de FASE FT, por la puerta de al lado).
+//   v34 (4 sep 2026, FASE NS): una posición de IBKR ya VENDIDA se reconstruye
+//        desde el ledger de trades (IBKR_CLOSED_KEY_PREFIX). Todo mes cacheado
+//        se calculó sin esas filas, y el chequeo de "¿este mes ya se calculó?"
+//        lo da por cubierto, así que sin el bump nunca se volverían a pedir.
+//   v35 (7 sep 2026, FASE OK): vender un ítem estático con destino "Queda en
+//        el portafolio" ya empuja un evento -monto para el ítem VENDIDO
+//        (`indexBalanceEvents` ganó esa rama en su SELL, con OK del usuario).
+//        Todo mes cacheado de un ítem que se vendió así tiene su historia
+//        horneada en $0.00 para todos los meses, y el merge nunca lo corrige
+//        solo.
 
 let _db = null
 let _auth = null
@@ -67,8 +79,8 @@ function readInitCache() {
   return (uid && _cacheByUid[uid]) || null
 }
 
-const QTY_EPSILON = 0.0001
-function roundQty(v) { return Math.round(v * 10000) / 10000 }
+// FASE OB. Epsilon, redondeo e id de cierre viven en lib/lotClose.js: tres
+// escritores los tenían copiados a mano y ya habían divergido.
 
 function toStr(v) {
   if (v == null) return v
@@ -132,6 +144,10 @@ async function deleteAllDocsIn(db, fs, path) {
 export function useFirestoreItems() {
   const initCache = readInitCache()
   const [items, setItems] = useState(initCache?.items || [])
+  // Espejo en render, para que `addItem` (deps [uid]) vea los ítems de HOY
+  // sin arrastrar `items` a sus dependencias.
+  const itemsRef = useRef(items)
+  itemsRef.current = items
   const [snapshots, setSnapshots] = useState(initCache?.snapshots || [])
   const [transactions, setTransactions] = useState(initCache?.transactions || [])
   const [alerts, setAlerts] = useState(initCache?.alerts || [])
@@ -273,7 +289,13 @@ export function useFirestoreItems() {
       const { id: _removed, ...raw } = item
       const data = sanitizeImportItem(raw)
       const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
-      await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, createdAt: new Date().toISOString() }, { merge: true })
+      // FASE OL. Con un id que YA existe (el merge de "Agregar a posición")
+      // esto es un merge sobre el doc: estampar `createdAt: hoy` ahí borraba
+      // cuándo nació el ítem, y `effectiveAcqDate` (lib/historicalValues.js)
+      // cae a `createdAt` cuando no hay fecha de adquisición. Un doc existente
+      // conserva el suyo (o sigue sin él, si nunca lo tuvo).
+      const exists = !!item.id && itemsRef.current.some((it) => it.id === item.id)
+      await fs.setDoc(fs.doc(db, `users/${uid}/items`, id), { ...clean, ...(exists ? {} : { createdAt: new Date().toISOString() }) }, { merge: true })
       return id
     } catch (e) {
       console.error('[addItem] Write failed:', e)
@@ -294,74 +316,132 @@ export function useFirestoreItems() {
     }
   }, [uid])
 
-  const deleteItem = useCallback(async (itemId, { skipRefCleanup = false } = {}) => {
-    if (!uid) return
-    const prev = items
-    const deletedItem = items.find(it => it.id === itemId)
-    setItems((cur) => cur.filter((it) => it.id !== itemId))
+  // FASE OB. Borrar UNA cuenta y borrar un GRUPO eran dos cascadas distintas y
+  // ya habían divergido: el editor (deleteItem) solo se llevaba las filas con
+  // `_linkedItemId`, así que una transferencia cuyo ORIGEN era la cuenta
+  // borrada sobrevivía huérfana (y seguía rebobinando el saldo de la otra), la
+  // ancla de calibración por cuenta se quedaba, y el lote de una posición
+  // duplicada del mismo símbolo seguía sumando acciones en los meses pasados
+  // de la Hoja; Ajustes (deleteItemGroup) sí hacía casi todo eso pero no
+  // limpiaba las referencias ni el caché mensual. Una sola cascada para las
+  // dos puertas, con la UNIÓN de lo que cada una sabía.
+  const cascadeDelete = useCallback(async (itemIds, { skipRefCleanup = false } = {}) => {
+    if (!uid || !itemIds?.length) return 0
+    const idSet = new Set(itemIds)
+    const groupItems = items.filter((i) => idSet.has(i.id))
+    if (groupItems.length === 0) return 0
+    const { db, fs } = await getFirebase()
+    const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
+    const survivingItems = items.filter((i) => !idSet.has(i.id))
+    const survivingSyms = new Set(survivingItems.map((i) => (i.symbol || '').toUpperCase()))
+    const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
+    // Snapshots that describe the ACCOUNT rather than the portfolio (a broker's
+    // NAV history, a per-account calibration anchor) have to go with it. Without
+    // this the group delete removed the positions and left their NAV behind, so
+    // the chart kept plotting an account the portfolio no longer held — a
+    // leftover IBKR NAV of 5,760 topped up with a manual 6,240 bond drew a flat
+    // 12,000 line over a portfolio worth 6,240 (FASE DX). Portfolio-wide
+    // snapshots ('daily' and friends) are never touched: they also measure what
+    // survives.
+    const orphanSnapIds = orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
+    // FASE GL. Account-LEVEL transactions (a broker's deposits/withdrawals,
+    // fees and taxes carry symbol 'CASH' and no _linkedItemId, and accepted
+    // inferred flows share that shape) never matched the per-item filters
+    // below, so deleting the account left them orphaned — and an orphan
+    // deposit is poison, not residue: every return engine keeps netting money
+    // into an account that no longer exists, and the spreadsheet's monthly
+    // recompute rebuilds history through flows no surviving item explains
+    // (real report: deleting IBKR from Settings left YTD at -29.62% and a
+    // -47.8% "drawdown" that was just the deletion itself). Deleting an
+    // account means it never appears in history again — a WITHDRAWAL is how
+    // you record money that actually left. Same last-item rule as
+    // orphanedAccountSnapshotIds: IBKR split across groups (API + file) must
+    // not lose its ledger while one group survives.
+    const ibkrGone = groupItems.some((i) => i._source === 'ibkr')
+      && !survivingItems.some((i) => i._source === 'ibkr')
+    // Un lote con DUEÑO (`itemId`, FASE OB) se va con su ítem y solo con él.
+    // Uno sin dueño (escrito antes) conserva la regla por símbolo: se va solo
+    // si ningún hermano sigue teniendo ese símbolo.
+    const lotGoes = (l) => (l.itemId ? idSet.has(l.itemId) : symDeletable((l.symbol || '').toUpperCase()))
+    // `_debtItemId` va en la lista porque un pago de deuda NO lleva
+    // `_linkedItemId` (lib/transferTx.js: ponerlo ahí haría que la lógica
+    // congelada F reconstruyera el pasado del préstamo al revés). Sin esta
+    // entrada, borrar la CUENTA QUE PAGA sí se llevaba sus pagos (por
+    // `_originItemId`) pero borrar el PRÉSTAMO los dejaba huérfanos, contra
+    // la regla de FASE GL: borrar una cuenta = nunca aparece en el historial.
+    // `_loanItemId` (el desembolso de un préstamo a una cuenta) y
+    // `_paidFromItemId` (un gasto pagado desde una cuenta) son la misma
+    // familia: la fila nombra a esta cuenta en un campo propio.
+    const txGoes = (t) =>
+      idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
+      || idSet.has(t._debtItemId) || idSet.has(t._loanItemId) || idSet.has(t._paidFromItemId)
+      || symDeletable((t.symbol || '').toUpperCase())
+      || (ibkrGone && (t._source === 'ibkr' || t._source === 'inferred_flow'))
+    const refs = [
+      ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
+      ...lots.filter(lotGoes).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
+      ...transactions.filter(txGoes).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
+      ...orphanSnapIds.map((id) => fs.doc(db, `users/${uid}/snapshots`, id)),
+    ]
+    // Las referencias que apuntan a lo borrado se limpian en los ítems que
+    // sobreviven: un destino de cupón, un destino de capital, la hipoteca de
+    // un inmueble. Una referencia muerta la reporta `broken-link`, pero no hay
+    // por qué dejarla.
+    const refPatches = skipRefCleanup ? [] : survivingItems.map((it) => {
+      const updates = {}
+      if (idSet.has(it.incomeDestination)) updates.incomeDestination = ''
+      if (idSet.has(it.capitalDestination)) updates.capitalDestination = ''
+      if (idSet.has(it.linkedDebtId)) updates.linkedDebtId = ''
+      return Object.keys(updates).length ? [it.id, updates] : null
+    }).filter(Boolean)
+    // Una operación por entrada, borrados y parches en la misma cola, en lotes
+    // del tamaño que Firestore acepta.
+    const ops = [
+      ...refs.map((ref) => (batch) => batch.delete(ref)),
+      ...refPatches.map(([id, updates]) => (batch) => batch.update(fs.doc(db, `users/${uid}/items`, id), updates)),
+    ]
+    const CHUNK = 30
+    for (let i = 0; i < ops.length; i += CHUNK) {
+      const batch = fs.writeBatch(db)
+      for (const op of ops.slice(i, i + CHUNK)) op(batch)
+      await batch.commit()
+    }
+    // El caché mensual de la Hoja guarda una entrada por ítem: sin este barrido
+    // la cuenta borrada seguía sumando en cada mes ya calculado.
     try {
-      const { db, fs } = await getFirebase()
-      const sym = (deletedItem?.symbol || '').toUpperCase()
-      const needLotCleanup = !!sym && !items.some(it => it.id !== itemId && (it.symbol || '').toUpperCase() === sym)
-
-      // The four cleanup reads are independent — fetch them in one round-trip
-      // instead of four in series (deleting an item used to take 4× the latency).
-      // Writes below keep their original order (item first, then references).
-      const [itemsSnap, txSnap, lotSnap, isSnap] = await Promise.all([
-        skipRefCleanup ? null : fs.getDocs(fs.collection(db, `users/${uid}/items`)),
-        fs.getDocs(fs.collection(db, `users/${uid}/transactions`)),
-        needLotCleanup ? fs.getDocs(fs.collection(db, `users/${uid}/lots`)) : null,
-        fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`)),
-      ])
-
-      if (skipRefCleanup) {
-        await fs.deleteDoc(fs.doc(db, `users/${uid}/items`, itemId))
-      } else {
-        const batch = fs.writeBatch(db)
-        itemsSnap.docs.forEach((d) => {
-          if (d.id === itemId) return
-          const data = d.data()
-          const updates = {}
-          if (data.incomeDestination === itemId) updates.incomeDestination = ''
-          if (data.capitalDestination === itemId) updates.capitalDestination = ''
-          if (Object.keys(updates).length > 0) batch.update(d.ref, updates)
-        })
-        batch.delete(fs.doc(db, `users/${uid}/items`, itemId))
-        await batch.commit()
-      }
-
-      const txBatch = fs.writeBatch(db)
-      let txCount = 0
-      txSnap.docs.forEach(d => {
-        if (d.data()._linkedItemId === itemId) { txBatch.delete(d.ref); txCount++ }
-      })
-      if (txCount > 0) await txBatch.commit()
-
-      if (lotSnap) {
-        const lotBatch = fs.writeBatch(db)
-        let lotCount = 0
-        lotSnap.docs.forEach(d => {
-          if ((d.data().symbol || '').toUpperCase() === sym) { lotBatch.delete(d.ref); lotCount++ }
-        })
-        if (lotCount > 0) await lotBatch.commit()
-      }
-
+      const isSnap = await fs.getDocs(fs.collection(db, `users/${uid}/itemSnapshots`))
       const isBatch = fs.writeBatch(db)
       let isCount = 0
-      isSnap.docs.forEach(d => {
+      isSnap.docs.forEach((d) => {
         const data = d.data()
-        if (data.items && data.items[itemId]) {
-          const { [itemId]: _, ...rest } = data.items
-          isBatch.update(d.ref, { items: rest })
-          isCount++
-        }
+        if (!data.items) return
+        const keep = Object.fromEntries(Object.entries(data.items).filter(([k]) => !idSet.has(k)))
+        if (Object.keys(keep).length === Object.keys(data.items).length) return
+        isBatch.update(d.ref, { items: keep })
+        isCount++
       })
       if (isCount > 0) await isBatch.commit()
+    } catch (err) { console.error('[delete-itemSnapshots]', err.message) }
+    setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
+    if (orphanSnapIds.length > 0) {
+      const goneSnaps = new Set(orphanSnapIds)
+      setSnapshots((cur) => cur.filter((s) => !goneSnaps.has(s.id)))
+    }
+    setDeletionEpoch((e) => e + 1)
+    return groupItems.length
+  }, [uid, items, lots, transactions, snapshots])
+
+  const deleteItem = useCallback(async (itemId, opts) => {
+    if (!uid) return
+    const prev = items
+    setItems((cur) => cur.filter((it) => it.id !== itemId))
+    try {
+      await cascadeDelete([itemId], opts)
     } catch (err) {
       setItems(prev)
       throw err
     }
-  }, [uid, items])
+  }, [uid, items, cascadeDelete])
 
   // FASE GM2. Sube con cada borrado de cuentas. Los efectos una-vez-por-sesión
   // de useDashboardData (el backfill de 366 días que re-deriva el historial de
@@ -481,71 +561,7 @@ export function useFirestoreItems() {
   // owns the grouping (by source/institution); this stays generic. Lots/transactions
   // are only removed for symbols NO surviving item still holds, so deleting one account
   // never strips history a sibling account shares.
-  const deleteItemGroup = useCallback(async (itemIds) => {
-    if (!uid || !itemIds?.length) return 0
-    const idSet = new Set(itemIds)
-    const groupItems = items.filter((i) => idSet.has(i.id))
-    if (groupItems.length === 0) return 0
-    const { db, fs } = await getFirebase()
-    const groupSyms = new Set(groupItems.map((i) => (i.symbol || '').toUpperCase()).filter(Boolean))
-    const survivingSyms = new Set(items.filter((i) => !idSet.has(i.id)).map((i) => (i.symbol || '').toUpperCase()))
-    const symDeletable = (s) => !!s && groupSyms.has(s) && !survivingSyms.has(s)
-    // Snapshots that describe the ACCOUNT rather than the portfolio (a broker's
-    // NAV history, a per-account calibration anchor) have to go with it. Without
-    // this the group delete removed the positions and left their NAV behind, so
-    // the chart kept plotting an account the portfolio no longer held — a
-    // leftover IBKR NAV of 5,760 topped up with a manual 6,240 bond drew a flat
-    // 12,000 line over a portfolio worth 6,240 (FASE DX). Portfolio-wide
-    // snapshots ('daily' and friends) are never touched: they also measure what
-    // survives.
-    const survivingItems = items.filter((i) => !idSet.has(i.id))
-    const orphanSnapIds = orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
-    // FASE GL. Account-LEVEL transactions (a broker's deposits/withdrawals,
-    // fees and taxes carry symbol 'CASH' and no _linkedItemId, and accepted
-    // inferred flows share that shape) never matched the per-item filters
-    // below, so deleting the account left them orphaned — and an orphan
-    // deposit is poison, not residue: every return engine keeps netting money
-    // into an account that no longer exists, and the spreadsheet's monthly
-    // recompute rebuilds history through flows no surviving item explains
-    // (real report: deleting IBKR from Settings left YTD at -29.62% and a
-    // -47.8% "drawdown" that was just the deletion itself). Deleting an
-    // account means it never appears in history again — a WITHDRAWAL is how
-    // you record money that actually left. Same last-item rule as
-    // orphanedAccountSnapshotIds: IBKR split across groups (API + file) must
-    // not lose its ledger while one group survives.
-    const ibkrGone = groupItems.some((i) => i._source === 'ibkr')
-      && !survivingItems.some((i) => i._source === 'ibkr')
-    const refs = [
-      ...groupItems.map((i) => fs.doc(db, `users/${uid}/items`, i.id)),
-      ...lots.filter((l) => symDeletable((l.symbol || '').toUpperCase())).map((l) => fs.doc(db, `users/${uid}/lots`, l.id)),
-      // `_debtItemId` va en la lista porque un pago de deuda NO lleva
-      // `_linkedItemId` (lib/transferTx.js: ponerlo ahí haría que la lógica
-      // congelada F reconstruyera el pasado del préstamo al revés). Sin esta
-      // entrada, borrar la CUENTA QUE PAGA sí se llevaba sus pagos (por
-      // `_originItemId`) pero borrar el PRÉSTAMO los dejaba huérfanos, contra
-      // la regla de FASE GL: borrar una cuenta = nunca aparece en el historial.
-      ...transactions.filter((t) =>
-        idSet.has(t._linkedItemId) || idSet.has(t._destinationItemId) || idSet.has(t._originItemId)
-        || idSet.has(t._debtItemId)
-        || symDeletable((t.symbol || '').toUpperCase())
-        || (ibkrGone && (t._source === 'ibkr' || t._source === 'inferred_flow'))
-      ).map((t) => fs.doc(db, `users/${uid}/transactions`, t.id)),
-      ...orphanSnapIds.map((id) => fs.doc(db, `users/${uid}/snapshots`, id)),
-    ]
-    const CHUNK = 30
-    for (let i = 0; i < refs.length; i += CHUNK) {
-      const batch = fs.writeBatch(db)
-      for (const ref of refs.slice(i, i + CHUNK)) batch.delete(ref)
-      await batch.commit()
-    }
-    setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
-    if (orphanSnapIds.length > 0) {
-      const goneSnaps = new Set(orphanSnapIds)
-      setSnapshots((cur) => cur.filter((s) => !goneSnaps.has(s.id)))
-    }
-    setDeletionEpoch((e) => e + 1)
-    return groupItems.length
-  }, [uid, items, lots, transactions, snapshots])
+  const deleteItemGroup = useCallback(async (itemIds) => cascadeDelete(itemIds), [cascadeDelete])
 
   const addTransaction = useCallback(async (transaction) => {
     if (!uid) return
@@ -656,7 +672,10 @@ export function useFirestoreItems() {
     const qty = Math.round((lot.quantity || 0) * 1e8)
     const cost = Math.round((lot.costBasis || 0) * 100)
     const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
-    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+    // FASE OB. El dueño entra al id: dos posiciones del mismo símbolo, fecha,
+    // cantidad y costo (dos cuentas del mismo broker) colapsaban en UN doc.
+    const owner = lot.itemId ? `-${String(lot.itemId).replace(/[/\\]/g, '-').slice(0, 24)}` : ''
+    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}${owner}`
     const lotData = Object.fromEntries(Object.entries({ ...lot, status: 'open', createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), lotData)
   }, [uid])
@@ -694,7 +713,7 @@ export function useFirestoreItems() {
         const closable = Math.min(remaining, lot.quantity)
         const realizedGain = (closePrice - lot.costBasis) * closable
 
-        if (closable >= lot.quantity - QTY_EPSILON) {
+        if (closesWholeLot(closable, lot.quantity)) {
           tx.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
             status: 'closed', quantity: closable, closedDate: closeDate, closedPrice: closePrice, realizedGain,
           })
@@ -702,7 +721,7 @@ export function useFirestoreItems() {
           tx.update(fs.doc(db, `users/${uid}/lots`, lot.id), {
             quantity: roundQty(lot.quantity - closable),
           })
-          const closedId = `${lot.id}-closed-${Date.now()}`
+          const closedId = closedLotDocId(lot, closeDate)
           const { id: _lotId, ...lotData } = lot
           tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
             ...lotData, quantity: closable, status: 'closed',
@@ -840,15 +859,16 @@ export function useFirestoreItems() {
       tx.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields))
 
       for (const c of closes) {
-        if (c.closable >= c.lot.quantity - QTY_EPSILON) {
+        if (closesWholeLot(c.closable, c.lot.quantity)) {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
             status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
           })
         } else {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
-          // Deterministic closed-lot id (date, not Date.now()) so a transaction
-          // retry overwrites the same doc instead of duplicating it.
-          const closedId = `${c.lot.id}-closed-${lotClose.date}`
+          // Determinístico (un reintento de la transacción reescribe el MISMO
+          // doc) y único por cierre (dos ventas parciales del mismo lote el
+          // mismo día no se pisan): ver lib/lotClose.js.
+          const closedId = closedLotDocId(c.lot, lotClose.date)
           const { id: _lotId, ...lotData } = c.lot
           tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
             ...lotData, quantity: c.closable, status: 'closed',
@@ -858,21 +878,55 @@ export function useFirestoreItems() {
         }
       }
 
+      // FASE OD. La fila SELL lleva estampado QUÉ lotes cerró (y qué lote creó
+      // en el destino), porque es lo único que permite deshacer la venta al
+      // borrarla (lib/saleReversal.js). Solo este escritor lo sabe: los cierres
+      // se deciden acá adentro, leyendo los lotes en la misma transacción.
+      const lotCloses = closes.map((c) => (closesWholeLot(c.closable, c.lot.quantity)
+        ? { lotId: c.lot.id, closable: c.closable, whole: true }
+        : { lotId: c.lot.id, closable: c.closable, whole: false, closedId: closedLotDocId(c.lot, lotClose.date) }))
+      let destLotId = null
+      if (destLot) {
+        // FASE OB. El lote del destino tiene dueño: el ítem al que se acreditó.
+        if (destId && !destLot.itemId) destLot = { ...destLot, itemId: destId }
+        const qty = Math.round((destLot.quantity || 0) * 1e8)
+        const cost = Math.round((destLot.costBasis || 0) * 100)
+        const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
+        destLotId = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
+      }
+
       transactions.forEach((t) => {
-        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(t)), strip({ ...t, createdAt: new Date().toISOString() }))
+        const marked = (t.type || '').toUpperCase() === 'SELL'
+          ? { ...t, _lotCloses: lotCloses, ...(destLotId ? { _destLotId: destLotId } : {}) }
+          : t
+        tx.set(fs.doc(db, `users/${uid}/transactions`, txDocId(t)), strip({ ...marked, createdAt: new Date().toISOString() }))
       })
 
       if (destId && destFields) {
         tx.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
       }
       if (destLot) {
-        const qty = Math.round((destLot.quantity || 0) * 1e8)
-        const cost = Math.round((destLot.costBasis || 0) * 100)
-        const inst = (destLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
-        const lid = `${(destLot.symbol || 'lot').toUpperCase()}-${destLot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
-        tx.set(fs.doc(db, `users/${uid}/lots`, lid), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
+        tx.set(fs.doc(db, `users/${uid}/lots`, destLotId), strip({ ...destLot, status: 'open', createdAt: new Date().toISOString() }))
       }
     })
+  }, [uid])
+
+  // FASE OD. Deshacer una venta: el ítem, sus lotes, la cuenta destino y las
+  // filas (la SELL y su retiro compañero) en UN solo batch, por la misma razón
+  // que la venta se escribe en una sola transacción: nada puede quedar a
+  // medias. Qué se escribe lo decide `saleReversalPlan` (puro, con tests);
+  // acá solo se aplica.
+  const reverseSaleAtomic = useCallback(async ({ itemId, itemFields, lotWrites = [], deleteLotIds = [], destId, destFields, txIds = [] }) => {
+    if (!uid) throw new Error('No uid')
+    if (!itemId || !txIds.length) throw new Error('Sale reversal has nothing to apply')
+    const { db, fs } = await getFirebase()
+    const batch = fs.writeBatch(db)
+    batch.update(fs.doc(db, `users/${uid}/items`, itemId), strip(itemFields || {}))
+    for (const w of lotWrites) batch.update(fs.doc(db, `users/${uid}/lots`, w.id), strip(w.fields || {}))
+    for (const id of deleteLotIds) batch.delete(fs.doc(db, `users/${uid}/lots`, id))
+    if (destId && destFields && Object.keys(strip(destFields)).length) batch.update(fs.doc(db, `users/${uid}/items`, destId), strip(destFields))
+    for (const id of txIds) batch.delete(fs.doc(db, `users/${uid}/transactions`, id))
+    await batch.commit()
   }, [uid])
 
   const executeContribution = useCallback(async ({ itemId, itemFields, transaction, newLot, lotClose, prefFields }) => {
@@ -909,13 +963,13 @@ export function useFirestoreItems() {
       tx.update(itemRef, strip(itemFields))
 
       for (const c of closes) {
-        if (c.closable >= c.lot.quantity - QTY_EPSILON) {
+        if (closesWholeLot(c.closable, c.lot.quantity)) {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), {
             status: 'closed', quantity: c.closable, closedDate: lotClose.date, closedPrice: lotClose.price, realizedGain: c.realizedGain,
           })
         } else {
           tx.update(fs.doc(db, `users/${uid}/lots`, c.lot.id), { quantity: roundQty(c.lot.quantity - c.closable) })
-          const closedId = `${c.lot.id}-closed-${lotClose.date}`
+          const closedId = closedLotDocId(c.lot, lotClose.date)
           const { id: _lotId, ...lotData } = c.lot
           tx.set(fs.doc(db, `users/${uid}/lots`, closedId), {
             ...lotData, quantity: c.closable, status: 'closed',
@@ -926,6 +980,7 @@ export function useFirestoreItems() {
       }
 
       if (newLot) {
+        if (!newLot.itemId) newLot = { ...newLot, itemId }
         const qty = Math.round((newLot.quantity || 0) * 1e8)
         const cost = Math.round((newLot.costBasis || 0) * 100)
         const inst = (newLot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
@@ -1019,11 +1074,35 @@ export function useFirestoreItems() {
     return id
   }, [uid])
 
+  // FASE OI. Un portafolio es una ETIQUETA sobre ítems y lotes, no un
+  // contenedor: borrar solo su doc dejaba a todo lo de adentro con un
+  // `portfolioId` muerto, invisible en cualquier portafolio seleccionable y
+  // visible solo en "Todos" (deleteEntity, en useEntities.js, ya re-ubica
+  // ANTES de borrar por esta misma razón; esta era la copia que se quedó
+  // atrás). Se re-ubica al default quitando la etiqueta, en lotes, y ANTES de
+  // borrar el doc: al revés, un fallo a mitad de camino deja el portafolio
+  // desaparecido con sus ítems huérfanos, que es exactamente el defecto.
+  // Qué docs entran lo decide lib/portfolioDelete.js sobre las colecciones
+  // que el listener ya tiene en memoria (cero lecturas extra).
   const deletePortfolio = useCallback(async (portfolioId) => {
     if (!uid) return
+    const plan = planPortfolioDelete(portfolioId, { items, lots, transactions })
+    if (plan.refused) return
     const { db, fs } = await getFirebase()
+    const rehome = async (coll, ids) => {
+      for (let i = 0; i < ids.length; i += 30) {
+        const batch = fs.writeBatch(db)
+        for (const id of ids.slice(i, i + 30)) {
+          batch.update(fs.doc(db, `users/${uid}/${coll}`, id), { portfolioId: fs.deleteField() })
+        }
+        await batch.commit()
+      }
+    }
+    await rehome('items', plan.itemIds)
+    await rehome('lots', plan.lotIds)
+    await rehome('transactions', plan.transactionIds)
     await fs.deleteDoc(fs.doc(db, `users/${uid}/portfolios`, portfolioId))
-  }, [uid])
+  }, [uid, items, lots, transactions])
 
   // v3: static-item historical values are now currency-converted to base.
   // v4: market-asset past-month share counts are reconstructed from real trade
@@ -1111,7 +1190,7 @@ export function useFirestoreItems() {
   // computa solo los meses faltantes y por lo tanto NO conoce el mes completo,
   // conserva el merge de siempre: reemplazar desde ahí borraría lo que no
   // recomputó.
-  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency, { replace = false } = {}) => {
+  const saveItemSnapshots = useCallback(async (monthKey, itemsData, currency, { replace = false, sig = null } = {}) => {
     if (!uid || !monthKey || !itemsData) return
     // Same demo-mode veto as saveSnapshot: no persistent history from sample data.
     if (items.some((i) => i._source === 'demo')) return
@@ -1134,6 +1213,11 @@ export function useFirestoreItems() {
       savedAt: new Date().toISOString(),
       _version: SNAPSHOT_VERSION,
       ...(currency ? { _currency: currency } : {}),
+      // FASE OA: con que insumos se calculo este mes (lib/spreadsheetSig.js).
+      // loadItemSnapshots lo devuelve y la Hoja lo compara con la firma de
+      // HOY: un mes cuya firma no coincide (o que no la trae) se recomputa en
+      // vez de darse por bueno solo por existir.
+      ...(sig ? { _sig: sig } : {}),
     }).filter(([, v]) => v !== undefined))
     await fs.setDoc(ref, snapData, fullWrite ? undefined : { merge: true })
   }, [uid, items])
@@ -1142,6 +1226,7 @@ export function useFirestoreItems() {
     if (!uid || !monthKeys || monthKeys.length === 0) return {}
     const result = {}
     const currencies = {}
+    const sigs = {}
     const { db, fs } = await getFirebase()
     await Promise.all(monthKeys.map(async (key) => {
       try {
@@ -1151,11 +1236,12 @@ export function useFirestoreItems() {
           if ((data._version || 0) >= SNAPSHOT_VERSION) {
             result[key] = data.items || {}
             if (data._currency) currencies[key] = data._currency
+            if (data._sig) sigs[key] = data._sig
           }
         }
       } catch {}
     }))
-    return { ...result, __currencies: currencies }
+    return { ...result, __currencies: currencies, __sigs: sigs }
   }, [uid])
 
   // FASE GB. Mientras un bulkImport está escribiendo, la colección de items
@@ -1304,7 +1390,7 @@ export function useFirestoreItems() {
     deleteFinanceTransactionsByIds,
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
-    transferFunds, reverseTransfer, executeSaleAtomic, executeContribution,
+    transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution,
     bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile, saveIncomePlan,

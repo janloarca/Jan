@@ -16,17 +16,22 @@
 //
 // Los círculos son TOCABLES: el viaje es una secuencia sugerida, no un riel
 // obligatorio, y el usuario pidió explícitamente poder "tocar el que quiere
-// editar". Los que ya están cumplidos llevan check (estado REAL de los datos,
-// vía lib/ibkrJourney.js, no "por dónde pasé").
+// editar". Los que ya están cumplidos llevan check y los que legítimamente no
+// hacen falta llevan raya (estado REAL de los datos, vía lib/ibkrJourney.js,
+// no "por dónde pasé"): los dos suman al porcentaje, así que los dos tienen
+// que verse distintos de un pendiente.
 
 import { useEffect, useRef } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Minus } from 'lucide-react'
+import { journeyProgressLabel, journeySatisfiedSteps } from '@/lib/ibkrJourney'
 
 export default function IBKRJourneyBar({
   step = 1, total = 5, title = '', onSkip, onExit, onJump, lang = 'es',
-  // Números de paso ya cumplidos (1..4). El paso 5 es el resumen: no es un
-  // requisito de datos, así que nunca se marca con check por su cuenta.
-  doneSteps = [],
+  // El avance REAL de los 4 requisitos (lib/ibkrJourney.js). La barra no
+  // arma su propia frase ni su propia lista de pasos cumplidos: las pide,
+  // para que no pueda volver a contradecir al panel sobre el mismo viaje.
+  // El paso 5 es el resumen, no un requisito, así que nunca lleva marca.
+  progress = null,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
@@ -57,7 +62,12 @@ export default function IBKRJourneyBar({
     }
   }, [])
 
-  const done = new Set(doneSteps)
+  // Un paso "satisfecho" es cumplido O legítimamente innecesario: los dos
+  // suman al porcentaje, así que los dos llevan marca. Antes solo la llevaba
+  // `done`, con lo que un paso que ya contaba para el 75% se dibujaba igual
+  // que uno pendiente y la barra contradecía al panel sobre ese mismo paso.
+  const satisfied = new Map(journeySatisfiedSteps(progress).map((s) => [s.step, s.status]))
+  const progressLabel = journeyProgressLabel(progress, lang)
 
   return (
     <div ref={barRef} className="fixed top-0 inset-x-0 z-[60] px-3 sm:px-4 py-2.5 flex items-center gap-2 sm:gap-3"
@@ -67,9 +77,11 @@ export default function IBKRJourneyBar({
         {Array.from({ length: total }, (_, i) => {
           const n = i + 1
           const isCurrent = n === step
-          const isDone = done.has(n)
+          const mark = satisfied.get(n)
+          const isDone = mark === 'done'
+          const isSkipped = mark === 'skippable'
           const isPast = n < step
-          const reached = isDone || isPast
+          const reached = !!mark || isPast
           return (
             <span key={n} className="flex items-center">
               {i > 0 && (
@@ -84,21 +96,31 @@ export default function IBKRJourneyBar({
                 className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all disabled:cursor-default"
                 style={isDone
                   ? { backgroundColor: 'var(--accent-green)', color: 'var(--bg-card)' }
+                  : isSkipped
+                  ? { backgroundColor: 'color-mix(in srgb, var(--accent-green) 16%, transparent)', color: 'var(--accent-green)' }
                   : isCurrent
                     ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff', boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent-blue) 22%, transparent)' }
                     : isPast
                       ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 18%, transparent)', color: 'var(--accent-blue)' }
                       : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
-                {isDone ? <Check size={12} strokeWidth={3} /> : n}
+                {isDone ? <Check size={12} strokeWidth={3} /> : isSkipped ? <Minus size={12} strokeWidth={3} /> : n}
               </button>
             </span>
           )
         })}
       </div>
 
+      {/* La posición ya la dibujan los círculos (son `total` puntos, uno
+          resaltado), así que el texto dice lo que ellos no pueden: cuántos
+          requisitos están cumplidos, con la MISMA frase del panel. El "Paso X
+          de Y" que vivía aquí era redundante con los círculos y además
+          introducía un segundo denominador (5 pantallas contra 4 requisitos):
+          sobrevive para lectores de pantalla, donde los círculos no se
+          escanean de un vistazo. */}
       <p className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
-        <span className="font-semibold">{t(`Paso ${step} de ${total}`, `Step ${step} of ${total}`)}</span>
-        {title ? <span style={{ color: 'var(--text-muted)' }}> · {title}</span> : null}
+        <span className="sr-only">{t(`Paso ${step} de ${total}. `, `Step ${step} of ${total}. `)}</span>
+        {progressLabel ? <span className="font-semibold">{progressLabel}</span> : null}
+        {title ? <span style={{ color: 'var(--text-muted)' }}>{progressLabel ? ' · ' : ''}{title}</span> : null}
       </p>
 
       {onSkip && step < total && (

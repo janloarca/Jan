@@ -136,6 +136,8 @@ import PortfolioSelector from '@/components/dashboard/PortfolioSelector'
 import EntitySwitcher from '@/components/dashboard/EntitySwitcher'
 import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
+import { scopeTagFor } from '@/lib/scopeTag'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
 // wears the same card: same shell, same header shape, same segmented control.
@@ -274,7 +276,7 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
         <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
       )}
       {activeTab === 'fees' && (
-        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} /></CardBoundary>
+        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'quality' && (
         <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
@@ -459,7 +461,8 @@ export default function DashboardPage() {
 
   // Data layer
   const {
-    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    items, snapshots, chartSnapshots, augmentedSnapshots, accountCalibrations, ignoredCalibrations, transactions, goals, settings, profile, alerts, lots, portfolios, financeTransactions,
+    scopedView, viewTransactions,
     dataLoading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
@@ -468,7 +471,7 @@ export default function DashboardPage() {
     deleteTransactionWithReversal, updateTransactionWithReversal,
     addAlert, deleteAlert,
     addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
-    addPortfolio, deletePortfolio,
+    addPortfolio, deletePortfolio, addItemInScope,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
     bulkImport,
@@ -495,6 +498,23 @@ export default function DashboardPage() {
   // rankea al lado de filas de hoy. Ver lib/friendsPublish.js.
   } = useDashboardData({ user, lang, activePortfolio, activeEntity, publishFriends: true })
 
+  // FASE OI. Borrar el portafolio (o la entidad) que está SELECCIONADA dejaba
+  // `activePortfolio`/`activeEntity` apuntando a un id que ya no existe: el
+  // selector, que no lo encuentra, imprime "Todos", y el cuerpo filtra por el
+  // id muerto. Antes de FASE OI eso mostraba el subconjunto huérfano bajo el
+  // rótulo "Todos"; con la re-ubicación de deletePortfolio mostraría un
+  // portafolio VACÍO (la pantalla de bienvenida) bajo ese mismo rótulo. Las
+  // dos son la app contradiciéndose: la vista vuelve a "Todos" al borrar lo
+  // que se estaba mirando, y solo entonces (borrar otro no mueve la vista).
+  const handleDeletePortfolio = useCallback(async (portfolioId) => {
+    await deletePortfolio(portfolioId)
+    setActivePortfolio((cur) => activePortfolioAfterDelete(cur, portfolioId))
+  }, [deletePortfolio])
+  const handleDeleteEntity = useCallback(async (entityId) => {
+    await deleteEntity(entityId)
+    setActiveEntity((cur) => (cur === entityId ? '__all__' : cur))
+  }, [deleteEntity])
+
   // Las reglas por comercio que el usuario enseñó corrigiendo categorías. El
   // MISMO hook que usa Flujo, no una segunda carga: el importador de esta
   // pantalla clasificaba con cero reglas aprendidas, así que el mismo estado de
@@ -509,8 +529,19 @@ export default function DashboardPage() {
     if (modal === 'ibkr') ibkrWasConnectedRef.current = ibkrConnected
   }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // El hint tiene que ser un STRING o nada. Los dos call sites lo cablean como
+  // `onClick: onImport` (QuickActionsCard, Header), y un onClick entrega el
+  // MouseEvent como primer argumento: con `bh || null` ese evento es truthy y
+  // quedaba guardado COMO hint. Consecuencias medidas, todas silenciosas:
+  // `brokerHint === 'ibkr'` fallaba, asi que el `accept` del input no incluia
+  // .xml y el Flex Query que las propias instrucciones mandan a descargar
+  // aparecia GRIS en el dialogo del sistema; y `getBrokerHowTo(evento)` daba
+  // undefined, asi que la pantalla perdia las instrucciones de IBKR.
+  //
+  // Es la misma trampa que FASE GQ4 pago con `onSkip`, y se cierra igual: en el
+  // punto UNICO, no en cada caller, para que el proximo no vuelva a caer.
   const handleOpenImport = useCallback((bh) => {
-    setImportBrokerHint(bh || null)
+    setImportBrokerHint(typeof bh === 'string' && bh ? bh : null)
     setModal('import')
   }, [])
   const handleOpenAccount = useCallback(() => setModal('account'), [])
@@ -600,6 +631,15 @@ export default function DashboardPage() {
     // Omitirlo es seguro y es lo que este archivo hacía antes: showToast es un
     // useCallback con deps [], o sea su identidad nunca cambia.
   }, [ibkrConnected, ibkrAutoSyncing, triggerIBKRSync, lang, ibkrCooldownUntil, settings?._ibkrAutoSyncFailCount])
+
+  // Un fallo del MODAL arma el mismo enfriamiento que un fallo del pill, desde
+  // la misma decisión (`ibkrFailureFeedback`). Antes el modal no reportaba nada
+  // hacia arriba, así que sincronizar desde ahí gastaba un intento real contra
+  // IBKR que ninguna protección de la app llegaba a ver.
+  const handleIbkrSyncFailure = useCallback((code) => {
+    const fb = ibkrFailureFeedback(code, lang, { failCount: settings?._ibkrAutoSyncFailCount })
+    setIbkrCooldownUntil(fb.cooldownMs > 0 ? Date.now() + fb.cooldownMs : 0)
+  }, [lang, settings?._ibkrAutoSyncFailCount])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
   const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
@@ -1122,7 +1162,12 @@ export default function DashboardPage() {
     try {
       const { generateReport } = await import('@/lib/generateReport')
       await generateReport({
-        items: enrichedItems, snapshots: augmentedSnapshots, transactions,
+        // FASE OG: los MISMOS ítems y movimientos que PrintSummary (la vista
+        // que se está mirando). Con `enrichedItems` acá y `portfolioItems`
+        // allá, un portafolio seleccionado producía dos reportes distintos
+        // del mismo botón, y este mezclaba ítems del todo con un YTD del
+        // subconjunto.
+        items: portfolioItems, snapshots: augmentedSnapshots, transactions: viewTransactions,
         netWorth, totalAssets, lang,
         returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason,
         annualDividends, estimatedAnnualIncome,
@@ -1140,7 +1185,7 @@ export default function DashboardPage() {
       // rojo para lo grave o irreversible.
       showToast(lang === 'es' ? 'Error generando el PDF' : 'Error generating PDF', 'warn')
     }
-  }, [enrichedItems, augmentedSnapshots, transactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
+  }, [enrichedItems, portfolioItems, augmentedSnapshots, viewTransactions, lang, netWorth, totalAssets, returnYTD, ytdChange, returnSinceStart, sinceStartDate, ytdBreakdown, ytdBreakdownReason, annualDividends, estimatedAnnualIncome, benchmarkName, benchmarkReturn, riskMetrics, profile, user, showToast, baseCurrency, convert])
 
   const handleShare = useCallback(async () => {
     // Sin guard esto armaba un resumen de "Patrimonio Neto: $0.00 · Posiciones:
@@ -1511,7 +1556,7 @@ export default function DashboardPage() {
           {portfolios && portfolios.length > 0 && (
             <PortfolioSelector
               portfolios={portfolios} activePortfolio={activePortfolio}
-              onSelect={setActivePortfolio} onAdd={addPortfolio} onDelete={deletePortfolio} lang={lang}
+              onSelect={setActivePortfolio} onAdd={addPortfolio} onDelete={handleDeletePortfolio} lang={lang}
             />
           )}
         </div>
@@ -1586,12 +1631,13 @@ export default function DashboardPage() {
               ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdCalIgnored={ytdCalIgnored} ytdAnchorIgnored={ytdAnchorIgnored}
               ytdDegradedAccounts={ytdDegradedAccounts}
               pricesUpdate={pricesUpdate}
+              scopedView={scopedView}
             />
             </CardBoundary>
           </div>
 
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={transactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
+            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
           </div>
         </div>
         </ErrorBoundary>
@@ -1697,6 +1743,7 @@ export default function DashboardPage() {
                       onIntegrations={handleOpenConnections} onReview={handleOpenReview}
                       itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
                       ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
+                      ibkrProgress={ibkrProgress}
                     />
                   </CardBoundary>
                 </div>
@@ -1738,7 +1785,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
+            <CardBoundary id="HO-02"><RecentTransactions transactions={transactions} items={items} lots={lots} lang={lang} convert={convert} baseCurrency={baseCurrency} onExportCSV={handleExportTransactionsCSV} onDeleteTransaction={deleteTransactionWithReversal} /></CardBoundary>
             {/* DataQualityCard (HO-03) se movió a la pestaña "Calidad" de la
                 card de Análisis: mide qué tan confiable es tu historia, que es
                 análisis, no actividad reciente. */}
@@ -1816,7 +1863,7 @@ export default function DashboardPage() {
           onClose={handleCloseModal} onImportItems={addItem}
           onImportTransaction={addTransaction} onImportSnapshot={saveSnapshot}
           onAddLot={addLot} onAddFinanceTransaction={addFinanceTransaction} onUpdateFinanceTransaction={updateFinanceTransaction}
-          existingFinanceTransactions={financeTransactions}
+          existingFinanceTransactions={financeTransactions} convert={convert}
           ingestRules={ingestRules} onLearnCategories={learnCategories}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
@@ -1846,7 +1893,7 @@ export default function DashboardPage() {
             return id
           }}
           onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang}
@@ -1918,7 +1965,7 @@ export default function DashboardPage() {
           onSkip={advanceIbkrJourney}
           onExit={exitIbkrJourney}
           onJump={openIbkrJourneyStep}
-          doneSteps={ibkrProgress.steps.filter((s) => s.done).map((s) => s.step)}
+          progress={ibkrProgress}
           lang={lang}
         />
       )}
@@ -1941,6 +1988,11 @@ export default function DashboardPage() {
           }}
           savedToken={settings?.ibkrToken || ''} savedQueryId={settings?.ibkrQueryId || ''}
           vaultMigrated={!!settings?._ibkrVaultMigrated} syncSummary={ibkrSyncSummary}
+          // El MISMO enfriamiento que el pill del header: sin esto, "Reintentar"
+          // y "Sincronizar ahora" del modal se lo saltaban entero, que es la
+          // superficie donde más fácil es caer en el lazo error → toque → error.
+          cooldownUntil={ibkrCooldownUntil}
+          onSyncFailure={handleIbkrSyncFailure}
           onSaveCredentials={(creds) => { saveSettings({ ...creds, _ibkrLastSync: new Date().toISOString(), _ibkrAutoSyncStatus: null, _ibkrAutoSyncError: null, _ibkrAutoSyncErrorCode: null, _ibkrAutoSyncFailCount: 0, _ibkrAttemptsToday: null, _ibkrLastUpstreamError: null }) }}
           // FASE GQ: fired by the non-blocking first-connect (handleQuickConnect
           // in IBKRSyncModal) BEFORE any sync has actually run — deliberately
@@ -1985,7 +2037,9 @@ export default function DashboardPage() {
               if (existing) {
                 await updateItem(existing.id, { currentPrice: item.currentPrice, quantity: item.quantity, _source: 'blockchain' })
               } else {
-                await addItem(item)
+                // FASE OJ: con un portafolio seleccionado la posición nace con
+                // su etiqueta, o desaparece de la vista al instante.
+                await addItemInScope(item)
               }
             }
             for (const tx of (syncTxs || [])) await addTransaction(tx)
@@ -2017,7 +2071,7 @@ export default function DashboardPage() {
               if (existing) {
                 await updateItem(existing.id, { quantity: item.quantity, _source: 'ledger', _walletAddress: item._walletAddress })
               } else {
-                await addItem(item)
+                await addItemInScope(item) // FASE OJ, ver Blockchain arriba.
                 newKeys.add(item._walletAddress || item.symbol)
               }
             }
@@ -2090,7 +2144,7 @@ export default function DashboardPage() {
           entities={entities}
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
-          onDeleteEntity={deleteEntity}
+          onDeleteEntity={handleDeleteEntity}
           onOpenConnections={handleOpenConnections}
           onExportBackup={() => {
             const data = {
@@ -2160,9 +2214,7 @@ export default function DashboardPage() {
             }
             // Reconcile instead of blind-inserting: bulkImport mints a new id per
             // item, so the old path duplicated the whole portfolio on every sync.
-            const tag = {}
-            if (activePortfolio && activePortfolio !== '__all__') tag.portfolioId = activePortfolio
-            if (activeEntity && activeEntity !== '__all__' && activeEntity !== 'default') tag.entityId = activeEntity
+            const tag = scopeTagFor(activePortfolio, activeEntity)
             const { newItems, updateItems, deleteIds } = reconcileBrokerPositions({
               incoming: mapped, existing: items, source, tag,
             })
@@ -2183,7 +2235,7 @@ export default function DashboardPage() {
       <ModalMount closing={modalClosing}>
       {modalShown === 'print' && (
         <PrintSummary items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          snapshots={augmentedSnapshots} transactions={transactions}
+          snapshots={augmentedSnapshots} transactions={viewTransactions}
           returnYTD={returnYTD} ytdChange={ytdChange}
           returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
           ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
@@ -2202,7 +2254,7 @@ export default function DashboardPage() {
       {modalShown === 'calibrate' && (
         <CalibrateReturnModal
           netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
-          snapshots={snapshots} accountSnapshots={accountCalibrations} items={portfolioItems}
+          snapshots={snapshots} accountSnapshots={accountCalibrations} ignoredCalibrations={ignoredCalibrations} items={portfolioItems}
           saveSnapshot={saveSnapshot} deleteSnapshot={deleteSnapshot}
           lang={lang} onClose={handleCloseModal}
           // Inside the IBKR walkthrough the account being onboarded IS IBKR.
@@ -2227,8 +2279,8 @@ export default function DashboardPage() {
           onDeleteTransaction={deleteTransactionWithReversal}
           onUpdateTransaction={updateTransactionWithReversal}
           onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
-          transactions={transactions}
+          onCreateDestination={addItemInScope}
+          transactions={transactions} lots={lots}
           baseCurrency={baseCurrency}
           convert={convert}
           existingItems={items} lang={lang}
@@ -2280,6 +2332,8 @@ export default function DashboardPage() {
           startItemId={reviewTarget.itemId}
           onlyWithFindings={reviewTarget.guided}
           institutionFilter={reviewTarget.institution}
+          convert={convert}
+          baseCurrency={baseCurrency}
         />
       )}
       </ModalMount>
@@ -2477,7 +2531,7 @@ export default function DashboardPage() {
             return id
           }}
           onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
-          onCreateDestination={addItem}
+          onCreateDestination={addItemInScope}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           onConnectBroker={handleOpenConnections}

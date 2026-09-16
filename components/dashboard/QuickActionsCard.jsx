@@ -1,6 +1,7 @@
 'use client'
 
 import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign, TrendingDown, Bell } from 'lucide-react'
+import { journeyProgressLabel } from '@/lib/ibkrJourney'
 import { InfoTip } from '../ui/Tooltip'
 
 // Todas las acciones del dashboard en UN marco, cada una con una línea que
@@ -62,6 +63,14 @@ export default function QuickActionsCard({
   onExport, onShare, onIntegrations, onReview,
   itemCount = 0, alertCount = 0, lang = 'es',
   ibkrSyncStatus, ibkrLastSync, ibkrNeedsAttention = false,
+  // El avance de los requisitos del broker (lib/ibkrJourney.js). Sin esto,
+  // quien abandonaba el viaje a mitad no tenía NADA que se lo recordara: el
+  // estado del viaje vive en memoria (se pierde al cerrar la pestaña) y el
+  // banner de arriba solo habla de sincronizaciones que FALLAN, así que un
+  // setup a medias era indistinguible de uno terminado. Esta baldosa ya es la
+  // puerta a ese panel: lo único que faltaba era que nombrara lo que hay
+  // detrás, sin agregar una alarma nueva por algo que no es urgente.
+  ibkrProgress = null,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
@@ -71,6 +80,13 @@ export default function QuickActionsCard({
   const syncDotColor = ibkrNeedsAttention ? 'var(--text-negative)'
     : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'var(--accent-green)'
     : ibkrSyncStatus === 'ok' ? 'var(--accent-orange)' : null
+
+  // Solo cuando el viaje ARRANCÓ y todavía le falta algo: un panel de 0% sobre
+  // alguien que nunca conectó nada no describe un pendiente suyo, y uno al
+  // 100% no tiene nada que decir que la frase genérica no diga mejor.
+  const ibkrSetupLabel = ibkrProgress && ibkrProgress.started && !ibkrProgress.complete
+    ? `Interactive Brokers: ${journeyProgressLabel(ibkrProgress, lang)}`
+    : null
 
   const record = [
     onCashFlow && {
@@ -104,7 +120,12 @@ export default function QuickActionsCard({
     onIntegrations && {
       key: 'sync', icon: RefreshCw, onClick: onIntegrations,
       label: t('Conectar y sincronizar', 'Connect and sync'),
-      desc: t('Tu broker, al día solo', 'Your broker, updated on its own'),
+      // Un problema de sincronización gana sobre "te falta un paso": el punto
+      // rojo ya está diciendo algo más urgente y dos mensajes compitiendo en
+      // dos líneas de la misma baldosa es cómo se dejan de leer los dos.
+      desc: ibkrSetupLabel && !ibkrNeedsAttention
+        ? ibkrSetupLabel
+        : t('Tu broker, al día solo', 'Your broker, updated on its own'),
       dot: hasSyncIndicator ? syncDotColor : null,
     },
     onReview && {

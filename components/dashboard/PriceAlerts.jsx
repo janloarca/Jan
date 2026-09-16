@@ -4,6 +4,7 @@ import { parseAmount } from '@/lib/numberParse'
 
 import { useState } from 'react'
 import { formatCurrency } from './utils'
+import { quoteCurrencyOf, formatQuotePrice } from '@/lib/priceAlertCurrency'
 
 // Backend already existed end-to-end (Firestore alerts + checkPriceAlerts firing
 // browser notifications in useDashboardData) but there was no UI to create one —
@@ -26,6 +27,9 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
   )].sort()
 
   const list = alerts || []
+  // La moneda en la que se va a comparar el precio que se está tecleando: la
+  // de la cotización del símbolo escrito, cuando ya se conoce.
+  const formHint = quoteCurrencyOf(marketPrices, symbol.trim().toUpperCase())
 
   const submit = async (e) => {
     e.preventDefault()
@@ -103,7 +107,7 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
           </div>
           <div className="flex gap-2">
             <AmountInput value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
-              placeholder={t('Precio objetivo', 'Target price')}
+              placeholder={formHint ? t(`Precio objetivo en ${formHint}`, `Target price in ${formHint}`) : t('Precio objetivo', 'Target price')}
               className="flex-1 min-w-0 px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50" />
             <button type="submit" disabled={saving}
               className="px-3 py-2 rounded-lg text-xs font-medium transition-colors shrink-0 disabled:opacity-50"
@@ -121,6 +125,13 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
         {list.map((a) => {
           const sym = (a.symbol || '').toUpperCase()
           const current = marketPrices?.[sym]?.price
+          // FASE OE. La alerta se COMPARA en la moneda de la cotización
+          // (checkPriceAlerts mira `prices[sym].price` crudo), así que se
+          // imprime en esa moneda: antes salía con el símbolo de la BASE y
+          // sobre AAPL a $200 decía "GTQ 200.00" a quien tiene base en
+          // quetzales. Un símbolo cotizado en peniques (SHEL.L) se dice en
+          // peniques, no en libras ni en dólares.
+          const qcur = quoteCurrencyOf(marketPrices, sym)
           return (
             <div key={a.id} className="flex items-center justify-between py-1.5 group">
               <div className="flex items-center gap-2 min-w-0">
@@ -134,12 +145,12 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
                 <span className="text-xs text-slate-500 whitespace-normal break-words">
                   {a.direction === 'above'
                     ? t('sube de', 'above')
-                    : t('baja de', 'below')} {formatCurrency(a.targetPrice)}
+                    : t('baja de', 'below')} {formatQuotePrice(a.targetPrice, qcur)}
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {current != null && isFinite(current) && (
-                  <span className="text-xs text-slate-600">{formatCurrency(current)}</span>
+                  <span className="text-xs text-slate-600">{formatQuotePrice(current, qcur)}</span>
                 )}
                 {/* FASE ME3: la × era `opacity-0 group-hover:opacity-100`, o sea
                     PERMANENTEMENTE invisible en táctil (hoverOnlyWhenSupported

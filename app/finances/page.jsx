@@ -631,6 +631,7 @@ export default function FinancesPage() {
           onAddFinanceTransaction={addFinanceTransaction}
           onUpdateFinanceTransaction={updateFinanceTransaction}
           existingFinanceTransactions={financeTransactions}
+          convert={convert}
           ingestRules={ingestRules}
           onLearnCategories={handleLearnCategories}
           onUpdateItem={updateItem}

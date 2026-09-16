@@ -6,6 +6,8 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
+import { scopeTagFor } from '@/lib/scopeTag'
+import { mergeCurrencyOf, mergeCurrencyConflict, mergedAcquisitionDate, mergePositionFields } from '@/lib/mergePosition'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
 import { getScheduledPayDates, estimateIncomeAmount } from '@/lib/incomeSchedule'
@@ -239,6 +241,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const isAlternative = type === 'Alternative'
   const isCrypto = type === 'Crypto'
   const isDebt = type === 'Debt'
+
+  // FASE OA. La cantidad SOLO existe como campo para un activo de mercado.
+  // Para todo lo demas (bono, banco, inmueble, alternativo, deuda) el monto
+  // que se teclea ES el total y la cantidad es 1 por construccion, asi que
+  // aqui se decide UNA sola vez y la leen el guardado, el pie de "Valor
+  // total" y todas las vistas previas. Antes cada una hacia su propio
+  // `parseQuantity(form.quantity) || ...` sobre un campo que sobrevivia al
+  // cambio de tipo: teclear cantidad 5 en Acciones, volver, elegir Bono y
+  // poner 1000 guardaba un bono de 5 x 1000 = 5,000... y la Hoja lo leia
+  // como 5 unidades de 1,000 (el reporte real del usuario: "me aparecia
+  // 50000 cuando debia ser 5000" al capturar cinco bonos de 1,000).
+  const effectiveQuantity = () => (isMarketAsset ? parseQuantity(form.quantity) : 1)
   const currentTypeInfo = TYPES.find(tp => tp.key === type)
 
   // If the schedule the user just configured (months + pay day) plus the
@@ -449,8 +463,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // hace disparar `no-acq-date` en el boletín.
     if (!form.acquisitionDate && !guidedType) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
+    // FASE OL. "Agregar a posición" solo puede sumar en la moneda del ítem que
+    // ya existe: la moneda se elige en ESTE paso, después del aviso de
+    // duplicado, y sin este guard Q5,000 + $1,000 se guardaban como $6,000.
+    // Se presiembra al aceptar el merge; si aun así difiere, se rehúsa y se
+    // dicen las dos (nunca se convierte: lib/mergePosition.js).
+    if (duplicateWarning && !isDebt) {
+      const conflict = mergeCurrencyConflict(duplicateWarning, form.currency)
+      if (conflict) {
+        setError(t(
+          `${duplicateWarning.name} está guardado en ${conflict.existing} y esto está en ${conflict.typed}: no se pueden sumar. Elegí ${conflict.existing} para agregar a esa posición, o volvé y creá el activo aparte.`,
+          `${duplicateWarning.name} is saved in ${conflict.existing} and this is in ${conflict.typed}: they cannot be added together. Pick ${conflict.existing} to add to that position, or go back and create it separately.`
+        ))
+        return
+      }
+    }
 
-    const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
+    const qty = effectiveQuantity()
     const price = parseAmount(form.purchasePrice)
     if (!isBank && price <= 0) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
@@ -478,6 +507,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         .sort((a, b) => a.date.localeCompare(b.date))
     }
     const effectiveAcqDate = useTimeline ? tlRows[0].date : form.acquisitionDate
+    // La fecha de ESTA compra: la del lote y del DEPOSIT. En un merge el ítem
+    // conserva la suya (la más vieja), así que las dos ya no son la misma cosa.
+    const purchaseDate = effectiveAcqDate || new Date().toISOString().split('T')[0]
 
     setSaving(true)
     try {
@@ -510,6 +542,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           item.incomeFrequency = divInfo.frequency
           item.dividendYield = marketDivOverride ? (parseAmount(form.incomeRate) || 0) : divInfo.dividendYield
           item.dividendAction = form.dividendAction || 'cash'
+          if (marketDivOverride) {
+            // FASE OB. El override escribía SOLO `dividendYield`, que el motor
+            // de pagos no lee: con `incomeAmount` en 0 y sin `incomeRate` el
+            // activo quedaba fuera de `scheduled` y "Editar manualmente"
+            // apagaba los pagos automáticos en silencio. Lo que el motor
+            // consume es el par `incomeMode`/`incomeRate` (más el día), así
+            // que se escribe en la forma que ya usa un bono.
+            item.incomeMode = 'percent'
+            item.incomeRate = parseAmount(form.incomeRate) || 0
+            item.incomePayDay = Math.min(31, Math.max(1, parseInt(form.incomePayDay) || 1))
+          }
         }
       } else if (isProperty) {
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
@@ -533,7 +576,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       } else {
         item.symbol = form.symbol.trim() || form.name.trim().replace(/\s+/g, '-').toUpperCase()
         item.name = form.name.trim()
-        item.quantity = qty || 1
+        // Siempre 1: el monto tecleado es el total (ver effectiveQuantity).
+        item.quantity = 1
         item.purchasePrice = price
         if (form.currentPrice) item.currentPrice = parseAmount(form.currentPrice)
       }
@@ -699,14 +743,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         }
       }
 
-      // Merge with existing if duplicate accepted
+      // Merge with existing if duplicate accepted. La aritmética (FASE OA) y
+      // la fecha viven en lib/mergePosition.js, con sus tests; ver la cabecera
+      // de ese módulo para los tres defectos que esto cierra (FASE OL).
       if (duplicateWarning) {
         item.id = duplicateWarning.id
-        if (isMarketAsset && item.quantity > 0) {
-          const oldQty = duplicateWarning.quantity || 0
-          const oldPrice = duplicateWarning.purchasePrice || 0
-          item.quantity = oldQty + qty
-          item.purchasePrice = oldQty + qty > 0 ? (oldQty * oldPrice + qty * price) / (oldQty + qty) : oldPrice
+        Object.assign(item, mergePositionFields({
+          existing: duplicateWarning, item, isMarketAsset, qty, price,
+          newCurrent: parseAmount(form.currentPrice) || price,
+        }))
+        if (!item.isDebt) {
+          const merged = mergedAcquisitionDate(duplicateWarning.acquisitionDate, purchaseDate)
+          if (merged) item.acquisitionDate = merged
         }
       }
 
@@ -724,12 +772,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         item.incomeDestination = form.incomeDestination
       }
 
-      if (activePortfolio && activePortfolio !== '__all__') {
-        item.portfolioId = activePortfolio
-      }
-      if (activeEntity && activeEntity !== 'default') {
-        item.entityId = activeEntity
-      }
+      // FASE OJ: la etiqueta de alcance sale de lib/scopeTag.js, la única
+      // definición (vivía copiada aquí, en el importador y en el sync de IBKR).
+      // FASE OL: en un merge NO se re-etiqueta. El aviso de duplicado busca en
+      // TODOS los ítems (existingItems es la lista completa), así que "agregar
+      // a esa posición" bajo el portafolio A con la posición viviendo en B la
+      // MOVÍA a A con el monto sumado; la posición se queda donde estaba.
+      if (!duplicateWarning) Object.assign(item, scopeTagFor(activePortfolio, activeEntity))
 
       // The user already answered "¿de dónde vino este dinero?" right here in
       // this form — the data-completeness engine (lib/dataCompleteness.js)
@@ -760,7 +809,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // On an "Add to position" merge the item now carries the COMBINED quantity
       // and weighted-average cost — the lot and the DEPOSIT must record only THIS
       // purchase, or the historical share count double-counts (old lots + combined).
-      const isMerge = !!duplicateWarning && isMarketAsset
+      // FASE OA: tambien para un activo de saldo (la suma de arriba), asi el
+      // DEPOSIT registra SOLO este aporte y no el saldo combinado.
+      const isMerge = !!duplicateWarning && !item.isDebt
       const lotQty = isMerge ? qty : item.quantity
       const lotCost = isMerge ? price : item.purchasePrice
 
@@ -777,7 +828,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               costBasis: price,
               currency: item.currency || 'USD',
               acquisitionDate: row.date,
-              ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+              // FASE OB. Sin institución, el cierre FIFO de una venta en OTRO
+              // broker se comía este lote (el filtro por institución cae a
+              // "todos" cuando ninguno la trae), y dos posiciones del mismo
+              // símbolo con la misma fecha, cantidad y costo colapsaban en UN
+              // solo documento. `itemId` deja al lote con dueño: borrar la
+              // posición se lleva SUS lotes, no los del hermano por símbolo.
+              institution: item.institution || '',
+              ...(itemId ? { itemId } : {}),
+              ...scopeTagFor(activePortfolio, 'default'),
             })
           }
           if (onAddTransaction) {
@@ -787,7 +846,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               date: row.date,
               totalAmount: rowAmt, currency: item.currency || 'USD',
               ...(itemId ? { _linkedItemId: itemId } : {}),
-              ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+              ...scopeTagFor('__all__', activeEntity),
               _source: 'manual_new_account',
             })
           }
@@ -799,8 +858,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             quantity: lotQty,
             costBasis: lotCost,
             currency: item.currency || 'USD',
-            acquisitionDate: item.acquisitionDate || new Date().toISOString().split('T')[0],
-            ...(activePortfolio && activePortfolio !== '__all__' ? { portfolioId: activePortfolio } : {}),
+            acquisitionDate: purchaseDate,
+            // Ver el comentario del lote por fila de arriba (FASE OB).
+            institution: item.institution || '',
+            ...(itemId ? { itemId } : {}),
+            ...scopeTagFor(activePortfolio, 'default'),
           })
         }
 
@@ -832,10 +894,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           await onAddTransaction({
             type: 'DEPOSIT', symbol: item.symbol || '',
             description: `${item.name || item.symbol} - ${t('Dinero nuevo', 'New money')}${feeOnEntry > 0 ? ` (${t('incl. corretaje', 'incl. brokerage')})` : ''}`,
-            date: item.acquisitionDate || new Date().toISOString().split('T')[0],
+            date: purchaseDate,
             totalAmount: Math.round(singleDeposit * 100) / 100, currency: item.currency || 'USD',
             ...(itemId ? { _linkedItemId: itemId } : {}),
-            ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}),
+            ...scopeTagFor('__all__', activeEntity),
             _source: 'manual_new_account',
           })
         }
@@ -849,17 +911,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (item.isDebt && !duplicateWarning) {
         const debtAmt = (item.quantity || 1) * (item.purchasePrice || 0)
         const debtForTx = { ...item, id: itemId }
-        const proceedsDate = item.acquisitionDate || new Date().toISOString().split('T')[0]
+        const proceedsDate = purchaseDate
         if (debtAmt > 0 && itemId && onAddTransaction && loanProceeds !== 'none') {
           const destAcct = loanProceeds !== 'outside' ? existingItems.find(it => it.id === loanProceeds) : null
           if (destAcct && onExecuteContribution) {
             const { itemFields } = buildContributionFields({ item: destAcct, amount: debtAmt, date: proceedsDate, isAdd: true, currency: item.currency || 'USD' })
             await onExecuteContribution({ itemId: destAcct.id, itemFields })
             const tx = buildLoanProceedsTransaction({ debtItem: debtForTx, toItem: destAcct, amount: debtAmt, date: proceedsDate })
-            if (tx) await onAddTransaction({ ...tx, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+            if (tx) await onAddTransaction({ ...tx, ...scopeTagFor('__all__', activeEntity) })
           } else {
             const tx = buildLoanProceedsOutsideTransaction({ debtItem: debtForTx, amount: debtAmt, date: proceedsDate })
-            if (tx) await onAddTransaction({ ...tx, ...(activeEntity && activeEntity !== 'default' ? { entityId: activeEntity } : {}) })
+            if (tx) await onAddTransaction({ ...tx, ...scopeTagFor('__all__', activeEntity) })
           }
         }
       }
@@ -945,7 +1007,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -1095,7 +1157,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Este activo ya existe en tu portafolio', 'This asset already exists in your portfolio')}</p>
                 <p className="text-xs text-[var(--text-secondary,#94a3b8)]">{duplicateWarning.name} ({duplicateWarning.institution || '-'}): {duplicateWarning.quantity} @ {duplicateWarning.currency}</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => { setStep(2) }}
+                  <button type="button" onClick={() => { set('currency', mergeCurrencyOf(duplicateWarning)); setStep(2) }}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 40%, transparent)' }}>
                     <span className="block">{t('Agregar a posición', 'Add to position')}</span>
                     <span className="block text-xs opacity-70 mt-0.5">{t('Combina cantidades y recalcula costo', 'Combines quantities and recalculates cost')}</span>
@@ -1129,6 +1191,18 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
           {/* === STEP 2 === */}
           {step === 2 && (<>
+            {/* FASE OL: en un merge, decir a QUÉ se está agregando, en qué
+                moneda, y que la fecha de abajo es la de ESTE aporte. */}
+            {duplicateWarning && !isDebt && (
+              <div className="p-3 rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 30%, transparent)', color: 'var(--text-secondary)' }}>
+                <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{t('Agregando a', 'Adding to')} {duplicateWarning.name}{duplicateWarning.institution ? ` (${duplicateWarning.institution})` : ''}</span>
+                {' · '}
+                {t(`guardado en ${mergeCurrencyOf(duplicateWarning)}`, `saved in ${mergeCurrencyOf(duplicateWarning)}`)}
+                {duplicateWarning.acquisitionDate ? ` · ${t('conserva su fecha de compra', 'keeps its purchase date')} ${duplicateWarning.acquisitionDate}` : ''}
+                {'. '}
+                {t('La fecha de abajo es la de este aporte.', 'The date below is this contribution\'s.')}
+              </div>
+            )}
             {/* Position details */}
             {isMarketAsset && (
               <div className="grid grid-cols-2 gap-3">
@@ -1651,7 +1725,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
                     style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
-                    {t('Monto fijo mensual', 'Fixed monthly amount')}
+                    {t('Monto fijo por pago', 'Fixed amount per payment')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
@@ -1823,7 +1897,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     automatic backfill silently assuming they were all
                     received once the account is saved. */}
                 {pastDuePayDates.length > 0 && (() => {
-                  const qty = parseQuantity(form.quantity) || 1
+                  const qty = effectiveQuantity() || 1
                   const price = parseAmount(form.purchasePrice)
                   const balance = qty * price
                   // Con devengo diario cada mes vale distinto (28 dias no son
@@ -1996,7 +2070,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         denominator of every return % for this asset. */}
                     {parseAmount(form.entryFee) > 0 && (() => {
                       const fee = parseAmount(form.entryFee) || 0
-                      const typed = (parseQuantity(form.quantity) || 1) * (parseAmount(form.purchasePrice))
+                      const typed = (effectiveQuantity() || 1) * (parseAmount(form.purchasePrice))
                       const fmtM = (v) => `${form.currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       return (
                         <div className="mt-2">
@@ -2168,7 +2242,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         that automatically, this is a manual snapshot the user
                         updates whenever they hear about a new round. */}
                     {!form.ownershipPct && parseAmount(form.roundValuation) > 0 && (() => {
-                      const invested = (parseQuantity(form.quantity) || 1) * (parseAmount(form.purchasePrice))
+                      const invested = (effectiveQuantity() || 1) * (parseAmount(form.purchasePrice))
                       if (invested <= 0) return null
                       const suggested = (invested / parseAmount(form.roundValuation)) * 100
                       return (
@@ -2320,7 +2394,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 accounts belong in Movimientos, mixing them here would inflate
                 the deposit math). Rows EXPLAIN the total, they don't add to it. */}
             {isNewMoney && !isDebt && !duplicateWarning && (() => {
-              const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const qty = effectiveQuantity()
               const price = parseAmount(form.purchasePrice)
               const cur = parseAmount(form.currentPrice)
               // Market: rows must cover the COST (shares don't grow on their own).
@@ -2368,7 +2442,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             })()}
 
             {(() => {
-              const qty = parseQuantity(form.quantity) || (isBank || isProperty ? 1 : 0)
+              const qty = effectiveQuantity()
               const price = parseAmount(form.purchasePrice)
               const cur = parseAmount(form.currentPrice)
               const total = isDebt ? price : qty * (cur || price)

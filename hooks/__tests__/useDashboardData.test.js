@@ -1185,6 +1185,110 @@ describe('FASE NN: una calibración por CUENTA se aplica en memoria, no en el ar
   })
 })
 
+// FASE NT. Lo que NN dejó de aplicar tiene que poder VERSE: el hook expone las
+// calibraciones ignoradas con su razón, y el checklist del broker sabe cuántas
+// de IBKR hay. Mismo fixture que FASE NN.
+describe('FASE NT: las calibraciones ignoradas se exponen con su razón', () => {
+  const yr = 2026
+  const acct = () => item({
+    id: 'ibkr1', symbol: 'IBKRP', type: 'Stock', quantity: 1,
+    currentPrice: 9954.07, purchasePrice: 6000,
+    _source: 'ibkr', acquisitionDate: `${yr}-09-01`, createdAt: `${yr}-09-01`,
+  })
+  const deps = [
+    { id: 'd1', type: 'DEPOSIT', symbol: 'CASH', totalAmount: 1450, currency: 'USD', date: `${yr}-01-27`, _source: 'ibkr' },
+  ]
+  const snap = (date, v, over = {}) => ({
+    id: date, date, netWorthUSD: v, totalActivosUSD: v, totalDebtUSD: 0, _source: 'daily', ...over,
+  })
+  const brokerNav = snap('2025-12-31', 5432.98, { id: '2025-12-31~nav~ibkr', _source: 'ibkr' })
+  const anchor = snap(`${yr}-01-01`, 5432.98, { _source: 'backfill', _transactional: true })
+  const accountCal = {
+    id: `${yr}-01-01~cal~ibkr`, date: `${yr}-01-01`,
+    netWorthUSD: 9305.22, totalActivosUSD: 9305.22,
+    _account: 'ibkr', _accountName: 'Interactive Brokers',
+    _source: 'manual', _calibrated: true, _calibrationKind: 'ytd',
+  }
+
+  async function run(snapshots) {
+    const items = [acct()]
+    const { result, unmount } = setup({
+      firestore: { items, transactions: deps, snapshots },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    const out = {
+      ignored: result.current.ignoredCalibrations,
+      state: result.current.brokerCompletionState,
+      active: result.current.accountCalibrations,
+    }
+    unmount()
+    return out
+  }
+
+  it('la calibración por cuenta contradicha sale en ignoredCalibrations con razón broker-nav', async () => {
+    const r = await run([brokerNav, anchor, accountCal, snap(`${yr}-06-15`, 8000)])
+    expect(r.ignored).toHaveLength(1)
+    expect(r.ignored[0]).toMatchObject({ id: accountCal.id, _account: 'ibkr', _ignoredReason: 'broker-nav' })
+    // Y NO está entre las activas: exponerla no la re-aplica.
+    expect(r.active.some((c) => c.id === accountCal.id)).toBe(false)
+    expect(r.state.ibkrCalibrationIgnored).toBe(1)
+    expect(r.state.hasIbkrCalibration).toBe(false)
+  })
+
+  it('una que cuadra no se lista como ignorada y el checklist la cuenta como hecha', async () => {
+    const buena = { ...accountCal, netWorthUSD: 5500, totalActivosUSD: 5500 }
+    const r = await run([brokerNav, anchor, buena, snap(`${yr}-06-15`, 8000)])
+    expect(r.ignored).toEqual([])
+    expect(r.state.ibkrCalibrationIgnored).toBe(0)
+    expect(r.state.hasIbkrCalibration).toBe(true)
+  })
+
+  it('el ancla GLOBAL que su vecino contradice sale con razón neighbor', async () => {
+    const poisoned = snap(`${yr}-01-01`, 9305.22, { _source: 'manual', _calibrated: true, _calibrationKind: 'ytd' })
+    const r = await run([poisoned, snap(`${yr}-01-02`, 5555.2), snap(`${yr}-06-15`, 8000)])
+    expect(r.ignored).toHaveLength(1)
+    expect(r.ignored[0]).toMatchObject({ id: poisoned.id, _ignoredReason: 'neighbor' })
+    expect(r.ignored[0]._account).toBeUndefined()
+    // No es de IBKR: el checklist del broker no la cuenta.
+    expect(r.state.ibkrCalibrationIgnored).toBe(0)
+  })
+
+  it('brokerCompletionState trae ibkrNavDays (el paso 2 del viaje depende de él)', async () => {
+    const r = await run([brokerNav, anchor, snap(`${yr}-06-15`, 8000)])
+    expect(r.state.ibkrNavDays).toBe(1)
+    const { ibkrJourneyProgress } = require('../../lib/ibkrJourney')
+    expect(ibkrJourneyProgress(r.state).steps.find((s) => s.id === 'history').done).toBe(true)
+  })
+})
+
+// FASE NU. Un snapshot fechado DESPUES de hoy no es una observacion. El CSV de
+// PortfolioAnalyst fecha el mes en curso a su fin de mes, asi que un doc de
+// NAV '2026-09-30' podia existir un 4 de septiembre y, como la serie se ordena
+// por fecha, se volvia el "ultimo snapshot" del portafolio.
+describe('FASE NU: un snapshot del futuro no entra a la serie', () => {
+  it('se filtra de snapshots/augmentedSnapshots y no es el latestSnapshot', async () => {
+    const future = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10)
+    const items = [item({ id: 'ibkr1', symbol: 'IBKRP', _source: 'ibkr', createdAt: '2026-01-05' })]
+    const snaps = [
+      { id: '2026-06-15', date: '2026-06-15', netWorthUSD: 8000, totalActivosUSD: 8000, totalDebtUSD: 0, _source: 'daily' },
+      { id: `${future}~nav~ibkr`, date: future, netWorthUSD: 10008.97, totalActivosUSD: 10008.97, totalDebtUSD: 0, _source: 'ibkr' },
+    ]
+    const { result, unmount } = setup({
+      firestore: { items, snapshots: snaps },
+      prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    expect(result.current.snapshots.some((s) => s.date === future)).toBe(false)
+    expect(result.current.augmentedSnapshots.some((s) => s.date === future)).toBe(false)
+    // El de junio (pasado) sigue ahi: el filtro es solo hacia el futuro.
+    expect(result.current.snapshots.some((s) => s.date === '2026-06-15')).toBe(true)
+    // Y el checklist no cuenta el doc futuro como un dia de NAV traido.
+    expect(result.current.brokerCompletionState.ibkrNavDays).toBe(0)
+    unmount()
+  })
+})
+
 // ⛔ FASE NP. El ancla GLOBAL calibrada que sus propios vecinos contradicen.
 //
 // TERCER reporte del usuario, mismo número al centavo, con NL y NN ya
@@ -1276,5 +1380,161 @@ describe('FASE NP: el ancla del archivo que su día vecino contradice', () => {
     expect(result.current.ytdAnchorIgnored).toBe(0)
     expect(result.current.ytdStartValue).toBeCloseTo(9305.22, 2)
     unmount()
+  })
+})
+
+// ⛔ FASE NR. El tercer modo de importación: agregar HISTORIA a la cuenta que ya
+// está, que es lo que el usuario pidió con estas palabras: "sube un excel, no
+// aparece la opción de agregar historial de la misma cuenta. Ahora solo aparece
+// agregar, que suma todo, [y] reemplazar".
+//
+// El motor ya existía (lib/brokerReconcile.js, modo 'enrich') y lo ofrecía
+// FileImportModal; lo que faltaba era ESTE camino, que es por donde el viaje de
+// IBKR manda a subir el archivo. Y no era solo una opción de menos: en 'merge'
+// un statement viejo PISA el precio y la cantidad de hoy, y las tres reglas de
+// borrado leen "no viene en el archivo" como "se vendió".
+describe('FASE NR: importar un archivo sin pisar lo de hoy ni borrar nada', () => {
+  const ibkr = (o = {}) => item({
+    id: 'ib1', symbol: 'MA', name: 'MASTERCARD INC - A', _source: 'ibkr',
+    institution: 'Interactive Brokers', quantity: 1.69, currentPrice: 585.71,
+    purchasePrice: 591.91, acquisitionDate: '2026-08-01', ...o,
+  })
+  // La misma posición tal como viene en un statement de una fecha ANTERIOR.
+  const fromFile = (o = {}) => ({
+    symbol: 'MA', name: 'MASTERCARD INC - A', type: 'Stock', _source: 'ibkr',
+    institution: 'Interactive Brokers', quantity: 1.5, currentPrice: 500,
+    purchasePrice: 480, currency: 'USD', acquisitionDate: '2024-03-11', ...o,
+  })
+
+  async function run(mode, over = {}) {
+    const bulkImport = jest.fn(async () => {})
+    const items = over.items || [ibkr()]
+    const { result, unmount } = setup({
+      firestore: { items, bulkImport }, prices: { enrichedItems: items },
+    })
+    await act(async () => {})
+    await act(async () => {
+      await result.current.handleIBKRSync({
+        items: over.feed || [fromFile()],
+        transactions: over.transactions || [],
+        equityHistory: [],
+        accounts: ['U1'],
+      }, mode)
+    })
+    unmount()
+    return bulkImport.mock.calls[0]?.[0] || null
+  }
+
+  it('enrich NO pisa el precio ni la cantidad de hoy', async () => {
+    const payload = await run('enrich')
+    expect(payload.items).toHaveLength(0)
+    const fields = payload.updateItems[0]?.fields || {}
+    expect(fields.currentPrice).toBeUndefined()
+    expect(fields.quantity).toBeUndefined()
+    expect(fields.purchasePrice).toBeUndefined()
+    // Lo que SÍ hace: traer la fecha de compra real hacia atrás. Eso es
+    // exactamente "agregar historial de la misma cuenta".
+    expect(fields.acquisitionDate).toBe('2024-03-11')
+  })
+
+  it('CONTROL: merge sí pisa, que es correcto para un sync en vivo', async () => {
+    // Sin esto, "enrich no pisa" podría pasar por haber dejado de escribir nada.
+    const payload = await run('merge')
+    const fields = payload.updateItems[0]?.fields || {}
+    expect(fields.currentPrice).toBe(500)
+    expect(fields.quantity).toBe(1.5)
+  })
+
+  it('enrich no borra una posición que el archivo no menciona', async () => {
+    // El caso que hace peligroso subir un statement viejo o de otra cuenta: un
+    // archivo no es un reporte de liquidación.
+    const items = [ibkr(), ibkr({ id: 'ib2', symbol: 'VICI', name: 'VICI Properties' })]
+    const enrich = await run('enrich', { items })
+    expect(enrich.deleteIds).toEqual([])
+
+    const merge = await run('merge', { items })
+    expect(merge.deleteIds).toContain('ib2')
+  })
+
+  it('enrich agrega las posiciones que de verdad son nuevas, con su lote', async () => {
+    const payload = await run('enrich', {
+      feed: [fromFile(), fromFile({ symbol: 'VICI', name: 'VICI Properties' })],
+    })
+    expect(payload.items.map(i => i.symbol)).toEqual(['VICI'])
+    expect(payload.lots).toHaveLength(1)
+  })
+
+  it('el historial se importa igual: transacciones y NAV nunca dependen del modo', async () => {
+    // Es LA razón por la que el usuario sube el archivo; si el modo seguro no
+    // las trajera, elegirlo costaría justo lo que se venía a ganar.
+    const txs = [{ type: 'BUY', symbol: 'MA', date: '2024-03-11', quantity: 1.5, totalAmount: 720 }]
+    for (const mode of ['enrich', 'merge']) {
+      const payload = await run(mode, { transactions: txs })
+      expect(payload.transactions).toEqual(txs)
+    }
+  })
+})
+
+// ⛔ FASE OM (extensión de la spec congelada liquidFundYield.js, OK explícito
+// del usuario, 6 sep 2026). Reinvertir en un ítem de SALDO (Bank) es que el
+// interés SUME al saldo: no hay "acciones" que comprar. La rama vieja trataba
+// `originalPrice` como precio POR UNIDAD y hacía `newShares = amount/precio`,
+// que para un fondo de $5,000 pagando $50 produce 0.01: no una fracción de
+// nada, un residuo que corrompe `quantity` un poco más cada mes. Downstream
+// eso rompe dos lecturas que asumen quantity=1 (EditAccountModal, que escribe
+// el precio SIN dividir por cantidad; y esta misma rama, que desplaza precios
+// asumiendo cantidad fija).
+describe('FASE OM: reinvertir en un ítem de saldo no corrompe la cantidad', () => {
+  const fondo = (over = {}) => item({
+    id: 'f1', name: 'Fondo', symbol: 'FONDO', type: 'Bank',
+    quantity: 1, currentPrice: 5000, purchasePrice: 5000, _originalPrice: 5000,
+    currency: 'USD', _originalCurrency: 'USD',
+    acquisitionDate: '2026-06-15', createdAt: '2026-06-15',
+    incomeMode: 'percent', incomeRate: 12, incomePayDay: 1,
+    incomeMonths: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], incomeMonthsExplicit: true,
+    dividendAction: 'reinvest',
+    ...over,
+  })
+
+  async function reinvestido({ items }) {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-01T18:00:00Z'))
+    const { unmount } = setup({ firestore: { items }, prices: { enrichedItems: items } })
+    for (let i = 0; i < 20; i++) await act(async () => { await Promise.resolve() })
+    // Toma la ÚLTIMA escritura de este ítem que trae `purchasePrice`: es la
+    // firma del motor de dividendos, distinta de la de un sanador de cantidad
+    // (`resurrectedBalanceFixes`/`zeroQuantityBalanceFixes`), que solo escribe
+    // `{quantity}` a secas y puede correr antes en la misma pasada.
+    const patch = fakeFirestore.updateItem.mock.calls
+      .map(([id, fields]) => (id === 'f1' ? fields : null))
+      .filter((f) => f && 'purchasePrice' in f)
+      .pop() || null
+    unmount()
+    jest.useRealTimers()
+    return patch
+  }
+
+  it('los dos precios se desplazan por el interés del mes, como un aporte', async () => {
+    const patch = await reinvestido({ items: [fondo()] })
+    expect(patch).not.toBeNull()
+    // 12% anual / 12 meses sobre $5,000 = $50.
+    expect(patch.purchasePrice).toBeCloseTo(5050, 6)
+    expect(patch.currentPrice).toBeCloseTo(5050, 6)
+  })
+
+  it('la cantidad se queda en 1: el patch no la reescribe', async () => {
+    const patch = await reinvestido({ items: [fondo()] })
+    expect(patch.quantity).toBeUndefined()
+  })
+
+  // REGRESIÓN NEGATIVA (documentada, no ejecutable sin revertir el código): la
+  // rama vieja hacía `newShares = amount/originalPrice` = 50/5000 = 0.01 y
+  // escribía `quantity: qty + newShares` = 1.01. Verificado con dientes
+  // revirtiendo `isBankLikeItem(it)` a `false` en el guard: las dos
+  // aserciones de arriba fallan (el patch no trae `purchasePrice`/
+  // `currentPrice`, sino `quantity: 1.01`).
+
+  it('una cantidad ya rota (0) se normaliza a 1 en vez de multiplicar el residuo', async () => {
+    const patch = await reinvestido({ items: [fondo({ quantity: 0 })] })
+    expect(patch.quantity).toBe(1)
   })
 })

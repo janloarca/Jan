@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
+import { useAutoDisarm } from '@/hooks/useAutoDisarm'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import {
   Settings, Building2, Users, X, SlidersHorizontal, Share2, Database, Palette,
@@ -85,6 +86,10 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  // FASE ND: armado quedaba PARA SIEMPRE. Tocar "Eliminar todo" solo para leer
+  // la advertencia dejaba el botón en "Confirmar" sin ninguna salida: la app a
+  // un toque accidental de borrar todo el resto de la sesión del modal.
+  useAutoDisarm(confirmDelete, () => setConfirmDelete(null))
   const [deleting, setDeleting] = useState(null)
   const [tab, setTab] = useState('general')
   const [saveStatus, setSaveStatus] = useState(null)
@@ -1020,9 +1025,20 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </BusyLabel>
                       </button>
                     </div>
+                    {/* FASE ND: la advertencia gana su salida explícita. Sin el
+                        "No", el único camino para desarmar era esperar el timeout
+                        o cerrar el modal, y quien lee la advertencia y decide NO
+                        borrar merece un botón que lo diga. */}
                     <div className="overflow-hidden transition-all duration-200 ease-out"
-                      style={{ maxHeight: armed ? 48 : 0, opacity: armed ? 1 : 0 }}>
-                      <div className="text-xs mt-2 font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
+                      style={{ maxHeight: armed ? 96 : 0, opacity: armed ? 1 : 0 }}>
+                      <div className="flex items-center justify-between gap-3 mt-2">
+                        <div className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>{action.warn}</div>
+                        <button onClick={() => setConfirmDelete(null)}
+                          className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors"
+                          style={{ color: 'var(--text-secondary)', borderColor: 'var(--glass-border)' }}>
+                          {t('No, dejar todo', 'No, keep it')}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

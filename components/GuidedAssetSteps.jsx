@@ -36,11 +36,16 @@ import { detectCurrency } from '@/lib/institutionCurrency'
 const FIELD_SEQUENCES = {
   market: ['symbol', 'quantity', 'institution'],
   Bank: ['institution', 'amount'],
-  Bond: ['name', 'amount', 'institution'],
+  // FASE OA: la institucion va ANTES del monto. `applyInstitution` sugiere
+  // la moneda a partir del banco/casa de bolsa, y con el monto primero la
+  // moneda cambiaba DESPUES de tecleado el numero (1,000 escritos "en USD"
+  // pasaban a leerse en GTQ sin que el usuario volviera a ver el campo).
+  // Mismo orden que Bank, que ya lo hacia bien.
+  Bond: ['name', 'institution', 'amount'],
   RealEstate: ['name', 'amount'],
-  Alternative: ['name', 'amount', 'institution'],
+  Alternative: ['name', 'institution', 'amount'],
   Debt: ['name', 'amount'],
-  generic: ['name', 'amount', 'institution'],
+  generic: ['name', 'institution', 'amount'],
 }
 
 export function guidedFieldsFor({ type, isMarketAsset }) {

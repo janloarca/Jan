@@ -11,6 +11,9 @@
 
 import { useState, useEffect } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
+import { useAutoDisarm } from '@/hooks/useAutoDisarm'
+import DiscardHint from '@/components/ui/DiscardHint'
 import { X, Plus, Pencil, Trash2, FileText } from 'lucide-react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { sanitizeInstrumentInput, sanitizeUrl, LIMITS } from '@/lib/instrumentSheet'
@@ -42,6 +45,13 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  // FASE ND: el "¿Seguro?" también quedaba armado para siempre.
+  useAutoDisarm(confirmDelete, () => setConfirmDelete(null))
+  // FASE ND: con el EDITOR abierto, un click en el telón tiraba la ficha
+  // entera (nombre, rating, características, riesgos) sin preguntar. Editor
+  // abierto = sucio; no hace falta cablear cada tecla, abrirlo ya es trabajo
+  // que no se descarta por accidente. La lista sola cierra como siempre.
+  const { onBackdropClick, backdropArmed } = useDirtyClose(onClose)
 
   useEscClose(onClose)
 
@@ -127,7 +137,8 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
   const labelCls = 'text-xs text-slate-500 mb-1 block'
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => onBackdropClick(editing !== null)}>
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} onClick={(e) => e.stopPropagation()}
         className="modal-anim card max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-4">

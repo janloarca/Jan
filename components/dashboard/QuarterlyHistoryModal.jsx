@@ -26,6 +26,9 @@ import BrokerSteps from '@/components/ui/BrokerSteps'
 import { CURRENCIES, currencyOptions } from '@/lib/currencies'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { planQuarterlyNavWrite } from '@/lib/ibkrSnapshotPlan'
+import { parseAmount } from '@/lib/numberParse'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
+import DiscardHint from '@/components/ui/DiscardHint'
 
 
 // Made-up figures. The point is the SHAPE of what to read off the chart, not a
@@ -96,10 +99,24 @@ export default function QuarterlyHistoryModal({
     return m
   }, [snapshots])
 
+  // Misma lectura que `save`: dos formas de leer el mismo campo en el mismo
+  // archivo es como una se queda atras. Con parseFloat, "9.919,38" contaba
+  // como llena por accidente (daba 9.91938, finito) y "abc" tambien habria
+  // pasado si alguien quitaba el isFinite.
   const filledCount = rows.filter((r) => {
     const v = values[r.label]
-    return v != null && v !== '' && isFinite(parseFloat(v))
+    return v != null && String(v).trim() !== '' && /\d/.test(String(v)) && isFinite(parseAmount(v))
   }).length
+
+  // Catorce cifras tecleadas a mano es el trabajo mas caro de toda la app, y
+  // se perdian con un dedo que caia fuera del panel. Peor: con el viaje activo,
+  // cerrar AVANZA al paso siguiente (page.jsx handleCloseModal), asi que el
+  // descarte no se leia como error sino como progreso.
+  //
+  // `filledCount` ya es la senal de "hay algo que perder": el usuario tecleo al
+  // menos un valor. Se pasa explicito porque un onClick entrega el EVENTO como
+  // primer argumento.
+  const { onBackdropClick, backdropArmed } = useDirtyClose(onClose)
 
   // Read the chart screenshot with AI, same BYOK pattern as the PDF statement
   // reader (parse-pdf): server key first, else the user's own key from the
@@ -202,13 +219,17 @@ export default function QuarterlyHistoryModal({
     for (const r of rows) {
       const raw = values[r.label]
       if (raw == null || String(raw).trim() === '') continue
-      // Tolerate what people actually paste: "9,919.38", "$9 919", "9919,38".
-      const cleaned = String(raw).replace(/[^0-9.,-]/g, '').replace(/\s/g, '')
-      const normalized = cleaned.includes(',') && !cleaned.includes('.')
-        ? cleaned.replace(',', '.')
-        : cleaned.replace(/,/g, '')
-      const num = parseFloat(normalized)
-      if (!isFinite(num) || num < 0) {
+      // parseAmount y NUNCA una normalizacion propia. La version a mano de aqui
+      // leia "9.919,38" (la forma normal de escribir en espanol) como 9.91938:
+      // mil veces menos, sin error, y archivado como 'ibkr_quarterly', que
+      // supera a nuestras reconstrucciones. Es el caso que la cabecera de
+      // lib/numberParse.js nombra literal como dinero real perdido.
+      //
+      // El guard de digitos se queda porque parseAmount devuelve 0 ante basura
+      // ("abc", "n/d") y 0 es un NAV valido: sin el, un texto ilegible se
+      // archivaria como "esta cuenta valia cero ese trimestre".
+      const num = parseAmount(raw)
+      if (!/\d/.test(String(raw)) || !isFinite(num) || num < 0) {
         setError(t(`Revisa el valor de ${r.label}: debe ser un número.`, `Check the ${r.label} value: it must be a number.`))
         return
       }
@@ -323,7 +344,8 @@ export default function QuarterlyHistoryModal({
   ]
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => onBackdropClick(filledCount > 0)}>
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-anim rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}
         onClick={(e) => e.stopPropagation()}>

@@ -12,6 +12,8 @@ import { toRawItem } from '@/lib/rawItem'
 import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
 import { getItemValue } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
+import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
+import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
 import InlineCreateAccount from './InlineCreateAccount'
 import FormSection from './FormSection'
 import { InfoTip } from './ui/Tooltip'
@@ -20,6 +22,7 @@ import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
+import { useAutoDisarm } from '@/hooks/useAutoDisarm'
 import DiscardHint from '@/components/ui/DiscardHint'
 
 const ACCOUNT_TYPES = [
@@ -76,7 +79,7 @@ function FxHint({ amount, from, to, convert, t }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, lots = [], onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -157,6 +160,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // FASE ND: sin esto el "Confirmar" quedaba armado para siempre: tocar
+  // Eliminar por error dejaba el borrado a un toque el resto de la edición.
+  useAutoDisarm(confirmDelete, () => setConfirmDelete(false))
   // Same tap-to-confirm pattern as deleting the whole account, but scoped to
   // one row: a duplicate (e.g. a double-submitted backfill) needs a way to
   // remove just that one movement without leaving the modal.
@@ -166,6 +172,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // que el aviso de la confirmación no se lea como otra moneda o escala.
   const txMoney = (amount, currency) =>
     `${currency || form.currency} ${Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // FASE OD. Los planificadores de reversa razonan sobre precios RAW (en la
+  // moneda del ítem): `existingItems` es la lista cruda de Firestore y
+  // `allItems` (el tablero) viene ENRIQUECIDA con precios en la base. Con la
+  // enriquecida, el aviso de "no tiene saldo para devolver" juzgaba una cuenta
+  // en quetzales contra su valor en dólares.
+  const planItems = (existingItems && existingItems.length) ? existingItems : (allItems || [])
   const handleDeleteTx = async (tx) => {
     if (confirmDeleteTxId !== tx.id) { setConfirmDeleteTxId(tx.id); return }
     if (!onDeleteTransaction) return
@@ -173,7 +185,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     try {
       await onDeleteTransaction(tx.id)
     } catch (e) {
-      setError(e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement'))
+      // FASE OB. El código crudo ('reversal-refused') no le dice nada a nadie.
+      setError(e?.code === 'reversal-refused'
+        ? t('No se borro: una cuenta no tiene saldo suficiente para devolver este movimiento. Ajusta su saldo primero.',
+            'Not deleted: an account does not hold enough to give this movement back. Adjust its balance first.')
+        // FASE OD. Una venta que no se puede deshacer trae su razon en el mensaje.
+        : (e.message || t('No se pudo borrar el movimiento', 'Could not delete the movement')))
     }
     setConfirmDeleteTxId(null)
     setDeletingTxId(null)
@@ -411,6 +428,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         currency: itemCurrency,
         _linkedItemId: item.id,
         _source: 'manual_contribution',
+        // FASE OB. Esta fila mueve el saldo en la misma operación: la marca
+        // permite deshacerla al borrarla (lib/cashflowReversal.js).
+        _balanceMoved: true,
         ...(txType === 'DIVIDEND' && isBankLike ? { _reinvested: true } : {}),
       }
 
@@ -549,7 +569,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // Dividend settings (market assets)
       if (isMarket) {
         updated.dividendAction = form.dividendAction
-        if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
+        // FASE OB. Misma regla que la rama de abajo (FASE HV2): reinvertir y
+        // tener destino son excluyentes. Acá el destino SOBREVIVÍA al cambio,
+        // y la limpieza del motor seguía debitando esa cuenta por cupones que
+        // ya iban a acciones.
+        if (updated.dividendAction === 'reinvest') updated.incomeDestination = ''
+        else if (form.incomeDestination) updated.incomeDestination = form.incomeDestination
       }
 
       // Income settings (non-market assets)
@@ -728,6 +753,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         } else if (isMarket) {
           const unitPrice = Number(rawItem.currentPrice) || parseAmount(form.currentPrice)
           flowDelta = ((updated.quantity || 0) - rawQty) * unitPrice
+        } else {
+          // FASE OA. Un bono/alternativo guardado con cantidad distinta de 1
+          // (la forma que deja el bug de la cantidad heredada al cambiar de
+          // tipo) no entraba a NINGUNA rama: cambiarle la cantidad no
+          // preguntaba nada y no escribia ningun movimiento. Su valor es
+          // cantidad x valor de compra, asi que el delta que importa es el del
+          // TOTAL, la misma pregunta que ya se hace para una cuenta de saldo.
+          flowDelta = ((updated.quantity || 0) * (updated.purchasePrice || 0)) - (rawQty * rawPP)
         }
       }
       if (Math.abs(flowDelta) > 0.01) {
@@ -945,13 +978,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')} /></label>
+                <label htmlFor="edit-quantity" className={labelCls}>{t('Cantidad', 'Quantity')} <InfoTip text={isMarket
+                  ? t('Número de unidades, acciones o participaciones que posees.', 'Number of units, shares or participations you own.')
+                  : t('Para un bono o un alternativo lo normal es cantidad 1 con el monto completo en el valor de compra. Si pones más de 1, el valor de compra se lee POR UNIDAD y el total es cantidad × valor.', 'For a bond or an alternative the norm is quantity 1 with the full amount as the purchase value. If you set more than 1, the purchase value is read PER UNIT and the total is quantity × value.')} /></label>
                 <input id="edit-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)}
                   type="text" inputMode="decimal" className={inputCls} />
               </div>
               <div>
                 <label htmlFor="edit-purchase-price" className={labelCls}>
-                  {isMarket ? t('Precio compra', 'Buy price') : t('Valor compra', 'Purchase value')} {t('en', 'in')} {form.currency}
+                  {isMarket ? t('Precio compra', 'Buy price') : ((parseQuantity(form.quantity) || 1) === 1 ? t('Valor compra', 'Purchase value') : t('Valor compra por unidad', 'Purchase value per unit'))} {t('en', 'in')} {form.currency}
                   <InfoTip text={t('Precio por unidad al momento de la compra. Valor total = cantidad × precio.', 'Price per unit at time of purchase. Total value = quantity × price.')} />
                 </label>
                 <input id="edit-purchase-price" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
@@ -1194,7 +1229,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             cuentas, no solo quita la fila. Misma redaccion que
                             la tarjeta de movimientos recientes, desde
                             lib/transferReversal.js. */}
-                        {confirming && reversalLines(transferReversalPlan(tx, allItems || existingItems || []), lang, txMoney).map((line, k) => (
+                        {confirming && [
+                          ...reversalLines(transferReversalPlan(tx, planItems), lang, txMoney),
+                          ...cashflowReversalLines(cashflowReversalPlan(tx, planItems), lang, txMoney),
+                          // FASE OD. Borrar una VENTA la deshace (o dice por que no).
+                          ...saleReversalLines(saleReversalPlan(tx, planItems, lots, transactions || []), lang, txMoney),
+                        ].map((line, k) => (
                           <div key={k} className="text-[11px] pb-1" style={{ color: 'var(--text-muted)' }}>{line}</div>
                         ))}
                         </div>
@@ -2023,8 +2063,22 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               every accordion, even with Rendimiento expanded. Stacks on mobile
               (Eliminar+total on top, Cancelar/Guardar full-width below) so four
               controls don't get squeezed onto one 375px-wide row. */}
-          <div className="sticky bottom-0 -mx-6 -mb-6 mt-2 px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-b-[20px]"
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-2 px-6 py-4 rounded-b-[20px]"
             style={{ background: 'var(--bg-card)', backdropFilter: 'var(--glass-blur-strong)', WebkitBackdropFilter: 'var(--glass-blur-strong)', borderTop: '1px solid var(--card-border,#38383A)' }}>
+            {/* FASE ND: la consecuencia del borrado (qué activos quedan
+                desvinculados) vivía DESPUÉS de esta barra en el DOM, o sea
+                debajo del pliegue: armar "Confirmar" no la mostraba nunca.
+                Dentro de la barra sticky es visible por construcción, arriba
+                del botón que la ejecuta. */}
+            {confirmDelete && referencedBy.length > 0 && (
+              <div className="mb-3 p-3 border rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)' }}>
+                {t('Estos activos reciben pagos de este activo y serán desvinculados:', 'These assets receive payments from this asset and will be unlinked:')}
+                <ul className="mt-1 space-y-0.5">
+                  {referencedBy.map(it => <li key={it.id}>• {it.name || it.symbol}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="flex items-center gap-3 order-2 sm:order-1">
               <button type="button" onClick={handleDelete}
                 className="px-4 py-2.5 text-xs font-medium rounded-lg transition-colors border"
@@ -2086,17 +2140,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 {<BusyLabel busy={saving} lang={lang}>{onNavigate ? t('Guardar →', 'Save →') : t('Guardar', 'Save')}</BusyLabel>}
               </button>
             </div>
-          </div>
-
-          {/* Delete warning */}
-          {confirmDelete && referencedBy.length > 0 && (
-            <div className="p-3 border rounded-lg text-xs" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-orange) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-orange) 20%, transparent)', color: 'var(--accent-orange)' }}>
-              {t('Estos activos reciben pagos de este activo y serán desvinculados:', 'These assets receive payments from this asset and will be unlinked:')}
-              <ul className="mt-1 space-y-0.5">
-                {referencedBy.map(it => <li key={it.id}>• {it.name || it.symbol}</li>)}
-              </ul>
             </div>
-          )}
+          </div>
         </form>
       </div>
     </div>

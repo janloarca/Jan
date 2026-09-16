@@ -205,7 +205,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                           desc: lang === 'es' ? 'Sync automático' : 'Automatic sync',
                           onClick: onOpenConnections },
                         onImport && { icon: Upload, label: lang === 'es' ? 'Importar archivo' : 'Import file',
-                          desc: lang === 'es' ? 'Excel o CSV' : 'Excel or CSV',
+                          desc: lang === 'es' ? 'Excel, CSV o Flex XML de IBKR' : 'Excel, CSV or IBKR Flex XML',
                           onClick: onImport, tour: 'header-import' },
                         // Enriching what is already here belongs next to the ways
                         // of adding something new: both answer "my data is not
