@@ -323,7 +323,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
                           {a.pct.toFixed(1)}%{showAmounts ? ` · ${money(a.value)}` : ''}
                         </span>
                       </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--track-base)' }}>
                         <div className="h-full rounded-full" style={{ width: `${a.pct}%`, backgroundColor: catColor(a.cat) }} />
                       </div>
                     </div>
@@ -680,7 +680,7 @@ function ExposureRows({ rows, labelOf, showAmounts, money }) {
               {r.pct.toFixed(1)}%{showAmounts && r.value != null ? ` · ${money(r.value)}` : ''}
             </span>
           </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--track-base)' }}>
             <div className="h-full rounded-full" style={{ width: `${Math.min(100, r.pct)}%`, backgroundColor: 'var(--accent-blue)' }} />
           </div>
         </div>

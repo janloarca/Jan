@@ -66,9 +66,12 @@ export default function CategoryDonut({
             <svg width={VIEWBOX} height={VIEWBOX} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`} aria-hidden="true">
               <g transform={`rotate(-90 ${CENTER} ${CENTER})`}>
                 {/* La pista, para que una sola rebanada del 100% no se lea como
-                    un anillo cortado y para que el hueco tenga borde. */}
+                    un anillo cortado y para que el hueco tenga borde. En
+                    --track-base y no en --bg-card-hover, que en tema claro es
+                    #FFFFFF: ahí la pista no existía y el anillo se leía cortado,
+                    que es justo lo que este círculo viene a evitar. */}
                 <circle cx={CENTER} cy={CENTER} r={DONUT_RADIUS} fill="none"
-                  stroke="var(--bg-card-hover)" strokeWidth={STROKE} />
+                  stroke="var(--track-base)" strokeWidth={STROKE} />
                 {donut.slices.map((s) => (
                   <circle
                     key={s.key}

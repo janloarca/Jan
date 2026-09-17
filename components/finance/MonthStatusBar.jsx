@@ -40,6 +40,7 @@ const STATUS_META = {
 
 export default function MonthStatusBar({
   status = 'empty', partialMonth = false, daysElapsed = 0, daysInMonth = 0, daysLeft = 0,
+  windowDays = null,
   reminderEnabled = false, onToggleReminder, reminderEmail = '', lang = 'es',
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
@@ -75,8 +76,18 @@ export default function MonthStatusBar({
               </>
             )}
             {' · '}
-            {t('comparar contra un mes completo no dice nada, así que las variaciones aparecen al cerrar',
-               'comparing against a full month says nothing, so changes appear once it closes')}
+            {/* ⛔ Esta línea decía "las variaciones aparecen al cerrar" SIEMPRE,
+                y desde FASE KZ2 eso es falso: con ventana equivalente el mes en
+                curso se compara contra los primeros N días del anterior, así
+                que el estado de arriba ya venía mostrando una flecha por fila.
+                La pantalla se contradecía a sí misma a diez centímetros. Ahora
+                dice qué se está comparando, y la frase vieja queda SOLO para el
+                caso en que de verdad no hay ventana que ofrecer. */}
+            {windowDays
+              ? t(`las variaciones comparan contra los primeros ${windowDays} días del mes pasado`,
+                   `changes compare against the first ${windowDays} days of last month`)
+              : t('comparar contra un mes completo no dice nada, así que las variaciones aparecen al cerrar',
+                   'comparing against a full month says nothing, so changes appear once it closes')}
           </span>
         )}
       </div>
