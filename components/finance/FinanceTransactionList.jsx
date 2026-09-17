@@ -164,11 +164,41 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
   // dense row, and `hour12: false` renders midnight as 24:00 in some locales.
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
-  const timeOf = (tx) => {
+  const instantOf = (tx) => {
     if (!mounted || !tx.occurredAt) return null
     const d = new Date(tx.occurredAt)
-    if (isNaN(d.getTime())) return null
+    return isNaN(d.getTime()) ? null : d
+  }
+  const timeOf = (tx) => {
+    const d = instantOf(tx)
+    if (!d) return null
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  // ⛔ El DÍA sale del MISMO instante y la MISMA zona que la hora (FASE OP).
+  //
+  // Antes la fila mezclaba dos convenciones: el día salía de `tx.date` (una
+  // cadena 'YYYY-MM-DD' leída por recorte de texto) y la hora del instante en la
+  // zona del lector. Cuando el instante llega en forma Zulu, esos primeros diez
+  // caracteres son el día UTC, así que una compra de las 20:00 del 16 en
+  // Guatemala se imprimía **"17/09/2026 20:00"**: el día de mañana con la hora
+  // de hoy. Reproducido con normalizeExpenseInput real: '2026-09-17T02:00:00Z'
+  // => date 2026-09-17, hora local 20:00. Muerde de 18:00 en adelante, o sea
+  // seis horas de todos los días, que es justo cuando se sale a cenar.
+  //
+  // Con un solo instante y una sola zona la fila ya no puede contradecirse.
+  //
+  // Lo que esto NO arregla, y hay que decirlo: `tx.date` es lo que decide en qué
+  // MES cae el movimiento, así que una compra de la noche del último día del mes
+  // se sigue archivando en el mes siguiente y esta fila la mostraría con su día
+  // real dentro de la lista del mes vecino. Ese arreglo es de ESCRITURA y exige
+  // saber la zona del usuario, que el servidor no tiene (ver la nota en
+  // lib/expenseIngest.js).
+  const dayOf = (tx) => {
+    const d = instantOf(tx)
+    if (!d) return formatFinanceDate(tx.date)
+    const p = (n) => String(n).padStart(2, '0')
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
   }
   const shownTotal = filtered.reduce((s, tx) => s + cashFlowOf(tx), 0)
 
@@ -236,7 +266,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                   <p className="text-xs truncate" style={{ color: 'var(--text-primary)' }}><Description tx={tx} t={t} /></p>
                   <div className="flex items-center gap-2 mt-1 text-xs min-w-0">
                     <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
-                      {formatFinanceDate(tx.date)}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
+                      {dayOf(tx)}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
                     </span>
                     <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>·</span>
                     <CategoryCell tx={tx} i={i} onRecategorize={onRecategorize} setEditing={setEditing} keyOf={keyOf} t={t} model={model} lang={lang} />
@@ -265,7 +295,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                 {filtered.map((tx, i) => (
                   <tr key={keyOf(tx, i)} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                     <td className="py-2 px-2 font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                      {formatFinanceDate(tx.date)}
+                      {dayOf(tx)}
                       {/* Espacio de verdad, no solo un margen: si no, copiar la
                           celda o leerla con lector de pantalla da "2026-08-0320:32". */}
                       {timeOf(tx) && <span className="opacity-70">{' '}{timeOf(tx)}</span>}

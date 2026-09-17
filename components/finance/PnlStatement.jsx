@@ -19,7 +19,11 @@ import { ChevronDown } from 'lucide-react'
 // monto, cada porcentaje terminaba en un píxel distinto por fila y la columna
 // se leía dispareja aunque estuviera alineada (la lección de FASE IB2).
 
+// Con la columna común el ancho es el de siempre; sin ella (un mes cuyo ingreso
+// no sostiene un denominador, ver lib/financePnl.js) esa pista se quita en vez
+// de quedar vacía: son 3rem que el rótulo de la categoría gana.
 const COLS = 'minmax(0,1fr) 5.4rem 3rem 3.1rem'
+const COLS_NO_PCT = 'minmax(0,1fr) 5.4rem 3.1rem'
 
 function fmtQ(v, lang) {
   const n = Math.round((v || 0) * 100) / 100
@@ -54,22 +58,22 @@ function Delta({ pct, comparable, title, goodWhenDown = true }) {
   )
 }
 
-function Row({ row, lang, momTitle, goodWhenDown }) {
+function Row({ row, lang, momTitle, goodWhenDown, cols, showPct }) {
   const label = lang === 'es' ? row.label : row.labelEn
   return (
-    <li className="grid items-center gap-x-2 py-[3px] text-[11px]" style={{ gridTemplateColumns: COLS }}>
+    <li className="grid items-center gap-x-2 py-[3px] text-[11px]" style={{ gridTemplateColumns: cols }}>
       <span className="flex items-center gap-1.5 min-w-0" style={{ color: 'var(--text-secondary)' }}>
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: row.color }} aria-hidden="true" />
         <span className="truncate">{label}</span>
       </span>
       <span className="text-right font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtQ(row.amount, lang)}</span>
-      <Pct value={row.pctOfIncome} />
+      {showPct && <Pct value={row.pctOfIncome} />}
       <Delta pct={row.momPct} comparable={row.comparable} title={momTitle} goodWhenDown={goodWhenDown} />
     </li>
   )
 }
 
-function Section({ title, hint, section, lang, momTitle, goodWhenDown = true, openByDefault = true, emptyText }) {
+function Section({ title, hint, section, lang, momTitle, goodWhenDown = true, openByDefault = true, emptyText, cols, showPct }) {
   const [open, setOpen] = useState(openByDefault)
   const rows = section?.rows || []
 
@@ -81,7 +85,7 @@ function Section({ title, hint, section, lang, momTitle, goodWhenDown = true, op
         aria-expanded={rows.length > 0 ? open : undefined}
         disabled={rows.length === 0}
         className={`w-full grid items-center gap-x-2 py-1.5 text-left ${rows.length > 0 ? 'cursor-pointer' : 'cursor-default'}`}
-        style={{ gridTemplateColumns: COLS }}
+        style={{ gridTemplateColumns: cols }}
       >
         <span className="flex items-center gap-1.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider truncate" style={{ color: 'var(--text-secondary)' }}>
@@ -98,7 +102,7 @@ function Section({ title, hint, section, lang, momTitle, goodWhenDown = true, op
         <span className="text-right text-xs font-semibold font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
           {fmtQ(section?.total, lang)}
         </span>
-        <Pct value={section?.pctOfIncome} />
+        {showPct && <Pct value={section?.pctOfIncome} />}
         <Delta pct={section?.momPct} comparable={section?.comparable} title={momTitle} goodWhenDown={goodWhenDown} />
       </button>
 
@@ -109,7 +113,7 @@ function Section({ title, hint, section, lang, momTitle, goodWhenDown = true, op
       {open && rows.length > 0 && (
         <ul className="pb-1">
           {rows.map((r) => (
-            <Row key={r.key} row={r} lang={lang} momTitle={momTitle} goodWhenDown={goodWhenDown} />
+            <Row key={r.key} row={r} lang={lang} momTitle={momTitle} goodWhenDown={goodWhenDown} cols={cols} showPct={showPct} />
           ))}
         </ul>
       )}
@@ -123,6 +127,11 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
 
   const { bottom, committedPct, hasIncome } = pnl
   const bottomColor = bottom.surplus ? 'var(--accent-green)' : 'var(--text-negative)'
+  // `hasIncome` responde "¿existe la columna común?", no "¿entró dinero?": un
+  // mes cuyo único ingreso es un rebate de tarjeta tiene ingreso y NO tiene un
+  // denominador que sostenga un porcentaje (ver lib/financePnl.js).
+  const showPct = hasIncome
+  const cols = showPct ? COLS : COLS_NO_PCT
 
   return (
     <div className="card p-4">
@@ -145,6 +154,8 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
           section={pnl.income}
           lang={lang}
           momTitle={momTitle}
+          cols={cols}
+          showPct={showPct}
           goodWhenDown={false}
           emptyText={t('Sin ingresos registrados este mes', 'No income logged this month')}
         />
@@ -154,6 +165,8 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
           section={pnl.fixed}
           lang={lang}
           momTitle={momTitle}
+          cols={cols}
+          showPct={showPct}
           emptyText={t('Ningún gasto fijo este mes', 'No fixed costs this month')}
         />
         <Section
@@ -162,10 +175,12 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
           section={pnl.variable}
           lang={lang}
           momTitle={momTitle}
+          cols={cols}
+          showPct={showPct}
           emptyText={t('Ningún gasto variable este mes', 'No variable spending this month')}
         />
 
-        <div className="grid items-center gap-x-2 pt-2" style={{ gridTemplateColumns: COLS }}>
+        <div className="grid items-center gap-x-2 pt-2" style={{ gridTemplateColumns: cols }}>
           <span className="text-[10px] font-semibold uppercase tracking-wider truncate" style={{ color: 'var(--text-secondary)' }}>
             <span className="sm:hidden">{bottom.surplus ? t('Resultado', 'Result') : t('Déficit', 'Deficit')}</span>
             <span className="hidden sm:inline">{bottom.surplus ? t('Resultado del mes', 'Month result') : t('Déficit del mes', 'Month deficit')}</span>
@@ -173,7 +188,7 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
           <span className="text-right text-sm font-bold font-mono tabular-nums" style={{ color: bottomColor }}>
             {fmtQ(bottom.amount, lang)}
           </span>
-          <Pct value={bottom.pctOfIncome} />
+          {showPct && <Pct value={bottom.pctOfIncome} />}
           <span aria-hidden="true" />
         </div>
       </div>

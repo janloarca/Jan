@@ -76,7 +76,10 @@ export default function InstallmentPlansCard({
                 {t(`${p.paid} de ${p.of}`, `${p.paid} of ${p.of}`)} · {fmt(p.monthly)}/{t('mes', 'mo')}
               </span>
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
+            {/* La pista va en --track-base y no en --bg-card-hover: ese token es
+                #FFFFFF en tema claro, o sea la mitad NO pagada del plan era
+                invisible sobre la card y 23 de 36 se leía como terminado. */}
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--track-base)' }}>
               <div className="h-full rounded-full bar-fill"
                 style={{ width: `${Math.min(100, (p.paid / p.of) * 100)}%`, backgroundColor: 'var(--accent-blue)' }} />
             </div>

@@ -630,6 +630,7 @@ export default function FinancesPage() {
             daysElapsed={analysis.daysElapsed}
             daysInMonth={analysis.daysInMonth}
             daysLeft={analysis.daysLeft}
+            windowDays={analysis.windowDays}
             reminderEnabled={reminderEnabled}
             onToggleReminder={handleToggleReminder}
             reminderEmail={settings?.financeReminderEmail || user?.email || ''}

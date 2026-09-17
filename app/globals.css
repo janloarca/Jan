@@ -47,6 +47,17 @@
      carga fuera literalmente invisible. Este valor reproduce exacto lo que el
      tema oscuro ya renderizaba (rgb(35,35,55) al 0.7 por opacidad 0.5 = 0.35). */
   --skeleton-base: rgba(35, 35, 55, 0.35);
+  /* La PISTA de una barra de progreso: el tramo que todavía NO se llenó, y el
+     anillo detrás de una dona. Mismo motivo que el token de arriba y el mismo
+     defecto por la puerta de al lado: usaba --bg-card-hover, que en tema claro
+     es #FFFFFF, así que sobre una card blanca la pista medía 1.000 de contraste
+     (medido con lib/colorMath.js) y desaparecía. Una barra sin pista visible se
+     lee COMPLETA: un plan de cuotas 23 de 36 parecía terminado.
+     El valor claro es el MISMO del borde de una card (#E5E7EB, 1.238), que es
+     el gris que esta app ya da por visible sobre una card porque dibuja con él
+     el contorno de todas. El oscuro reproduce exacto lo que ya renderizaba, así
+     que ese tema no se mueve un píxel. */
+  --track-base: rgba(35, 35, 55, 0.7);
 
   /* ── Movimiento ──────────────────────────────────────────────────────────
      Antes de esto convivían CINCO duraciones escritas a mano (0.1s, 0.15s,
@@ -126,6 +137,7 @@
   --glass-border-color: #E5E7EB;
   --glass-shine: none;
   --skeleton-base: #E8EAEE;
+  --track-base: #E5E7EB;
 }
 
 /* Semantic alert tints (info / warning / error / success) — theme-aware so the
