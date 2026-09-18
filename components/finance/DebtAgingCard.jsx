@@ -46,6 +46,7 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
     return `${sym}${Math.abs(v || 0).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
   const days = (n) => (n == null ? null : `${Math.round(n)} ${Math.round(n) === 1 ? t('día', 'day') : t('días', 'days')}`)
+  const anyUnattributed = groups.some((g) => g.unattributed > 0.005)
 
   return (
     <div className="card p-4 sm:p-5">
@@ -145,12 +146,15 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
               )}
 
               {/* No se esconde: sin esto el promedio mediría una historia
-                  incompleta y nada lo diría. */}
+                  incompleta y nada lo diría. Pero solo la CIFRA va por grupo
+                  (es por tarjeta y por moneda, y sumarlas necesitaría una tasa,
+                  que es justo lo que este módulo no hace); la explicación es una
+                  sola y vive al pie de la card. */}
               {g.unattributed > 0.005 && (
                 <p className="text-caption" style={{ color: 'var(--alert-warn-icon)' }}>
                   {t(
-                    `${money(g.unattributed, g.currency)} de pagos no cuadran con ningún gasto registrado: casi siempre cubren consumos de un mes que todavía no has importado.`,
-                    `${money(g.unattributed, g.currency)} in payments match no recorded charge: they usually cover a month you have not imported yet.`
+                    `${money(g.unattributed, g.currency)} de pagos no cuadran con ningún gasto registrado.`,
+                    `${money(g.unattributed, g.currency)} in payments match no recorded charge.`
                   )}
                 </p>
               )}
@@ -158,6 +162,18 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
           )
         })}
       </div>
+
+      {/* ⛔ Esta oración vivía DENTRO del bucle, así que con dos tarjetas y dos
+          monedas se imprimía hasta cuatro veces seguidas. La cifra cambia por
+          grupo; el por qué no. */}
+      {anyUnattributed && (
+        <p className="text-caption mt-4 pt-3 border-t" style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
+          {t(
+            'Un pago que no cuadra con ningún gasto registrado casi siempre cubre consumos de un mes que todavía no has importado.',
+            'A payment that matches no recorded charge usually covers a month you have not imported yet.'
+          )}
+        </p>
+      )}
     </div>
   )
 }
