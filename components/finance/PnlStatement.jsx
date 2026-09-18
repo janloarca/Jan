@@ -126,7 +126,10 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
   if (!pnl) return null
 
   const { bottom, committedPct, hasIncome } = pnl
-  const bottomColor = bottom.surplus ? 'var(--accent-green)' : 'var(--text-negative)'
+  // Tres estados, no dos: el cero exacto va en tinta normal. Pintarlo de verde
+  // afirmaba una ganancia sobre un mes que cerró en nada (ver lib/financePnl.js).
+  const bottomColor = bottom.zero ? 'var(--text-primary)'
+    : bottom.surplus ? 'var(--accent-green)' : 'var(--text-negative)'
   // `hasIncome` responde "¿existe la columna común?", no "¿entró dinero?": un
   // mes cuyo único ingreso es un rebate de tarjeta tiene ingreso y NO tiene un
   // denominador que sostenga un porcentaje (ver lib/financePnl.js).
