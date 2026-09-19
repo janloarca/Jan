@@ -90,7 +90,11 @@ describe('FASE OQ: la explicación de los pagos sin cuadrar se dice UNA vez', ()
 
   it('pero cada grupo conserva SU cifra, que es por tarjeta y por moneda', () => {
     render(<DebtAgingCard transactions={txs} lang="es" />)
-    const amounts = screen.queryAllByText(/de pagos no cuadran con ningún gasto registrado/)
+    // El texto de la cifra cambió de oración a RÓTULO en FASE OR (repetir la
+    // oración entera por grupo seguía leyéndose como el mismo párrafo cuatro
+    // veces). Lo que este test fija NO es la redacción sino el invariante: la
+    // cifra sigue siendo por tarjeta y por moneda, y jamás se suma entre monedas.
+    const amounts = screen.queryAllByText(/en pagos sin cargo asociado/)
     expect(amounts.length).toBeGreaterThan(1)
     // Y nunca se suman entre monedas: el quetzal y el dólar salen por separado.
     const joined = amounts.map((n) => n.textContent).join(' | ')

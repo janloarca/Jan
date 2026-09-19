@@ -692,6 +692,7 @@ export default function FinancesPage() {
           />
           <DebtAgingCard
             transactions={financeTransactions}
+            rules={ingestRules}
             lang={lang}
           />
           <UnclassifiedTriage
