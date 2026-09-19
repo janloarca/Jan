@@ -21,16 +21,21 @@ import CategoryEditor from '@/components/finance/CategoryEditor'
 // mecanismo aislado: 40 de 40 clics perdidos adentro, 0 de 40 afuera.
 //
 // Todo lo que antes venía del closure viaja como prop.
-function CategoryCell({ tx, i, onRecategorize, setEditing, keyOf, t }) {
+function CategoryCell({ tx, i, onRecategorize, setEditing, keyOf, t, model, lang }) {
+  // El rotulo sale del modelo del usuario cuando existe: ahi vive el nombre
+  // que EL le puso a la categoria y la traduccion al ingles. Sin modelo se
+  // imprime la llave tal cual, que es el comportamiento de siempre.
+  const label = model ? model.labelOf(tx.category, lang) : tx.category
+  const color = (model && model.entry(tx.category)?.color) || CATEGORY_COLORS[tx.category] || 'var(--text-muted)'
   return (
   <button
     onClick={() => onRecategorize && setEditing(keyOf(tx, i))}
     disabled={!onRecategorize}
     title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
     className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated max-w-full">
-    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[tx.category] || 'var(--text-muted)' }} />
+    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
     <span className="truncate" style={{ color: 'var(--text-secondary)' }}>
-      {tx.category}{tx.userLabel ? ` · ${tx.userLabel}` : ''}
+      {label}{tx.userLabel ? ` · ${tx.userLabel}` : ''}
     </span>
     {tx._needsReview && (
       <span title={t('Revisa la categoría', 'Check the category')} style={{ color: 'var(--alert-warn-icon)' }}>?</span>
@@ -117,7 +122,10 @@ function Description({ tx, t }) {
 )
 }
 
-export default function FinanceTransactionList({ transactions, onDelete, onRecategorize, onToggleAnnual = null, lang = 'es' }) {
+// `model` (opcional): la taxonomía del usuario resuelta. Sin él la lista se
+// comporta exactamente como antes; con él, cada fila se rotula con el nombre
+// que el usuario le puso a esa categoría y el editor ofrece las suyas.
+export default function FinanceTransactionList({ transactions, onDelete, onRecategorize, onToggleAnnual = null, lang = 'es', model = null }) {
   const [filter, setFilter] = useState('ALL')
   const [search, setSearch] = useState('')
   // Row whose category select is open. Editing inline (rather than in a modal)
@@ -156,11 +164,41 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
   // dense row, and `hour12: false` renders midnight as 24:00 in some locales.
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
-  const timeOf = (tx) => {
+  const instantOf = (tx) => {
     if (!mounted || !tx.occurredAt) return null
     const d = new Date(tx.occurredAt)
-    if (isNaN(d.getTime())) return null
+    return isNaN(d.getTime()) ? null : d
+  }
+  const timeOf = (tx) => {
+    const d = instantOf(tx)
+    if (!d) return null
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  // ⛔ El DÍA sale del MISMO instante y la MISMA zona que la hora (FASE OP).
+  //
+  // Antes la fila mezclaba dos convenciones: el día salía de `tx.date` (una
+  // cadena 'YYYY-MM-DD' leída por recorte de texto) y la hora del instante en la
+  // zona del lector. Cuando el instante llega en forma Zulu, esos primeros diez
+  // caracteres son el día UTC, así que una compra de las 20:00 del 16 en
+  // Guatemala se imprimía **"17/09/2026 20:00"**: el día de mañana con la hora
+  // de hoy. Reproducido con normalizeExpenseInput real: '2026-09-17T02:00:00Z'
+  // => date 2026-09-17, hora local 20:00. Muerde de 18:00 en adelante, o sea
+  // seis horas de todos los días, que es justo cuando se sale a cenar.
+  //
+  // Con un solo instante y una sola zona la fila ya no puede contradecirse.
+  //
+  // Lo que esto NO arregla, y hay que decirlo: `tx.date` es lo que decide en qué
+  // MES cae el movimiento, así que una compra de la noche del último día del mes
+  // se sigue archivando en el mes siguiente y esta fila la mostraría con su día
+  // real dentro de la lista del mes vecino. Ese arreglo es de ESCRITURA y exige
+  // saber la zona del usuario, que el servidor no tiene (ver la nota en
+  // lib/expenseIngest.js).
+  const dayOf = (tx) => {
+    const d = instantOf(tx)
+    if (!d) return formatFinanceDate(tx.date)
+    const p = (n) => String(n).padStart(2, '0')
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
   }
   const shownTotal = filtered.reduce((s, tx) => s + cashFlowOf(tx), 0)
 
@@ -228,10 +266,10 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                   <p className="text-xs truncate" style={{ color: 'var(--text-primary)' }}><Description tx={tx} t={t} /></p>
                   <div className="flex items-center gap-2 mt-1 text-xs min-w-0">
                     <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
-                      {formatFinanceDate(tx.date)}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
+                      {dayOf(tx)}{timeOf(tx) ? ` ${timeOf(tx)}` : ''}
                     </span>
                     <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>·</span>
-                    <CategoryCell tx={tx} i={i} onRecategorize={onRecategorize} setEditing={setEditing} keyOf={keyOf} t={t} />
+                    <CategoryCell tx={tx} i={i} onRecategorize={onRecategorize} setEditing={setEditing} keyOf={keyOf} t={t} model={model} lang={lang} />
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -257,7 +295,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                 {filtered.map((tx, i) => (
                   <tr key={keyOf(tx, i)} className="border-b border-glass-border/50 hover:bg-theme-elevated">
                     <td className="py-2 px-2 font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                      {formatFinanceDate(tx.date)}
+                      {dayOf(tx)}
                       {/* Espacio de verdad, no solo un margen: si no, copiar la
                           celda o leerla con lector de pantalla da "2026-08-0320:32". */}
                       {timeOf(tx) && <span className="opacity-70">{' '}{timeOf(tx)}</span>}
@@ -265,7 +303,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                     <td className="py-2 px-2 max-w-[200px] truncate" style={{ color: 'var(--text-primary)' }}>
                       <Description tx={tx} t={t} />
                     </td>
-                    <td className="py-2 px-2 max-w-[160px]"><CategoryCell tx={tx} i={i} onRecategorize={onRecategorize} setEditing={setEditing} keyOf={keyOf} t={t} /></td>
+                    <td className="py-2 px-2 max-w-[160px]"><CategoryCell tx={tx} i={i} onRecategorize={onRecategorize} setEditing={setEditing} keyOf={keyOf} t={t} model={model} lang={lang} /></td>
                     <td className="py-2 px-2 text-right"><Amount tx={tx} t={t} fmt={fmt} /></td>
                     <td className="py-2 px-2 text-center"><DeleteButton tx={tx} i={i} onDelete={onDelete} confirming={confirming} setConfirming={setConfirming} keyOf={keyOf} t={t} /></td>
                   </tr>
@@ -284,6 +322,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
         >
           <CategoryEditor
             tx={editingTx}
+            model={model}
             lang={lang}
             onCancel={() => setEditing(null)}
             onApply={(category, label) => { onRecategorize(editingTx, category, label); setEditing(null) }}

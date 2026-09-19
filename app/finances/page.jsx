@@ -17,8 +17,11 @@ import useModalExit from '@/hooks/useModalExit'
 import { computeLoadStages } from '@/lib/loadStages'
 import { hasDemoData } from '@/lib/demoData'
 import MonthSelector from '@/components/finance/MonthSelector'
-import FinanceSummaryCards from '@/components/finance/FinanceSummaryCards'
-import BreakdownCard from '@/components/finance/BreakdownCard'
+import PnlStatement from '@/components/finance/PnlStatement'
+import CategoryDonut from '@/components/finance/CategoryDonut'
+import QuickAddRow from '@/components/finance/QuickAddRow'
+import CategoryManagerModal from '@/components/finance/CategoryManagerModal'
+import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MonthStatusBar from '@/components/finance/MonthStatusBar'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 import FinanceInsights from '@/components/finance/FinanceInsights'
@@ -34,13 +37,15 @@ import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
-import { computeMonthlyAnalysis, buildFinanceInsights } from '@/lib/financeMonth'
+import { computeMonthlyAnalysis, buildFinanceInsights, yearGroupTotals } from '@/lib/financeMonth'
 import { detectRecurringCharges, annualPaymentsOfMonth } from '@/lib/recurringCharges'
-import { isTransferCategory } from '@/lib/financeCategories'
+import { isTransferCategory, EXPENSE_GROUPS, OTHER_GROUP } from '@/lib/financeCategories'
+import { resolveCategoryModel } from '@/lib/financeCategoryModel'
+import { buildPnlStatement } from '@/lib/financePnl'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
-import { Wallet, Zap } from 'lucide-react'
+import { Wallet, Zap, Tags } from 'lucide-react'
 import { authFetch } from '@/lib/authFetch'
 
 // Los botones secundarios de la barra de acciones. Antes eran
@@ -138,22 +143,25 @@ export default function FinancesPage() {
       })
   }, [financeTransactions, month, year, convert])
 
-  // Las transferencias entre cuentas propias quedan fuera de las dos cifras,
-  // igual que en `computeMonthlyAnalysis`: dos motores sumando el mismo mes con
-  // reglas distintas es como la pantalla termina contradiciendose a si misma.
-  const flowTxs = useMemo(
-    () => monthTransactions.filter(tx => !isTransferCategory(tx.category)),
-    [monthTransactions]
-  )
+  // ⛔ ACÁ VIVÍA UN SEGUNDO MOTOR SUMANDO EL MISMO MES.
+  //
+  // La página tenía sus propios memos `income`/`expenses` (filtrando
+  // transferencias por su cuenta, con su propia conversión) SOLO para alimentar
+  // la tarjeta de resumen, mientras `computeMonthlyAnalysis` calculaba lo mismo
+  // tres líneas abajo. Dos motores sobre el mismo dinero es exactamente cómo
+  // una pantalla termina contradiciéndose, y este repo ya lo pagó con los dos
+  // generadores del reporte (FASE HT).
+  //
+  // El estado de resultados toma sus cifras del motor ÚNICO, así que esos
+  // memos se fueron con la tarjeta que los consumía. `monthTransactions` sigue
+  // vivo: lo usan la lista del mes y el CSV, que muestran filas, no totales.
 
-  const income = useMemo(() =>
-    flowTxs.filter(tx => tx.type === 'INCOME').reduce((s, tx) => s + (tx.amount || 0), 0),
-    [flowTxs]
-  )
-
-  const expenses = useMemo(() =>
-    flowTxs.filter(tx => tx.type === 'EXPENSE').reduce((s, tx) => s + (tx.amount || 0), 0),
-    [flowTxs]
+  // El nombre del mes que se está viendo, para el centro de la dona. Se arma
+  // por COMPONENTES (día 1 a mediodía) y nunca parseando la llave 'YYYY-MM':
+  // `new Date('2026-08')` es medianoche UTC y en UTC-6 cae en julio.
+  const monthLabel = useMemo(
+    () => new Date(year, month, 1, 12).toLocaleDateString(lang === 'es' ? 'es-GT' : 'en-US', { month: 'long', year: 'numeric' }),
+    [month, year, lang]
   )
 
   // ── Motor mensual: análisis e insights ──
@@ -167,14 +175,74 @@ export default function FinancesPage() {
   )
   const monthInsights = useMemo(() => buildFinanceInsights(analysis, lang), [analysis, lang])
 
+  // ── La taxonomía del usuario ──
+  //
+  // Montada ENCIMA de la de fábrica y nunca en su lugar: el string en español
+  // de una categoría sigue siendo la llave guardada en Firestore y la que los
+  // parsers escriben. Acá solo se resuelve cómo se ROTULA, en qué grupo cae, si
+  // cuenta como compromiso o como discrecional, y cuáles ofrece el selector.
+  // Ver lib/financeCategoryModel.js.
+  const categoryModel = useMemo(
+    () => resolveCategoryModel(settings?.financeCategoryConfig),
+    [settings?.financeCategoryConfig]
+  )
+
+  const handleSaveCategoryConfig = useCallback(async (config) => {
+    // La config va COMPLETA (los dos arreglos) en cada guardado: `saveSettings`
+    // fusiona, y Firestore fusiona un mapa anidado campo por campo, así que un
+    // parche parcial dejaría vivo un override que se acaba de quitar.
+    await saveSettings({ financeCategoryConfig: { custom: config.custom, overrides: config.overrides } })
+  }, [saveSettings])
+
+  // El mes como estado de resultados. NO suma nada por su cuenta: re-secciona
+  // las categorías que `computeMonthlyAnalysis` ya produjo, así que las dos
+  // secciones siempre suman el gasto del mes por construcción.
+  const pnl = useMemo(() => buildPnlStatement(analysis, categoryModel), [analysis, categoryModel])
+
+  // Los insumos de la dona. Por CATEGORÍA (no por grupo) porque el agrupado lo
+  // hace el modelo del usuario: con los totales por grupo de fábrica, mover una
+  // categoría de grupo dejaría la dona y el estado contando distinto.
+  const monthCategoryTotals = useMemo(() => {
+    const out = {}
+    for (const g of analysis.groups || []) {
+      for (const c of g.categories || []) out[c.category] = (out[c.category] || 0) + c.amount
+    }
+    return out
+  }, [analysis])
+
+  const yearCategoryTotals = useMemo(
+    () => yearGroupTotals(financeTransactions, year, convert).byCategory,
+    [financeTransactions, year, convert]
+  )
+
+  const donutGroups = useMemo(() => [...EXPENSE_GROUPS, OTHER_GROUP], [])
+
+  // ⛔ UNA sola detección de recurrencia para toda la pantalla.
+  //
+  // Corría TRES veces por render (acá, en YearInViewCard y en
+  // RecurringChargesCard), cada una agrupando el historial completo por
+  // comercio y sacando medianas. Es la misma función pura con el mismo
+  // resultado, así que las tres no podían discrepar: lo que costaba era el
+  // trabajo, y una cuarta copia sí podría divergir el día que alguien le pase
+  // otro parámetro a una sola.
+  //
+  // `nowDate` (día LOCAL, 'YYYY-MM-DD') solo gobierna el flag de "este mes no
+  // ha cobrado" de la nómina mensual; `longCadence` sale idéntico con o sin él,
+  // así que pasarlo acá no cambia lo que los dos consumidores ya veían.
+  const nowDate = useMemo(() => new Date().toLocaleDateString('en-CA'), [])
+  const recurring = useMemo(
+    () => detectRecurringCharges(financeTransactions, { convert, nowDate }),
+    [financeTransactions, convert, nowDate]
+  )
+
   // FASE LJ. Los pagos anuales/semestrales del mes seleccionado: la union de
   // la marca manual (_annualCadence) y la cadencia larga detectada sobre el
   // historial COMPLETO (no el mes: la cadencia se ve entre anios). Alimenta la
   // linea derivada del resumen; el total del mes no se toca.
-  const annualInMonth = useMemo(() => {
-    const { longCadence } = detectRecurringCharges(financeTransactions, { convert })
-    return annualPaymentsOfMonth(financeTransactions, analysis.key, { convert, longCadence })
-  }, [financeTransactions, analysis.key, convert])
+  const annualInMonth = useMemo(
+    () => annualPaymentsOfMonth(financeTransactions, analysis.key, { convert, longCadence: recurring.longCadence }),
+    [financeTransactions, analysis.key, convert, recurring]
+  )
 
   // El desglose por grupo (y por categoría dentro de cada grupo) sale del MISMO
   // motor que produce los totales, así que una fila desplegada siempre suma su
@@ -323,6 +391,14 @@ export default function FinancesPage() {
   // financeMonth.js), y la nota de cabecera dice ESA ventana. La línea de "al
   // cerrar el mes" queda solo para el caso en que la ventana no cabe en el mes
   // anterior (los últimos 1-3 días de un mes largo contra febrero).
+  // ¿El mes VISIBLE no tiene un solo movimiento? Sale del motor
+  // (`getMonthStatus`), que es el mismo que alimenta el badge de
+  // `MonthStatusBar`, para que las dos superficies no puedan discrepar sobre si
+  // el mes está vacío. No se deriva de `monthTransactions.length`: ese arreglo
+  // ya viene convertido y filtrado por moneda, así que sería una segunda
+  // definición de la misma pregunta.
+  const monthIsEmpty = analysis.status === 'empty'
+
   const momTitle = analysis.windowDays != null
     ? t(`vs los primeros ${analysis.windowDays} días del mes pasado`, `vs the first ${analysis.windowDays} days of last month`)
     : t('vs mes pasado', 'vs last month')
@@ -424,6 +500,10 @@ export default function FinancesPage() {
               className={`hidden sm:inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
               <Zap size={12} style={{ color: 'var(--accent-blue)' }} /> {t('Automático', 'Automatic')}
             </button>
+            <button onClick={() => setModal('categories')}
+              className={`hidden sm:inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
+              <Tags size={12} aria-hidden="true" /> {t('Categorías', 'Categories')}
+            </button>
             {monthTransactions.length > 0 && (
               <button onClick={handleExportCsv}
                 className={`hidden sm:inline-flex ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
@@ -434,20 +514,28 @@ export default function FinancesPage() {
         }
       />
 
-        {/* A brand-new user sees the empty state directly, not a stack of Q0.00
-            cards and blank breakdowns with the guidance buried below the fold. */}
+        {/* Alguien recién llegado ve el estado vacío directo, no una pila de
+            tarjetas en Q0.00 con la guía enterrada abajo. */}
         {financeTransactions.length > 0 && <>
-        <MonthStatusBar
-          status={analysis.status}
-          partialMonth={analysis.partialMonth}
-          daysElapsed={analysis.daysElapsed}
-          daysInMonth={analysis.daysInMonth}
-          daysLeft={analysis.daysLeft}
-          reminderEnabled={reminderEnabled}
-          onToggleReminder={handleToggleReminder}
-          reminderEmail={settings?.financeReminderEmail || user?.email || ''}
+
+        {/* ── 1. ANOTAR ──
+            Arriba de todo y sin abrir nada: la captura manual era el camino
+            más caro de la pantalla (tocar, esperar el modal, cinco campos,
+            guardar, y otra vez para el siguiente gasto). Acá la fila vive
+            siempre visible y la categoría se sugiere sola de la descripción. */}
+        <QuickAddRow
+          onAdd={addFinanceTransaction}
+          categories={[...categoryModel.pickable('EXPENSE'), ...categoryModel.pickable('INCOME')]}
+          rules={ingestRules}
+          month={month}
+          year={year}
           lang={lang}
+          onOpenFull={() => setModal('add')}
         />
+
+        {/* ── 2. LO QUE PIDE UNA ACCIÓN ──
+            Solo lo accionable va arriba del estado; el resto de los avisos
+            viven en la sección que le corresponde. */}
         {recatPlan.length > 0 && (
           <InlineNotice
             tone="info"
@@ -466,106 +554,181 @@ export default function FinancesPage() {
             {t(`Listo: ${recatDone} reclasificados.`, `Done: ${recatDone} reclassified.`)}
           </InlineNotice>
         )}
-        {/* Lo que de verdad pasa cuando un ahorro sale en -245%: no es que se
+        {/* Lo que de verdad pasa cuando un resultado sale en -245%: no es que se
             gastara tres veces el sueldo, es que el sueldo todavía no está
             registrado. Decirlo es más útil que pintar el número de rojo. */}
         {analysis.incomeLooksUnlogged && (
           <InlineNotice tone="warn">
-            {t('Este mes no tiene ningún ingreso recurrente registrado (salario, renta, freelance), así que el resultado de abajo mide gastos contra casi nada. Agrega tu ingreso del mes y las cifras cuadran.',
-               'This month has no recurring income logged (salary, rent, freelance), so the result below measures spending against almost nothing. Add your income for the month and the figures line up.')}
+            {t('Este mes no tiene ningún ingreso recurrente registrado (salario, renta, freelance), así que el estado de abajo mide gastos contra casi nada. Agrega tu ingreso del mes y las cifras cuadran.',
+               'This month has no recurring income logged (salary, rent, freelance), so the statement below measures spending against almost nothing. Add your income for the month and the figures line up.')}
           </InlineNotice>
         )}
 
-        <FinanceSummaryCards income={income} expenses={expenses}
-          momIncomePct={analysis.momIncomePct} momExpensesPct={analysis.momExpensesPct}
-          momComparable={analysis.momComparable}
-          momTitle={momTitle}
-          annualInMonth={annualInMonth}
-          lang={lang} />
+        {/* ── 3. EL MES ──
+            ⛔ Un mes SIN un solo movimiento no dibuja el estado de resultados.
+            Verificado ejecutando los motores: `status:'empty'` con
+            `bottom:{amount:0, surplus:true}`, o sea el renglón final imprimía
+            "Resultado del mes Q0.00" EN VERDE — la app afirmando que cerraste
+            en cero cuando lo que pasa es que no hay nada capturado. Y la
+            superficie que SÍ decía la verdad (`MonthStatusBar`, "✗ Sin
+            registrar") vive en la sección 6, debajo del fold: dos superficies
+            contradiciéndose y la correcta enterrada, la misma forma que el
+            defecto de la barra de estado en FASE OP.
 
-        {/* El anio en una vista (feature 5): doce columnas REALES con el punto
-            de los pagos anuales; tocar un mes salta a el. Solo transacciones,
-            jamas el plan (regla dura de incomePlan.js). */}
+            El guard es por MES VISIBLE y no por historial: el de afuera es
+            `financeTransactions.length > 0` sobre TODAS las transacciones, así
+            que navegar a un mes vacío con historia en otros meses dibujaba la
+            pila completa en ceros. La dona y los insights se van con el estado
+            por la misma razón; el año, los patrones y el plan se quedan porque
+            NO hablan del mes. */}
+        {monthIsEmpty ? (
+          <div className="card p-5 sm:p-6 text-center">
+            <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+              {t(`Nada registrado en ${monthLabel}`, `Nothing logged in ${monthLabel}`)}
+            </p>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
+              {t('No hay un estado del mes porque no hay movimientos. Anota uno arriba, importa el estado de cuenta, o elige otro mes.',
+                 'There is no month statement because there are no movements. Log one above, import your statement, or pick another month.')}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button onClick={() => setModal('import')}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
+                style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
+                {t('Importar estado de cuenta', 'Import statement')}
+              </button>
+              <button onClick={() => setModal('add')}
+                className={SECONDARY_BTN} style={SECONDARY_STYLE}>
+                {t('Agregar movimiento', 'Add movement')}
+              </button>
+            </div>
+          </div>
+        ) : (<>
+
+        {/* El estado de resultados y la composición, lado a lado. Reemplazan a
+            las tres cards que antes dibujaban el mismo dinero sin ningún orden
+            entre ellas (el resumen Entró/Salió/Quedó y los dos desgloses): los
+            mismos números, ahora en el orden de derivación de un P&L y con la
+            columna de % del ingreso, que es la que convierte un monto en un
+            juicio sin una sola oración. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
+          <PnlStatement
+            pnl={pnl}
+            lang={lang}
+            momTitle={momTitle}
+            silentReason={deltaSilentReason}
+          />
+          <CategoryDonut
+            monthTotals={monthCategoryTotals}
+            yearTotals={yearCategoryTotals}
+            groups={donutGroups}
+            model={categoryModel}
+            monthLabel={monthLabel}
+            year={year}
+            lang={lang}
+          />
+        </div>
+
+        {/* Los pagos anuales del mes: una línea DERIVADA, el total no se toca.
+            Vive junto al estado porque es lo que explica un mes que se ve caro
+            sin serlo.
+
+            ⛔ Leía `annualInMonth.total` y ese campo NO EXISTE:
+            `annualPaymentsOfMonth` devuelve `{ totalGtq, rows }` (y
+            `YearInViewCard`, el otro consumidor, sí lee `totalGtq`). O sea
+            `undefined > 0` era false y esta línea NUNCA se renderizó para
+            nadie, ni una vez: el defecto entero de FASE LJ en esta pantalla era
+            código muerto silencioso. Es la dirección ESPEJO del guardián de
+            campos huérfanos (FASE MV, que caza lo que se escribe y nadie lee):
+            acá se LEE un campo que nadie escribe, y eso no falla ruidosamente,
+            simplemente no dibuja nada. */}
+        {annualInMonth && annualInMonth.totalGtq > 0 && (
+          <p className="text-[11px] -mt-2 px-1" style={{ color: 'var(--text-muted)' }}>
+            {t(
+              `De lo gastado este mes, Q${Math.round(annualInMonth.totalGtq).toLocaleString('es-GT')} son pagos anuales o semestrales.`,
+              `Of this month's spending, Q${Math.round(annualInMonth.totalGtq).toLocaleString('en-US')} are annual or semiannual payments.`
+            )}
+          </p>
+        )}
+        </>)}
+
+        {/* ── 4. EL AÑO ──
+            FUERA del guard del mes vacío a propósito: habla del AÑO, no del
+            mes, y ya se oculta solo cuando el año entero no tiene nada. De
+            hecho es lo más útil que se puede ver parado en un mes vacío,
+            porque dice en qué meses SÍ hay algo.
+
+            Doce columnas REALES con el punto de los pagos anuales; tocar un mes
+            salta a él. Solo transacciones, jamás el plan. */}
         <YearInViewCard
           transactions={financeTransactions}
           convert={convert}
+          recurring={recurring}
           year={year}
           month={month + 1}
           onSelectMonth={(m, y) => { setMonth(m); setYear(y) }}
           lang={lang}
         />
 
-        {/* Una card por lado, cada grupo desplegable a sus categorías. Antes
-            eran cuatro cards dibujando el mismo dinero dos veces por lado. */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
-          <BreakdownCard
-            title={t('Gastos', 'Expenses')}
-            groups={analysis.groups}
-            total={analysis.expenses}
-            silentReason={deltaSilentReason}
-            momTitle={momTitle}
-            lang={lang}
-          />
-          <BreakdownCard
-            title={t('Ingresos', 'Income')}
-            groups={analysis.incomeGroups}
-            total={analysis.income}
-            silentReason={deltaSilentReason}
-            momTitle={momTitle}
-            emptyText={t('Sin ingresos registrados este mes', 'No income logged this month')}
-            lang={lang}
-          />
-        </div>
-
         <FinanceInsights insights={monthInsights} lang={lang} />
 
-        {/* Cuotas activas: sale del campo `installment` que los estados ya
-            traían. Recibe el HISTORIAL completo (los planes cruzan meses) y el
-            mes seleccionado para la línea de "cuánto de este mes son cuotas".
-            Se oculta sola sin planes. */}
-        <InstallmentPlansCard
-          transactions={financeTransactions}
-          convert={convert}
-          monthKey={analysis.key}
-          monthExpenses={analysis.expenses}
-          lang={lang}
-        />
+        {/* ── 5. PATRONES ──
+            Las cuatro lecturas que cruzan meses. Van plegadas por defecto: son
+            respuestas a preguntas que uno hace de vez en cuando, y desplegadas
+            convertían la pantalla en una pila donde el mes quedaba enterrado.
+            Cada una se sigue ocultando sola cuando no tiene nada que decir. */}
+        <SectionCollapse title={t('Patrones', 'Patterns')} id="finance-patterns">
+          <InstallmentPlansCard
+            transactions={financeTransactions}
+            convert={convert}
+            monthKey={analysis.key}
+            monthExpenses={analysis.expenses}
+            lang={lang}
+          />
+          <RecurringChargesCard
+            transactions={financeTransactions}
+            convert={convert}
+            recurring={recurring}
+            lang={lang}
+          />
+          <DebtAgingCard
+            transactions={financeTransactions}
+            rules={ingestRules}
+            lang={lang}
+          />
+          <UnclassifiedTriage
+            transactions={financeTransactions}
+            convert={convert}
+            onApply={handleTriageApply}
+            lang={lang}
+          />
+        </SectionCollapse>
 
-        {/* La nomina de cargos recurrentes detectada del propio historial
-            (feature 3 del plan): total mensual, alzas de precio y el cargo que
-            este mes no cayo. Describe, no presupuesta. */}
-        <RecurringChargesCard
-          transactions={financeTransactions}
-          convert={convert}
-          lang={lang}
-        />
-
-        {/* Cuanto tardas en pagar lo que gastas con la tarjeta: cada pago ataca
-            el gasto mas viejo que sigue sin pagar (FIFO). Recibe el historial
-            COMPLETO, no el mes: un cargo puede tardar varios meses en pagarse y
-            recortarlo al mes seleccionado cortaria la cola a la mitad. */}
-        <DebtAgingCard
-          transactions={financeTransactions}
-          lang={lang}
-        />
-
-        {/* Triage de "Otros Gastos" por COMERCIO, ordenado por dinero: recibe
-            el historial completo (una regla por comercio arregla todos sus
-            meses). Se oculta sola cuando no queda nada que clasificar. */}
-        <UnclassifiedTriage
-          transactions={financeTransactions}
-          convert={convert}
-          onApply={handleTriageApply}
-          lang={lang}
-        />
-
-        <FinanceTransactionList
-          transactions={monthTransactions}
-          onDelete={deleteFinanceTransaction}
-          onRecategorize={handleRecategorize}
-          onToggleAnnual={handleToggleAnnual}
-          lang={lang}
-        />
+        {/* ── 6. EL LIBRO DEL MES ──
+            Abierto por defecto: es el detalle de todo lo de arriba. La barra de
+            estado encabeza la sección porque habla de la CAPTURA, que es de lo
+            que trata esta lista. */}
+        <SectionCollapse title={t('Movimientos', 'Movements')} id="finance-ledger" defaultOpen>
+          <MonthStatusBar
+            status={analysis.status}
+            partialMonth={analysis.partialMonth}
+            daysElapsed={analysis.daysElapsed}
+            daysInMonth={analysis.daysInMonth}
+            daysLeft={analysis.daysLeft}
+            windowDays={analysis.windowDays}
+            reminderEnabled={reminderEnabled}
+            onToggleReminder={handleToggleReminder}
+            reminderEmail={settings?.financeReminderEmail || user?.email || ''}
+            lang={lang}
+          />
+          <FinanceTransactionList
+            transactions={monthTransactions}
+            onDelete={deleteFinanceTransaction}
+            onRecategorize={handleRecategorize}
+            onToggleAnnual={handleToggleAnnual}
+            model={categoryModel}
+            lang={lang}
+          />
+        </SectionCollapse>
         </>}
 
         {financeTransactions.length === 0 && (
@@ -595,21 +758,22 @@ export default function FinancesPage() {
           </div>
         )}
 
-        {/* El plan del año. Va fuera del bloque que exige transacciones: se
-            puede planear el año sin haber registrado un solo movimiento, y de
-            hecho es lo primero que alguien nuevo puede hacer acá. */}
-        <IncomePlanCalendar
-          plan={incomePlan}
-          onSave={saveIncomePlan}
-          financeTransactions={financeTransactions}
-          convert={convert}
-          lang={lang}
-        />
-
-        {/* Moved here from Settings: nobody found it there, and this data is
-            time-sensitive — it belongs next to the money it describes. */}
-        <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
-          goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
+        {/* ── 7. PLAN Y PERFIL ──
+            Fuera del bloque que exige transacciones: se puede planear el año
+            sin haber registrado un solo movimiento, y de hecho es lo primero
+            que alguien nuevo puede hacer acá. Plegado porque mira hacia
+            ADELANTE, y todo lo de arriba mira lo que ya pasó. */}
+        <SectionCollapse title={t('Plan y perfil', 'Plan & profile')} id="finance-plan">
+          <IncomePlanCalendar
+            plan={incomePlan}
+            onSave={saveIncomePlan}
+            financeTransactions={financeTransactions}
+            convert={convert}
+            lang={lang}
+          />
+          <FinancialProfileCard profile={profile} onSaveProfile={saveProfile} analysis={analysis} lang={lang}
+            goals={goals} onSaveGoals={saveGoals} convert={convert} baseCurrency={settings?.baseCurrency || 'USD'} />
+        </SectionCollapse>
 
       <ModalMount closing={modalClosing}>
       {modalShown === 'add' && (
@@ -645,6 +809,18 @@ export default function FinancesPage() {
       <ModalMount closing={modalClosing}>
       {modalShown === 'auto' && (
         <AutoCaptureModal onClose={() => setModal(null)} lang={lang} />
+      )}
+      </ModalMount>
+
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'categories' && (
+        <CategoryManagerModal
+          config={categoryModel.config}
+          onSave={handleSaveCategoryConfig}
+          transactions={financeTransactions}
+          lang={lang}
+          onClose={() => setModal(null)}
+        />
       )}
       </ModalMount>
     </PageShell>

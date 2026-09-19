@@ -67,6 +67,9 @@ export default function UnclassifiedTriage({
 
   if (triage.rows.length === 0) return null
 
+  // Medio centavo de tolerancia: los dos totales salen del mismo recorrido, así
+  // que solo pueden diferir por redondeo de conversión.
+  const coversAll = Math.abs((triage.totalAll || 0) - (triage.coveredTotal || 0)) < 0.005
   const fmt = (v) => `Q${Math.abs(v || 0).toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   return (
@@ -75,10 +78,16 @@ export default function UnclassifiedTriage({
         <Tags size={14} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
         {t('COMERCIOS SIN CLASIFICAR', 'UNCLASSIFIED MERCHANTS')}
       </h3>
-      {/* El encabezado honesto: cuánto cubre lo que se muestra, de cuánto hay. */}
+      {/* El encabezado honesto: cuánto cubre lo que se muestra, de cuánto hay.
+          Cuando lo cubre TODO, decir "Q440.30 de los Q440.30" es repetir la
+          misma cifra dos veces y se lee como una plantilla a medio llenar: ahí
+          la frase dice que no queda nada afuera, que es la información. */}
       <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-        {t(`${triage.rows.length} ${triage.rows.length === 1 ? 'comercio cubre' : 'comercios cubren'} ${fmt(triage.coveredTotal)} de los ${fmt(triage.totalAll)} en "Otros Gastos". Clasificar uno arregla todas sus filas, pasadas y futuras.`,
-           `${triage.rows.length} ${triage.rows.length === 1 ? 'merchant covers' : 'merchants cover'} ${fmt(triage.coveredTotal)} of the ${fmt(triage.totalAll)} sitting in "Other". Classifying one fixes all its rows, past and future.`)}
+        {coversAll
+          ? t(`${triage.rows.length} ${triage.rows.length === 1 ? 'comercio explica' : 'comercios explican'} TODO lo que hay en "Otros Gastos" (${fmt(triage.totalAll)}). Clasificar uno arregla todas sus filas, pasadas y futuras.`,
+               `${triage.rows.length} ${triage.rows.length === 1 ? 'merchant accounts' : 'merchants account'} for everything sitting in "Other" (${fmt(triage.totalAll)}). Classifying one fixes all its rows, past and future.`)
+          : t(`${triage.rows.length} ${triage.rows.length === 1 ? 'comercio cubre' : 'comercios cubren'} ${fmt(triage.coveredTotal)} de los ${fmt(triage.totalAll)} en "Otros Gastos". Clasificar uno arregla todas sus filas, pasadas y futuras.`,
+               `${triage.rows.length} ${triage.rows.length === 1 ? 'merchant covers' : 'merchants cover'} ${fmt(triage.coveredTotal)} of the ${fmt(triage.totalAll)} sitting in "Other". Classifying one fixes all its rows, past and future.`)}
         {triage.moreCount > 0 && ' ' + t(`Quedan ${triage.moreCount} más, en la lista de movimientos.`, `${triage.moreCount} more remain, in the transaction list.`)}
       </p>
 
@@ -87,7 +96,7 @@ export default function UnclassifiedTriage({
           const draft = drafts[row.key] || {}
           const canApply = !!draft.category && busyKey !== row.key
           return (
-            <div key={row.key} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-card-hover)' }}>
+            <div key={row.key} className="rounded-lg px-3 py-2.5 border" style={{ backgroundColor: 'var(--bg-card-hover)', borderColor: 'var(--card-border)' }}>
               <div className="flex items-center justify-between gap-2 text-xs mb-2">
                 <span className="truncate font-medium min-w-0" style={{ color: 'var(--text-secondary)' }}>{row.merchant}</span>
                 <span className="font-mono tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>

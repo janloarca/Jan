@@ -140,7 +140,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEn: 'How each of your friend groups is doing and where you placed. Sundays.',
       ready: true },
   ]
-  // FASE ON. Qué LLEVA el correo, no cada cuánto llega. Va aparte de las
+  // FASE OO. Qué LLEVA el correo, no cada cuánto llega. Va aparte de las
   // cadencias porque no es una suscripción: es una decisión sobre contenido
   // sensible, y su default (apagado) es el que contesta el reporte del usuario
   // ("que en el mail no diga antes de abrir el net worth").
@@ -881,7 +881,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </button>
                       </div>
                     ))}
-                    {/* FASE ON. Qué LLEVA el correo, separado por una línea de
+                    {/* FASE OO. Qué LLEVA el correo, separado por una línea de
                         las cadencias: no es una suscripción más. */}
                     <div className="pt-3 space-y-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
                       {EMAIL_OPTIONS.map((c) => (
