@@ -107,6 +107,10 @@ correcto que calcularlo aparte: una compra de las 23:50 en Guatemala es el 3 de
 agosto, aunque en UTC ya sea el 4. Una acción *Formatear fecha* menos en el
 atajo, y un lugar menos donde las dos puedan discrepar.
 
+Lo que hace que eso funcione es la **`Z` del patrón**, que emite el desfase
+(`-0600`) y no una letra: es lo que le dice al servidor dónde estabas. Sin ella
+el día tiene que leerse en UTC, y en Guatemala eso rota a las seis de la tarde.
+
 Los nombres exactos de las variables cambian entre versiones de iOS. Si la
 automatización no te expone *Comercio* o *Monto* por separado, usa la variable
 completa de la transacción en `merchant` y el parser se queda con el nombre: lo
@@ -123,6 +127,11 @@ Si no lo mandás no se rompe nada: se usa la hora en que llegó la solicitud, qu
 acá se le parece bastante porque la automatización dispara en el momento del
 cobro. La diferencia es el margen con que se comparan dos capturas: un minuto
 cuando las dos horas son reales, cinco cuando alguna es aproximada.
+
+Lo que **sí** se pierde al quitarlo es la zona horaria, y con ella el día: sin
+`occurredAt` el servidor solo tiene su propio reloj, que corre en UTC, así que
+toda compra hecha después de las seis de la tarde queda fechada al día
+siguiente. Conviene mandarlo.
 
 La respuesta te dice qué pasó, para que puedas mostrar una notificación al final
 del atajo sin una segunda llamada:
@@ -166,12 +175,22 @@ Con **MacroDroid** (más simple) o **Tasker** (más potente):
    con el header `Authorization: Bearer <tu token>` y este cuerpo:
 
    ```json
-   {"source":"android","title":"","text":""}
+   {"source":"android","title":"","text":"","occurredAt":""}
    ```
 
-   En los dos campos vacíos van las variables de **título** y **texto** de la
+   En `title` y `text` van las variables de **título** y **texto** de la
    notificación que ofrece la app de automatización.
-4. **Excluir la app de la optimización de batería.** Es el modo de fallo típico
+4. **`occurredAt` con la zona horaria puesta.** Es la fecha y hora actuales en
+   formato `yyyy-MM-dd'T'HH:mm:ssZ` (en MacroDroid, *Formato de fecha/hora*; en
+   Tasker, la acción *Variable Set* con ese mismo patrón). La `Z` del patrón
+   emite el desfase numérico (`-0600`), no una letra.
+
+   No es para la hora, que la de llegada ya da bien: es para el **día**. Un
+   push no declara zona horaria, y sin ninguna el servidor tiene que leer el día
+   en UTC, que en Guatemala rota a las seis de la tarde. Una compra de la noche
+   del último día del mes quedaría archivada en el mes siguiente, y en Flujo eso
+   no es un día de diferencia: es dinero cambiado de mes.
+5. **Excluir la app de la optimización de batería.** Es el modo de fallo típico
    en Android: sin eso el sistema apaga el escucha y las capturas se detienen sin
    avisar.
 
@@ -189,6 +208,10 @@ Es el **mismo** módulo que usa el camino de correo (`lib/alertIngest.js`). Lo
 único que difiere entre los dos es de dónde sale el instante del cobro: el correo
 lo saca de su cabecera `Date`, el push usa la hora de llegada, que es exacta
 porque llega en segundos.
+
+La zona horaria sigue el mismo criterio: el correo la trae escrita en esa misma
+cabecera y el push la declara en `occurredAt`. Es el mismo campo que manda el
+atajo de iOS, no un segundo mecanismo.
 
 ### Lo que este camino no trae
 
@@ -300,7 +323,8 @@ guardar reglas a partir de descripciones sueltas.
 | El atajo responde 400 `MISSING_AMOUNT` | No llegó ningún monto. Causa dominante: correr la automatización **a mano** desde Atajos, donde no hay ninguna transacción de Wallet de la cual sacarlo. Probar con una compra real de Apple Pay |
 | El atajo responde 400 `INVALID_AMOUNT` | Llegó un monto pero no se puede leer como número. Revisar que el campo use la variable Transacción → Monto y no texto escrito |
 | La automatización no dispara | Lo seguro: un cargo al número de tarjeta **sin** Apple Pay (tarjeta física, o una guardada en un sitio) nunca la dispara, y eso lo recoge el camino de correo. Si el cobro SÍ fue con Apple Pay: revisar en Atajos → Automatización que **Ejecutar inmediatamente** esté encendido, que **no** tenga filtro de tarjeta ni de comercio, y que esté en el mismo teléfono con que se pagó (las automatizaciones no se sincronizan entre dispositivos). Si todo eso está bien y aun así no disparó **con un pago en línea**, ver la duda abierta al inicio de esta guía |
-| La hora del gasto sale corrida | El atajo arma `occurredAt` con *Format Current Date → ISO 8601*. Si iOS emite esa hora **sin zona**, el servidor (UTC) la leería seis horas corrida. Desde FASE JR el servidor descarta una hora sin zona y usa la de llegada, que para el atajo es prácticamente el instante de la compra — así que no hay nada que configurar. Quitar el campo `occurredAt` del cuerpo también es válido y da el mismo resultado |
+| La hora del gasto sale corrida | El atajo arma `occurredAt` con *Format Current Date → ISO 8601*. Si iOS emite esa hora **sin zona**, el servidor (UTC) la leería seis horas corrida. Desde FASE JR el servidor descarta una hora sin zona y usa la de llegada, que para el atajo es prácticamente el instante de la compra, así que la hora no hay que configurarla |
+| Un gasto de la noche aparece con la fecha de mañana (o en el mes siguiente) | Le falta la zona horaria a `occurredAt`. Es lo único que le dice al servidor dónde estabas, y sin ella el día se lee en UTC, que en Guatemala rota a las seis de la tarde. En el atajo, el formato tiene que ser `yyyy-MM-dd'T'HH:mm:ssZ`: esa `Z` emite el desfase (`-0600`), no una letra. **Quitar el campo `occurredAt` NO es equivalente:** sin él se pierde el día junto con la zona |
 | No sé si el atajo llegó al servidor | Configuración → Automático muestra, bajo cada token, **cuándo se usó por última vez y cómo terminó**. "Nunca se ha usado" significa que la petición no llegó ni una vez: el problema está en el teléfono, no en el servidor |
 | Responde `"status": "duplicate"` | Ya estaba registrado, no es error |
 | Responde **503** `error:quota` | La base de datos llegó a su límite diario de uso. Se reinicia sola en unas horas; ese gasto no se registró, así que agregarlo a mano o esperar a que llegue por el estado de cuenta |
