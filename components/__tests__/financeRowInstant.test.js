@@ -1,6 +1,19 @@
 import { render, screen } from '@testing-library/react'
 import FinanceTransactionList from '@/components/finance/FinanceTransactionList'
 
+// jsdom no trae ResizeObserver. FinanceTransactionList monta SegmentedTabs
+// para su filtro Todos/Ingresos/Gastos, y SegmentedTabs usa useEdgeFade, que
+// instancia uno para medir su propio scroll. Es el primer test de este repo
+// que combina "componente con SegmentedTabs" + "render() de testing-library",
+// así que el hueco del entorno nunca se había topado con nada: se arregla el
+// arnés (un stub mudo), nunca la app ni el hook real.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+global.ResizeObserver = global.ResizeObserver || ResizeObserverStub
+
 // FASE OP. La fila mezclaba DOS zonas horarias: el día salía de `tx.date` (una
 // cadena leída por recorte de texto) y la hora del instante en la zona del
 // lector. Cuando el instante llega en forma Zulu, ese día es el UTC, así que una
