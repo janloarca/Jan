@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Hourglass } from 'lucide-react'
 import { buildDebtAging } from '@/lib/debtAging'
+import { buildMerchantLabelIndex, merchantDisplay } from '@/lib/merchantLabels'
 
 // ¿Cuánto tardo en pagar lo que gasto con la tarjeta?
 //
@@ -30,11 +31,15 @@ function cardName(key) {
   return [name, last4 ? `••${last4}` : ''].filter(Boolean).join(' ') || 'Tarjeta'
 }
 
-export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
+export default function DebtAgingCard({ transactions = [], rules = [], lang = 'es' }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [openCard, setOpenCard] = useState(null)
 
   const groups = useMemo(() => buildDebtAging(transactions), [transactions])
+  // Lo que el usuario escribió él mismo para cada comercio. Sin esto, la lista
+  // imprime la cadena cruda del banco ("DONALD EXPRESS GT") aunque él ya haya
+  // dicho que Donald es su mecánico: el dato existía y nadie lo leía acá.
+  const labels = useMemo(() => buildMerchantLabelIndex(transactions, rules), [transactions, rules])
 
   // Sin ninguna tarjeta importada no hay nada que contestar, y una card vacía
   // prometiendo una función es ruido.
@@ -46,6 +51,7 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
     return `${sym}${Math.abs(v || 0).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
   const days = (n) => (n == null ? null : `${Math.round(n)} ${Math.round(n) === 1 ? t('día', 'day') : t('días', 'days')}`)
+  const anyUnattributed = groups.some((g) => g.unattributed > 0.005)
 
   return (
     <div className="card p-4 sm:p-5">
@@ -62,13 +68,36 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
         )}
       </p>
 
-      <div className="flex flex-col gap-4">
-        {groups.map((g) => {
+      {/* Dos columnas a partir de lg. No es decoración: la card mide ~1200px y
+          cada fila ponía el comercio en el borde izquierdo y su cifra en el
+          derecho, con mil píxeles de nada en medio — el ojo no puede unir los
+          dos extremos. Partirla en dos acerca nombre y número Y deja las
+          tarjetas lado a lado, que es justo la comparación que uno viene a
+          hacer ("¿en cuál tardo más?"). */}
+      <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+        {groups.map((g, gi) => {
           const key = `${g.card}|${g.currency}`
           const open = openCard === key
           const rows = open ? g.outstanding : g.outstanding.slice(0, VISIBLE_ROWS)
+          // Una sola línea de contexto en vez de tres párrafos apilados del
+          // mismo tamaño y el mismo gris, que era la mitad del aspecto de
+          // "pared de texto".
+          const meta = [
+            t(
+              `en promedio, sobre ${g.settledCount} ${g.settledCount === 1 ? 'gasto pagado' : 'gastos pagados'}`,
+              `on average, over ${g.settledCount} paid ${g.settledCount === 1 ? 'charge' : 'charges'}`
+            ),
+            g.medianDays != null && g.medianDays !== Math.round(g.avgDays)
+              ? t(`la mitad en ${days(g.medianDays)} o menos`, `half within ${days(g.medianDays)}`)
+              : null,
+            t('ponderado por monto', 'weighted by amount'),
+          ].filter(Boolean).join(' · ')
           return (
-            <div key={key} className="flex flex-col gap-2">
+            <div
+              key={key}
+              className={`flex flex-col gap-2 ${gi > 0 ? 'pt-5 border-t lg:pt-0 lg:border-t-0' : ''}`}
+              style={gi > 0 ? { borderColor: 'var(--card-border)' } : undefined}
+            >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                   {cardName(g.card)} · {g.currency}
@@ -87,12 +116,7 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
                   <span className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
                     {days(g.avgDays)}
                   </span>
-                  <span className="text-caption" style={{ color: 'var(--text-muted)' }}>
-                    {t(
-                      `en promedio, sobre ${g.settledCount} ${g.settledCount === 1 ? 'gasto pagado' : 'gastos pagados'} · ponderado por monto`,
-                      `on average, over ${g.settledCount} paid ${g.settledCount === 1 ? 'charge' : 'charges'} · weighted by amount`
-                    )}
-                  </span>
+                  <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{meta}</span>
                 </div>
               ) : (
                 <p className="text-caption" style={{ color: 'var(--text-muted)' }}>
@@ -103,32 +127,38 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
                 </p>
               )}
 
-              {g.medianDays != null && g.medianDays !== Math.round(g.avgDays) && (
-                <p className="text-caption" style={{ color: 'var(--text-muted)' }}>
-                  {t(`La mitad se paga en ${days(g.medianDays)} o menos.`, `Half of them are paid within ${days(g.medianDays)}.`)}
-                </p>
-              )}
-
-              {g.oldest && (
-                <p className="text-caption" style={{ color: 'var(--text-muted)' }}>
-                  {t(
-                    `Lo más viejo sin pagar lleva ${days(g.oldest.ageDays)}: ${g.oldest.description}.`,
-                    `The oldest unpaid charge is ${days(g.oldest.ageDays)} old: ${g.oldest.description}.`
-                  )}
-                </p>
-              )}
-
+              {/* ⛔ Acá vivía "Lo más viejo sin pagar lleva N días: X", y era
+                  el MISMO hecho que la primera fila de la lista de abajo, tres
+                  centímetros más arriba: `oldest` ES `outstanding[0]` (la misma
+                  referencia, verificado ejecutando el motor), y la fila dice
+                  más, porque además trae el monto. Lo que sí faltaba y nadie
+                  decía es el ORDEN de la lista, que es lo que convierte a esa
+                  primera fila en "lo más viejo". */}
               {rows.length > 0 && (
-                <ul className="flex flex-col gap-1 mt-1">
-                  {rows.map((c, i) => (
-                    <li key={`${c.date}-${i}`} className="flex items-baseline justify-between gap-3 text-caption">
-                      <span className="truncate" style={{ color: 'var(--text-secondary)' }}>{c.description}</span>
-                      <span className="shrink-0 tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                        {money(c.remaining, g.currency)} · {days(c.ageDays)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="text-caption mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {t('Sin pagar, del más viejo primero', 'Unpaid, oldest first')}
+                  </p>
+                  <ul className="grid gap-y-1 text-caption" style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}>
+                    {rows.map((c, i) => (
+                      <li key={`${c.date}-${i}`} className="contents">
+                        {/* Un poco de tracking: casi toda cadena de banco viene
+                            en MAYÚSCULAS, y las mayúsculas sin espaciado se
+                            leen apretadas. Es tipografía, no una transformación
+                            del texto: ninguna letra cambia. */}
+                        <span className="truncate" style={{ color: 'var(--text-secondary)', letterSpacing: '0.01em' }}>
+                          {merchantDisplay(c.description, labels)}
+                        </span>
+                        <span className="pl-4 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                          {money(c.remaining, g.currency)}
+                        </span>
+                        <span className="pl-3 text-right tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                          {days(c.ageDays)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
 
               {g.outstanding.length > VISIBLE_ROWS && (
@@ -145,12 +175,18 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
               )}
 
               {/* No se esconde: sin esto el promedio mediría una historia
-                  incompleta y nada lo diría. */}
+                  incompleta y nada lo diría. Pero solo la CIFRA va por grupo
+                  (es por tarjeta y por moneda, y sumarlas necesitaría una tasa,
+                  que es justo lo que este módulo no hace); la explicación es una
+                  sola y vive al pie de la card.
+                  ⛔ Y es un RÓTULO, no una oración: la oración entera repetida
+                  por grupo seguía leyéndose como el mismo párrafo tres veces
+                  aunque el "por qué" ya hubiera bajado al pie. */}
               {g.unattributed > 0.005 && (
-                <p className="text-caption" style={{ color: 'var(--alert-warn-icon)' }}>
+                <p className="text-caption mt-1" style={{ color: 'var(--alert-warn-icon)' }}>
                   {t(
-                    `${money(g.unattributed, g.currency)} de pagos no cuadran con ningún gasto registrado: casi siempre cubren consumos de un mes que todavía no has importado.`,
-                    `${money(g.unattributed, g.currency)} in payments match no recorded charge: they usually cover a month you have not imported yet.`
+                    `${money(g.unattributed, g.currency)} en pagos sin cargo asociado`,
+                    `${money(g.unattributed, g.currency)} in unmatched payments`
                   )}
                 </p>
               )}
@@ -158,6 +194,18 @@ export default function DebtAgingCard({ transactions = [], lang = 'es' }) {
           )
         })}
       </div>
+
+      {/* ⛔ Esta oración vivía DENTRO del bucle, así que con dos tarjetas y dos
+          monedas se imprimía hasta cuatro veces seguidas. La cifra cambia por
+          grupo; el por qué no. */}
+      {anyUnattributed && (
+        <p className="text-caption mt-4 pt-3 border-t" style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
+          {t(
+            'Un pago que no cuadra con ningún gasto registrado casi siempre cubre consumos de un mes que todavía no has importado.',
+            'A payment that matches no recorded charge usually covers a month you have not imported yet.'
+          )}
+        </p>
+      )}
     </div>
   )
 }

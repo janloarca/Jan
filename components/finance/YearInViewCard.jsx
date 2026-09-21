@@ -22,6 +22,7 @@ const BAR_BOX_PX = 72
 
 export default function YearInViewCard({
   transactions = [], convert = null, year, month, onSelectMonth = null, lang = 'es',
+  recurring = null,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
@@ -31,15 +32,18 @@ export default function YearInViewCard({
   )
   // Los meses con pago anual/semestral (marca manual + cadencia detectada,
   // FASE LJ): el punto que convierte un pico en una explicación.
+  // `recurring` viene de la página, que lo detecta UNA vez para las tres
+  // superficies que lo necesitan. Sin el prop se detecta acá, para que la card
+  // siga montándose sola (y sus tests no dependan de un cableado).
   const annualMonths = useMemo(() => {
-    const { longCadence } = detectRecurringCharges(transactions, { convert })
+    const { longCadence } = recurring || detectRecurringCharges(transactions, { convert })
     const out = new Map()
     for (const m of totals) {
       const a = annualPaymentsOfMonth(transactions, m.key, { convert, longCadence })
       if (a.totalGtq > 0) out.set(m.key, a.totalGtq)
     }
     return out
-  }, [transactions, totals, convert])
+  }, [transactions, totals, convert, recurring])
 
   const hasAny = totals.some((m) => m.income > 0 || m.expenses > 0)
   // Un año sin un solo movimiento no gana una card vacía.

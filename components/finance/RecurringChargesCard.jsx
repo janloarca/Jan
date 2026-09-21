@@ -11,15 +11,20 @@ import { detectRecurringCharges } from '@/lib/recurringCharges'
 // presupuesto y no impone ningún límite; ver lib/recurringCharges.js.
 const VISIBLE_ROWS = 8
 
-export default function RecurringChargesCard({ transactions = [], convert = null, lang = 'es' }) {
+export default function RecurringChargesCard({ transactions = [], convert = null, lang = 'es', recurring = null }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const [showAll, setShowAll] = useState(false)
 
+  // `recurring` viene de la página, que lo detecta UNA vez para las tres
+  // superficies que lo necesitan (y con el MISMO `nowDate`, que es lo único que
+  // gobierna el flag de "este mes no ha cobrado"). Sin el prop se detecta acá,
+  // para que la card siga montándose sola.
   const nowDate = useMemo(() => new Date().toLocaleDateString('en-CA'), [])
-  const { monthly, totalMonthlyGtq } = useMemo(
-    () => detectRecurringCharges(transactions, { convert, nowDate }),
-    [transactions, convert, nowDate]
+  const own = useMemo(
+    () => (recurring ? null : detectRecurringCharges(transactions, { convert, nowDate })),
+    [recurring, transactions, convert, nowDate]
   )
+  const { monthly, totalMonthlyGtq } = recurring || own
 
   // Sin nómina no hay card: una card vacía prometiendo una función es ruido.
   if (monthly.length === 0) return null

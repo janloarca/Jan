@@ -4,7 +4,7 @@
 //
 // Este archivo llevaba CUATRO cosas: el estado del mes, los tiles de ingreso,
 // la comparativa por grupo y los insights. Las tres primeras se fueron a
-// `MonthStatusBar` y a `BreakdownCard`, porque dos de ellas dibujaban el mismo
+// `MonthStatusBar` y al desglose (hoy `PnlStatement`), porque dos de ellas dibujaban el mismo
 // dinero que otra card ya dibujaba (y a otra escala). Acá queda solo lo que no
 // se puede leer de una barra: la frase.
 //
