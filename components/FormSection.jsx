@@ -7,7 +7,7 @@ import { useState } from 'react'
 // one-line summary of its current state so closing it never hides whether
 // it's configured. Reused across EditAccountModal's secondary sections
 // (Rendimiento, Costos & Comisiones, Vencimiento & Liquidez, Detalles).
-export default function FormSection({ icon, title, summary, defaultOpen = false, badge, children, open: openProp, onToggle }) {
+export default function FormSection({ icon, title, summary, defaultOpen = false, badge, children, open: openProp, onToggle, id }) {
   const [openState, setOpenState] = useState(defaultOpen)
   // Controlled mode (open + onToggle passed): the parent owns whether the
   // section counts as "active" for save purposes, e.g. Rendimiento's toggle
@@ -15,8 +15,10 @@ export default function FormSection({ icon, title, summary, defaultOpen = false,
   const isControlled = openProp !== undefined
   const open = isControlled ? openProp : openState
   const toggle = () => isControlled ? onToggle?.(!open) : setOpenState(o => !o)
+  // Optional id: lets a caller scrollIntoView the whole section when there's
+  // no single field inside worth pinpointing (EditAccountModal's field-routing).
   return (
-    <div className="border border-[var(--card-border,#38383A)] rounded-lg overflow-hidden">
+    <div id={id} className="border border-[var(--card-border,#38383A)] rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={toggle}

@@ -32,6 +32,12 @@ function normInst(s) {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
+// Con muchas instituciones el scroll horizontal deja de alcanzar para
+// encontrar una en particular sin buscar; arriba de este umbral se suma un
+// picker con la lista completa. El scroll+fade de siempre no se toca por
+// debajo de él.
+const INST_OVERFLOW_THRESHOLD = 8
+
 // Los helpers de eje redondo viven en lib/niceAxis.js desde FASE KK: la
 // pagina compartida dibuja el MISMO eje y una segunda copia divergiria.
 
@@ -241,6 +247,22 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // difuminado adentro, así que declararla acá sería medir dos veces la misma
   // fila. El filtro de institución sigue siendo una fila propia.
   const instFade = useEdgeFade([institutions.length])
+
+  // Picker con la lista completa de instituciones, para cuando son demasiadas
+  // para encontrar una en el scroll. Mismo recipe de click-outside que el
+  // selector de moneda de NetWorthCard.
+  const [showInstPicker, setShowInstPicker] = useState(false)
+  const instPickerRef = useRef(null)
+  useEffect(() => {
+    if (!showInstPicker) return
+    const onClickOutside = (e) => {
+      if (instPickerRef.current && !instPickerRef.current.contains(e.target)) {
+        setShowInstPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [showInstPicker])
 
   const scopedItems = useMemo(() => {
     if (shownInst === 'ALL') return items || []
@@ -1609,14 +1631,32 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         const isBuy = tx.type === 'BUY' || tx.type === 'DEPOSIT'
         const key = `${tx.chartIdx}:${isBuy ? 'b' : 's'}`
         const existing = acc.map.get(key)
-        if (existing) existing.count++
-        else {
-          const m = { chartIdx: tx.chartIdx, isBuy, count: 1 }
+        const isNewAccount = tx._source === 'manual_new_account'
+        if (existing) {
+          existing.count++
+          existing.allNewAccount = existing.allNewAccount && isNewAccount
+        } else {
+          const m = { chartIdx: tx.chartIdx, isBuy, count: 1, allNewAccount: isNewAccount }
           acc.map.set(key, m)
           acc.list.push(m)
         }
         return acc
       }, { map: new Map(), list: [] }).list
+      // La causa es un par bilingüe fijo (nunca `t()`, que dependería de
+      // `lang` y forzaría a meterlo en las deps de este memo). "Aporte
+      // registrado"/"Retiro registrado" valen para CUALQUIER DEPOSIT/
+      // WITHDRAWAL sin importar su `_source`, así que nunca afirman de más;
+      // "Cuenta añadida al patrimonio" solo cuando TODO el grupo comparte
+      // ese origen exacto (`allNewAccount`), para no reclamarle una causa
+      // específica a un punto que mezcla movimientos de distinto origen.
+      .map((m) => ({
+        ...m,
+        cause: m.allNewAccount
+          ? { es: 'Cuenta añadida al patrimonio', en: 'Account added to net worth' }
+          : m.isBuy
+            ? { es: 'Aporte registrado', en: 'Contribution recorded' }
+            : { es: 'Retiro registrado', en: 'Withdrawal recorded' },
+      }))
   }, [scopedTransactions, chartData])
 
   const width = chartWidth
@@ -1966,6 +2006,45 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
               <span className="ml-1.5 opacity-70">{formatCompact(inst.value, baseCurrency)}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Con muchas instituciones el scroll no alcanza para encontrarlas
+          todas sin buscar: se ofrece además la lista completa en un popover.
+          Vive FUERA del contenedor scrolleable a propósito — overflow-x:auto
+          sin overflow-y declarado se computa como overflow-y:auto también
+          (la misma regla de CSS que ya mordió al Spreadsheet en FASE FA), así
+          que un panel absoluto adentro quedaría recortado por ese scroll. */}
+      {institutions.length > INST_OVERFLOW_THRESHOLD && (
+        <div className="relative -mt-2 mb-3" ref={instPickerRef}>
+          <button onClick={() => setShowInstPicker((v) => !v)}
+            className="text-xs font-medium underline transition-colors"
+            style={{ color: 'var(--accent-blue)' }}>
+            {t(`Ver las ${institutions.length} instituciones`, `View all ${institutions.length} institutions`)}
+          </button>
+          {showInstPicker && (
+            <div className="absolute left-0 top-full mt-1 z-20 w-64 max-h-72 overflow-y-auto rounded-lg border shadow-lg"
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
+              <button onClick={() => { setSelectedInst('ALL'); setHoverIdx(null); setShowInstPicker(false) }}
+                className="w-full text-left px-3 py-2 text-xs font-medium transition-colors"
+                style={selectedInst === 'ALL'
+                  ? { color: 'var(--accent-blue)', backgroundColor: 'var(--bg-card-hover)' }
+                  : { color: 'var(--text-secondary)' }}>
+                {t('Todas', 'All')}
+              </button>
+              {institutions.map((inst) => (
+                <button key={inst.key}
+                  onClick={() => { setSelectedInst(inst.key); setHoverIdx(null); setShowInstPicker(false) }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center justify-between gap-2"
+                  style={selectedInst === inst.key
+                    ? { color: 'var(--accent-blue)', backgroundColor: 'var(--bg-card-hover)' }
+                    : { color: 'var(--text-secondary)' }}>
+                  <span className="truncate">{inst.name}</span>
+                  <span className="shrink-0 opacity-70">{formatCompact(inst.value, baseCurrency)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -2368,13 +2447,19 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
                   if (!pt) return null
                   const markerY = chartHeight - pad.bottom
                   const color = m.isBuy ? 'var(--accent-green)' : 'var(--text-negative)'
+                  const causeText = m.cause[lang === 'es' ? 'es' : 'en']
                   return (
                     <g key={i}>
+                      {/* `<title>` nativo: hover en mouse Y lector de pantalla,
+                          sin JS ni estado propio. El slot de tacto (tooltip de
+                          `hd`/`hp` más abajo) cubre el caso táctil. */}
                       <polygon
                         points={m.isBuy
                           ? `${pt.x},${markerY + 6} ${pt.x - 4},${markerY + 14} ${pt.x + 4},${markerY + 14}`
                           : `${pt.x},${markerY + 14} ${pt.x - 4},${markerY + 6} ${pt.x + 4},${markerY + 6}`}
-                        fill={color} opacity="0.6" />
+                        fill={color} opacity="0.6">
+                        <title>{causeText}</title>
+                      </polygon>
                       {m.count > 1 && (
                         <text x={pt.x + 6} y={markerY + 15} fill={color} fontSize="12" opacity="0.9"
                           style={{ fontVariantNumeric: 'tabular-nums' }}>×{m.count}</text>
@@ -2466,6 +2551,18 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
                 <>
                   <div className="font-bold">{formatCurrency(hd.value)}</div>
                   <div className="text-slate-400">{formatTooltipDate(hd.date)}</div>
+                  {/* El punto tocado coincide con un marcador ▲/▼: repetir su
+                      causa acá es lo único que funciona al tacto, donde no
+                      hay hover para el `<title>` nativo del polígono. */}
+                  {(() => {
+                    const marker = txMarkers.find((m) => m.chartIdx === hoverIdx)
+                    if (!marker) return null
+                    return (
+                      <div style={{ color: marker.isBuy ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                        {marker.isBuy ? '▲' : '▼'} {marker.cause[lang === 'es' ? 'es' : 'en']}
+                      </div>
+                    )
+                  })()}
                   {hoverIdx > 0 && (() => {
                     const prev = chartData[hoverIdx - 1]
                     const chg = hd.value - prev.value

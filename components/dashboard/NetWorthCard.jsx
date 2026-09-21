@@ -426,6 +426,20 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           Las reglas de cuándo NO animar viven en lib/tween.js: no anima en el
           primer render ni cuando el dato recién llega, así que abrir la app no
           se convierte en un contador de cajero. */}
+      {/* La cifra grande no tenía ningún rótulo que dijera qué es: el número
+          más prominente del dashboard, sin nombre. "Patrimonio neto" +
+          InfoTip, mismo tratamiento que el resto de las cards. Sin deudas
+          coincide con el total de activos, así que no hace falta aclarar
+          nada más (mismo criterio que la caption "(solo activos)" de
+          AssetAllocation, condicional a `items.some(it => it.isDebt)`). */}
+      <div className="flex items-center gap-1 mb-0.5">
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es' ? 'Patrimonio neto' : 'Net worth'}
+        </span>
+        <InfoTip text={lang === 'es'
+          ? 'Tus activos registrados menos tus deudas.'
+          : 'Your registered assets minus your debts.'} />
+      </div>
       <AnimatedNumber
         value={displayValue}
         format={(v) => formatCurrency(v, displayCur)}
