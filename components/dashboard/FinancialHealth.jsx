@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { getTypeCategory, getItemValue } from './utils'
 import { HEALTH } from '@/lib/colors'
+import { InfoTip } from '../ui/Tooltip'
 
 export default function FinancialHealth({ items, netWorth, totalAssets, snapshots, lang }) {
   const scores = useMemo(() => {
@@ -58,11 +59,17 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     return r >= 0.8 ? 'var(--accent-green)' : r >= 0.4 ? 'var(--accent-orange)' : 'var(--text-negative)'
   }
 
+  // Cada InfoTip describe la fórmula que ARRIBA ya calcula (líneas 9-38): no
+  // es metodología nueva, es la razón de cada barra dicha en una frase.
   const bars = [
-    { label: lang === 'es' ? 'Deuda' : 'Debt', score: scores.debtScore, max: 25 },
-    { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25 },
-    { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25 },
-    { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25 },
+    { label: lang === 'es' ? 'Deuda' : 'Debt', score: scores.debtScore, max: 25,
+      info: lang === 'es' ? '% de tus activos que es deuda: menos es mejor.' : '% of your assets that is debt: lower is better.' },
+    { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25,
+      info: lang === 'es' ? '% de tus activos en cuentas líquidas o fondos.' : '% of your assets in liquid accounts or funds.' },
+    { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25,
+      info: lang === 'es' ? 'Cuántos tipos de activo distintos tenés, hasta 5.' : 'How many distinct asset types you hold, up to 5.' },
+    { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25,
+      info: lang === 'es' ? 'Cambio de tu patrimonio entre tu primer y último registro.' : 'Change in your net worth between your first and last record.' },
   ]
 
   const t = (es, en) => lang === 'es' ? es : en
@@ -76,8 +83,8 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       const delta = targetScore - currentScore
       if (delta > 0) {
         tips.push({
-          textEs: `Agrega ${needed} tipo(s) de activo más`,
-          textEn: `Add ${needed} more asset type(s)`,
+          textEs: `Agrega ${needed} tipo(s) de activo más, para mejorar tu puntaje de diversificación`,
+          textEn: `Add ${needed} more asset type(s), to improve your diversification score`,
           points: delta,
         })
       }
@@ -87,8 +94,8 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       const delta = targetScore - scores.liquidScore
       if (delta > 0) {
         tips.push({
-          textEs: 'Aumenta reservas líquidas al 10%',
-          textEn: 'Increase liquid reserves to 10%',
+          textEs: 'Aumenta reservas líquidas al 10%, para mejorar tu puntaje de liquidez',
+          textEn: 'Increase liquid reserves to 10%, to improve your liquidity score',
           points: delta,
         })
       }
@@ -98,8 +105,8 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       const delta = targetScore - scores.debtScore
       if (delta > 0) {
         tips.push({
-          textEs: 'Reduce deuda por debajo del 30%',
-          textEn: 'Reduce debt below 30%',
+          textEs: 'Reduce deuda por debajo del 30%, para mejorar tu puntaje de deuda',
+          textEn: 'Reduce debt below 30%, to improve your debt score',
           points: delta,
         })
       }
@@ -108,8 +115,8 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       const delta = 18 - scores.growthScore
       if (delta > 0) {
         tips.push({
-          textEs: 'Crece tu portafolio +10% para más puntos',
-          textEn: 'Grow portfolio 10%+ for more points',
+          textEs: 'Crece tu portafolio +10%, para mejorar tu puntaje de crecimiento',
+          textEn: 'Grow your portfolio 10%+, to improve your growth score',
           points: delta,
         })
       }
@@ -142,10 +149,21 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
           <span className="text-sm tabular-nums" style={{ color: 'var(--text-muted)' }}>{scores.total}/100</span>
         </div>
       </div>
+
+      {/* Descargo: la calificación es una lectura de lo que el usuario
+          registró, no una auditoría financiera independiente. */}
+      <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+        {t('Evaluación calculada con la información que registraste.',
+          'Score calculated from the data you\'ve registered.')}
+      </p>
+
       <div className="space-y-3">
         {bars.map((bar) => (
           <div key={bar.label} className="flex items-center gap-3">
-            <span className="text-xs text-slate-400 w-28 shrink-0">{bar.label}</span>
+            <span className="text-xs text-slate-400 w-32 shrink-0 flex items-center gap-1">
+              <span className="truncate">{bar.label}</span>
+              <InfoTip text={bar.info} />
+            </span>
             <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full transition-all" style={{ width: `${(bar.score / bar.max) * 100}%`, backgroundColor: barColor(bar.score, bar.max) }} />
             </div>
@@ -158,10 +176,22 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
         <div className="mt-4 pt-3 border-t border-glass-border/50">
           <span className="text-xs text-slate-500 mb-2 block">{t('Cómo mejorar', 'How to improve')}</span>
           <div className="space-y-1.5">
+            {/* La sugerencia con más puntos (suggestions[0], ya ordenada arriba)
+                se destaca: es el "mejor próximo paso" de verdad, no solo la
+                primera de una lista pareja. Las demás se quedan como estaban. */}
             {suggestions.map((tip, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-xs text-slate-300">{lang === 'es' ? tip.textEs : tip.textEn}</span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              <div key={i} className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  {i === 0 && (
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'var(--accent-blue)' }}>
+                      {t('Mejor próximo paso', 'Best next step')}
+                    </span>
+                  )}
+                  <span className={i === 0 ? 'text-sm font-semibold' : 'text-xs text-slate-300'} style={i === 0 ? { color: 'var(--text-primary)' } : undefined}>
+                    {lang === 'es' ? tip.textEs : tip.textEn}
+                  </span>
+                </div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
                   style={{ color: 'var(--alert-success-icon)', backgroundColor: 'var(--alert-success-bg)' }}>
                   +{tip.points} pts
                 </span>

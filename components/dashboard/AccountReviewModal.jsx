@@ -98,8 +98,8 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
   const goNext = () => { if (index < sorted.length - 1) setIndex(index + 1) }
   const goPrev = () => { if (index > 0) setIndex(index - 1) }
 
-  const handleEdit = () => {
-    if (onEditItem) onEditItem(item)
+  const handleEdit = (field) => {
+    if (onEditItem) onEditItem(item, field)
   }
 
   // Same "cashflow" action ChispuSuggestions already offers on the dashboard —
@@ -286,6 +286,15 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                             {t('Resolver', 'Resolve')}
                           </button>
                         )}
+                        {/* Same field-routing as ChispuSuggestions/EditAccountModal:
+                            "Editar" abajo abre el ítem sin apuntar a nada, esto lo
+                            manda directo al campo que la sugerencia señaló. */}
+                        {f.action?.kind === 'edit-item' && f.action?.field && !applied.has(f.id) && (
+                          <button type="button" onClick={() => handleEdit(f.action.field)}
+                            className="underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+                            {t('Ver campo', 'Show field')}
+                          </button>
+                        )}
                         {/* Same permanent answer ChispuSuggestions offers: stamps
                             _dupConfirmedDistinct on both items so this exact pair
                             stops asking anywhere, not just in this modal. */}
@@ -324,7 +333,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
             className="px-4 py-2.5 text-sm font-medium text-slate-500 border border-glass-border rounded-lg hover:bg-theme-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
             &#8592;
           </button>
-          <button onClick={handleEdit}
+          <button onClick={() => handleEdit()}
             className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-colors"
             style={{ color: 'var(--accent-blue-strong)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--alert-info-border)', backgroundColor: 'var(--alert-info-bg)' }}>
             {t('Editar', 'Edit')}
