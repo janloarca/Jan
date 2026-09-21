@@ -91,8 +91,18 @@ export default function SpreadsheetPage() {
     if (recalcRef.current) recalcRef.current()
   }, [handleRefresh])
   const registerRecalculate = useCallback((fn) => { recalcRef.current = fn }, [])
+  // Único punto que abre el editor de un ítem: guarda a qué campo apuntar (si
+  // alguno) sin que cada caller tenga que acordarse de los dos estados.
+  const handleOpenEditItem = useCallback((item, field) => {
+    setEditItem(item)
+    setEditFocusField(field || null)
+  }, [])
+  const handleCloseEditItem = useCallback(() => { setEditItem(null); setEditFocusField(null) }, [])
 
   const [editItem, setEditItem] = useState(null)
+  // Mismo mecanismo que app/dashboard/page.jsx: qué campo forzar visible al
+  // abrir el editor (lib/dataCompleteness.js action.field), reseteado al cerrar.
+  const [editFocusField, setEditFocusField] = useState(null)
   const [showReview, setShowReview] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalDefaults, setAddModalDefaults] = useState(null)
@@ -359,7 +369,7 @@ export default function SpreadsheetPage() {
             lang={lang}
             onUpdateItem={updateItem}
             onAddTransaction={addTransaction}
-            onEditItem={(item) => setEditItem(item)}
+            onEditItem={handleOpenEditItem}
             returnYTD={returnYTD}
             netWorth={netWorth}
             convert={convert}
@@ -377,7 +387,7 @@ export default function SpreadsheetPage() {
             items={portfolioItems || enrichedItems}
             lang={lang}
             baseCurrency={baseCurrency}
-            onEditItem={(item) => setEditItem(item)}
+            onEditItem={handleOpenEditItem}
             onAdd={() => { setAddModalDefaults({ isDebt: true }); setShowAddModal(true) }}
           />
         </div>
@@ -388,7 +398,7 @@ export default function SpreadsheetPage() {
             lang={lang}
             convert={convert}
             baseCurrency={baseCurrency}
-            onEditItem={(item) => setEditItem(item)}
+            onEditItem={handleOpenEditItem}
             onUpdateItem={updateItem}
             onAdd={(defaults) => { setAddModalDefaults(defaults || {}); setShowAddModal(true) }}
           />
@@ -430,7 +440,8 @@ export default function SpreadsheetPage() {
         // wrote that wrong number back as the item's real GTQ price (XOCHI,
         // FASE EK). app/dashboard/page.jsx never had this bug: it always
         // passed editItem straight through.
-        <EditAccountModal key={editShown.id} item={editShown} onClose={() => setEditItem(null)}
+        <EditAccountModal key={`${editShown.id}:${editFocusField || ''}`} item={editShown} onClose={handleCloseEditItem}
+          focusField={editFocusField}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editShown.id, fields)
@@ -464,7 +475,7 @@ export default function SpreadsheetPage() {
           items={portfolioItems || enrichedItems}
           transactions={transactions}
           onClose={() => setShowReview(false)}
-          onEditItem={(item) => { setShowReview(false); setEditItem(item) }}
+          onEditItem={(item, field) => { setShowReview(false); handleOpenEditItem(item, field) }}
           lang={lang}
         />
       )}

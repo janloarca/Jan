@@ -142,7 +142,7 @@ describe('el transporte queda registrado', () => {
   })
 })
 
-// ⛔ FASE OS. El DÍA con el que entra un gasto capturado por Android.
+// ⛔ FASE OT. El DÍA con el que entra un gasto capturado por Android.
 //
 // La ruta arma `receivedAt` con su propio reloj, que corre en UTC, así que sin
 // ninguna zona declarada el día se lee en UTC y en Guatemala eso rota a las seis

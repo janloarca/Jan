@@ -137,7 +137,7 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
   const cols = showPct ? COLS : COLS_NO_PCT
 
   return (
-    <div className="card p-4">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <h3 className="card-title">{t('Estado del mes', 'Month statement')}</h3>
         {/* Qué es la columna del medio. Cinco palabras en vez de un párrafo. */}

@@ -79,7 +79,7 @@ function FxHint({ amount, from, to, convert, t }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, lots = [], onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, lots = [], onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert, focusField }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -484,6 +484,97 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isAlternative = /alternative|alternativ/i.test(form.type)
   const hasIncome = !isMarket && !isDebt
 
+  // Field-routing: a finding from lib/dataCompleteness.js can name the exact
+  // field it's about (`f.action.field`). This resolves that name to a DOM id
+  // to scroll to, plus which of the three uncontrolled FormSections (if any)
+  // needs to be forced open first. Kept as a function of runtime type flags
+  // (isDebt/isMarket/isBank) rather than baked into dataCompleteness.js,
+  // because that module has no idea which of two mutually-exclusive UI
+  // branches (bank balance vs. purchase price, market vs. non-market income
+  // section) is actually mounted for a given item — only this component does.
+  const resolveFocusTarget = (field) => {
+    switch (field) {
+      case 'acquisitionDate': return { id: 'edit-acquisition-date' }
+      case 'purchasePrice': return { id: 'edit-purchase-price' }
+      case 'currency': return { id: 'edit-currency' }
+      case 'institution': return { id: 'edit-institution' }
+      case 'linkedDebtId': return { id: 'edit-linkedDebtId' }
+      case 'currentValue':
+        // Deudas no tienen un campo de "valor actual" equivalente en este
+        // formulario (stale-value nunca dispara sobre ellas en la práctica,
+        // pero por si acaso: sin ruta clara, no se adivina).
+        if (isDebt) return null
+        if (isBank) return { id: 'edit-current-balance' }
+        if (isMarket) return { id: 'edit-purchase-price' }
+        return { id: 'edit-current-price' }
+      case 'assetCountry': return { id: 'edit-asset-country', sectionKey: 'details' }
+      case 'maturityDate':
+        return isDebt ? { id: 'edit-debt-maturity-date' } : { id: 'edit-maturity-date', sectionKey: 'maturity' }
+      case 'incomeMonths':
+        // Un item de mercado (dividendo auto-detectado) no tiene selector de
+        // meses en este modal: no hay a dónde enrutar.
+        if (isMarket) return null
+        return { id: 'edit-income-months', sectionKey: 'income' }
+      case 'incomeDestination':
+        return { id: 'edit-income-destination', sectionKey: isMarket ? undefined : 'income' }
+      case 'incomeConfig':
+        // Sin un campo único que señalar (puede ser tasa, monto o meses),
+        // se apunta a la sección entera ya abierta.
+        return { id: 'section-income', sectionKey: 'income' }
+      default: return null
+    }
+  }
+  const focusTarget = focusField ? resolveFocusTarget(focusField) : null
+  const focusSectionKey = focusTarget?.sectionKey
+  // Vencimiento/Detalles arrancan cerradas, igual que siempre (a diferencia
+  // de showIncome no tienen "¿ya hay algo cargado?" que decidir de entrada).
+  // Van CONTROLADAS, no por su propio `defaultOpen`, para poder forzarlas
+  // abiertas desde el botón "Ver campo" DE ESTE MISMO modal ya montado (un
+  // remount por `key` solo alcanza cuando el modal se abre desde afuera).
+  const [showMaturity, setShowMaturity] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+
+  // Abrir la sección que el foco señala, tanto al montar el modal ya
+  // apuntando a un campo (focusField llega por prop) como al cambiar de
+  // campo dentro de la misma instancia.
+  useEffect(() => {
+    if (focusSectionKey === 'income') setShowIncome(true)
+    else if (focusSectionKey === 'maturity') setShowMaturity(true)
+    else if (focusSectionKey === 'details') setShowDetails(true)
+  }, [focusSectionKey])
+
+  // Scroll + resalte breve del campo/sección que una sugerencia señaló. Unos
+  // reintentos cortos cubren el caso en que el nodo todavía no está en el DOM
+  // en el primer paint (la sección recién se abrió en este mismo render);
+  // mismo patrón de espera que OnboardingTour.jsx, acotado porque acá no hay
+  // montaje diferido real, solo el primer commit.
+  useEffect(() => {
+    if (!focusTarget?.id) return
+    let cancelled = false
+    let tries = 0
+    const tryFocus = () => {
+      if (cancelled) return
+      const el = document.getElementById(focusTarget.id)
+      if (!el) {
+        if (tries < 5) { tries += 1; setTimeout(tryFocus, 100) }
+        return
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const prevOutline = el.style.outline
+      const prevOffset = el.style.outlineOffset
+      el.style.outline = '2px solid var(--accent-blue)'
+      el.style.outlineOffset = '2px'
+      setTimeout(() => {
+        if (cancelled) return
+        el.style.outline = prevOutline
+        el.style.outlineOffset = prevOffset
+      }, 2000)
+    }
+    tryFocus()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusField])
+
   useEscClose(onClose)
 
   const handleSubmit = async (e) => {
@@ -867,6 +958,29 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <button type="button" onClick={() => { onClose(); onOpenCashflow(f.action.prefill || { flowType: 'DEPOSIT', origin: 'external', linkedId: item.id, alreadyReflected: true }) }}
                         className="shrink-0 underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
                         {t('Resolver', 'Resolve')}
+                      </button>
+                    )}
+                    {f.action?.kind === 'edit-item' && f.action?.field && resolveFocusTarget(f.action.field) && (
+                      <button type="button" onClick={() => {
+                        const target = resolveFocusTarget(f.action.field)
+                        if (target?.sectionKey === 'income') setShowIncome(true)
+                        else if (target?.sectionKey === 'maturity') setShowMaturity(true)
+                        else if (target?.sectionKey === 'details') setShowDetails(true)
+                        // El campo ya puede estar en el DOM (si la sección
+                        // correspondiente ya estaba abierta): el mismo efecto de
+                        // arriba solo dispara con un `focusField` nuevo, así que
+                        // acá se repite el scroll+resalte a mano.
+                        setTimeout(() => {
+                          const el = target?.id && document.getElementById(target.id)
+                          if (!el) return
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          el.style.outline = '2px solid var(--accent-blue)'
+                          el.style.outlineOffset = '2px'
+                          setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = '' }, 2000)
+                        }, 50)
+                      }}
+                        className="shrink-0 underline font-medium" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {t('Ver campo', 'Show field')}
                       </button>
                     )}
                   </li>
@@ -1258,7 +1372,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               always-open blocks. Maturity only applies to bonds/alternatives;
               illiquid applies to those plus real estate. */}
           {(isBondOrAlt || /realestate|inmueble/i.test(form.type)) && (
-            <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} summary={(() => {
+            <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} open={showMaturity} onToggle={setShowMaturity} summary={(() => {
               const parts = []
               if (isBondOrAlt && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)
               if (form.isIlliquid) parts.push(t('ilíquido', 'illiquid'))
@@ -1717,7 +1831,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {/* Notes, tags, beneficiary, tax jurisdiction & asset country — five
               rarely-touched fields that used to each get their own always-open
               block. One accordion, one summary line. */}
-          <FormSection icon="🗂️" title={t('Detalles adicionales', 'Additional details')} summary={(() => {
+          <FormSection icon="🗂️" title={t('Detalles adicionales', 'Additional details')} open={showDetails} onToggle={setShowDetails} summary={(() => {
             const parts = []
             if (form.beneficiary) parts.push(form.beneficiary)
             if (form.taxJurisdiction) parts.push(form.taxJurisdiction)
@@ -1762,7 +1876,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               </div>
               <div>
                 <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
-                <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
+                <select id="edit-asset-country" value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
                   <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                   <option value="GT">🇬🇹 Guatemala</option>
                   <option value="MX">{'🇲🇽 '}{t('México', 'Mexico')}</option>
@@ -1814,7 +1928,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               {form.dividendAction === 'cash' && (
                 <div>
                   <label className={labelCls}>{t('Dividendos van a:', 'Dividends go to:')}</label>
-                  <select value={form.incomeDestination}
+                  <select id="edit-income-destination" value={form.incomeDestination}
                     onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
                     className={inputCls}>
                     <option value="">{t('Auto (cash del broker)', 'Auto (broker cash)')}</option>
@@ -1835,7 +1949,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {hasIncome && (
             <FormSection icon="💰" title={t('Configurar rendimiento', 'Configure yield')}
-              open={showIncome} onToggle={setShowIncome}
+              id="section-income" open={showIncome} onToggle={setShowIncome}
               summary={(() => {
                 if (form.rateType === 'variable' && (form.rateMin || form.rateMax)) return `${form.rateMin || 0}%-${form.rateMax || 0}% ${t('variable', 'variable')}`
                 if (form.rateType === 'continuous' && form.incomeRate) return `${form.incomeRate}% ${t('continua', 'continuous')}`
@@ -1952,7 +2066,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
               {/* Payment months */}
               {form.rateType !== 'continuous' && (
-                <div>
+                <div id="edit-income-months">
                   <label className={labelCls}>{t('Meses de pago', 'Payment months')}</label>
                   <div className="flex flex-wrap gap-1">
                     {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
@@ -1997,7 +2111,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               ) : (
                 <div>
                   <label className={labelCls}>{t('Pagos van a:', 'Payments go to:')}</label>
-                  <select value={form.incomeDestination}
+                  <select id="edit-income-destination" value={form.incomeDestination}
                     onChange={e => { if (e.target.value === '__new__') { setCreatingDest(true); return } set('incomeDestination', e.target.value) }}
                     className={inputCls}>
                     <option value="">{t('-- Seleccionar --', '-- Select --')}</option>

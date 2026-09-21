@@ -299,6 +299,10 @@ export default function DashboardPage() {
   const [cashflowPrefill, setCashflowPrefill] = useState(null)
   const [importBrokerHint, setImportBrokerHint] = useState(null)
   const [editItem, setEditItem] = useState(null)
+  // Qué campo forzar visible al abrir el editor (lib/dataCompleteness.js
+  // action.field): permite que "Completar"/"Ver campo" de un finding
+  // aterrice directo en el input, no solo en el modal. Se limpia al cerrar.
+  const [editFocusField, setEditFocusField] = useState(null)
   const [sellItem, setSellItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
   const [theme, setTheme] = useState('dark')
@@ -749,7 +753,14 @@ export default function DashboardPage() {
     setModal(null); setImportBrokerHint(null)
     if (ibkrJourneyRef.current != null) advanceIbkrJourney()
   }, [advanceIbkrJourney])
-  const handleCloseEdit = useCallback(() => setEditItem(null), [])
+  const handleCloseEdit = useCallback(() => { setEditItem(null); setEditFocusField(null) }, [])
+  // Único punto que abre el editor: guarda a qué campo apuntar (si alguno) sin
+  // que cada caller tenga que acordarse de limpiarlo o de setear los dos
+  // estados por su cuenta.
+  const handleOpenEditItem = useCallback((item, field) => {
+    setEditItem(item)
+    setEditFocusField(field || null)
+  }, [])
   const handleCloseSell = useCallback(() => setSellItem(null), [])
   // Vender era INALCANZABLE: SellModal solo se monta con un sellItem, y nada
   // en la app llamaba a setSellItem (el único caller previsto era el botón por
@@ -1546,6 +1557,23 @@ export default function DashboardPage() {
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}
+          {/* Señal secundaria y muda de "falta algo por completar", separada
+              a propósito del indicador de arriba (que solo habla de
+              sincronización, nunca de completitud — mismo criterio que
+              ChispuSuggestions). Sin urgencia visual salvo score bajo, y
+              nunca obligatoria: lleva a la card de sugerencias (SUGG-01) sin
+              interrumpir nada. Se oculta entera con score 100. */}
+          {dataCompleteness.globalScore < 100 && (
+            <button
+              onClick={() => document.querySelector('[data-card-id="SUGG-01"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+              className="text-xs transition-colors hover:opacity-80"
+              style={{ color: dataCompleteness.globalScore < 60 ? 'var(--accent-orange)' : 'var(--text-muted)' }}
+            >
+              {lang === 'es'
+                ? `· ${dataCompleteness.findings.length} pendiente${dataCompleteness.findings.length === 1 ? '' : 's'}`
+                : `· ${dataCompleteness.findings.length} pending`}
+            </button>
+          )}
           </>}
           {entities && entities.length > 1 && (
             <EntitySwitcher
@@ -1671,7 +1699,7 @@ export default function DashboardPage() {
                 globalScore={dataCompleteness.globalScore}
                 items={items}
                 lang={lang}
-                onEditItem={setEditItem}
+                onEditItem={handleOpenEditItem}
                 onOpenCashflow={handleOpenCashflowPrefilled}
                 onOpenReview={handleOpenReview}
                 onCompleteAll={handleEnrichGuided}
@@ -2265,7 +2293,8 @@ export default function DashboardPage() {
 
       <ModalMount closing={editClosing}>
       {editShown && (
-        <EditAccountModal key={editShown.id} item={editShown} onClose={handleCloseEdit} entities={entities}
+        <EditAccountModal key={`${editShown.id}:${editFocusField || ''}`} item={editShown} onClose={handleCloseEdit} entities={entities}
+          focusField={editFocusField}
           onSave={async (updated) => {
             const { id, ...fields } = updated
             await updateItem(editShown.id, fields)
@@ -2321,7 +2350,7 @@ export default function DashboardPage() {
           items={portfolioItems}
           transactions={transactions}
           onClose={handleCloseReview}
-          onEditItem={setEditItem}
+          onEditItem={handleOpenEditItem}
           onOpenCashflow={handleOpenCashflowPrefilled}
           onConfirmDistinct={(f) => {
             (f.action?.itemIds || []).forEach((id) => updateItem(id, { _dupConfirmedDistinct: true }))
@@ -2440,7 +2469,7 @@ export default function DashboardPage() {
           onOpenAccount={(c) => {
             setModal(null)
             const it = items.find((i) => i.id === c.itemId)
-            if (it) setEditItem(it)
+            if (it) handleOpenEditItem(it)
           }}
           // "Esto no pasó": borrar una fila del desglose, sin cerrar la pantalla.
           //

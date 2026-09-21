@@ -140,8 +140,23 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEn: 'How each of your friend groups is doing and where you placed. Sundays.',
       ready: true },
   ]
+  // FASE OO. Qué LLEVA el correo, no cada cuánto llega. Va aparte de las
+  // cadencias porque no es una suscripción: es una decisión sobre contenido
+  // sensible, y su default (apagado) es el que contesta el reporte del usuario
+  // ("que en el mail no diga antes de abrir el net worth").
+  //
+  // El caption dice el costo de encenderlo en vez de esconderlo: la vista
+  // previa de un teléfono muestra el cuerpo del correo sin desbloquear, así
+  // que activar esto vuelve a exponer el total en la pantalla de bloqueo. Es
+  // una elección informada, no un interruptor sin consecuencia.
+  const EMAIL_OPTIONS = [
+    { key: 'emailShowNetWorth', es: 'Incluir el patrimonio', en: 'Include net worth',
+      descEs: 'Apagado, los correos muestran la variación del período y no el total. Al encenderlo, el total puede verse en la vista previa del teléfono sin desbloquearlo.',
+      descEn: 'Off, the emails show the period change instead of the total. Turning it on means the total can show in your phone preview without unlocking it.' },
+  ]
+  const EMAIL_KEYS = [...EMAIL_CADENCES, ...EMAIL_OPTIONS]
   const [emailPrefs, setEmailPrefs] = useState(() =>
-    Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true]))
+    Object.fromEntries(EMAIL_KEYS.map((c) => [c.key, settings?.[c.key] === true]))
   )
   // FASE IE9. El estado inicial se calcula UNA vez, así que si `settings`
   // todavía no había llegado cuando el modal se montó (o si la lectura de
@@ -150,9 +165,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   // guardado: el usuario cree que no está suscrito cuando sí lo está
   // (reporte real con captura). La firma de las banderas es la única
   // dependencia: cuando el valor guardado cambia, el interruptor lo refleja.
-  const emailSig = EMAIL_CADENCES.map((c) => (settings?.[c.key] === true ? '1' : '0')).join('')
+  const emailSig = EMAIL_KEYS.map((c) => (settings?.[c.key] === true ? '1' : '0')).join('')
   useEffect(() => {
-    setEmailPrefs(Object.fromEntries(EMAIL_CADENCES.map((c) => [c.key, settings?.[c.key] === true])))
+    setEmailPrefs(Object.fromEntries(EMAIL_KEYS.map((c) => [c.key, settings?.[c.key] === true])))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailSig])
 
@@ -301,7 +316,9 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     }
   }
 
-  const toggleEmailCadence = async (key) => {
+  // `captureEmail` es solo de las CADENCIAS: una opción de contenido no es una
+  // suscripción, así que encenderla no tiene por qué capturar el correo.
+  const toggleEmailPref = async (key, { captureEmail = true } = {}) => {
     const next = { ...emailPrefs, [key]: !emailPrefs[key] }
     setEmailPrefs(next)
     try {
@@ -309,7 +326,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       // de mes): el cron lo lee del lado del servidor sin listar usuarios de Auth.
       await onSaveSettings({
         [key]: next[key],
-        ...(next[key] && userEmail ? { notifyEmail: userEmail } : {}),
+        ...(captureEmail && next[key] && userEmail ? { notifyEmail: userEmail } : {}),
       })
     } catch (e) {
       setEmailPrefs(emailPrefs)
@@ -856,7 +873,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </div>
                         <button type="button" role="switch" aria-checked={!!emailPrefs[c.key]} disabled={!c.ready}
                           aria-label={t(c.es, c.en)}
-                          onClick={() => c.ready && toggleEmailCadence(c.key)}
+                          onClick={() => c.ready && toggleEmailPref(c.key)}
                           className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
                           style={{ backgroundColor: emailPrefs[c.key] && c.ready ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
                           <span className="w-4 h-4 rounded-full bg-white transition-transform"
@@ -864,6 +881,26 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         </button>
                       </div>
                     ))}
+                    {/* FASE OO. Qué LLEVA el correo, separado por una línea de
+                        las cadencias: no es una suscripción más. */}
+                    <div className="pt-3 space-y-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
+                      {EMAIL_OPTIONS.map((c) => (
+                        <div key={c.key} className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{t(c.es, c.en)}</p>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t(c.descEs, c.descEn)}</p>
+                          </div>
+                          <button type="button" role="switch" aria-checked={!!emailPrefs[c.key]}
+                            aria-label={t(c.es, c.en)}
+                            onClick={() => toggleEmailPref(c.key, { captureEmail: false })}
+                            className="shrink-0 w-9 h-5 rounded-full flex items-center transition-all px-0.5"
+                            style={{ backgroundColor: emailPrefs[c.key] ? 'var(--accent-blue)' : 'var(--bg-tertiary)' }}>
+                            <span className="w-4 h-4 rounded-full bg-white transition-transform"
+                              style={{ transform: emailPrefs[c.key] ? 'translateX(16px)' : 'translateX(0)' }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                     <p className="text-[11px] pt-1" style={{ color: 'var(--text-muted)' }}>
                       {userEmail
                         ? t(`Se envían a ${userEmail}. Todos los correos van en inglés.`, `Sent to ${userEmail}. All emails are in English.`)

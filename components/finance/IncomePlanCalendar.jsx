@@ -142,10 +142,11 @@ export default function IncomePlanCalendar({
   const noPlannableMonths = fromMonth >= 12
 
   return (
-    <div className="card p-4">
-      <div className="flex items-baseline justify-between gap-3 mb-1">
-        <h3 className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
-          {t(`Plan de ingresos ${year}`, `${year} income plan`)}
+    <div className="card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h3 className="card-title">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-purple)' }} />
+          {t(`PLAN DE INGRESOS ${year}`, `${year} INCOME PLAN`)}
           <InfoTip text={t(
             'Lo que esperás que entre cada mes. Es un plan, no tu historial: no suma a los totales del mes, ni a tu ahorro, ni a los correos. Los meses ya cerrados muestran lo que de verdad entró.',
             'What you expect to come in each month. It is a plan, not your record: it never adds to your monthly totals, savings, or emails. Closed months show what actually came in.'

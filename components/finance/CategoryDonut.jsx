@@ -41,7 +41,7 @@ export default function CategoryDonut({
   const centerValue = selected ? selected.amount : donut.total
 
   return (
-    <div className="card p-4 h-full flex flex-col">
+    <div className="card p-4 sm:p-5 h-full flex flex-col">
       <div className="flex items-center justify-between gap-3 mb-3">
         <h3 className="card-title">{t('En qué se va', 'Where it goes')}</h3>
         <SegmentedTabs

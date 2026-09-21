@@ -15,6 +15,13 @@ const SEV_STYLE = {
   low: { color: 'var(--alert-info-icon)', backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)' },
 }
 const SEV_ICON = { high: '⚠', medium: '●', low: 'ℹ' }
+// Nombra el nivel en vez de dejar que solo un color/ícono lo cargue —
+// mismo tratamiento visual que el pill "100%"/"parcial" de AssetAllocation.
+const SEV_LABEL = {
+  high: { es: 'Importante', en: 'Important' },
+  medium: { es: 'Recomendable', en: 'Recommended' },
+  low: { es: 'Informativa', en: 'Informational' },
+}
 
 export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onCompleteAll, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -105,7 +112,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
     } else if (f.action?.kind === 'liquid-yield' && onOpenLiquidYield) {
       onOpenLiquidYield()
     } else if (item && onEditItem) {
-      onEditItem(item)
+      onEditItem(item, f.action?.field)
     }
   }
 
@@ -135,6 +142,10 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
           <div key={f.id} className="flex items-start gap-2 p-2.5 rounded-lg border" style={SEV_STYLE[f.severity]}>
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">{SEV_ICON[f.severity]}</span>
             <div className="flex-1 min-w-0">
+              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-1"
+                style={{ color: SEV_STYLE[f.severity].color, backgroundColor: 'color-mix(in srgb, currentColor 15%, transparent)' }}>
+                {SEV_LABEL[f.severity][lang === 'es' ? 'es' : 'en']}
+              </span>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {lang === 'es' ? f.textEs : f.textEn}
               </p>

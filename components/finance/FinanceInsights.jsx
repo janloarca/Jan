@@ -18,9 +18,10 @@ export default function FinanceInsights({ insights = [], lang = 'es' }) {
   if (insights.length === 0) return null
 
   return (
-    <div className="card p-4">
-      <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-        {t('Qué cambió', 'What changed')}
+    <div className="card p-4 sm:p-5">
+      <h3 className="card-title mb-3">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
+        {t('QUÉ CAMBIÓ', 'WHAT CHANGED')}
       </h3>
       <ul className="space-y-1.5">
         {insights.map((ins, i) => (
