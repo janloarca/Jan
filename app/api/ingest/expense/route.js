@@ -5,6 +5,7 @@ import { resolveIngestToken, readUserRules, readUserBaseCurrency, stampIngestRes
 import { expenseFromAlert } from '@/lib/alertIngest'
 import { normalizeExpenseInput, ingestExpense, explainIngestError, INGEST_SOURCES } from '@/lib/expenseIngest'
 import { withFirestoreRetry, describeFirestoreFailure, firestoreErrorCode } from '@/lib/firestoreErrors'
+import { payerOffsetFromTimestamp } from '@/lib/localDate'
 
 // De qué transporte dice venir la captura. Se acepta del cuerpo pero SOLO de la
 // lista cerrada: no es una frontera de seguridad (esa es el token), pero sí
@@ -102,15 +103,24 @@ export async function POST(request) {
       // mexicana son pesos, y leerlos como dólares multiplica el cobro por el
       // tipo de cambio, en silencio.
       const base = await readUserBaseCurrency(db, resolved.uid)
-      // Sin offset a propósito: un push no trae zona horaria, y no la necesita.
-      // Llega en segundos, así que la hora de llegada es mejor dato que una hora
-      // de pared impresa en el texto sin zona con qué colocarla.
+      // Un push no trae zona horaria por su cuenta, así que la hora de llegada
+      // es mejor dato que una hora de pared impresa en el texto sin nada con qué
+      // colocarla. Pero la app de automatización SÍ puede declararla, y ahí sí
+      // vale: sin ninguna zona el DÍA sale en UTC, y en Guatemala eso rota a las
+      // seis de la tarde, así que una compra de la noche del último día del mes
+      // se archiva en el mes siguiente.
+      //
+      // Es el MISMO campo que manda el atajo de iOS (`occurredAt` con desfase),
+      // no un segundo mecanismo: dos formas de decir lo mismo es como una se
+      // queda atrás.
+      const declaredOffset = payerOffsetFromTimestamp(body?.occurredAt)
       const out = expenseFromAlert({
         subject: rawTitle,
         text: rawText,
         receivedAt,
         defaultCurrency: base || 'GTQ',
         source: via,
+        offsetMinutes: declaredOffset,
       })
       input = out.input
       alertSkip = out.skip || null

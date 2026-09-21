@@ -13,10 +13,16 @@ import LearnedRulesList from '@/components/finance/LearnedRulesList'
 // (which opens from Patrimonio/dashboard) so configuring it never pulls a Flujo
 // user away from this page — the entire feature is Flujo's, not Patrimonio's.
 
-// El cuerpo que la app de automatización de Android manda. Los dos campos van
+// El cuerpo que la app de automatización de Android manda. Los tres campos van
 // vacíos a propósito: ahí se pegan las variables de la notificación, igual que
 // en el atajo del iPhone se pegan las de la transacción.
-const ANDROID_BODY = '{"source":"android","title":"","text":""}'
+//
+// ⛔ `occurredAt` no es para la HORA (la de llegada ya sirve: un push llega en
+// segundos), es para el DÍA. Un push no declara zona horaria, y sin ninguna el
+// servidor tiene que leer el día en UTC, que en Guatemala rota a las seis de la
+// tarde: una compra de la noche del último día del mes quedaría archivada en el
+// mes siguiente, o sea dinero cambiado de mes en Flujo.
+const ANDROID_BODY = '{"source":"android","title":"","text":"","occurredAt":""}'
 
 export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const trapRef = useFocusTrap()
@@ -313,8 +319,8 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
               <div>
                 <p className="text-xs font-medium text-white mb-1">{t('2. Android (instantáneo)', '2. Android (instant)')}</p>
                 <p className="text-xs text-slate-500">{t(
-                  'Con una app de automatización (MacroDroid o Tasker): disparador "Notificación recibida" filtrado a la app de tu banco, acción "Petición HTTP" POST al endpoint de arriba, con el header Authorization y este cuerpo. Pon las variables de título y texto de la notificación en los dos campos vacíos:',
-                  'With an automation app (MacroDroid or Tasker): trigger "Notification received" filtered to your bank app, action "HTTP Request" POST to the endpoint above, with the Authorization header and this body. Put the notification title and text variables into the two empty fields:'
+                  'Con una app de automatización (MacroDroid o Tasker): disparador "Notificación recibida" filtrado a la app de tu banco, acción "Petición HTTP" POST al endpoint de arriba, con el header Authorization y este cuerpo. Pon las variables de título y texto de la notificación en los primeros dos campos, y en occurredAt la fecha y hora actuales con formato yyyy-MM-dd\'T\'HH:mm:ssZ (esa Z emite el desfase, no una letra: es lo que evita que una compra de la noche quede fechada mañana):',
+                  'With an automation app (MacroDroid or Tasker): trigger "Notification received" filtered to your bank app, action "HTTP Request" POST to the endpoint above, with the Authorization header and this body. Put the notification title and text variables into the first two fields, and in occurredAt the current date and time formatted as yyyy-MM-dd\'T\'HH:mm:ssZ (that Z emits the offset, not a letter: it is what keeps an evening purchase from being dated tomorrow):'
                 )}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                   <code className="flex-1 min-w-0 text-xs text-slate-400 font-mono break-all bg-theme-surface px-2 py-1 rounded">{ANDROID_BODY}</code>
