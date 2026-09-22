@@ -38,6 +38,16 @@ function normInst(s) {
 // debajo de él.
 const INST_OVERFLOW_THRESHOLD = 8
 
+// TWR/MWR ocultas a pedido del usuario (sep 2026): "no las borres solo
+// necesito ocultarlas porque aún no están pulidas al 100%". Con esto en
+// false, viewMode nunca puede apuntar a 'performance'/'performance-mwr'
+// (el único lugar que lo cambia es el onChange de este selector), así que
+// toda la mitad de rendimiento del archivo (computeAnchoredReturnSeries,
+// computeAnchoredMWRSeries, el branch SVG de isPerf, la leyenda, el chip
+// TWR/MWR) queda intacta y simplemente inalcanzable. Reactivar es volver
+// esto a true, nada más.
+const PERF_TABS_ENABLED = false
+
 // Los helpers de eje redondo viven en lib/niceAxis.js desde FASE KK: la
 // pagina compartida dibuja el MISMO eje y una segunda copia divergiria.
 
@@ -1963,10 +1973,12 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         <SegmentedTabs
           tabs={[
             { key: 'value', label: t('Valor', 'Value') },
-            { key: 'performance', label: t('Rendimiento TWR', 'Performance TWR'),
-              title: t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions') },
-            { key: 'performance-mwr', label: t('Rendimiento MWR', 'Performance MWR'),
-              title: t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts') },
+            ...(PERF_TABS_ENABLED ? [
+              { key: 'performance', label: t('Rendimiento TWR', 'Performance TWR'),
+                title: t('Retorno ponderado por tiempo: mide la estrategia, ignora el timing de tus aportes', 'Time-weighted return: measures the strategy, ignores the timing of your contributions') },
+              { key: 'performance-mwr', label: t('Rendimiento MWR', 'Performance MWR'),
+                title: t('Retorno ponderado por dinero: tu rendimiento real, el timing de tus aportes cuenta', 'Money-weighted return: your actual return, the timing of your contributions counts') },
+            ] : []),
           ]}
           value={viewMode}
           onChange={setViewMode}
