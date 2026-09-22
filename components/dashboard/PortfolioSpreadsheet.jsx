@@ -5,9 +5,13 @@ import BusyLabel from '@/components/ui/BusyLabel'
 import { ZoomIn, ZoomOut, FileText, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { todayLocalISO } from '@/lib/localDate'
-import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER, debtTermLabel } from './utils'
+import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, isMarketPriced, getEffectiveYield, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER, debtTermLabel } from './utils'
 import { toRawItem } from '@/lib/rawItem'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
+// El mismo veredicto que liquidYieldCandidates (hooks/useDashboardData.js)
+// computaría para este ítem, pero sobre el estado que el patch de abajo está
+// por escribir: ver el comentario en answerPendingEdit.
+import { dismissalFor } from '@/lib/liquidYield'
 import { explainMovement, movementNote } from '@/lib/movementContext'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
 import { buildSheetDebtPaymentTransaction } from '@/lib/transferTx'
@@ -1158,15 +1162,41 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // asi que sumarlos mezcla dos monedas y ESCRIBE el resultado como si fuera
     // crudo: con base USD, teclear Q5,200 sobre una cuenta de Q5,000 guardaba
     // Q849.35. Ver lib/rawItem.js.
-    const plan = planCellEdit({ item: toRawItem(item), oldValue, newValue, answer })
+    const raw = toRawItem(item)
+    const plan = planCellEdit({ item: raw, oldValue, newValue, answer })
     if (!plan) return
     // ⛔ FASE MS. El DIA LOCAL, la misma regla que las otras dos puertas que
     // sellan este campo: `toISOString()` devuelve el dia UTC, que en Guatemala
     // rota a las 6pm, asi que corregir un saldo de noche lo sellaba con la
     // fecha de MAÑANA y un cupon del dia siguiente quedaba "dentro de la foto".
     const patch = { ...plan.patch, balanceAsOf: todayLocalISO() }
+    // ⛔ FASE OV. "El número anterior estaba mal" no archiva ninguna
+    // transacción (solo desplaza purchasePrice para que la ganancia no se
+    // mueva), así que knownContributions no tiene de dónde enterarse de que
+    // esta corrección ya contestó "esto no fue rendimiento". Sin este sello,
+    // el residuo que la corrección deja vuelve a ofrecerse en el modal de
+    // cuentas líquidas como si fuera nuevo: la misma pregunta que la Hoja
+    // acaba de contestar por otra vía. Mismos gates y mismas fórmulas que
+    // liquidYieldCandidates (hooks/useDashboardData.js), sobre el estado que
+    // este patch está por escribir en vez del ya guardado.
+    if (answer === ANSWER_CORRECTION) {
+      const postItem = { ...raw, ...patch }
+      if (!isMarketPriced(postItem) && postItem.type !== 'Debt' && !postItem.isReceivable) {
+        const asOfTs = new Date(`${patch.balanceAsOf}T00:00:00Z`).getTime()
+        if (isFinite(asOfTs)) {
+          const finalBalance = (Number(postItem.quantity) || 1) * (Number(postItem.currentPrice ?? postItem.purchasePrice) || 0)
+          if (finalBalance > 0) {
+            const dismissal = dismissalFor({
+              item: postItem, items, transactions, convert, asOfTs, finalBalance,
+              declaredRatePct: getEffectiveYield(postItem) || 0,
+            })
+            if (dismissal) patch._liquidYield = { ...dismissal, asOf: patch.balanceAsOf }
+          }
+        }
+      }
+    }
     await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment)
-  }, [pendingEdit, commitPatch])
+  }, [pendingEdit, commitPatch, items, transactions, convert])
 
   const handleValueUpdate = useCallback(async (item, newVal) => {
     if (!onUpdateItem || !item.id) return
