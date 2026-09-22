@@ -19,12 +19,18 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null, convert = null, baseCurrency = null }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null, convert = null, baseCurrency = null, onNavigate, onItemReviewed, initialReviewed = [] }) {
   useEscClose(onClose)
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
-  const [reviewed, setReviewed] = useState({})
+  // Sembrado desde initialReviewed (ids que el caller ya recuerda de una
+  // sesión anterior de este mismo wizard) en vez de siempre {}: el
+  // inicializador de useState vuelve a correr fresco en cada MONTAJE, así que
+  // esto se re-sincroniza solo cuando el wizard se remonta (ej. tras abrir y
+  // cerrar EditAccountModal, que lo desmonta) sin necesitar ningún efecto.
+  const [reviewed, setReviewed] = useState(() => Object.fromEntries((initialReviewed || []).map((id) => [id, true])))
   const [applied, setApplied] = useState(() => new Set())
+  const [applyFailed, setApplyFailed] = useState(() => new Set())
 
   // "Revisar por institución" scope: everything else about the wizard (order,
   // findings, progress count) stays untouched, it just walks a narrower list —
@@ -90,13 +96,36 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
   const reviewedCount = Object.keys(reviewed).length
   const totalCount = sorted.length
 
+  // onNavigate/onItemReviewed son opcionales, y lo que sincronizan hacia el
+  // caller (page.jsx → reviewTarget.itemId/reviewedIds) es EXACTAMENTE lo que
+  // el useEffect de re-anchor de arriba ([startItemId, sorted]) ya sabe leer
+  // al remontar. Sin este par, el wizard se comporta igual que antes: el
+  // progreso vive solo en este estado local y se pierde si el componente se
+  // desmonta (ej. al abrir EditAccountModal desde acá y volver).
   const markReviewed = () => {
     setReviewed(p => ({ ...p, [item.id]: true }))
-    if (index < sorted.length - 1) setIndex(index + 1)
+    if (onItemReviewed) onItemReviewed(item.id)
+    if (index < sorted.length - 1) {
+      const next = sorted[index + 1]
+      setIndex(index + 1)
+      if (next && onNavigate) onNavigate(next.id)
+    }
   }
 
-  const goNext = () => { if (index < sorted.length - 1) setIndex(index + 1) }
-  const goPrev = () => { if (index > 0) setIndex(index - 1) }
+  const goNext = () => {
+    if (index < sorted.length - 1) {
+      const next = sorted[index + 1]
+      setIndex(index + 1)
+      if (next && onNavigate) onNavigate(next.id)
+    }
+  }
+  const goPrev = () => {
+    if (index > 0) {
+      const prev = sorted[index - 1]
+      setIndex(index - 1)
+      if (prev && onNavigate) onNavigate(prev.id)
+    }
+  }
 
   const handleEdit = (field) => {
     if (onEditItem) onEditItem(item, field)
@@ -119,10 +148,22 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
   // own createdAt) — never a guess. See lib/dataCompleteness.js. Stays
   // in this wizard (doesn't advance/close) so the next finding on the same
   // account, if any, is still right there.
-  const applySuggestion = (f) => {
+  //
+  // FASE NB, mismo patrón que ChispuSuggestions.jsx: "Aplicado" solo se marca
+  // DESPUÉS de que onApplySuggestion (updateItem) confirmó. Antes se marcaba
+  // al disparar sin esperar nada, así que un guardado fallido (updateItem es
+  // optimista y LANZA al revertir) dejaba el check verde sobre un dato que
+  // Firestore nunca recibió: la sugerencia reaparecía en la próxima sesión
+  // "sin razón" para el usuario, esta vez desde el wizard.
+  const applySuggestion = async (f) => {
     if (!f.suggestion || !onApplySuggestion) return
-    onApplySuggestion(item.id, f.suggestion.patch)
-    setApplied((p) => new Set(p).add(f.id))
+    setApplyFailed((p) => { const n = new Set(p); n.delete(f.id); return n })
+    try {
+      await onApplySuggestion(item.id, f.suggestion.patch)
+      setApplied((p) => new Set(p).add(f.id))
+    } catch {
+      setApplyFailed((p) => new Set(p).add(f.id))
+    }
   }
 
   const itemFindings = findingsByItem.get(item.id) || []
@@ -310,6 +351,14 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
                     {f.suggestion && !applied.has(f.id) && (
                       <p className="mt-0.5" style={{ color: 'var(--alert-warn-icon)' }}>
                         💡 {lang === 'es' ? f.suggestion.textEs : f.suggestion.textEn}
+                      </p>
+                    )}
+                    {/* Mismo texto que ChispuSuggestions.jsx para el mismo fallo:
+                        el guardado no confirmó, así que "Usar esto" sigue ahí
+                        (no se marcó Aplicado) y esto le dice al usuario por qué. */}
+                    {applyFailed.has(f.id) && (
+                      <p className="mt-0.5" role="alert" style={{ color: 'var(--alert-warn-icon)' }}>
+                        {t('No se pudo guardar. Toca "Usar esto" otra vez.', 'Could not save. Tap "Use this" again.')}
                       </p>
                     )}
                   </li>

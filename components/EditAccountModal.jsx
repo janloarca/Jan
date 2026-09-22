@@ -521,6 +521,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         // Sin un campo único que señalar (puede ser tasa, monto o meses),
         // se apunta a la sección entera ya abierta.
         return { id: 'section-income', sectionKey: 'income' }
+      case 'movements':
+        // flows-exceed-balance apunta acá: el contenedor de "Historial de
+        // movimientos" (más abajo, id="edit-movements") SIEMPRE está montado
+        // cuando linkedTransactions.length > 0, que es justo la condición que
+        // ese hallazgo exige para disparar. No está en ninguna sección
+        // colapsable, así que no hace falta sectionKey.
+        return { id: 'edit-movements' }
       default: return null
     }
   }
@@ -1206,7 +1213,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               )}
 
               {linkedTransactions.length > 0 && (
-                <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3">
+                <div id="edit-movements" className="border border-[var(--card-border,#38383A)] rounded-lg p-3">
                   <p className="text-xs font-medium text-[var(--text-secondary,#94a3b8)] mb-2">
                     {t('Historial de movimientos', 'Transaction history')} <span style={{ color: 'var(--text-muted,#475569)' }}>({linkedTransactions.length})</span>
                   </p>
