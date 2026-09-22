@@ -324,8 +324,12 @@ export default function DashboardPage() {
   const [showReview, setShowReview] = useState(false)
   // Review wizard targeting: an item id to open on, whether to walk only the
   // accounts with gaps ("let Chispu recommend"), or narrow the whole wizard to
-  // one institution ("fix everything IDC holds").
-  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null })
+  // one institution ("fix everything IDC holds"). reviewedIds: los ids que YA
+  // se marcaron revisados en esta sesión del wizard — sobrevive a que
+  // AccountReviewModal se desmonte (ej. al abrir EditAccountModal desde
+  // adentro y volver), porque page.jsx es quien lo conserva mientras el
+  // componente vive y muere. Toda sesión GENUINAMENTE nueva lo resetea a [].
+  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null, reviewedIds: [] })
   const [showEnrich, setShowEnrich] = useState(false)
   const [brokerCompletionId, setBrokerCompletionId] = useState(null)
 
@@ -646,22 +650,32 @@ export default function DashboardPage() {
   }, [lang, settings?._ibkrAutoSyncFailCount])
   const handleOpenBlockchain = useCallback(() => setModal('blockchain'), [])
   const handleOpenPrint = useCallback(() => setModal('print'), [])
-  const handleOpenReview = useCallback(() => { setReviewTarget({ itemId: null, guided: false, institution: null }); setShowReview(true) }, [])
+  // anchorItemId es OPCIONAL: ChispuSuggestions lo pasa (el primer id de un
+  // dup-suspect, o el itemId de cualquier otro hallazgo) para aterrizar el
+  // wizard directo en el ítem señalado en vez de dejarlo en el índice 0. Pero
+  // QuickActionsCard cablea este mismo handler como onClick={onReview} —
+  // onClick entrega el MouseEvent como primer argumento (la misma trampa que
+  // FASE GQ4/OJ ya documentan) — así que solo un STRING real cuenta como
+  // anchor; cualquier otra cosa se descarta, igual que no pasar nada.
+  const handleOpenReview = useCallback((anchorItemId) => {
+    setReviewTarget({ itemId: typeof anchorItemId === 'string' ? anchorItemId : null, guided: false, institution: null, reviewedIds: [] })
+    setShowReview(true)
+  }, [])
   const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
   const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
   const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
-  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null }); setShowReview(true) }, [])
+  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null, reviewedIds: [] }); setShowReview(true) }, [])
   // Al cerrar el recorrido guiado: cerrar el modal y abrir el repaso en modo
   // guiado (`onlyWithFindings`, que AccountReviewModal ya sabe hacer y ya ordena
   // por severidad). Es la promesa de esa pantalla, cumplida: hasta hoy decía que
   // Chispu iba a pedir lo que faltara y no había ningún camino que llevara ahí.
   const handleGuidedComplete = useCallback(() => {
     setShowGuided(false)
-    setReviewTarget({ itemId: null, guided: true, institution: null })
+    setReviewTarget({ itemId: null, guided: true, institution: null, reviewedIds: [] })
     setShowReview(true)
   }, [])
-  const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null }); setShowReview(true) }, [])
-  const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name }); setShowReview(true) }, [])
+  const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null, reviewedIds: [] }); setShowReview(true) }, [])
+  const handleEnrichInstitution = useCallback((name) => { setReviewTarget({ itemId: null, guided: false, institution: name, reviewedIds: [] }); setShowReview(true) }, [])
   const handleOpenCmdPalette = useCallback(() => setCmdPaletteOpen(true), [])
   const handleCloseCmdPalette = useCallback(() => setCmdPaletteOpen(false), [])
   // FASE GM. El viaje continuo de IBKR: un orquestador que SECUENCIA los
@@ -2363,6 +2377,11 @@ export default function DashboardPage() {
           institutionFilter={reviewTarget.institution}
           convert={convert}
           baseCurrency={baseCurrency}
+          initialReviewed={reviewTarget.reviewedIds}
+          onNavigate={(itemId) => setReviewTarget((prev) => ({ ...prev, itemId }))}
+          onItemReviewed={(itemId) => setReviewTarget((prev) =>
+            prev.reviewedIds.includes(itemId) ? prev : { ...prev, reviewedIds: [...prev.reviewedIds, itemId] }
+          )}
         />
       )}
       </ModalMount>

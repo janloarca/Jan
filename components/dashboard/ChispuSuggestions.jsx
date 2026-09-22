@@ -108,7 +108,11 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
     if (f.action?.kind === 'cashflow' && onOpenCashflow) {
       onOpenCashflow(f.action.prefill || (f.itemId ? { flowType: 'DEPOSIT', origin: 'external', linkedId: f.itemId, alreadyReflected: true } : {}))
     } else if (f.action?.kind === 'review' && onOpenReview) {
-      onOpenReview()
+      // Ancla el wizard en el primer ítem señalado (dup-suspect trae varios,
+      // el par completo) en vez de abrirlo sin filtrar en el índice 0: antes
+      // f.action.itemIds se ignoraba por completo y el usuario tenía que
+      // buscar manualmente el ítem que el hallazgo ya había identificado.
+      onOpenReview(f.action.itemIds?.[0] || null)
     } else if (f.action?.kind === 'liquid-yield' && onOpenLiquidYield) {
       onOpenLiquidYield()
     } else if (item && onEditItem) {
@@ -175,7 +179,13 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
                   {t('Usar esto', 'Use this')}
                 </button>
               )}
-              {!applied.has(f.id) && (
+              {/* f.action puede ser null (no-symbol, uncovered-shares: no hay
+                  ningún campo editable ni acción real que ofrecer, verificado
+                  contra EditAccountModal.jsx). Sin este guard el botón igual
+                  se dibujaba y runAction caía en su fallback genérico
+                  (onEditItem(item, undefined)), reproduciendo la edición sin
+                  sentido que este hallazgo existe para evitar. */}
+              {f.action && !applied.has(f.id) && (
                 <button onClick={() => runAction(f)}
                   className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
                   style={{ color: 'var(--accent-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
