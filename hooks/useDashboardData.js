@@ -34,7 +34,7 @@ import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, di
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
-import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds } from '@/lib/liquidYield'
+import { knownContributions, computeLiquidYield, yieldSignature, supersededYieldTxIds, CANDIDATE_STATUSES } from '@/lib/liquidYield'
 import { clampPayDay, payDateFor, impossiblePayDateFixes, isPayDateExcluded, acquisitionDayISO, monthlyIncomeAmount } from '@/lib/incomeSchedule'
 import { zeroQuantityBalanceFixes, resurrectedBalanceFixes } from '@/lib/zeroQuantityHeal'
 import { isBankLikeItem, balanceQuantityPatch } from '@/lib/contributions'
@@ -3291,7 +3291,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       const res = computeLiquidYield({
         contributions, finalBalance, asOfTs, declaredRatePct: getEffectiveYield(it) || 0,
       })
-      if (!['ok', 'implausible-rate', 'negative-residual'].includes(res.status)) continue
+      if (!CANDIDATE_STATUSES.includes(res.status)) continue
       // Ya contestada: mientras el saldo, su fecha y los aportes sean los
       // mismos, la respuesta del usuario (aceptar o descartar) sigue valiendo.
       const signature = yieldSignature({ asOfTs, finalBalance, contributions })
