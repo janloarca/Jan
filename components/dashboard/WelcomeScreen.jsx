@@ -33,6 +33,9 @@ export default function WelcomeScreen({
   demoBusy = false,
   ownerName = '',
   lang = 'es',
+  // Integraciones con brokers ocultas: se reenvía a AssetTypePicker, la única
+  // UI que sabe filtrar la opción 'broker' de la grilla.
+  brokersEnabled = true,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const first = (ownerName || '').trim().split(/\s+/)[0] || ''
@@ -67,7 +70,7 @@ export default function WelcomeScreen({
 
         <AssetTypePicker
           picked={picked} onToggle={onToggle} onStart={onStart}
-          lang={lang} variant="page"
+          lang={lang} variant="page" brokersEnabled={brokersEnabled}
         />
 
         <p className="text-micro text-center" style={{ color: 'var(--text-muted)' }}>

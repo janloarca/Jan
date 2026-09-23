@@ -30,14 +30,20 @@ export default function AssetTypePicker({
   // las dos de siempre. Cambia el espacio, jamás las opciones ni la regla.
   variant = 'page',
   startAction = null,
+  // Integraciones con brokers ocultas: la novena opción ('broker', un atajo
+  // y no un tipo de activo) desaparece de la grilla. lib/firstRunPlan.js no
+  // se toca — es lógica compartida — el filtro vive acá, la única UI que
+  // renderiza ese catálogo.
+  brokersEnabled = true,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const cols = variant === 'page' ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'
+  const categories = brokersEnabled ? FIRST_RUN_CATEGORIES : FIRST_RUN_CATEGORIES.filter((c) => !c.isBroker)
 
   return (
     <div className="space-y-4">
       <div className={`grid ${cols} gap-2`}>
-        {FIRST_RUN_CATEGORIES.map((c) => {
+        {categories.map((c) => {
           const on = picked.includes(c.key)
           return (
             <button
