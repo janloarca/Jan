@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
 import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
@@ -145,7 +145,7 @@ import { scopeTagFor } from '@/lib/scopeTag'
 // the page. Its five original tabs are unchanged; Benchmark, Currency and Fees
 // were already built as components and had simply never been mounted anywhere,
 // and Data quality moved up from "Recent activity".
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, volatility, goalValue, beginnerMode, onConnect, onImportBroker }) {
+function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, volatility, goalValue, beginnerMode, onConnect, onImportBroker, brokersOn = true }) {
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
 
@@ -191,7 +191,12 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
       key: 'outlook', label: t('Proyección', 'Outlook'),
       views: [
         { key: 'projection', label: t('Proyección', 'Projection') },
-        { key: 'quality', label: t('Calidad de datos', 'Data quality') },
+        // Integraciones con brokers ocultas: DataQualityCard no gatea su
+        // propio render en onConnect/onImportBroker, solo el CLICK de sus
+        // botones — con esos props en null el botón quedaría visible y
+        // muerto. Se excluye la pestaña entera en vez de tocar el
+        // componente.
+        ...(brokersOn ? [{ key: 'quality', label: t('Calidad de datos', 'Data quality') }] : []),
       ],
     },
   ].filter((f) => f.views.length > 0)
@@ -291,8 +296,18 @@ function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, 
   )
 }
 
+// Integraciones con brokers: OCULTAS por decisión del usuario. La lógica que
+// las sostiene (parsers, el auto-sync de hooks/useDashboardData.js, las
+// rutas bajo app/api/brokers, los campos de Firestore) sigue corriendo
+// exactamente igual; esto solo apaga la UI que la expone. Mismo patrón que
+// GOOGLE_SIGNIN_ENABLED (app/login/page.jsx): una constante + una escotilla
+// de query param (?brokers=1) para revivir la UI sin redeploy.
+const BROKER_INTEGRATIONS_ENABLED = false
+
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const brokersOn = BROKER_INTEGRATIONS_ENABLED || searchParams.get('brokers') === '1'
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [modal, setModal] = useState(null)
@@ -1329,12 +1344,16 @@ export default function DashboardPage() {
   // ibkrAttentionNeeded (components/dashboard/utils.js, puro y con tests), no
   // aquí: este memo solo la cablea a settings.
   const everIbkrSynced = !!(settings?._ibkrLastSync || settings?._ibkrLastAutoSync)
-  const ibkrNeedsAttention = useMemo(() => ibkrAttentionNeeded({
+  // Con las integraciones ocultas, esto resuelve SIEMPRE en false: es lo que
+  // apaga de un solo golpe las 5 variantes ibkr-* del banner de arriba (todas
+  // condicionadas a esta bandera) y el punto rojo de la tarjeta de acciones,
+  // sin tener que tocar cada rama por separado.
+  const ibkrNeedsAttention = useMemo(() => (brokersOn ? ibkrAttentionNeeded({
     errorCode: ibkrSyncErrorCode,
     lastSync: settings?._ibkrLastSync,
     lastAutoSync: settings?._ibkrLastAutoSync,
     connectedAt: settings?._ibkrConnectedAt,
-  }), [ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync, settings?._ibkrConnectedAt])
+  }) : false), [brokersOn, ibkrSyncErrorCode, settings?._ibkrLastSync, settings?._ibkrLastAutoSync, settings?._ibkrConnectedAt])
 
   const topBanner = useMemo(() => {
     // Nothing to be stale ABOUT on an empty account: a brand-new user opening the app
@@ -1422,13 +1441,13 @@ export default function DashboardPage() {
         refreshError={!!(pricesError || ratesError)}
         onAddAccount={handleOpenAccount}
         onCommandPalette={handleOpenCmdPalette}
-        onOpenConnections={handleOpenConnections}
-        ibkrConnected={ibkrConnected}
+        onOpenConnections={brokersOn ? handleOpenConnections : null}
+        ibkrConnected={brokersOn ? ibkrConnected : false}
         ibkrAutoSyncing={ibkrAutoSyncing}
         ibkrSyncSummary={ibkrSyncSummary}
         ibkrSyncStatus={ibkrSyncStatus}
         ibkrNeedsAttention={ibkrNeedsAttention}
-        onIBKR={handleIBKRPillClick}
+        onIBKR={brokersOn ? handleIBKRPillClick : null}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
         onGuided={portfolioItems.length === 0 ? handleOpenGuided : null}
         enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
@@ -1637,8 +1656,9 @@ export default function DashboardPage() {
             picked={firstRunPicked}
             onToggle={handleFirstRunToggle}
             onStart={handleOpenGuided}
-            onConnect={handleOpenConnections}
+            onConnect={brokersOn ? handleOpenConnections : null}
             onImport={handleOpenImport}
+            brokersEnabled={brokersOn}
             onDemo={async () => {
               // Sembrar PRIMERO y después abrir el tour: con los datos de
               // ejemplo ya presentes, el tour monta directo en el recorrido con
@@ -1742,7 +1762,7 @@ export default function DashboardPage() {
                   un borde inferior disparejo. */}
               <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
-                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={ibkrDataComplete} /></CardBoundary>
+                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
                   {/* Va pegada a Asignación de Activos porque su vista
                       "Moneda" contesta la mitad de la misma pregunta (cuánto
                       tienes en cada una); esta contesta la otra mitad (a qué
@@ -1767,8 +1787,8 @@ export default function DashboardPage() {
                       benchmarkData={benchmarkData} benchmarkName={benchmarkName}
                       benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
                       volatility={riskMetrics?.volatility} goalValue={goals?.portfolioGoal}
-                      beginnerMode={beginnerMode}
-                      onConnect={handleOpenConnections} onImportBroker={handleOpenImport}
+                      beginnerMode={beginnerMode} brokersOn={brokersOn}
+                      onConnect={brokersOn ? handleOpenConnections : null} onImportBroker={brokersOn ? handleOpenImport : null}
                     />
                   </CardBoundary>
                   {/* Las acciones viven DENTRO del marco, a la altura de
@@ -1782,7 +1802,7 @@ export default function DashboardPage() {
                       onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
                       onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
                       onExport={handleExport} onShare={handleShare}
-                      onIntegrations={handleOpenConnections} onReview={handleOpenReview}
+                      onIntegrations={brokersOn ? handleOpenConnections : null} onReview={handleOpenReview}
                       itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
                       ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
                       ibkrProgress={ibkrProgress}
@@ -1988,7 +2008,7 @@ export default function DashboardPage() {
           saltar el paso o salir del viaje, y garantiza que ningún cierre de
           modal deje al usuario en el dashboard preguntándose si faltaban
           pasos. */}
-      {ibkrJourney != null && (
+      {brokersOn && ibkrJourney != null && (
         <IBKRJourneyBar
           step={ibkrJourney}
           total={5}
@@ -2013,7 +2033,7 @@ export default function DashboardPage() {
       )}
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'ibkr' && (
+      {brokersOn && modalShown === 'ibkr' && (
         <IBKRSyncModal
           onClose={() => {
             const justConnected = !ibkrWasConnectedRef.current && ibkrConnected
@@ -2063,7 +2083,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'blockchain' && (
+      {brokersOn && modalShown === 'blockchain' && (
         <BlockchainSyncModal
           onClose={handleCloseModal}
           onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
@@ -2094,7 +2114,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'ledger' && (
+      {brokersOn && modalShown === 'ledger' && (
         <LedgerSyncModal
           onClose={handleCloseModal}
           onSyncComplete={async ({ items: syncItems, transactions: syncTxs, mode }) => {
@@ -2187,7 +2207,7 @@ export default function DashboardPage() {
           onAddEntity={addEntity}
           onUpdateEntity={updateEntityData}
           onDeleteEntity={handleDeleteEntity}
-          onOpenConnections={handleOpenConnections}
+          onOpenConnections={brokersOn ? handleOpenConnections : null}
           onExportBackup={() => {
             const data = {
               exportDate: new Date().toISOString(), version: '1.0',
@@ -2209,7 +2229,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'connections' && (
+      {brokersOn && modalShown === 'connections' && (
         <ConnectionsModal
           onClose={handleCloseModal}
           lang={lang}
@@ -2293,7 +2313,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'calibrate' && (
+      {brokersOn && modalShown === 'calibrate' && (
         <CalibrateReturnModal
           netWorth={netWorth} transactions={transactions} convert={convert} baseCurrency={baseCurrency}
           snapshots={snapshots} accountSnapshots={accountCalibrations} ignoredCalibrations={ignoredCalibrations} items={portfolioItems}
@@ -2387,7 +2407,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'quarterly' && (
+      {brokersOn && modalShown === 'quarterly' && (
         <QuarterlyHistoryModal
           saveSnapshot={saveSnapshot}
           saveSettings={saveSettings}
@@ -2415,14 +2435,14 @@ export default function DashboardPage() {
           onPickAccount={handleEnrichAccount}
           onPickInstitution={handleEnrichInstitution}
           onGuided={handleEnrichGuided}
-          onBrokerChecklist={() => { setShowEnrich(false); setBrokerCompletionId('ibkr') }}
-          hasBroker={portfolioItems.some((it) => it._source === 'ibkr')}
+          onBrokerChecklist={brokersOn ? () => { setShowEnrich(false); setBrokerCompletionId('ibkr') } : null}
+          hasBroker={brokersOn && portfolioItems.some((it) => it._source === 'ibkr')}
         />
       )}
       </ModalMount>
 
       <ModalMount closing={brokerClosing}>
-      {brokerShown && (
+      {brokersOn && brokerShown && (
         <BrokerCompletionModal
           brokerId={brokerShown}
           brokerName={brokerShown === 'ibkr' ? 'Interactive Brokers' : brokerShown}
@@ -2443,7 +2463,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <ModalMount closing={modalClosing}>
-      {modalShown === 'inferredFlows' && (
+      {brokersOn && modalShown === 'inferredFlows' && (
         <InferredFlowsModal
           candidates={inferredFlowCandidates}
           reconciliation={inferredFlowReconciliation}
@@ -2532,7 +2552,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <CommandPalette open={cmdPaletteOpen} onClose={handleCloseCmdPalette}
-        items={portfolioItems} lang={lang} onAction={handleCmdAction} />
+        items={portfolioItems} lang={lang} onAction={handleCmdAction} brokersEnabled={brokersOn} />
 
       <MobileNav
         onAdd={portfolioItems.length === 0 ? handleOpenGuided : handleOpenAccount} onImport={handleOpenImport}
@@ -2582,7 +2602,8 @@ export default function DashboardPage() {
           onCreateDestination={addItemInScope}
           existingItems={items} activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
-          onConnectBroker={handleOpenConnections}
+          onConnectBroker={brokersOn ? handleOpenConnections : null}
+          brokersEnabled={brokersOn}
           pendingCount={dataCompleteness.findings.length}
           onCompleteData={handleGuidedComplete}
           lang={lang}

@@ -21,7 +21,7 @@ const ACTIONS = [
   { id: 'tour', icon: 'Zap', labelEs: '¿Cómo funciona?', labelEn: 'How does it work?' },
 ]
 
-export default function CommandPalette({ open, onClose, items, lang, onAction }) {
+export default function CommandPalette({ open, onClose, items, lang, onAction, brokersEnabled = true }) {
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
   const inputRef = useRef(null)
@@ -63,6 +63,9 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
     }
 
     ACTIONS.forEach((a) => {
+      // Integraciones con brokers ocultas: la acción de sincronizar IBKR no
+      // debe aparecer en la paleta cuando la UI de conexión está apagada.
+      if (a.id === 'ibkr' && !brokersEnabled) return
       const label = lang === 'es' ? a.labelEs : a.labelEn
       if (q.length === 0 || label.toLowerCase().includes(q)) {
         out.push({
@@ -76,7 +79,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction })
     })
 
     return out
-  }, [query, items, lang])
+  }, [query, items, lang, brokersEnabled])
 
   useEffect(() => {
     setSelectedIdx(0)

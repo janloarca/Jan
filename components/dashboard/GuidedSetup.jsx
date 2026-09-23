@@ -33,6 +33,9 @@ export default function GuidedSetup({
   // lo va a ir pidiendo" y no cumplía: nada llevaba de aquí al repaso. Con 0
   // (o sin el prop) la pantalla queda exactamente como estaba.
   pendingCount = 0, onCompleteData = null,
+  // Integraciones con brokers ocultas: se reenvía a AssetTypePicker (la
+  // opción 'broker' desaparece de la grilla del checklist).
+  brokersEnabled = true,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   // Inicializadores lazy y no un efecto: un efecto pintaría el checklist un
@@ -82,7 +85,7 @@ export default function GuidedSetup({
 
           <AssetTypePicker
             picked={picked} onToggle={toggle} onStart={start}
-            lang={lang} variant="modal"
+            lang={lang} variant="modal" brokersEnabled={brokersEnabled}
           />
 
           <button type="button" onClick={onClose}
