@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { InfoTip } from '../ui/Tooltip'
-import { usedCurrencies, buildRateRows, formatRate, ANCHOR } from '@/lib/currencyRates'
+import { usedCurrencies, buildRateRows, formatRate, showsRateTable, ANCHOR } from '@/lib/currencyRates'
 
 // Las tasas que la app está usando AHORA MISMO, para las monedas que este
 // portafolio de verdad tiene.
@@ -39,7 +39,7 @@ export default function ExchangeRatesCard({
   // Con una sola moneda (y siendo esa el ancla) la tarjeta diría "1 USD = 1
   // USD": un control que no informa nada. Misma regla que el resto de la app
   // para lo que no aplica.
-  if (rows.length < 2) return null
+  if (!showsRateTable(items)) return null
 
   const missing = rows.filter((r) => r.rate == null)
 
@@ -51,7 +51,7 @@ export default function ExchangeRatesCard({
     : null
 
   return (
-    <div className="card p-4 sm:p-5">
+    <div className="card p-4 sm:p-5 h-full">
       <div className="flex items-center justify-between gap-2 mb-1">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />

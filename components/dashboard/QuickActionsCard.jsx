@@ -144,26 +144,29 @@ export default function QuickActionsCard({
   ].filter(Boolean)
 
 
-  // Mismo marco (p-4) y mismo encabezado (punto + título en mayúsculas +
-  // InfoTip) que AssetAllocation / InstitutionPerformance: las cuatro cards de
-  // esta zona comparten inset y tipografía, así que sus contenidos alinean
-  // sobre el mismo borde izquierdo. h-full + mt-auto en el pie para que las
-  // dos columnas terminen en la misma línea.
+  // Mismo marco y mismo encabezado (punto + título en mayúsculas + InfoTip)
+  // que el resto de las cards del tablero. Desde el rediseño de la sección 3
+  // (FASE PC) es una fila a lo ANCHO debajo de Asignación/Análisis, y desde lg
+  // los dos grupos van lado a lado en vez de apilados: el ancho extra se usa
+  // para que las ocho acciones quepan en dos filas, no para estirar baldosas.
+  // Todas siguen a la vista con su descripción (decisión del usuario: nada
+  // detrás de un menú "Más acciones").
   return (
-    <div data-tour="actions" className="card p-4 sm:p-5 h-full flex flex-col">
+    <div data-tour="actions" className="card p-4 sm:p-5 flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ACCIONES', 'ACTIONS')}
         </h3>
         <InfoTip text={t(
-          'Todo lo que podés hacer con tu portafolio. Arriba lo que ya pasó y querés dejar registrado (un depósito, una compra, una venta, dinero movido entre tus cuentas); abajo, traer datos de tu broker o revisar lo que falte.',
-          'Everything you can do with your portfolio. Above, what already happened and you want on record (a deposit, a purchase, a sale, money moved between your accounts); below, bringing in broker data or reviewing what is missing.'
+          'Todo lo que podés hacer con tu portafolio. Primero, lo que ya pasó y querés dejar registrado (un depósito, una compra, una venta, dinero movido entre tus cuentas); después, traer datos de tu broker o revisar lo que falte.',
+          'Everything you can do with your portfolio. First, what already happened and you want on record (a deposit, a purchase, a sale, money moved between your accounts); then, bringing in broker data or reviewing what is missing.'
         )} />
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
       {record.length > 0 && (
-        <div className="mb-4">
+        <div>
           <GroupLabel>{t('Registrar lo que pasó', 'Record what happened')}</GroupLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {record.map((a) => <Tile key={a.key} a={a} />)}
@@ -179,9 +182,10 @@ export default function QuickActionsCard({
           </div>
         </div>
       )}
+      </div>
 
       {/* Salidas: no son registros, así que no compiten con los de arriba. */}
-      <div className="flex items-center gap-3 flex-wrap mt-auto pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
+      <div className="flex items-center gap-3 flex-wrap mt-4 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
         {onShare && (
           <button type="button" onClick={onShare} className="flex items-center gap-1.5 text-caption transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
             <Share2 size={13} /> {t('Compartir', 'Share')}

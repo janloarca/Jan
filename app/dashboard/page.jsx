@@ -7,6 +7,7 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
+import { showsRateTable } from '@/lib/currencyRates'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
 import PullToRefresh from '@/components/ui/PullToRefresh'
@@ -1584,6 +1585,7 @@ export default function DashboardPage() {
             otherwise the card sits below the action row. */}
         {(() => {
           const hasHigh = dataCompleteness.findings.some((f) => f.severity === 'high')
+          const showFx = showsRateTable(portfolioItems)
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
@@ -1618,18 +1620,21 @@ export default function DashboardPage() {
                   última card de cada una toma el sobrante (flex-1 + h-full
                   adentro), así el bloque cierra en una línea pareja en vez de
                   un borde inferior disparejo. */}
-              <div className="stagger-3 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
-                  <CardBoundary id="OR-02"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
-                  {/* Va pegada a Asignación de Activos porque su vista
-                      "Moneda" contesta la mitad de la misma pregunta (cuánto
-                      tienes en cada una); esta contesta la otra mitad (a qué
-                      tasa se está convirtiendo). Se oculta sola cuando el
-                      portafolio tiene una sola moneda. */}
-                  <CardBoundary id="FX-01"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>
-                  <CardBoundary id="INV-01" className="flex-1"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
-                </div>
-                <div className="flex flex-col gap-4 sm:gap-6 min-w-0">
+              {/* Rediseño, sección 3 (FASE PC). Tres filas, cada una con su
+                  propia razón:
+                   1. Asignación | Análisis: las dos cards de alto FIJO (FASE
+                      PB), así que cierran en la misma línea por construcción.
+                   2. Invertido por año | Tipo de cambio. La segunda se oculta
+                      sola con una sola moneda, y ahí Invertido toma la fila
+                      entera en vez de dejar media fila vacía: por eso la
+                      decisión usa showsRateTable, la MISMA regla que la card.
+                   3. Acciones a lo ancho, TODAS a la vista (decisión del
+                      usuario: nada detrás de un menú "Más acciones"; Vender,
+                      Transferir e Importar estaban escondidas antes y un
+                      usuario no encontraba cómo registrar una venta). */}
+              <div className="stagger-3 space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <CardBoundary id="OR-02" className="min-w-0"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
                   {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
                       montar porque sus seis filas repetían, número por número,
                       lo que ya muestra la vista "Inst." de Asignación de
@@ -1637,7 +1642,7 @@ export default function DashboardPage() {
                       de IBKR, que solo estaban ahí, se movieron a esa vista.
                       El componente y su fórmula no se tocaron y siguen en
                       disco: volver a montarlo es una línea. */}
-                  <CardBoundary id="AN-00">
+                  <CardBoundary id="AN-00" className="min-w-0">
                     <AnalysisTabs
                       lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
                       snapshots={augmentedSnapshots} lots={lots} transactions={assetTransactions}
@@ -1649,24 +1654,28 @@ export default function DashboardPage() {
                       onConnect={brokersOn ? handleOpenConnections : null} onImportBroker={brokersOn ? handleOpenImport : null}
                     />
                   </CardBoundary>
-                  {/* Las acciones viven DENTRO del marco, a la altura de
-                      "Invertido por año", en vez de una barra de botones
-                      sueltos debajo de las tarjetas. Las alertas de precio
-                      son una acción más (abren su modal) en vez de una card
-                      casi siempre vacía ocupando media columna. */}
-                  <CardBoundary id="ACT-01" className="flex-1">
-                    <QuickActionsCard
-                      onImport={handleOpenImport} onAddAccount={handleOpenAccount}
-                      onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
-                      onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
-                      onExport={handleExport} onShare={handleShare}
-                      onIntegrations={brokersOn ? handleOpenConnections : null} onReview={handleOpenReview}
-                      itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
-                      ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
-                      ibkrProgress={ibkrProgress}
-                    />
-                  </CardBoundary>
                 </div>
+
+                <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${showFx ? 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]' : ''}`}>
+                  <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+                  {/* Va al lado de Invertido y no de Asignación: su vista
+                      "Moneda" contesta cuánto tienes en cada una; esta, a qué
+                      tasa se está convirtiendo. */}
+                  {showFx && <CardBoundary id="FX-01" className="min-w-0"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>}
+                </div>
+
+                <CardBoundary id="ACT-01">
+                  <QuickActionsCard
+                    onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+                    onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
+                    onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
+                    onExport={handleExport} onShare={handleShare}
+                    onIntegrations={brokersOn ? handleOpenConnections : null} onReview={handleOpenReview}
+                    itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
+                    ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
+                    ibkrProgress={ibkrProgress}
+                  />
+                </CardBoundary>
               </div>
 
               {!hasHigh && suggestionsCard}
