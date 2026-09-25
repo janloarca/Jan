@@ -30,6 +30,7 @@ import RecurringChargesCard from '@/components/finance/RecurringChargesCard'
 import DebtAgingCard from '@/components/finance/DebtAgingCard'
 import YearInViewCard from '@/components/finance/YearInViewCard'
 import UnclassifiedTriage from '@/components/finance/UnclassifiedTriage'
+import WeekdayRhythmCard from '@/components/finance/WeekdayRhythmCard'
 import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import IncomePlanCalendar from '@/components/finance/IncomePlanCalendar'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
@@ -699,6 +700,16 @@ export default function FinancesPage() {
             transactions={financeTransactions}
             convert={convert}
             onApply={handleTriageApply}
+            lang={lang}
+          />
+          {/* El ritmo: semana a semana cuánto salió cada día, y qué días de la
+              semana pesan más. Va acá porque cruza meses (su ventana es de
+              hasta medio año), igual que las otras cuatro de esta sección. */}
+          <WeekdayRhythmCard
+            transactions={financeTransactions}
+            convert={convert}
+            rules={ingestRules}
+            recurring={recurring}
             lang={lang}
           />
         </SectionCollapse>
