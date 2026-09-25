@@ -1687,9 +1687,14 @@ export default function DashboardPage() {
         {/* ═══ RESUMEN ═══ */}
         {portfolioItems.length > 0 && <>
         <ErrorBoundary lang={lang}>
-        <div className="stagger-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 items-stretch">
-          <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-4">
-            <CardBoundary id="OL-01" className="h-full">
+        {/* Rediseño, sección 1 (hero). El patrimonio es la pieza dominante del
+            tablero: ocupa su propia fila de ancho completo, con la composición
+            y los movimientos del día adentro (la card los reparte en dos
+            columnas desde lg). El desglose del YTD va JUSTO debajo, porque es
+            la card que tiene su CTA, y la gráfica después. Cero cambio de
+            cálculo: las mismas props, los mismos componentes. */}
+        <div className="stagger-1 grid grid-cols-1 gap-4 sm:gap-6">
+          <CardBoundary id="OL-01">
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
@@ -1701,19 +1706,13 @@ export default function DashboardPage() {
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
             />
-            </CardBoundary>
-          </div>
+          </CardBoundary>
 
-          <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
-            <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
-          </div>
-
-          {/* ⛔ FASE OZ. El desglose del YTD es HERMANO de las dos cards de arriba
+          {/* ⛔ FASE OZ. El desglose del YTD es HERMANO de la card del patrimonio
               (col-span-full), nunca hijo de NetWorthCard: abrirlo despliega una
-              fila nueva debajo y las dos cards conservan su alto. En móvil (una
-              columna) cae después de la gráfica; en tablet y escritorio ocupa la
-              fila entera. Solo se monta cuando hay algo que mostrar, que es la
-              misma condición con la que la card ofrece el CTA. */}
+              fila nueva debajo y la card conserva su alto. Solo se monta cuando
+              hay algo que mostrar, que es la misma condición con la que la card
+              ofrece el CTA. */}
           {returnYTD != null && isFinite(returnYTD) && ((ytdBreakdown && ytdBreakdown.groups.length > 0) || !!ytdBreakdownReason) && (
             <YtdBreakdownSection
               open={ytdBreakdownOpen} onClose={() => setYtdBreakdownOpen(false)} lang={lang}
@@ -1721,6 +1720,8 @@ export default function DashboardPage() {
               ytdDegradedAccounts={ytdDegradedAccounts} ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdCalIgnored={ytdCalIgnored}
             />
           )}
+
+          <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
         </div>
         </ErrorBoundary>
 

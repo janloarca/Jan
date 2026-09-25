@@ -9,6 +9,9 @@ import { computeDayMovers } from '@/lib/dayMovers'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
+// Orden de lectura de la barra de composición (el resto va detrás, por valor).
+export const COMPOSITION_ORDER = ['bonds', 'stocks', 'crypto', 'banks']
+
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
   funds: { es: 'Fondos', en: 'Funds' },
@@ -76,6 +79,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         color: TYPE_COLORS[name]?.bg || CHART_PALETTE[i % CHART_PALETTE.length],
       }))
       .sort((a, b) => b.value - a.value)
+    // El colapso a "Otros" sigue decidiéndose por VALOR (lo chico se agrupa);
+    // lo que cambia abajo es solo el ORDEN en que se dibuja lo que queda.
     if (segs.length > 5) {
       const tail = segs.slice(4)
       segs = segs.slice(0, 4)
@@ -86,7 +91,20 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         color: 'var(--text-muted)',
       })
     }
+    // Rediseño, sección 1: orden FIJO de lectura (Bonos, Acciones, Cripto,
+    // Caja & Bancos, y después el resto por valor, "Otros" siempre al final).
+    // Con el orden por valor la barra se reacomodaba sola cada vez que una
+    // clase le pasaba a otra, y el ojo tenía que volver a buscar cada color.
+    // Es solo orden de dibujo: ningún porcentaje ni monto cambia.
+    const rank = (seg) => {
+      if (seg.isOther) return 1e9
+      const i = COMPOSITION_ORDER.indexOf(seg.name)
+      return i >= 0 ? i : COMPOSITION_ORDER.length
+    }
     return segs
+      .map((seg, i) => ({ seg, i }))
+      .sort((a, b) => (rank(a.seg) - rank(b.seg)) || (a.i - b.i))
+      .map(({ seg }) => seg)
   }, [items])
 
   const catLabel = (seg) => seg.isOther
@@ -185,6 +203,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     }
   }, [movers, lang, pricesUpdate])
 
+  // La columna derecha del hero solo existe si tiene algo: sin movimientos ni
+  // efectivo, la card vuelve a una sola columna en vez de dejar media vacía.
+  const hasSide = movers.gainers.length > 0 || movers.losers.length > 0 || (cashTotal != null && cashTotal > 0)
+
   const touchStartX = useRef(null)
   const onMoversTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
   const onMoversTouchEnd = (e) => {
@@ -211,7 +233,13 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // (rgb(19,19,31) → rgb(23,23,36)), que para la card hero es la dirección
   // correcta.
   return (
-    <div className="card card-hero bg-gradient-to-br from-theme-card to-theme-surface p-5 h-full flex flex-col">
+    <div className={`card card-hero bg-gradient-to-br from-theme-card to-theme-surface p-5 sm:p-6 h-full flex flex-col${hasSide ? ' lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-x-8' : ''}`}>
+      {/* Rediseño, sección 1 (hero). La card ocupa la fila entera del tablero,
+          así que desde lg reparte su contenido en dos columnas: a la izquierda
+          la cifra, el día, el YTD y la composición; a la derecha los
+          movimientos del día y el efectivo. En móvil y tablet se apila igual
+          que siempre. Nada se quitó: solo se reubicó. */}
+      <div className="flex flex-col min-w-0">
       {/* Greeting + currency picker — the milestone pill (a second colored
           badge next to the picker) is gone: the combined today/YTD line below
           already says whether things are up or down, so a second label
@@ -371,7 +399,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             ))}
           </div>
           {/* Legend */}
-          <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-x-5 gap-y-2">
             {allocation.map((seg) => (
               <div key={seg.name} className="flex items-center justify-between gap-2 min-w-0">
                 <span className="flex items-center gap-1.5 min-w-0">
@@ -385,6 +413,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         </div>
       )}
 
+      </div>
+
+      {hasSide && (
+      <div className="flex flex-col min-w-0 lg:pl-8 lg:border-l lg:border-glass-border/50 lg:[&>*:first-child]:mt-0 lg:[&>*:first-child]:pt-0 lg:[&>*:first-child]:border-t-0">
       {/* Biggest movers of the day — a tab per direction (swipe or tap),
           so a green-heavy day no longer buries every loser. Only the arrow
           carries green/red; the $ and portfolio-% stay plain text so rows
@@ -463,6 +495,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           </span>
           <AnimatedNumber value={cv(cashTotal)} format={(v) => formatCurrency(v, displayCur)} className="text-xs font-medium font-mono" style={{ color: 'var(--accent-cyan)' }} />
         </div>
+      )}
+      </div>
       )}
     </div>
   )
