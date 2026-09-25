@@ -248,7 +248,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{greeting}</span>
         <div className="relative" ref={pickerRef}>
           <button onClick={() => setShowPicker(!showPicker)}
-            className="text-xs px-2 py-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+            className="text-xs px-2 min-h-[24px] rounded text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
             style={{ border: '1px solid transparent', ...(showPicker ? { backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: 'var(--glass-border)', backgroundColor: 'rgba(255,255,255,0.05)' } : {}) }}>
             {displayCur}
           </button>
@@ -307,7 +307,9 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       {/* Today + YTD, one line. Direction lives ONLY in the small arrow —
           the numbers themselves stay in plain text color, so the line reads
           as one calm sentence instead of two competing red/green claims. */}
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+      {/* En teléfono HOY y YTD van uno debajo del otro: con flex-wrap el
+          separador quedaba colgando al final de la línea de HOY (FASE PD). */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-x-2 gap-y-1 text-sm">
         {dailyChange && isFinite(dailyChange.pct) && (
           <span className="whitespace-nowrap">
             <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'HOY' : 'TODAY'}</span>
@@ -324,7 +326,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             </span>
           </span>
         )}
-        {dailyChange && hasReturn && <span aria-hidden="true" style={{ color: 'var(--glass-border)' }}>│</span>}
+        {dailyChange && hasReturn && <span aria-hidden="true" className="hidden sm:inline" style={{ color: 'var(--glass-border)' }}>│</span>}
         {hasReturn && (
           <span className="whitespace-nowrap">
             <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>
@@ -434,7 +436,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                     { key: 'losers', icon: '▼', n: movers.losers.length },
                   ].map((tab) => (
                     <button key={tab.key} type="button" onClick={() => setMoversTab(tab.key)}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors"
+                      className="px-2 min-h-[24px] min-w-[32px] rounded text-[11px] font-mono tabular-nums transition-colors"
                       style={moversTab === tab.key
                         ? { color: tab.key === 'gainers' ? 'var(--accent-green)' : 'var(--text-negative)', backgroundColor: 'var(--bg-card)' }
                         : { color: 'var(--text-muted)' }}>

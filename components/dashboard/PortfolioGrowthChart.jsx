@@ -2277,7 +2277,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             )}
           </span>
           <button onClick={dismissEstimateNotice} aria-label={t('Cerrar aviso', 'Close notice')}
-            className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center rounded-md opacity-60 hover:opacity-100 transition-opacity"
+            className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-md opacity-60 hover:opacity-100 transition-opacity"
             style={{ color: 'var(--alert-info-icon)' }}>
             &times;
           </button>
@@ -2672,7 +2672,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       {/* Snapshot import section */}
       <div className="flex justify-center mt-3">
         <button onClick={() => setShowSnapshotImport(!showSnapshotImport)}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+          className="text-xs min-h-[24px] px-2 text-slate-500 hover:text-slate-300 transition-colors">
           {showSnapshotImport ? '▾' : '▸'} {t('Agregar datos históricos', 'Add historical data')}
         </button>
       </div>

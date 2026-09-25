@@ -54,7 +54,7 @@ export default function InlineNotice({
           // `underline` y no un botón relleno: es una salida secundaria dentro
           // de un aviso, no la acción principal de la pantalla. currentColor
           // hereda el tono, así que no hay un color más que mantener.
-          className="shrink-0 underline font-semibold disabled:opacity-60"
+          className="shrink-0 min-h-[24px] underline font-semibold disabled:opacity-60"
         >
           <BusyLabel busy={busy}>{actionLabel}</BusyLabel>
         </button>
