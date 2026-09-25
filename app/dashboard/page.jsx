@@ -21,6 +21,7 @@ import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
+import YtdBreakdownSection from '@/components/dashboard/YtdBreakdownSection'
 import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
 import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
@@ -336,6 +337,11 @@ export default function DashboardPage() {
   const [activePortfolio, setActivePortfolio] = useState('__all__')
   const [activeEntity, setActiveEntity] = useState('__all__')
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  // FASE OZ: el desglose del YTD se abre desde NetWorthCard y se renderiza como
+  // sección hermana de la fila superior. El estado vive acá porque las dos
+  // superficies (el CTA y la región) son hijas distintas del mismo grid.
+  const [ytdBreakdownOpen, setYtdBreakdownOpen] = useState(false)
+  const toggleYtdBreakdown = useCallback(() => setYtdBreakdownOpen((v) => !v), [])
   const [showReview, setShowReview] = useState(false)
   // Review wizard targeting: an item id to open on, whether to walk only the
   // accounts with gaps ("let Chispu recommend"), or narrow the whole wizard to
@@ -506,7 +512,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError, ratesUpdate, ratesStale,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms,
+    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     annualDividends, estimatedAnnualIncome, incomeVerification,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -1689,11 +1695,11 @@ export default function DashboardPage() {
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
               dailyChange={dailyChange} convert={convert}
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
-              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail} ytdBreakdownTerms={ytdBreakdownTerms}
-              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdCalIgnored={ytdCalIgnored} ytdAnchorIgnored={ytdAnchorIgnored}
-              ytdDegradedAccounts={ytdDegradedAccounts}
+              ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
+              ytdAnchorIgnored={ytdAnchorIgnored}
               pricesUpdate={pricesUpdate}
               scopedView={scopedView}
+              ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
             />
             </CardBoundary>
           </div>
@@ -1701,6 +1707,20 @@ export default function DashboardPage() {
           <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4">
             <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
           </div>
+
+          {/* ⛔ FASE OZ. El desglose del YTD es HERMANO de las dos cards de arriba
+              (col-span-full), nunca hijo de NetWorthCard: abrirlo despliega una
+              fila nueva debajo y las dos cards conservan su alto. En móvil (una
+              columna) cae después de la gráfica; en tablet y escritorio ocupa la
+              fila entera. Solo se monta cuando hay algo que mostrar, que es la
+              misma condición con la que la card ofrece el CTA. */}
+          {returnYTD != null && isFinite(returnYTD) && ((ytdBreakdown && ytdBreakdown.groups.length > 0) || !!ytdBreakdownReason) && (
+            <YtdBreakdownSection
+              open={ytdBreakdownOpen} onClose={() => setYtdBreakdownOpen(false)} lang={lang}
+              ytdChange={ytdChange} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail}
+              ytdDegradedAccounts={ytdDegradedAccounts} ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdCalIgnored={ytdCalIgnored}
+            />
+          )}
         </div>
         </ErrorBoundary>
 
