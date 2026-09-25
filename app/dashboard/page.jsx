@@ -1242,6 +1242,25 @@ export default function DashboardPage() {
 
   const loadStages = computeLoadStages({ dataLoading, ratesLoading, pricesLoading, benchmarkLoading })
 
+  // Rediseño, sección 4 (FASE PD): la card de acciones se monta en DOS lugares
+  // y se ve en uno solo. En una sola columna (teléfono y tablet vertical) va
+  // justo debajo del patrimonio, porque al fondo quedaba a ~2,600px de scroll
+  // de Vender o Registrar movimiento; desde lg vuelve a la fila de abajo
+  // (sección 3). UN solo elemento para los dos montajes: dos copias de las
+  // props es cómo una se queda atrás. decisión del usuario, 25 sep 2026.
+  const quickActions = (
+    <QuickActionsCard
+      onImport={handleOpenImport} onAddAccount={handleOpenAccount}
+      onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
+      onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
+      onExport={handleExport} onShare={handleShare}
+      onIntegrations={brokersOn ? handleOpenConnections : null} onReview={handleOpenReview}
+      itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
+      ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
+      ibkrProgress={ibkrProgress}
+    />
+  )
+
   return (
     <div className="min-h-screen bg-theme-base">
       <a href="#main-content" className="skip-link">{lang === 'es' ? 'Ir al contenido' : 'Skip to content'}</a>
@@ -1559,6 +1578,8 @@ export default function DashboardPage() {
             />
           )}
 
+          <CardBoundary id="ACT-01-M" className="lg:hidden">{quickActions}</CardBoundary>
+
           <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
         </div>
         </ErrorBoundary>
@@ -1664,18 +1685,7 @@ export default function DashboardPage() {
                   {showFx && <CardBoundary id="FX-01" className="min-w-0"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>}
                 </div>
 
-                <CardBoundary id="ACT-01">
-                  <QuickActionsCard
-                    onImport={handleOpenImport} onAddAccount={handleOpenAccount}
-                    onTransfer={handleOpenTransfer} onCashFlow={handleOpenCashflow}
-                    onSell={handleOpenSellPicker} onPriceAlerts={() => setModal('priceAlerts')}
-                    onExport={handleExport} onShare={handleShare}
-                    onIntegrations={brokersOn ? handleOpenConnections : null} onReview={handleOpenReview}
-                    itemCount={enrichedItems.length} alertCount={(alerts || []).length} lang={lang}
-                    ibkrSyncStatus={ibkrSyncStatus} ibkrLastSync={ibkrLastSync} ibkrNeedsAttention={ibkrNeedsAttention}
-                    ibkrProgress={ibkrProgress}
-                  />
-                </CardBoundary>
+                <CardBoundary id="ACT-01" className="hidden lg:block">{quickActions}</CardBoundary>
               </div>
 
               {!hasHigh && suggestionsCard}

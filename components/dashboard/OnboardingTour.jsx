@@ -150,6 +150,19 @@ const DEMO_STEPS = (t) => [
   },
 ]
 
+// Un ancla puede montarse dos veces cuando la card vive en un lugar distinto
+// según el ancho (FASE PD: las acciones van arriba en una columna y abajo desde
+// lg). querySelector a secas toma la PRIMERA en el DOM, que puede ser la copia
+// con display:none, y el foco del tour quedaría sobre una caja de 0x0. Se toma
+// la primera que de verdad se dibuja; sin ninguna visible, null (el tour ya
+// sabe saltar un ancla ausente).
+function findVisible(selector) {
+  for (const el of document.querySelectorAll(selector)) {
+    if (el.getClientRects().length > 0) return el
+  }
+  return null
+}
+
 export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo, onClearDemo, demoActive = false }) {
   const t = (es, en) => lang === 'es' ? es : en
   const router = useRouter()
@@ -208,14 +221,14 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
     retryRef.current = 0
 
     const measure = () => {
-      const el = document.querySelector(currentDemo.anchor)
+      const el = findVisible(currentDemo.anchor)
       if (!el) return null
       return el.getBoundingClientRect()
     }
 
     const locate = () => {
       if (cancelled) return
-      const el = document.querySelector(currentDemo.anchor)
+      const el = findVisible(currentDemo.anchor)
       if (!el) {
         // Cards mount lazily right after the demo seed — retry briefly, then skip.
         // 6×300ms: enough for a lazy mount, short enough that a permanently-absent

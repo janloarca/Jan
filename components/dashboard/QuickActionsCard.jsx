@@ -187,12 +187,12 @@ export default function QuickActionsCard({
       {/* Salidas: no son registros, así que no compiten con los de arriba. */}
       <div className="flex items-center gap-3 flex-wrap mt-4 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
         {onShare && (
-          <button type="button" onClick={onShare} className="flex items-center gap-1.5 text-caption transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
+          <button type="button" onClick={onShare} className="flex items-center gap-1.5 min-h-[24px] text-caption transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
             <Share2 size={13} /> {t('Compartir', 'Share')}
           </button>
         )}
         {onExport && (
-          <button type="button" onClick={onExport} className="flex items-center gap-1.5 text-caption transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
+          <button type="button" onClick={onExport} className="flex items-center gap-1.5 min-h-[24px] text-caption transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
             <Download size={13} /> {t('Exportar', 'Export')}
           </button>
         )}

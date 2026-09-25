@@ -81,7 +81,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
             columna de al lado, y no es contra esa que se midió. */}
         <span className="text-right leading-tight" style={{ color: 'var(--text-muted)' }}>
           <span className="block text-[10px] uppercase tracking-wider font-medium">{t('Ganado', 'Earned')}</span>
-          <span className="block text-[9px]">{t('% = rendimiento', '% = return')}</span>
+          <span className="block text-[10px]">{t('% = rendimiento', '% = return')}</span>
         </span>
       </div>
 
@@ -95,7 +95,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
               <span className="text-sm font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                 {r.year}
                 {r.partial && (
-                  <span className="ml-1.5 text-[9px] font-semibold px-1 py-0.5 rounded align-middle"
+                  <span className="ml-1.5 text-[10px] font-semibold px-1 py-0.5 rounded align-middle"
                     style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
                     YTD
                   </span>
