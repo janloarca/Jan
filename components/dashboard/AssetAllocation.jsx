@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getOwnReinvestedYieldByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
+import SubTabs from '@/components/ui/SubTabs'
 
 // Maturity buckets, ordered soonest-first. `order` exists only so this view can
 // read as a ladder; every other view leaves it at 0 and therefore keeps sorting
@@ -15,6 +16,8 @@ const MATURITY_BUCKETS = {
   over3y: { order: 4, label: { es: 'Más de 3 años', en: 'Over 3 years' } },
   none: { order: 5, label: { es: 'Sin vencimiento', en: 'No maturity' } },
 }
+
+const MORE_KEY = '__more'
 
 function maturityBucketKey(it) {
   const info = getMaturityInfo(it)
@@ -125,18 +128,31 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
 
   const t = (es, en) => lang === 'es' ? es : en
 
-  const views = [
+  // Rediseño, sección 2: tres vistas a la vista y el resto detrás de "Más",
+  // que se despliega como una fila de chips DENTRO de la card (el mismo
+  // segundo nivel que Análisis), nunca como un menú flotante. Siete pestañas
+  // en una fila no entraban en un teléfono y la última quedaba cortada.
+  // Ninguna vista desaparece: las siete siguen ahí, a lo sumo un toque más.
+  const primaryViews = [
     { key: 'type', label: t('Tipo', 'Type') },
-    { key: 'returnType', label: t('Retorno', 'Return') },
+    { key: 'institution', label: t('Institución', 'Institution') },
     { key: 'sector', label: t('Sector', 'Sector') },
-    { key: 'geography', label: t('Geo', 'Geo') },
-    { key: 'currency', label: t('Moneda', 'Currency') },
-    { key: 'institution', label: t('Inst.', 'Inst.') },
-    { key: 'maturity', label: t('Vencim.', 'Maturity') },
   ]
+  const moreViews = [
+    { key: 'returnType', label: t('Retorno', 'Return') },
+    { key: 'geography', label: t('Geografía', 'Geography') },
+    { key: 'currency', label: t('Moneda', 'Currency') },
+    { key: 'maturity', label: t('Vencimiento', 'Maturity') },
+  ]
+  const inMore = moreViews.some((v) => v.key === view)
+  const tabs = [...primaryViews, { key: MORE_KEY, label: `${t('Más', 'More')} ▾` }]
 
   return (
-    <div className="card p-4 sm:p-5">
+    // Alto FIJO desde lg (el mismo que Análisis): cambiar de pestaña ya no
+    // estira ni encoge la card, así que la fila del tablero no salta y las dos
+    // cards cierran en la misma línea. Lo que no entra se desplaza DENTRO del
+    // cuerpo. En móvil el alto es el del contenido, como siempre.
+    <div className="card p-4 sm:p-5 flex flex-col lg:h-[var(--composition-card-h)]">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h3 className="card-title">
@@ -168,16 +184,23 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
           borde (esta fila lo había perdido al copiarse a mano desde Análisis) y
           un objetivo táctil que no midiera exactamente el mínimo. */}
       <SegmentedTabs
-        tabs={views}
-        value={view}
-        onChange={setView}
+        tabs={tabs}
+        value={inMore ? MORE_KEY : view}
+        onChange={(k) => {
+          if (k === MORE_KEY) { if (!inMore) setView(moreViews[0].key) }
+          else setView(k)
+        }}
         deps={[lang]}
         ariaLabel={t('Agrupar por', 'Group by')}
-        className="mb-5"
+        className={inMore ? 'mb-2' : 'mb-4'}
       />
+      {inMore && (
+        <SubTabs tabs={moreViews} value={view} onChange={setView}
+          ariaLabel={t('Más formas de agrupar', 'More ways to group')} className="mb-4" />
+      )}
 
       {/* Horizontal bar breakdown */}
-      <div className="space-y-0">
+      <div className="space-y-0 flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 lg:-mr-1">
         {allocation.map((seg) => {
           const displayName = view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
             ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
@@ -209,15 +232,13 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
                       </span>
                     )}
                   </div>
-                  {/* Rescued from InstitutionPerformance (see the tally comment
-                      in the memo above). Only in the institution view: a
-                      position count next to "Bonds" or "USD" would mean
-                      something different and read as noise. */}
-                  {view === 'institution' && (
-                    <span className="text-xs text-slate-500 shrink-0">
-                      {seg.count} {t('pos.', 'pos.')}
-                    </span>
-                  )}
+                  {/* Rediseño, sección 2: el conteo va en TODAS las vistas, así
+                      cada fila tiene la misma forma (punto, nombre, posiciones,
+                      retorno, valor, %). Es un conteo de tenencias, igual de
+                      cierto agrupando por tipo que por institución. */}
+                  <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    {seg.count} {t('pos.', 'pos.')}
+                  </span>
                   {view === 'institution' && seg.hasIbkr && ibkrDataComplete != null && (
                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                       style={ibkrDataComplete

@@ -13,9 +13,7 @@ import PullToRefresh from '@/components/ui/PullToRefresh'
 import ModalMount from '@/components/ui/ModalMount'
 import useModalExit from '@/hooks/useModalExit'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
-import { InfoTip } from '@/components/ui/Tooltip'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
-import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import PageBanner from '@/components/ui/PageBanner'
 import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
@@ -25,6 +23,7 @@ import YtdBreakdownSection from '@/components/dashboard/YtdBreakdownSection'
 import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
 import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
+import AnalysisTabs from '@/components/dashboard/AnalysisTabs'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -34,7 +33,7 @@ import { SkeletonCard, SkeletonChart, Shimmer } from '@/components/dashboard/Ske
 // The most-seen loading moment in the app in practice — the next/dynamic()
 // fallback for 17 different modals below, so it flashes for a beat every
 // time any of them opens. Used to be its own third hardcoded-hex placeholder
-// system (bg-slate-700/*), unrelated to both Skeleton.jsx's Shimmer and to
+// system (bg-slate-700 con opacidad), unrelated to both Skeleton.jsx's Shimmer and to
 // this same file's own DashboardLoading skeleton. Same Shimmer atom as both
 // of those now — this shape (title bar + rows) has no real layout to match,
 // unlike DashboardLoading, so there's no constraint against reusing it as-is.
@@ -83,20 +82,10 @@ const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
 const DividendIncome = dynamic(() => import('@/components/dashboard/DividendIncome'), { loading: () => <SkeletonCard /> })
 const GoalTracker = dynamic(() => import('@/components/dashboard/GoalTracker'), { loading: () => <SkeletonCard /> })
-const FinancialHealth = dynamic(() => import('@/components/dashboard/FinancialHealth'), { loading: () => <SkeletonCard /> })
-const ConcentrationRisk = dynamic(() => import('@/components/dashboard/ConcentrationRisk'), { loading: () => <SkeletonCard /> })
-const GainsReport = dynamic(() => import('@/components/dashboard/GainsReport'), { loading: () => <SkeletonCard /> })
-const PerformanceAttribution = dynamic(() => import('@/components/dashboard/PerformanceAttribution'), { loading: () => <SkeletonCard /> })
-const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
 // These three were built long before they were mounted anywhere; they became
 // Analysis tabs in FASE IU. (The cardRegistry.js file that once listed them
 // had zero consumers and was deleted in FASE ME10 along with the components
 // that never got mounted at all; git history keeps everything.)
-const BenchmarkComparison = dynamic(() => import('@/components/dashboard/BenchmarkComparison'), { loading: () => <SkeletonCard /> })
-const CurrencyImpact = dynamic(() => import('@/components/dashboard/CurrencyImpact'), { loading: () => <SkeletonCard /> })
-const FeeAnalysis = dynamic(() => import('@/components/dashboard/FeeAnalysis'), { loading: () => <SkeletonCard /> })
-const PortfolioMap = dynamic(() => import('@/components/dashboard/PortfolioMap'), { loading: () => <SkeletonCard /> })
-const ProjectionSimulator = dynamic(() => import('@/components/dashboard/ProjectionSimulator'), { loading: () => <SkeletonCard /> })
 // InstitutionPerformance sigue EN DISCO y sin un solo cambio: sus seis filas
 // duplicaban número por número la vista "Inst." de Asignación de Activos, así
 // que el tablero dejó de renderizarla (ver la grilla de composición más abajo).
@@ -115,7 +104,6 @@ const InvestmentComparator = dynamic(() => import('@/components/dashboard/Invest
 const IBKR_AUTO_ADVANCE_MS = 1600
 
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
-import DataQualityCard from '@/components/dashboard/DataQualityCard'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
 import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
@@ -146,157 +134,6 @@ import { scopeTagFor } from '@/lib/scopeTag'
 // the page. Its five original tabs are unchanged; Benchmark, Currency and Fees
 // were already built as components and had simply never been mounted anywhere,
 // and Data quality moved up from "Recent activity".
-function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, rates, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, volatility, goalValue, beginnerMode, onConnect, onImportBroker, brokersOn = true }) {
-  const t = (es, en) => lang === 'es' ? es : en
-  const hasLots = lots && lots.length > 0
-
-  // Once vistas en UNA fila plana no son pestañas, son una lista que se sale de
-  // la pantalla: en el iPad del usuario la última quedaba cortada, y la guía de
-  // NN/g es explícita en que las pestañas sirven para "unas pocas secciones".
-  //
-  // Se agrupan en cuatro familias, y ninguna vista desaparece. El criterio es la
-  // PREGUNTA que contesta cada una, no de dónde salió el componente:
-  //   Rendimiento  -> cómo me fue y qué lo movió
-  //   Riesgo       -> qué tan expuesto estoy a que salga mal
-  //   Exposición   -> a qué estoy expuesto, y qué me cuesta
-  //   Proyección   -> lo que viene, y qué tan confiable es lo que estoy viendo
-  //
-  // Cuatro chips entran completos hasta en un teléfono, y dentro de cada familia
-  // quedan dos o tres vistas: los dos niveles son cortos.
-  const families = [
-    {
-      key: 'performance', label: t('Rendimiento', 'Performance'),
-      views: [
-        { key: 'benchmark', label: t('Benchmark', 'Benchmark') },
-        ...(beginnerMode ? [] : [{ key: 'attribution', label: t('Atribución', 'Attribution') }]),
-        ...(hasLots ? [{ key: 'gains', label: t('Ganancias', 'Gains') }] : []),
-      ],
-    },
-    {
-      key: 'risk', label: t('Riesgo', 'Risk'),
-      views: [
-        { key: 'health', label: t('Salud', 'Health') },
-        ...(beginnerMode ? [] : [{ key: 'risk', label: t('Métricas', 'Metrics') }]),
-        { key: 'concentration', label: t('Concentración', 'Concentration') },
-      ],
-    },
-    {
-      key: 'exposure', label: t('Exposición', 'Exposure'),
-      views: [
-        { key: 'map', label: t('Mapa', 'Map') },
-        { key: 'currency', label: t('Moneda', 'Currency') },
-        { key: 'fees', label: t('Comisiones', 'Fees') },
-      ],
-    },
-    {
-      key: 'outlook', label: t('Proyección', 'Outlook'),
-      views: [
-        { key: 'projection', label: t('Proyección', 'Projection') },
-        // Integraciones con brokers ocultas: DataQualityCard no gatea su
-        // propio render en onConnect/onImportBroker, solo el CLICK de sus
-        // botones — con esos props en null el botón quedaría visible y
-        // muerto. Se excluye la pestaña entera en vez de tocar el
-        // componente.
-        ...(brokersOn ? [{ key: 'quality', label: t('Calidad de datos', 'Data quality') }] : []),
-      ],
-    },
-  ].filter((f) => f.views.length > 0)
-
-  const [family, setFamily] = useState('risk')
-  const activeFamily = families.find((f) => f.key === family) || families[0]
-  // La vista arranca en la primera de su familia y se re-ancla al cambiar de
-  // familia, así que nunca queda una vista activa que no esté en la fila de
-  // abajo (por ejemplo al entrar o salir de modo principiante).
-  const [tab, setTab] = useState(activeFamily.views[0].key)
-  const activeTab = activeFamily.views.some((v) => v.key === tab) ? tab : activeFamily.views[0].key
-
-  return (
-    <div className="card p-4 sm:p-5">
-      {/* Header — mirrors AssetAllocation's so the two read as one pair */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="card-title">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
-          {t('ANÁLISIS', 'ANALYSIS')}
-          <InfoTip text={t(
-            'Distintas lecturas del mismo portafolio, agrupadas por la pregunta que contestan. Ninguna pestaña cambia tus datos.',
-            'Different readings of the same portfolio, grouped by the question each one answers. No tab changes your data.'
-          )} />
-        </h3>
-      </div>
-
-      <SegmentedTabs
-        tabs={families.map((f) => ({ key: f.key, label: f.label }))}
-        value={activeFamily.key}
-        onChange={(k) => {
-          setFamily(k)
-          const next = families.find((f) => f.key === k)
-          if (next) setTab(next.views[0].key)
-        }}
-        deps={[lang, beginnerMode, hasLots]}
-        ariaLabel={t('Familias de análisis', 'Analysis families')}
-        className="mb-2"
-      />
-      {/* El segundo nivel solo aparece cuando de verdad hay algo que elegir. */}
-      {activeFamily.views.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1 mb-4">
-          {activeFamily.views.map((v) => {
-            const on = v.key === activeTab
-            return (
-              <button key={v.key} onClick={() => setTab(v.key)}
-                aria-pressed={on}
-                className="px-2.5 min-h-[28px] text-caption rounded-md transition-colors"
-                // Mismo idioma de "seleccionado" que SegmentedTabs (pastilla
-                // neutra rellena + tinta primaria), un nivel mas liviano: el
-                // relleno es el gris del riel, plano, en vez de la pastilla
-                // blanca elevada. Antes iba en tinte azul + texto azul, o sea
-                // dos gramaticas distintas de seleccion apiladas a 8px.
-                style={on
-                  ? { color: 'var(--text-primary)', backgroundColor: 'var(--bg-tertiary)', fontWeight: 600 }
-                  : { color: 'var(--text-muted)' }}>
-                {v.label}
-              </button>
-            )
-          })}
-        </div>
-      )}
-      {activeTab === 'health' && (
-        // Concentration lives in its own dedicated tab; don't duplicate it here.
-        <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
-      )}
-      {activeTab === 'risk' && !beginnerMode && (
-        <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
-      )}
-      {activeTab === 'concentration' && (
-        <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
-      )}
-      {activeTab === 'gains' && hasLots && (
-        <CardBoundary id="AN-03"><GainsReport lots={lots} items={portfolioItems} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-      )}
-      {activeTab === 'attribution' && !beginnerMode && (
-        <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-      )}
-      {activeTab === 'benchmark' && (
-        <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
-      )}
-      {activeTab === 'currency' && (
-        <CardBoundary id="PR-04"><CurrencyImpact items={portfolioItems} convert={convert} baseCurrency={baseCurrency} rates={rates} lang={lang} /></CardBoundary>
-      )}
-      {activeTab === 'fees' && (
-        <CardBoundary id="IG-09"><FeeAnalysis items={portfolioItems} netWorth={netWorth} lang={lang} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
-      )}
-      {activeTab === 'quality' && (
-        <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>
-      )}
-      {activeTab === 'map' && (
-        <CardBoundary id="OR-06"><PortfolioMap items={portfolioItems} lang={lang} /></CardBoundary>
-      )}
-      {activeTab === 'projection' && (
-        <CardBoundary id="IG-11"><ProjectionSimulator netWorth={netWorth} lang={lang} volatility={volatility} goalValue={goalValue} /></CardBoundary>
-      )}
-    </div>
-  )
-}
-
 // Integraciones con brokers: OCULTAS por decisión del usuario. La lógica que
 // las sostiene (parsers, el auto-sync de hooks/useDashboardData.js, las
 // rutas bajo app/api/brokers, los campos de Firestore) sigue corriendo

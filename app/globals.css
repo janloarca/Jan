@@ -140,6 +140,11 @@
   --track-base: #E5E7EB;
 }
 
+/* Rediseño, sección 2: alto FIJO (desde lg) de las dos cards de composición,
+   Asignación de Activos y Análisis. Una sola variable para las dos, así cierran
+   en la misma línea y cambiar de pestaña no mueve el tablero. */
+:root { --composition-card-h: 560px; }
+
 /* Semantic alert tints (info / warning / error / success) — theme-aware so the
    same component reads correct colors in both light and dark. */
 :root {
