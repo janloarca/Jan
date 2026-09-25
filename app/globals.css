@@ -657,6 +657,22 @@ html[data-ptr="on"] body {
   .busy-ring-arc { animation-duration: 2.6s !important; }
 }
 
+/* ─── DESGLOSE DEL YTD (FASE OZ) ───────────────────────────────────────────
+   La sección de ancho completo que se despliega DEBAJO de la fila superior del
+   tablero. Anima la altura con grid-template-rows (0fr → 1fr) en vez de medir
+   el contenido con JS o de usar position:absolute: el panel queda MONTADO
+   cerrado a altura cero, así que el CTA de la card tiene a qué apuntar con
+   aria-controls y abrir/cerrar tienen transición en las dos direcciones.
+   220ms = --dur-base, dentro de la banda 180-250 que pide la spec. El blanket
+   de prefers-reduced-motion de más abajo la reduce a 0.01ms: nada que agregar. */
+.ytd-disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out), margin-top var(--dur-base) var(--ease-out);
+}
+.ytd-disclosure[data-open="true"] { grid-template-rows: 1fr; }
+.ytd-disclosure > * { overflow: hidden; min-height: 0; }
+
 /* ─── EL SISTEMA DE CARDS ──────────────────────────────────────────────────
    `.card` es el tratamiento canónico. Antes convivían CUATRO: .card-glass,
    .card-primary, .card-hero, y un patrón escrito a mano sin ninguna clase
