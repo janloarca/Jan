@@ -148,6 +148,12 @@ function formatNum(val) {
 // cambiaba de convencion a mitad de su propia fila. El signo tampoco puede
 // quedar solo en el color: verde y rojo miden 1.14:1 entre si, o sea para
 // daltonismo rojo-verde son la misma muestra.
+//
+// La fila de INSTITUCIÓN tenía el mismo defecto (auditoría de agentes, FASE Q):
+// una institución agrupada bajo "Pasivos" se mostraba en positivo, aunque
+// `inst.total`/`instHistTotal` ya vienen firmados. `formatNum` se usa acá solo
+// como el paso sin signo dentro de `formatSigned`; ningún caller externo debe
+// llamarlo directo sobre un total que puede ser negativo.
 function formatSigned(val) {
   if (val == null || !isFinite(val)) return '-'
   return `${val < 0 ? '-' : ''}${formatNum(val)}`
@@ -2168,7 +2174,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             const isCurrent = mk === currentMonthKey
                             const displayVal = showOriginal && instOrigTotal != null ? instOrigTotal : inst.total
                             if (isCurrent) {
-                              return <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ backgroundColor: CURRENT_COL_BG, color: 'var(--text-secondary)' }}>{formatNum(displayVal)}</td>
+                              return <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ backgroundColor: CURRENT_COL_BG, color: 'var(--text-secondary)' }}>{formatSigned(displayVal)}</td>
                             }
                             const histMonth = historicalItems[mk]
                             let instHistTotal = null
@@ -2184,7 +2190,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             }
                             return (
                               <td key={mk} className="text-right py-2 px-2 font-medium tabular-nums font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
-                                {instHistTotal != null ? formatNum(toDisplayCurrency(instHistTotal, instOrigTotal != null ? singleCurrency : null)) : ''}
+                                {instHistTotal != null ? formatSigned(toDisplayCurrency(instHistTotal, instOrigTotal != null ? singleCurrency : null)) : ''}
                               </td>
                             )
                           })}

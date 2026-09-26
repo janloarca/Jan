@@ -18,14 +18,21 @@ export default class CardBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      // Clases fijas de Tailwind para un color dinámico (regla que CLAUDE.md ya
+      // prohíbe): `text-red-400/80` medía 2.77:1 en tema claro, bajo el piso AA
+      // de 4.5:1 — el id de la card apenas se leía justo cuando algo se rompió.
+      // Tokens de alerta, el mismo trío que ya usan el resto de los avisos de
+      // error de la app (bg/border/icon).
       return (
-        <div data-card-id={this.props.id} className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 text-center">
-          <p className="text-xs text-red-400/80">
+        <div data-card-id={this.props.id} className="rounded-2xl p-4 text-center"
+          style={{ backgroundColor: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)' }}>
+          <p className="text-xs" style={{ color: 'var(--alert-error-icon)' }}>
             {this.props.id}
           </p>
           <button
             onClick={() => this.setState({ hasError: false })}
-            className="mt-1 text-xs text-slate-500 hover:text-white"
+            className="mt-1 text-xs"
+            style={{ color: 'var(--text-secondary)' }}
           >
             Retry
           </button>
