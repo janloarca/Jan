@@ -28,6 +28,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Claude Code local tooling (agent worktrees, etc.) — never project content
+/.claude/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
