@@ -8,6 +8,7 @@ import { useSpreadsheetContext } from '@/hooks/useSpreadsheetContext'
 import SheetTabs from '@/components/spreadsheet/SheetTabs'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import ModalMount from '@/components/ui/ModalMount'
+import PageBanner from '@/components/ui/PageBanner'
 import useModalExit from '@/hooks/useModalExit'
 import { SkeletonTable } from '@/components/dashboard/Skeleton'
 import PageTour from '@/components/dashboard/PageTour'
@@ -74,7 +75,7 @@ export default function SpreadsheetPage() {
   const {
     items, enrichedItems, netWorth, transactions, financeTransactions, returnYTD,
     snapshots, addItem, addItemInScope, updateItem, deleteItem, portfolioItems, convert, rates,
-    baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
+    baseCurrency, saveItemSnapshots, loadItemSnapshots, lots, portfolios,
     addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
     addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
     handleRefresh, pricesLoading, ratesLoading,
@@ -314,6 +315,29 @@ export default function SpreadsheetPage() {
               {t('Ir al tablero', 'Go to dashboard')}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* FASE Q (auditoría de agentes): la Hoja siempre calcula sobre TODOS los
+          portafolios/entidades (`activePortfolio:'__all__'` fijo, ver arriba),
+          mientras el tablero deja acotar a uno solo con PortfolioSelector /
+          EntitySwitcher. No es un bug de datos (las dos pantallas miden bien
+          lo que les toca), es un alcance DISTINTO sin avisar: alguien que
+          acotó el tablero a un portafolio y viene a la Hoja podía leer un
+          patrimonio mayor sin entender por qué. Compartir esa selección
+          exigiría primero que el propio tablero la persista (hoy es
+          `useState` puro, se resetea a "Todos" en cada recarga: no hay nada
+          concreto que "heredar"), así que decirlo es la corrección real.
+          Gateado a que exista más de un portafolio: sin eso, "todos" y "el
+          único que tenés" son la misma cosa y el aviso sería ruido. */}
+      {portfolios && portfolios.length > 0 && (
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-3">
+          <PageBanner tone="info" icon="info">
+            {t(
+              'La Hoja siempre suma TODOS tus portafolios y entidades juntos, sin importar lo que tengas seleccionado en el tablero.',
+              'The Sheet always adds up ALL your portfolios and entities together, regardless of what you have selected on the dashboard.'
+            )}
+          </PageBanner>
         </div>
       )}
 

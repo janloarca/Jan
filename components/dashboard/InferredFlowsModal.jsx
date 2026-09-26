@@ -13,6 +13,7 @@ import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate } from './utils'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { parseAmount } from '@/lib/numberParse'
 
 export default function InferredFlowsModal({
   candidates = [], reconciliation = null, onClose, onAccept, onDismiss, lang = 'es',
@@ -28,7 +29,7 @@ export default function InferredFlowsModal({
     setBusyId(c.id)
     try {
       const overridden = edits[c.id]
-      const amount = overridden != null && overridden !== '' ? parseFloat(overridden) : c.amount
+      const amount = overridden != null && overridden !== '' ? parseAmount(overridden) : c.amount
       await onAccept({ ...c, amount: isFinite(amount) && amount > 0 ? amount : c.amount })
       setDone((s) => new Set(s).add(c.id))
     } finally {
