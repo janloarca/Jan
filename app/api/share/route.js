@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { rateLimit } from '@/lib/rateLimit'
-import { loadUserPortfolioContext, loadOwnerProfile } from '@/lib/briefContext'
+import { loadUserPortfolioContext, loadOwnerProfile, scopeSourceExists } from '@/lib/briefContext'
 import { buildReportData } from '@/lib/reportData'
 import { buildSharePayload, sanitizeDisplay, sanitizeLang, sanitizeAdvisor, expiresAtFrom, shareTokenExpired } from '@/lib/sharePayload'
 import { itemAnnualIncomeInBase } from '@/lib/serverPortfolio'
@@ -334,12 +334,19 @@ export async function GET(request) {
       // en vez de mostrar una pantalla de link roto. Las fichas SÍ viajan: el
       // caso real de un asesor es mandarle una oportunidad a un prospecto que
       // todavía no tiene posiciones registradas.
-      const [profile, instruments] = await Promise.all([
+      //
+      // Pero "cero ítems con esta etiqueta" tiene DOS causas que se ven
+      // idénticas desde acá y no lo son: el portafolio/entidad sigue existiendo
+      // y hoy no tiene nada, o el dueño LO BORRÓ después de crear este link.
+      // scopeSourceExists() las separa leyendo el doc de registro.
+      const [profile, instruments, scopeExists] = await Promise.all([
         loadOwnerProfile(db, uid),
         loadInstruments(db, uid, instrumentIds),
+        scopeSourceExists(db, uid, scope),
       ])
       return NextResponse.json({
         empty: true, display, lang, label: tokenData.label || null, scopeLabel,
+        scopeGone: !scopeExists,
         baseCurrency: 'USD', owner: profile.name || '', advisor: sanitizeAdvisor(profile.advisor),
         asOf: Date.now(), instruments,
       })
