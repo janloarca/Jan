@@ -171,15 +171,27 @@ Con **MacroDroid** (más simple) o **Tasker** (más potente):
 
 1. Darle acceso a notificaciones a la app de automatización.
 2. Disparador: *Notificación recibida*, filtrado a la app de tu banco.
-3. Acción: *Petición HTTP*, `POST` a `https://chispu.xyz/api/ingest/expense`,
-   con el header `Authorization: Bearer <tu token>` y este cuerpo:
+3. Acción: *Petición HTTP* (HTTP Request), método `POST`.
+
+   **Campo por campo, porque es donde se equivoca todo el mundo:**
+
+   | Campo de la app | Qué va ahí |
+   | --- | --- |
+   | URL | `https://chispu.xyz/api/ingest/expense` y nada más. El JSON **no** va acá |
+   | Tipo de contenido | `application/json` |
+   | Encabezados (MacroDroid: *Parámetros de encabezado*) | nombre `Authorization`, valor `Bearer <tu token>` |
+   | Cuerpo (Body / Contenido) | el JSON de abajo |
 
    ```json
-   {"source":"android","title":"","text":"","occurredAt":""}
+   {"source":"android","title":"TITULO_DE_LA_NOTIFICACION","text":"TEXTO_DE_LA_NOTIFICACION","occurredAt":"FECHA_Y_HORA_CON_ZONA"}
    ```
 
-   En `title` y `text` van las variables de **título** y **texto** de la
-   notificación que ofrece la app de automatización.
+   Los tres marcadores se reemplazan con **variables de la app**, no con texto
+   escrito: el título y el texto de la notificación, y la fecha y hora actuales.
+   Cada app las nombra distinto, así que hay que tomarlas de su selector de
+   variables (en MacroDroid, el botón de texto mágico). Los marcadores van
+   visibles a propósito: con cadenas vacías el cuerpo se veía terminado y pegarlo
+   tal cual no daba ninguna señal de que faltaba un paso.
 4. **`occurredAt` con la zona horaria puesta.** Es la fecha y hora actuales en
    formato `yyyy-MM-dd'T'HH:mm:ssZ` (en MacroDroid, *Formato de fecha/hora*; en
    Tasker, la acción *Variable Set* con ese mismo patrón). La `Z` del patrón
@@ -190,9 +202,28 @@ Con **MacroDroid** (más simple) o **Tasker** (más potente):
    en UTC, que en Guatemala rota a las seis de la tarde. Una compra de la noche
    del último día del mes quedaría archivada en el mes siguiente, y en Flujo eso
    no es un día de diferencia: es dinero cambiado de mes.
-5. **Excluir la app de la optimización de batería.** Es el modo de fallo típico
-   en Android: sin eso el sistema apaga el escucha y las capturas se detienen sin
-   avisar.
+5. **Excluir la app de la optimización de batería** (*Ajustes → Batería → Sin
+   restricciones*). Es el modo de fallo típico en Android: sin eso el sistema
+   apaga el escucha y las capturas se detienen sin avisar.
+
+### Cómo probar sin gastar dinero
+
+Corré la macro con el **botón de ejecutar de la propia app**. Como no hay ninguna
+notificación de la cual leer las variables, llega el cuerpo con los marcadores
+sin reemplazar, y el servidor contesta justamente eso:
+
+> Conexión lista: la petición llegó y el token funciona. Lo que falta son las
+> variables de la notificación.
+
+Esa respuesta confirma las tres cosas que se pueden equivocar antes de tocar el
+banco: la URL, el header y el token. Después, en *Gastos automáticos*, la línea
+de **último uso** del token lo deja registrado (hay un *actualizar* al lado para
+volver a leerla sin cerrar el modal).
+
+**Y por eso NO hay un botón de "enviar prueba" en la web.** Mandaría la petición
+desde el navegador, o sea probaría nuestro endpoint y no el teléfono: podría
+decir "funciona" con la macro mal configurada, y una confirmación falsa es peor
+que ninguna. El botón de ejecutar de la app sí prueba el camino real.
 
 ### Por qué el texto se parsea en el servidor
 
@@ -330,6 +361,10 @@ guardar reglas a partir de descripciones sueltas.
 | Responde **503** `error:quota` | La base de datos llegó a su límite diario de uso. Se reinicia sola en unas horas; ese gasto no se registró, así que agregarlo a mano o esperar a que llegue por el estado de cuenta |
 | Responde **503** `error:14` (o `error:4` / `error:13`) | Hipo de la base de datos. El servidor ya lo reintenta solo tres veces, así que llegar acá significa que no cedió: es pasajero y la próxima compra debería entrar |
 | Responde **500** | Fallo del servidor que no es de la base. La línea de "último uso" del token guarda el código; hay que reportarlo |
+| Android responde 400 `EMPTY_ALERT` | Llegó, con el token y el header correctos, pero el cuerpo traía los marcadores sin reemplazar (o una variable que la app no resolvió). **Es lo esperado al correr la macro a mano**, y es la confirmación de que la conexión ya funciona: falta ponerle las variables de la notificación |
+| Android: pegué el JSON y no pasa nada | Revisar que el JSON esté en el campo de **cuerpo** y no en el de URL, y que el tipo de contenido sea `application/json`. Un JSON en el campo de URL no produce ningún error legible del lado de la app |
+| Android: el gasto entra pero con la fecha corrida | La respuesta trae `warning: PLACEHOLDER_DATE` cuando `occurredAt` llegó con el marcador sin reemplazar: ahí el día sale de la hora de llegada leída en UTC. Ponerle la variable de fecha con la zona incluida |
+| Android: las capturas se detuvieron sin avisar | Es el modo de fallo típico: la optimización de batería apagó el escucha. *Ajustes → Batería → Sin restricciones* para la app de automatización |
 | El correo no entra | La regla de reenvío perdió el `+<token>`, o el correo llegó sin monto reconocible |
 | Todo cae en Otros Gastos | Aún no hay regla para ese comercio: corrígelo una vez y se aprende |
 
