@@ -185,3 +185,86 @@ describe('el día de una captura de Android sale de la zona que declara', () => 
     expect(await dayFor({ ...PUSH, occurredAt: '2026-09-01T02:05:00Z' })).toBe('2026-09-01')
   })
 })
+
+// El reporte de un usuario REAL de Android: configuró la macro y lo único que
+// recibió de vuelta fue un error sobre el MONTO, con instrucciones para ir a
+// Atajos y probar con Apple Pay. En su teléfono no existe ninguna de las dos.
+describe('el cuerpo pegado sin reemplazar los marcadores', () => {
+  const { ANDROID_BODY_TEMPLATE, ANDROID_PLACEHOLDERS } = require('../../../../../lib/androidCapture')
+
+  test('lo nombra por su causa y confirma que la conexión ya funciona', async () => {
+    const res = await POST(req(JSON.parse(ANDROID_BODY_TEMPLATE)))
+    expect(res.status).toBe(400)
+    const data = await res.json()
+    expect(data.error).toBe('EMPTY_ALERT')
+    // La mitad buena, dicha primero: llegó y el token sirvió.
+    expect(data.reached).toBe(true)
+    expect(data.message).toMatch(/token/i)
+    // Y NO se escribe nada, o sea el "probar sin gastar" no ensucia el mes.
+    expect(ingestExpense).not.toHaveBeenCalled()
+    // Queda constancia, que es lo que hace que la línea de "último uso" del
+    // modal distinga esto de "el teléfono nunca llegó al servidor".
+    expect(stampIngestResult).toHaveBeenCalledWith(expect.anything(), expect.any(String), 'EMPTY_ALERT', 'android')
+  })
+
+  // Antes esta MISMA causa salía con dos códigos distintos según la forma del
+  // marcador, y ninguno de los dos la nombraba: con cadenas vacías caía en la
+  // rama estructurada (MISSING_AMOUNT, que habla de una variable de Wallet) y
+  // con marcadores a la vista en la de texto (not-an-alert, "es normal si la
+  // regla deja pasar avisos que no son de compra").
+  test('también cuando los marcadores llegan vacíos', async () => {
+    const res = await POST(req({ source: 'android', title: '', text: '', occurredAt: '' }))
+    expect((await res.json()).error).toBe('EMPTY_ALERT')
+  })
+
+  test('también cuando la app no resolvió su variable', async () => {
+    const res = await POST(req({ source: 'android', title: '[notification_title]', text: '%NTEXT' }))
+    expect((await res.json()).error).toBe('EMPTY_ALERT')
+  })
+
+  // Control positivo, sin el cual todo lo de arriba podría pasar por haber
+  // dejado de aceptar el camino de Android del todo.
+  test('un push REAL sigue entrando igual', async () => {
+    ingestExpense.mockResolvedValue({ status: 'created', id: 'x', transaction: { category: 'Alimentación' } })
+    const res = await POST(req({ source: 'android', title: 'Banco G&T', text: 'Compra por Q18.00 en MCDONALDS' }))
+    expect(res.status ?? 200).toBe(200)
+    expect((await res.json()).status).toBe('created')
+  })
+
+  // Y el atajo del iPhone, que manda los campos estructurados y jamás title ni
+  // text, no puede caer en esta rama por su cuenta.
+  test('el atajo con sus campos vacíos NO se lee como Android', async () => {
+    const res = await POST(req({ source: 'shortcut', amount: null }))
+    expect((await res.json()).error).toBe('MISSING_AMOUNT')
+  })
+
+  // El gasto SÍ entra, pero el día salió de la hora de llegada en UTC: en
+  // Guatemala eso rota a las seis de la tarde, así que una compra de la noche
+  // del último día del mes se archiva en el mes siguiente. Callarlo es la
+  // degradación muda que el invariante 5 prohíbe.
+  test('un occurredAt sin reemplazar se avisa aunque el gasto se registre', async () => {
+    ingestExpense.mockResolvedValue({ status: 'created', id: 'x', transaction: { category: 'Alimentación' } })
+    const res = await POST(req({
+      source: 'android',
+      title: 'Banco G&T',
+      text: 'Compra por Q18.00 en MCDONALDS',
+      occurredAt: ANDROID_PLACEHOLDERS.occurredAt,
+    }))
+    const data = await res.json()
+    expect(data.status).toBe('created')
+    expect(data.warning).toBe('PLACEHOLDER_DATE')
+    expect(data.message).toMatch(/se registr/i)
+  })
+
+  test('con la fecha bien puesta no hay ningún aviso', async () => {
+    ingestExpense.mockResolvedValue({ status: 'created', id: 'x', transaction: { category: 'Alimentación' } })
+    const res = await POST(req({
+      source: 'android',
+      title: 'Banco G&T',
+      text: 'Compra por Q18.00 en MCDONALDS',
+      occurredAt: '2026-08-31T20:05:00-0600',
+    }))
+    const data = await res.json()
+    expect(data.warning).toBeUndefined()
+  })
+})

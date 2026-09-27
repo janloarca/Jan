@@ -6,6 +6,7 @@ import { expenseFromAlert } from '@/lib/alertIngest'
 import { normalizeExpenseInput, ingestExpense, explainIngestError, INGEST_SOURCES } from '@/lib/expenseIngest'
 import { withFirestoreRetry, describeFirestoreFailure, firestoreErrorCode } from '@/lib/firestoreErrors'
 import { payerOffsetFromTimestamp } from '@/lib/localDate'
+import { alertBodyIsUnconfigured, isUnreplacedPlaceholder } from '@/lib/androidCapture'
 
 // De qué transporte dice venir la captura. Se acepta del cuerpo pero SOLO de la
 // lista cerrada: no es una frontera de seguridad (esa es el token), pero sí
@@ -92,6 +93,25 @@ export async function POST(request) {
     const via = sourceOf(body)
     const rawText = typeof body?.text === 'string' ? body.text : ''
     const rawTitle = typeof body?.title === 'string' ? body.title : ''
+
+    // El cuerpo pegado SIN reemplazar los marcadores es el modo de fallo número
+    // uno al configurar Android, y hasta ahora se contestaba con una frase del
+    // ATAJO ("probalo con una compra real de Apple Pay") o con "esa notificación
+    // no parecía un cobro", que mandan a revisar dos lugares equivocados.
+    //
+    // Se chequea ANTES de las dos ramas a propósito: con marcadores vacíos caía
+    // en la estructurada (MISSING_AMOUNT) y con marcadores a la vista cae en la
+    // de texto (not-an-alert), o sea la MISMA causa salía con dos códigos
+    // distintos y ninguno la nombraba. Y es lo que convierte el botón de
+    // "ejecutar ahora" de la app en una prueba de verdad: llegó, el token sirve,
+    // falta esto.
+    if (via === 'android' && alertBodyIsUnconfigured({ title: rawTitle, text: rawText })) {
+      await stampIngestResult(db, token, 'EMPTY_ALERT', via)
+      return NextResponse.json(
+        { error: 'EMPTY_ALERT', reached: true, message: explainIngestError('EMPTY_ALERT', { source: via }) },
+        { status: 400 }
+      )
+    }
     // La hora de LLEGADA sirve como instante de la compra en los dos caminos: el
     // atajo dispara en la caja y el push del banco llega en segundos.
     const receivedAt = new Date().toISOString()
@@ -137,7 +157,7 @@ export async function POST(request) {
     // problema que no existe.
     if (alertSkip) {
       await stampIngestResult(db, token, alertSkip, via)
-      return NextResponse.json({ ok: true, status: 'skipped', reason: alertSkip, message: explainIngestError(alertSkip) })
+      return NextResponse.json({ ok: true, status: 'skipped', reason: alertSkip, message: explainIngestError(alertSkip, { source: via }) })
     }
     // El error viaja con una frase legible además del código, porque el único
     // lugar donde el usuario lo ve es una notificación del teléfono: ahí no hay
@@ -148,7 +168,7 @@ export async function POST(request) {
       // y "el atajo nunca llegó" son diagnósticos opuestos y desde afuera se ven
       // igual (no aparece el gasto).
       await stampIngestResult(db, token, input.error, via)
-      return NextResponse.json({ error: input.error, message: explainIngestError(input.error) }, { status: 400 })
+      return NextResponse.json({ error: input.error, message: explainIngestError(input.error, { source: via }) }, { status: 400 })
     }
 
     const rules = await withFirestoreRetry(() => readUserRules(db, resolved.uid), { label: 'ingest/rules' })
@@ -163,9 +183,24 @@ export async function POST(request) {
     )
     await stampIngestResult(db, token, result.status, via)
 
+    // El gasto SÍ se registró, así que esto no es un fallo, pero el día salió de
+    // la hora de llegada leída en UTC en vez de la zona del pagador, y en
+    // Guatemala eso rota a las seis de la tarde: una compra de la noche del
+    // último día del mes se archiva en el mes SIGUIENTE. Callarlo es la
+    // degradación muda que el invariante 5 prohíbe, y hasta que los marcadores
+    // fueran visibles no había forma de distinguir "no mandó el campo" (una
+    // elección legítima) de "lo mandó sin reemplazar".
+    const dateUnconfigured = via === 'android'
+      && body?.occurredAt != null
+      && isUnreplacedPlaceholder(body.occurredAt)
+
     return NextResponse.json({
       ok: true,
       status: result.status, // 'created' | 'duplicate'
+      ...(dateUnconfigured ? {
+        warning: 'PLACEHOLDER_DATE',
+        message: explainIngestError('PLACEHOLDER_DATE', { source: via }),
+      } : {}),
       id: result.id,
       category: result.transaction?.category || result.duplicateOf?.category || null,
       amount: input.amount,

@@ -7,22 +7,24 @@ import { Zap } from 'lucide-react'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import LearnedRulesList from '@/components/finance/LearnedRulesList'
+import { ANDROID_BODY_TEMPLATE } from '@/lib/androidCapture'
 
 // Standalone entry point for auto-captured expenses (iPhone Shortcut + forwarded
 // bank alerts), scoped to Flujo. Lives here instead of the shared Settings modal
 // (which opens from Patrimonio/dashboard) so configuring it never pulls a Flujo
 // user away from this page — the entire feature is Flujo's, not Patrimonio's.
 
-// El cuerpo que la app de automatización de Android manda. Los tres campos van
-// vacíos a propósito: ahí se pegan las variables de la notificación, igual que
-// en el atajo del iPhone se pegan las de la transacción.
+// El cuerpo que la app de automatización de Android manda viene del módulo
+// compartido: el SERVIDOR reconoce esos mismos marcadores para poder decir
+// "llegó, pero falta reemplazarlos" en vez de contestar con un error sobre el
+// monto. Dos copias de la plantilla es cómo el mensaje deja de corresponder con
+// lo que el usuario tiene pegado en el teléfono.
 //
 // ⛔ `occurredAt` no es para la HORA (la de llegada ya sirve: un push llega en
 // segundos), es para el DÍA. Un push no declara zona horaria, y sin ninguna el
 // servidor tiene que leer el día en UTC, que en Guatemala rota a las seis de la
 // tarde: una compra de la noche del último día del mes quedaría archivada en el
 // mes siguiente, o sea dinero cambiado de mes en Flujo.
-const ANDROID_BODY = '{"source":"android","title":"","text":"","occurredAt":""}'
 
 export default function AutoCaptureModal({ onClose, lang = 'es' }) {
   const trapRef = useFocusTrap()
@@ -112,13 +114,24 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
     // opuestos: el primero se reintenta solo, el segundo hay que ir a
     // arreglarlo al teléfono. Decirle "rechazado" a un crash manda a revisar
     // justo donde no está el problema.
+    // Un SKIP tampoco es un rechazo: un reverso, un cobro declinado o un aviso
+    // que no era de compra son resultados legítimos, y llamarlos "rechazado"
+    // manda a arreglar una macro que está bien.
     const outcome = r === 'created' ? t('gasto registrado', 'expense recorded')
       : r === 'duplicate' ? t('ya estaba registrado', 'already recorded')
-        : r === 'error:quota' ? t('la base llegó a su límite diario', 'database hit its daily limit')
-          : String(r || '').startsWith('error') ? t('falló en el servidor', 'server failure')
-            : r ? t(`rechazado: ${r}`, `rejected: ${r}`)
-              : null
-    const bad = r && r !== 'created' && r !== 'duplicate'
+        // Llegó, con el token y el header correctos: lo único que falta son las
+        // variables. Se dice así y no como un rechazo, porque es la mitad buena.
+        : r === 'EMPTY_ALERT' ? t('llegó, pero sin los datos de la notificación', 'arrived, but with no notification data')
+          : r === 'credit' ? t('era un reverso, no un gasto', 'it was a refund, not an expense')
+            : r === 'declined' ? t('el cobro fue rechazado por el banco', 'the bank declined the charge')
+              : r === 'not-an-alert' ? t('no parecía un cobro', 'did not look like a charge')
+                : r === 'error:quota' ? t('la base llegó a su límite diario', 'database hit its daily limit')
+                  : String(r || '').startsWith('error') ? t('falló en el servidor', 'server failure')
+                    : r ? t(`rechazado: ${r}`, `rejected: ${r}`)
+                      : null
+    // Un skip no pinta de aviso: nada se registró y eso es lo correcto.
+    const fine = ['created', 'duplicate', 'credit', 'declined', 'not-an-alert']
+    const bad = r && !fine.includes(r)
     return {
       text: [t('Último uso ', 'Last used '), ago, outcome ? ` · ${outcome}` : ''].filter(Boolean).join(''),
       tone: bad ? 'var(--alert-warn-icon)' : 'var(--text-muted)',
@@ -271,7 +284,18 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                             que no aparece puede ser que la automatización nunca
                             disparó, que disparó y la rechazamos, o que era
                             duplicado — y las tres se ven exactamente igual. */}
-                        <p className="text-xs mt-0.5" style={{ color: lastUse(tk).tone }}>{lastUse(tk).text}</p>
+                        {/* El "actualizar" va pegado a la línea que contesta, no
+                            arriba del modal: quien acaba de correr la macro en el
+                            teléfono mira ACÁ para ver si llegó, y sin esto había
+                            que cerrar y reabrir el modal (loadIngest solo corre
+                            al montar), o sea el lazo de diagnóstico no cerraba. */}
+                        <p className="text-xs mt-0.5" style={{ color: lastUse(tk).tone }}>
+                          {lastUse(tk).text}
+                          <button onClick={loadIngest} disabled={initialLoading}
+                            className="ml-1.5 underline disabled:opacity-50" style={{ color: 'var(--accent-blue)' }}>
+                            {initialLoading ? t('…', '…') : t('actualizar', 'refresh')}
+                          </button>
+                        </p>
                       </div>
                       <button onClick={() => handleRevokeIngestToken(tk.token)} disabled={ingestLoading} aria-label={t('Revocar', 'Revoke')}
                         className="shrink-0 px-2 py-1 text-xs hover:opacity-100 transition-opacity" style={{ color: 'var(--text-negative)', opacity: 0.6 }}>
@@ -283,6 +307,17 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                         className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {copyLabel(tk.token, 'token')} {t('token', 'token')}
                       </button>
+                      {/* El valor del header, que hasta ahora no se mostraba en
+                          ninguna parte: las instrucciones decían "con el header
+                          Authorization" sin decir nunca que el valor lleva
+                          "Bearer " adelante, o sea había que saberlo. Se copia
+                          el VALOR y no el par entero porque las dos apps piden
+                          nombre y valor en campos separados. */}
+                      <button onClick={() => copyIngest(tk.token, 'auth', `Bearer ${tk.token}`)}
+                        className="px-2.5 py-1 text-xs font-medium rounded-md border transition-colors hover:bg-blue-500/10"
+                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                        {copyLabel(tk.token, 'auth')} {t('header', 'header')}
+                      </button>
                       {address && (
                         <button onClick={() => copyIngest(tk.token, 'email', address)}
                           className="px-2.5 py-1 text-xs font-medium rounded-md border transition-colors hover:bg-blue-500/10"
@@ -292,6 +327,13 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                       )}
                     </div>
                     {address && <p className="text-xs text-slate-600 font-mono break-all">{address}</p>}
+                    {/* Junto a los botones que lo copian, no enterrado al pie
+                        del modal: quien acaba de copiar el token es quien está a
+                        punto de pegarlo en algún lado. */}
+                    <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
+                      {t('No lo compartas: es como una contraseña. Cualquiera que lo tenga puede agregar gastos a tu cuenta (leerla, no).',
+                         'Do not share it: it works like a password. Anyone who has it can add expenses to your account (not read it).')}
+                    </p>
                   </div>
                 )
               })}
@@ -318,20 +360,80 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
 
               <div>
                 <p className="text-xs font-medium text-white mb-1">{t('2. Android (instantáneo)', '2. Android (instant)')}</p>
+                {/* Campo por campo, con el nombre de cada uno. Antes era un solo
+                    párrafo que nombraba el endpoint, el header y el cuerpo sin
+                    decir en qué casilla va cada cosa, y el resultado real fue
+                    alguien pegando el JSON en el campo de la URL. */}
                 <p className="text-xs text-slate-500">{t(
-                  'Con una app de automatización (MacroDroid o Tasker): disparador "Notificación recibida" filtrado a la app de tu banco, acción "Petición HTTP" POST al endpoint de arriba, con el header Authorization y este cuerpo. Pon las variables de título y texto de la notificación en los primeros dos campos, y en occurredAt la fecha y hora actuales con formato yyyy-MM-dd\'T\'HH:mm:ssZ (esa Z emite el desfase, no una letra: es lo que evita que una compra de la noche quede fechada mañana):',
-                  'With an automation app (MacroDroid or Tasker): trigger "Notification received" filtered to your bank app, action "HTTP Request" POST to the endpoint above, with the Authorization header and this body. Put the notification title and text variables into the first two fields, and in occurredAt the current date and time formatted as yyyy-MM-dd\'T\'HH:mm:ssZ (that Z emits the offset, not a letter: it is what keeps an evening purchase from being dated tomorrow):'
+                  'Con MacroDroid o Tasker, una macro con un disparador y una acción:',
+                  'With MacroDroid or Tasker, one macro with a trigger and an action:'
                 )}</p>
+                <ol className="text-xs text-slate-500 mt-1 space-y-1 list-decimal pl-4">
+                  <li>{t(
+                    'Dale a la app permiso de leer notificaciones (te lo pide el sistema, no la app).',
+                    'Grant the app notification access (the system asks for it, not the app).'
+                  )}</li>
+                  <li>{t(
+                    'Disparador: "Notificación recibida", filtrado a la app de tu banco.',
+                    'Trigger: "Notification received", filtered to your bank app.'
+                  )}</li>
+                  <li>{t(
+                    'Acción: "Petición HTTP" (HTTP Request). Método: POST.',
+                    'Action: "HTTP Request". Method: POST.'
+                  )}</li>
+                  <li>{t(
+                    'Campo URL: el endpoint de arriba, y nada más. El JSON NO va acá.',
+                    'URL field: the endpoint above, and nothing else. The JSON does NOT go here.'
+                  )}</li>
+                  <li>{t(
+                    'Tipo de contenido: application/json.',
+                    'Content type: application/json.'
+                  )}</li>
+                  <li>{t(
+                    'Encabezados (en MacroDroid suele llamarse "Parámetros de encabezado"): nombre Authorization, valor el del botón "Copiar header" de tu token.',
+                    'Headers (MacroDroid usually calls this "Header parameters"): name Authorization, value the one from your token\'s "Copy header" button.'
+                  )}</li>
+                  <li>{t(
+                    'Campo del cuerpo (Body / Contenido): este JSON, con los tres marcadores reemplazados.',
+                    'Body / Content field: this JSON, with the three placeholders replaced.'
+                  )}</li>
+                </ol>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <code className="flex-1 min-w-0 text-xs text-slate-400 font-mono break-all bg-theme-surface px-2 py-1 rounded">{ANDROID_BODY}</code>
-                  <button onClick={() => copyIngest('android', 'body', ANDROID_BODY)}
+                  <code className="flex-1 min-w-0 text-xs text-slate-400 font-mono break-all bg-theme-surface px-2 py-1 rounded">{ANDROID_BODY_TEMPLATE}</code>
+                  <button onClick={() => copyIngest('android', 'body', ANDROID_BODY_TEMPLATE)}
                     className="shrink-0 px-2 py-1 text-xs font-medium rounded-md" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                     {copyLabel('android', 'body')}
                   </button>
                 </div>
+                {/* Los nombres de las variables NO se afirman: cada app tiene los
+                    suyos y desde acá no se pueden verificar (la lección de haber
+                    afirmado dos veces un hecho externo sobre Apple Pay). Lo que
+                    sí se dice es dónde encontrarlas. */}
+                <p className="text-xs mt-1.5 text-slate-500">{t(
+                  'Los tres marcadores se reemplazan con variables de la app, no con texto escrito: el título y el texto de la notificación, y la fecha y hora actuales. Cada app las nombra distinto, así que tomalas de su selector de variables (en MacroDroid, el botón de texto mágico). La fecha va con formato yyyy-MM-dd\'T\'HH:mm:ssZ: esa Z emite el desfase de tu zona, no una letra, y es lo que evita que una compra de la noche quede fechada mañana.',
+                  'The three placeholders take app variables, not typed text: the notification title and text, and the current date and time. Each app names them differently, so pick them from its variable selector (in MacroDroid, the magic text button). The date needs the format yyyy-MM-dd\'T\'HH:mm:ssZ: that Z emits your zone offset, not a letter, and it is what keeps an evening purchase from being dated tomorrow.'
+                )}</p>
+                {/* La prueba honesta. Un botón de "enviar prueba" en la web
+                    confirmaría nuestro endpoint desde el navegador y NO el
+                    teléfono, o sea podría decir "funciona" con la macro mal
+                    configurada: una confirmación falsa es peor que ninguna. El
+                    botón de ejecutar de la propia app sí prueba el camino real, y
+                    desde que el servidor reconoce los marcadores contesta con el
+                    veredicto en vez de un error sobre el monto. */}
+                <p className="text-xs mt-1.5" style={{ color: 'var(--accent-blue)' }}>{t(
+                  'Para probar sin gastar: corré la macro con el botón de ejecutar de la app. Si todavía tiene los marcadores, la respuesta te dice que la conexión y el token ya funcionan y que solo faltan las variables.',
+                  'To test without spending: run the macro with the app\'s run button. If the placeholders are still there, the response tells you the connection and token already work and only the variables are missing.'
+                )}</p>
+                {/* El modo de fallo típico de Android, en su propia línea con tono
+                    de aviso: ya estaba dicho, pero al final de un párrafo largo y
+                    en gris, y quien lo reportó no lo vio. */}
+                <p className="text-xs mt-1.5" style={{ color: 'var(--alert-warn-icon)' }}>{t(
+                  'Excluí la app de la optimización de batería (Ajustes → Batería → Sin restricciones). Sin eso Android apaga el escucha y las capturas se detienen sin avisar.',
+                  'Exclude the app from battery optimization (Settings → Battery → Unrestricted). Without it Android kills the listener and captures stop with no warning.'
+                )}</p>
                 <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>{t(
-                  'Lee el aviso de tu banco, no la billetera, así que captura todo: tarjeta física, compras en línea y Google Pay. Acuérdate de excluir la app de la optimización de batería, o Android la apaga sola.',
-                  'It reads your bank alert, not the wallet, so it captures everything: physical card, online purchases and Google Pay. Remember to exclude the app from battery optimization, or Android will kill it.'
+                  'Lee el aviso de tu banco, no la billetera, así que captura todo: tarjeta física, compras en línea y Google Pay.',
+                  'It reads your bank alert, not the wallet, so it captures everything: physical card, online purchases and Google Pay.'
                 )}</p>
               </div>
 
