@@ -132,7 +132,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
     kpis = {}, allocation = [], holdings = [], series = [], income = {}, maturities = [],
     performance = [], calendarYears = [], flows = null, maxDrawdown = null,
     currencies = [], geography = [], instruments = [],
-    degraded, failedSymbols = [], empty,
+    degraded, failedSymbols = [], empty, scopeGone,
   } = data
 
   const showAmounts = display !== 'percent'
@@ -266,9 +266,18 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
         {empty ? (
           <>
             <div className="card p-8 text-center">
-              <h1 className="text-h2 mb-2" style={{ color: 'var(--text-primary)' }}>{t('Nada que mostrar todavía', 'Nothing to show yet')}</h1>
+              <h1 className="text-h2 mb-2" style={{ color: 'var(--text-primary)' }}>
+                {scopeGone
+                  ? t('Este alcance ya no existe', 'This scope no longer exists')
+                  : t('Nada que mostrar todavía', 'Nothing to show yet')}
+              </h1>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {t('Este link apunta a un portafolio sin posiciones.', 'This link points at a portfolio with no positions.')}
+                {scopeGone
+                  ? t(
+                      `El dueño de este link eliminó${scopeLabel ? ` "${scopeLabel}"` : ' este portafolio o entidad'}. El link sigue activo, pero ya no tiene nada que mostrar.`,
+                      `The owner of this link deleted${scopeLabel ? ` "${scopeLabel}"` : ' this portfolio or entity'}. The link is still active, but there's nothing left for it to show.`,
+                    )
+                  : t('Este link apunta a un portafolio sin posiciones.', 'This link points at a portfolio with no positions.')}
               </p>
             </div>
             {opportunities}
