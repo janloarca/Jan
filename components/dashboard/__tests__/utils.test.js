@@ -33,6 +33,7 @@ import {
   getItemPrincipalCost,
   isMarketPriced,
   DEBT_CLARIFICATION,
+  liquiditySortScore,
 } from '../utils'
 
 describe('projectItemAnnualIncome', () => {
@@ -379,6 +380,37 @@ describe('getTypeCategory', () => {
   test('returns other for unknown', () => {
     expect(getTypeCategory('misc_asset')).toBe('other')
     expect(getTypeCategory(null)).toBe('other')
+  })
+})
+
+describe('liquiditySortScore', () => {
+  test('orders categories from most to least liquid, banks first', () => {
+    const bank = { type: 'Bank' }
+    const bond = { type: 'Bond' }
+    const stock = { type: 'Stock', symbol: 'AAPL' }
+    const realestate = { type: 'RealEstate' }
+    const debt = { type: 'Debt', isDebt: true }
+    expect(liquiditySortScore(bank)).toBeLessThan(liquiditySortScore(bond))
+    expect(liquiditySortScore(bond)).toBeLessThan(liquiditySortScore(stock))
+    expect(liquiditySortScore(stock)).toBeLessThan(liquiditySortScore(realestate))
+    expect(liquiditySortScore(realestate)).toBeLessThan(liquiditySortScore(debt))
+  })
+
+  test('isIlliquid sinks the item below EVERY category, even below debts', () => {
+    const illiquidBank = { type: 'Bank', isIlliquid: true }
+    const debt = { type: 'Debt', isDebt: true }
+    expect(liquiditySortScore(illiquidBank)).toBeGreaterThan(liquiditySortScore(debt))
+  })
+
+  test('a liquid bank still ranks above an illiquid alternative', () => {
+    const bank = { type: 'Bank' }
+    const illiquidAlt = { type: 'Alternative', isIlliquid: true }
+    expect(liquiditySortScore(bank)).toBeLessThan(liquiditySortScore(illiquidAlt))
+  })
+
+  test('null/undefined item does not throw', () => {
+    expect(liquiditySortScore(null)).toBe(7)
+    expect(liquiditySortScore(undefined)).toBe(7)
   })
 })
 

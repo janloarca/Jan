@@ -5,7 +5,9 @@ import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
 import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
-import { parseAmount } from '@/lib/numberParse'
+import { parseAmount, parseQuantity } from '@/lib/numberParse'
+import { liquiditySortScore, isMarketPriced } from '@/components/dashboard/utils'
+import { roundQty } from '@/lib/lotClose'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 
@@ -15,7 +17,21 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const [toId, setToId] = useState('')
   const [amount, setAmount] = useState('')
   const [toAmount, setToAmount] = useState('')
-  const [toTouched, setToTouched] = useState(false)
+  // ⛔ Reemplaza el `toTouched` booleano de antes. La sugerencia de tipo de
+  // cambio SOLO andaba en una dirección (Monto → "¿Cuánto llegó?"); al revés,
+  // corregir el monto recibido no recalculaba Monto. `lastEdited` dice cuál de
+  // los dos lados es el ANCLA (lo que el usuario tecleó de verdad) y cuál es
+  // la SUGERENCIA en vivo (lo que se deriva del ancla con la tasa de la app).
+  // Comprar acciones con efectivo (más abajo) generaliza el mismo mecanismo:
+  // ahí el ancla del lado "to" no es un campo suelto, es `cantidad × precio`.
+  const [lastEdited, setLastEdited] = useState('from')
+  // Comprar acciones/cripto con efectivo: cantidad y precio EXACTOS, en vez de
+  // derivar la cantidad de `monto ÷ precio de mercado de hoy` (lo que hacía
+  // `creditFields` para cualquier destino de mercado, sin dejar rastro de la
+  // compra: ni lote, ni precio real pagado, así que el usuario terminaba
+  // reconciliando a mano en Excel después).
+  const [shares, setShares] = useState('')
+  const [unitPrice, setUnitPrice] = useState('')
   const [date, setDate] = useState(todayLocalISO())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -40,41 +56,86 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // magnitud de la deuda en vez de pagarla, o sea el camino estaba al revés.
   // Pagar un préstamo tiene su propio flujo (Movimiento → Pago de deuda), que
   // sí baja el saldo del préstamo y el efectivo a la vez.
-  const assets = existingItems.filter((i) => !i.isDebt)
+  //
+  // Ordenados por liquidez (bancos primero, deuda nunca llega acá, alternativos
+  // al final): `liquiditySortScore` es la MISMA regla que ya usa la tabla de
+  // Patrimonio, así que "qué tan líquido es esto" no puede decir una cosa ahí y
+  // otra acá.
+  const assets = existingItems.filter((i) => !i.isDebt).sort((a, b) => liquiditySortScore(a) - liquiditySortScore(b))
   const hasDebts = existingItems.some((i) => i.isDebt)
   const fromItem = assets.find((i) => i.id === fromId)
   const toItem = assets.find((i) => i.id === toId)
   const sourceValue = fromItem ? getValue(fromItem) : 0
+  const toIsMarket = !!toItem && isMarketPriced(toItem)
 
-  // ⛔ Una transferencia entre monedas tiene DOS montos.
-  //
-  // El usuario movió Q2,500 a una cuenta en dólares y la app le acreditó
-  // $2,500: esta pantalla restaba `amt` del origen y sumaba el MISMO `amt` al
-  // destino, sin mirar la moneda de ninguno de los dos.
-  //
-  // Se pregunta CUÁNTO LLEGÓ, no la tasa (decisión del usuario): eso es lo que
-  // se lee directo del estado de cuenta, sin hacer ninguna cuenta. La tasa se
-  // deriva y se muestra para revisarla.
   const fromCurrency = fromItem?.currency || 'USD'
   const toCurrency = toItem?.currency || fromCurrency
   const crossCurrency = !!(fromItem && toItem) && String(fromCurrency).toUpperCase() !== String(toCurrency).toUpperCase()
 
+  // Comprar acciones: cambiar de destino resiembra cantidad/precio, nunca al
+  // revés. El precio arranca en la cotización VIVA del propio ítem (en SU
+  // moneda: `existingItems` acá es `reversalItems`, no `enrichedItems`, así que
+  // `currentPrice` no viene convertido a la moneda base) y queda editable,
+  // porque el usuario puede haber pagado un precio distinto al de hoy.
+  //
+  // Deps solo en `toId` A PROPÓSITO: un refresco de precios en vivo NO debe
+  // pisar lo que el usuario ya tecleó, solo el ACTO de elegir un destino nuevo.
+  useEffect(() => {
+    const dest = assets.find((i) => i.id === toId)
+    if (dest && isMarketPriced(dest)) {
+      setShares('')
+      setUnitPrice(dest.currentPrice > 0 ? String(dest.currentPrice) : '')
+      setLastEdited('to')
+    } else {
+      setShares('')
+      setUnitPrice('')
+      setLastEdited('from')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toId])
+
   // La tasa de la app es una SUGERENCIA, jamás la verdad: el banco le pone su
   // propio spread, así que el número real solo lo sabe quien hizo la operación.
-  const suggested = (() => {
-    const amt = parseAmount(amount)
-    if (!crossCurrency || !isFinite(amt) || amt <= 0 || typeof convert !== 'function') return null
-    const out = convert(amt, fromCurrency, toCurrency)
+  // Mismo helper para las dos direcciones (antes solo existía origen→destino).
+  const fx = (val, from, to) => {
+    if (!isFinite(val) || val <= 0) return null
+    if (String(from).toUpperCase() === String(to).toUpperCase()) return val
+    if (typeof convert !== 'function') return null
+    const out = convert(val, from, to)
     return isFinite(out) && out > 0 ? out : null
-  })()
+  }
 
-  const receivedRaw = toTouched ? parseAmount(toAmount) : (suggested ?? parseAmount(toAmount))
-  const received = isFinite(receivedRaw) && receivedRaw > 0 ? receivedRaw : null
-  const impliedRate = (() => {
-    const amt = parseAmount(amount)
-    if (!crossCurrency || !received || !isFinite(amt) || amt <= 0) return null
-    return amt / received
-  })()
+  const literalFrom = parseAmount(amount)
+  const literalFromOk = isFinite(literalFrom) && literalFrom > 0
+  const literalTo = parseAmount(toAmount)
+  const literalToOk = isFinite(literalTo) && literalTo > 0
+
+  const sharesNum = parseQuantity(shares)
+  const unitPriceNum = parseAmount(unitPrice)
+  // ⛔ Comprando acciones, esto SIEMPRE es el ancla del lado destino: nunca se
+  // deriva de Monto (no hay forma de partir un monto en cantidad × precio sin
+  // adivinar cuál de los dos cambió).
+  const marketToValue = toIsMarket && sharesNum > 0 && unitPriceNum > 0 ? sharesNum * unitPriceNum : null
+
+  // Cuánto llega al destino, en SU moneda.
+  const toValue = toIsMarket
+    ? marketToValue
+    : (crossCurrency
+        ? (lastEdited === 'to' ? (literalToOk ? literalTo : null) : (literalFromOk ? fx(literalFrom, fromCurrency, toCurrency) : null))
+        : (literalFromOk ? literalFrom : null))
+
+  // Cuánto sale del origen, en SU moneda. Comprando acciones, Monto sigue
+  // pudiéndose corregir a mano (ej. una comisión que se sumó al retiro) sin que
+  // eso mueva la cantidad ni el precio ya tecleados.
+  const fromValue = (toIsMarket || crossCurrency)
+    ? (lastEdited === 'from'
+        ? (literalFromOk ? literalFrom : null)
+        : (toValue != null ? fx(toValue, toCurrency, fromCurrency) : null))
+    : (literalFromOk ? literalFrom : null)
+
+  const impliedRate = (crossCurrency && fromValue != null && toValue != null && toValue > 0)
+    ? fromValue / toValue
+    : null
 
   const money = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const formatOption = (item) =>
@@ -82,15 +143,21 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const amt = parseAmount(amount)
     if (!fromItem || !toItem) { setError(t('Selecciona origen y destino.', 'Select source and destination.')); return }
-    if (!amt || amt <= 0) { setError(t('Ingresa un monto mayor a 0.', 'Enter an amount greater than 0.')); return }
     if (!date) { setError(t('Elige la fecha de la transferencia.', 'Pick the transfer date.')); return }
+
+    if (toIsMarket) {
+      if (!(sharesNum > 0)) { setError(t('Ingresa la cantidad comprada.', 'Enter the quantity purchased.')); return }
+      if (!(unitPriceNum > 0)) { setError(t('Ingresa el precio por unidad.', 'Enter the price per unit.')); return }
+    }
+
+    const amt = fromValue
+    if (!amt || amt <= 0) { setError(t('Ingresa un monto mayor a 0.', 'Enter an amount greater than 0.')); return }
     // Medio centavo de tolerancia: "Todo" llena el saldo REDONDEADO a centavos
     // (que es el que se muestra), así que un saldo de 482.007 produciría 482.01
     // y sin la tolerancia el botón se bloquearía a sí mismo.
     if (amt > sourceValue + DUST) { setError(t('Monto excede el saldo disponible.', 'Amount exceeds available balance.')); return }
-    if (crossCurrency && !received) {
+    if (!toIsMarket && crossCurrency && !toValue) {
       setError(t('Indica cuánto llegó a la cuenta destino.', 'Enter how much arrived in the destination account.'))
       return
     }
@@ -98,12 +165,43 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
     setSaving(true)
     setError('')
     try {
-      // Compute only the fields that change on each side
-      // Cada lado usa el monto de SU moneda: lo que salió para el origen, lo
-      // que entró para el destino. Con la misma moneda son el mismo número.
-      const credited = crossCurrency ? received : amt
       const fromFields = debitFields(fromItem, amt)
-      const toFields = creditFields(toItem, credited)
+      let toFields
+      let newLot
+      let transaction
+
+      if (toIsMarket) {
+        // La cantidad comprada se suma tal cual; el precio de mercado (`getItemPrice`)
+        // no lo toca esta pantalla, lo maneja `useMarketPrices` en vivo. El costo real
+        // pagado vive en el LOTE, no en el ítem.
+        toFields = { quantity: roundQty((Number(toItem.quantity) || 0) + sharesNum) }
+        newLot = {
+          symbol: (toItem.symbol || '').toUpperCase(),
+          quantity: sharesNum,
+          costBasis: unitPriceNum,
+          currency: toCurrency,
+          acquisitionDate: date,
+          institution: toItem.institution || '',
+          itemId: toItem.id,
+        }
+        transaction = buildTransferTransaction({
+          fromItem, toItem, amount: amt,
+          toAmount: crossCurrency ? marketToValue : null,
+          date, source: 'manual_transfer',
+          description: t(
+            `Compra: ${sharesNum} ${toItem.symbol || toItem.name} @ ${toCurrency} ${money(unitPriceNum)}`,
+            `Buy: ${sharesNum} ${toItem.symbol || toItem.name} @ ${toCurrency} ${money(unitPriceNum)}`
+          ),
+        })
+      } else {
+        const credited = crossCurrency ? toValue : amt
+        toFields = creditFields(toItem, credited)
+        transaction = buildTransferTransaction({
+          fromItem, toItem, amount: amt, toAmount: crossCurrency ? credited : null,
+          date, source: 'manual_transfer',
+        })
+      }
+
       // Nunca en silencio: sin campos que escribir, `strip(null)` deja un `{}`
       // y Firestore acepta un update vacío como no-op. Desde afuera eso es
       // exactamente el bug que esta pantalla tenía ("el destino sube y el
@@ -115,7 +213,8 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
         return
       }
 
-      // Single atomic batch: both balances + the transaction record commit together
+      // Single atomic batch: both balances + the transaction record (+ el lote
+      // nuevo, si se compró algo) commit together.
       await onTransfer({
         fromId: fromItem.id, fromFields,
         toId: toItem.id, toFields,
@@ -123,10 +222,8 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
         // record itself and left out the two account ids every consumer of a
         // TRANSFER row keys on, so transfers made here were invisible in both
         // accounts. See that file for the full list of what broke.
-        transaction: buildTransferTransaction({
-          fromItem, toItem, amount: amt, toAmount: crossCurrency ? received : null,
-          date, source: 'manual_transfer',
-        }),
+        transaction,
+        ...(newLot ? { newLot } : {}),
       })
       onAddTransaction?.()
       // Los valores DESPUÉS se leen con `accountValue`, o sea con la misma
@@ -221,7 +318,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
                     uno tiene en la cabeza no coincide al centavo con el
                     guardado queda un residuo colgado. */}
                 {fromItem && sourceValue > 0 && (
-                  <button type="button" onClick={() => setAmount((Math.round(sourceValue * 100) / 100).toFixed(2))}
+                  <button type="button" onClick={() => { setLastEdited('from'); setAmount((Math.round(sourceValue * 100) / 100).toFixed(2)) }}
                     className="text-xs text-blue-400 hover:text-blue-300">
                     {t('Todo', 'All')}
                   </button>
@@ -233,21 +330,60 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
                 lo que no puede parsear, o sea el campo se vacía tecla por tecla
                 (la lección de FASE KV). Y el monto se lee con parseAmount, que
                 entiende las dos convenciones: `parseFloat('12.500')` devolvía
-                12.5, o sea mil veces menos, en silencio. */}
-            <input value={amount} onChange={(e) => setAmount(e.target.value)}
+                12.5, o sea mil veces menos, en silencio.
+
+                Cuando NO es el lado ancla (comprando acciones, o con la
+                sugerencia de FX viva), el valor mostrado es la sugerencia en
+                vivo: tocar el campo lo vuelve el ancla al instante. */}
+            <input
+              value={(toIsMarket || crossCurrency) ? (lastEdited === 'from' ? amount : (fromValue != null ? fromValue.toFixed(2) : '')) : amount}
+              onChange={(e) => { setLastEdited('from'); setAmount(e.target.value) }}
               type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
+            {(toIsMarket || crossCurrency) && lastEdited !== 'from' && (fromValue != null) && (
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t('sugerido según el precio ingresado', 'suggested from the amount entered')}
+              </p>
+            )}
           </div>
 
-          {/* Solo cuando las monedas difieren. Con la misma moneda no hay
+          {/* Comprar acciones/cripto con efectivo: la cantidad y el precio
+              exactos, no una derivación de monto ÷ precio de hoy. */}
+          {toIsMarket && (
+            <div className="rounded-lg p-3 border" style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--bg-card-hover)' }}>
+              <label className={labelCls}>{t('Cantidad comprada', 'Quantity purchased')}</label>
+              <input
+                value={shares}
+                onChange={(e) => { setLastEdited('to'); setShares(e.target.value) }}
+                type="text" inputMode="decimal" placeholder="0" className={inputCls} />
+              <label className={labelCls + ' mt-2'}>{t('Precio por unidad', 'Price per unit')} ({toCurrency})</label>
+              <input
+                value={unitPrice}
+                onChange={(e) => { setLastEdited('to'); setUnitPrice(e.target.value) }}
+                type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
+              {marketToValue != null && (
+                <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  {t('Total', 'Total')}: {toCurrency} {money(marketToValue)}
+                </p>
+              )}
+              {impliedRate != null && (
+                <p className="text-[11px] mt-1 font-mono" style={{ color: 'var(--text-muted)' }}>
+                  {t('Tasa implícita', 'Implied rate')}: 1 {toCurrency} = {impliedRate.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} {fromCurrency}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Solo cuando las monedas difieren Y el destino no es de mercado
+              (ahí ya está el cuadro de arriba). Con la misma moneda no hay
               nada que preguntar y un campo de más sería ruido. */}
-          {crossCurrency && (
+          {!toIsMarket && crossCurrency && (
             <div className="rounded-lg p-3 border" style={{ borderColor: 'var(--alert-warn-border)', backgroundColor: 'var(--alert-warn-bg)' }}>
               <label className={labelCls}>
                 {t(`¿Cuánto llegó en ${toCurrency}?`, `How much arrived in ${toCurrency}?`)}
               </label>
               <input
-                value={toTouched ? toAmount : (suggested != null ? suggested.toFixed(2) : '')}
-                onChange={(e) => { setToTouched(true); setToAmount(e.target.value) }}
+                value={lastEdited === 'to' ? toAmount : (toValue != null ? toValue.toFixed(2) : '')}
+                onChange={(e) => { setLastEdited('to'); setToAmount(e.target.value) }}
                 type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
               <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {t(
@@ -258,7 +394,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
               {impliedRate != null && (
                 <p className="text-[11px] mt-1 font-mono" style={{ color: 'var(--text-muted)' }}>
                   {t('Tasa implícita', 'Implied rate')}: 1 {toCurrency} = {impliedRate.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} {fromCurrency}
-                  {!toTouched && ` · ${t('sugerida', 'suggested')}`}
+                  {lastEdited !== 'to' && ` · ${t('sugerida', 'suggested')}`}
                 </p>
               )}
             </div>

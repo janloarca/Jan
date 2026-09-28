@@ -3,7 +3,7 @@ import { sanitizeImportItem } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 import { transactionDocId } from '@/lib/transactionDocId'
-import { roundQty, closesWholeLot, closedLotDocId } from '@/lib/lotClose'
+import { roundQty, closesWholeLot, closedLotDocId, openLotDocId } from '@/lib/lotClose'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 import { planPortfolioDelete } from '@/lib/portfolioDelete'
@@ -669,13 +669,12 @@ export function useFirestoreItems() {
   const addLot = useCallback(async (lot) => {
     if (!uid) return
     const { db, fs } = await getFirebase()
-    const qty = Math.round((lot.quantity || 0) * 1e8)
-    const cost = Math.round((lot.costBasis || 0) * 100)
-    const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
-    // FASE OB. El dueño entra al id: dos posiciones del mismo símbolo, fecha,
-    // cantidad y costo (dos cuentas del mismo broker) colapsaban en UN doc.
-    const owner = lot.itemId ? `-${String(lot.itemId).replace(/[/\\]/g, '-').slice(0, 24)}` : ''
-    const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}${owner}`
+    // FASE OB. El id vive en lib/lotClose.js (openLotDocId): dos posiciones del
+    // mismo símbolo, fecha, cantidad y costo (dos cuentas del mismo broker)
+    // colapsaban en UN doc sin el dueño incluido. Compartido con `transferFunds`
+    // (comprar acciones con efectivo también crea un lote abierto) para que las
+    // dos escrituras no puedan divergir en la regla del id.
+    const id = openLotDocId(lot)
     const lotData = Object.fromEntries(Object.entries({ ...lot, status: 'open', createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/lots`, id), lotData)
   }, [uid])
@@ -771,7 +770,7 @@ export function useFirestoreItems() {
     return tx._txNonce ? `${base}-${tx._txNonce}` : base
   }
 
-  const transferFunds = useCallback(async ({ fromId, fromFields, toId, toFields, transaction }) => {
+  const transferFunds = useCallback(async ({ fromId, fromFields, toId, toFields, transaction, newLot }) => {
     if (!uid) throw new Error('No uid')
     const { db, fs } = await getFirebase()
     // Un update vacío es un NO-OP que Firestore acepta sin quejarse, así que un
@@ -788,6 +787,14 @@ export function useFirestoreItems() {
     batch.update(fs.doc(db, `users/${uid}/items`, toId), to)
     if (transaction) {
       batch.set(fs.doc(db, `users/${uid}/transactions`, txDocId(transaction)), strip({ ...transaction, createdAt: new Date().toISOString() }))
+    }
+    // Comprar acciones con efectivo (TransferModal, destino de mercado): el
+    // lote nace en el MISMO batch que mueve el saldo. Separarlo en un segundo
+    // await dejaría, ante un fallo a mitad, la cantidad del ítem ya subida sin
+    // ningún lote que la respalde — misma disciplina atómica que
+    // `executeContribution`/`executeSaleAtomic`.
+    if (newLot) {
+      batch.set(fs.doc(db, `users/${uid}/lots`, openLotDocId(newLot)), strip({ ...newLot, status: 'open', createdAt: new Date().toISOString() }))
     }
     await batch.commit()
   }, [uid])

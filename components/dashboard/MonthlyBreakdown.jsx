@@ -1,13 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { formatCurrency, getItemValue, getTypeCategory } from './utils'
-
-const LIQUIDITY_ORDER = { banks: 0, bonds: 1, funds: 2, stocks: 3, crypto: 4, realestate: 5, alternatives: 6, other: 7, debts: 8 }
-
-function getLiquidityScore(item) {
-  return LIQUIDITY_ORDER[getTypeCategory(item.type)] ?? 7
-}
+import { formatCurrency, getItemValue, getTypeCategory, liquiditySortScore } from './utils'
 
 // FASE JU. Esto parseaba con `new Date('2026-01-01')` (que JS lee como
 // medianoche UTC) y después leía el mes con getMonth(), que es LOCAL: al oeste
@@ -98,8 +92,8 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
     const sorted = Object.entries(byInst)
       .map(([name, data]) => {
         const sortedItems = [...data.items].sort((a, b) => {
-          const la = getLiquidityScore(a)
-          const lb = getLiquidityScore(b)
+          const la = liquiditySortScore(a)
+          const lb = liquiditySortScore(b)
           if (la !== lb) return la - lb
           return Math.abs(getItemValue(b)) - Math.abs(getItemValue(a))
         })
