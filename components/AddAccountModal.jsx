@@ -2121,8 +2121,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 )}
 
-                {/* Liquidez */}
-                {(isProperty || isAlternative || isPrivateStock || (isBond && subtype === 'private_debt')) && (
+                {/* Liquidez. FASE PG: antes solo 4 categorías (inmueble, alternativo,
+                    acción privada, deuda privada dentro de bonos), pero "sin precio
+                    de mercado disponible" no es propiedad de un TIPO, es un hecho
+                    sobre EL activo concreto: un CD bloqueado (Bank), una cripto
+                    deslistada o un fondo que suspendió redenciones son igual de
+                    ilíquidos y quedaban sin forma de marcarse. `isIlliquid` ya
+                    gobierna la lectura en toda la app (isMarketPriced, liquiditySortScore,
+                    getItemValue, el aviso de NotificationCenter) sin importar el
+                    tipo del item, así que el toggle se abre a cualquier activo que
+                    no sea deuda (una deuda no tiene "precio de mercado" que apagar). */}
+                {!isDebt && (
                   <div className="pt-3.5 border-t border-glass-border/50">
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💧 {t('Liquidez', 'Liquidity')}</span>
                     <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">

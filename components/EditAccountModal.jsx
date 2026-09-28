@@ -1376,9 +1376,17 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
           {/* Maturity + illiquid — same lifecycle question ("when/how does this
               asset stop looking like this?"), so one accordion instead of two
-              always-open blocks. Maturity only applies to bonds/alternatives;
-              illiquid applies to those plus real estate. */}
-          {(isBondOrAlt || /realestate|inmueble/i.test(form.type)) && (
+              always-open blocks. Maturity only applies to bonds/alternatives.
+              Illiquid, FASE PG: ya no solo bonds/alternatives/real estate — "sin
+              precio de mercado disponible" es un hecho sobre EL activo (un CD
+              bloqueado, una cripto deslistada, un fondo que suspendió
+              redenciones), no una propiedad fija del tipo, y `isIlliquid` ya
+              gobierna la lectura en toda la app sin importar el tipo. Se abre a
+              cualquier activo salvo deuda (una deuda no tiene "precio de
+              mercado" que apagar). El resumen de abajo ya degrada solo cuando
+              maturity no aplica ("sin configurar"), así que ensanchar el gate
+              no deja huecos vacíos. */}
+          {!isDebt && (
             <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} open={showMaturity} onToggle={setShowMaturity} summary={(() => {
               const parts = []
               if (isBondOrAlt && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)

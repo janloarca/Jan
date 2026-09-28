@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 
 /**
@@ -34,7 +33,14 @@ import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { detectCurrency } from '@/lib/institutionCurrency'
 
 const FIELD_SEQUENCES = {
-  market: ['symbol', 'quantity', 'institution'],
+  // FASE PG: 'price' es su PROPIO paso, siempre visible y editable, igual que
+  // "Precio de entrada" en el formulario largo (AddAccountModal). Antes vivía
+  // condicionado dentro de 'quantity' SOLO cuando la cotización viva fallaba,
+  // así que el modo guiado y el formulario largo pedían el precio de dos
+  // maneras distintas para el mismo tipo de activo. Precio pre-llenado por la
+  // cotización, pero nunca de solo-lectura: un usuario puede saber que pagó
+  // otra cosa que lo que el mercado cotiza HOY.
+  market: ['symbol', 'quantity', 'price', 'institution'],
   Bank: ['institution', 'amount'],
   // FASE OA: la institucion va ANTES del monto. `applyInstitution` sugiere
   // la moneda a partir del banco/casa de bolsa, y con el monto primero la
@@ -92,6 +98,7 @@ export default function GuidedAssetSteps({ ctx }) {
   const QUESTIONS = {
     symbol: t('¿Cuál?', 'Which one?'),
     quantity: type === 'Crypto' ? t('¿Cuántas monedas tienes?', 'How many coins do you have?') : t('¿Cuántas tienes?', 'How many do you have?'),
+    price: t('¿A cuánto lo compraste?', 'What did you pay for it?'),
     institution: isBank ? t('¿En qué banco?', 'Which bank?') : t('¿Dónde lo tienes?', 'Where do you hold it?'),
     name: nameLabel,
     amount: amountLabel,
@@ -113,28 +120,10 @@ export default function GuidedAssetSteps({ ctx }) {
   const qty = parseQuantity(form.quantity)
   const liveTotal = price > 0 && qty > 0 ? qty * price : 0
 
-  // El precio de un activo de mercado normalmente lo trae la cotización sola, y
-  // por eso la secuencia no tiene paso de precio. Cuando NO resuelve (el
-  // proveedor caído, un símbolo que no cotiza, una cripto que no está en el
-  // mapa), guardar igual deja el activo con costo CERO y un retorno inventado
-  // de miles por ciento. Una pregunta más, solo cuando de verdad hace falta.
-  //
-  // Se ENGANCHA al símbolo, no al valor actual: derivarlo de `price <= 0` a
-  // secas hace que el campo se desmonte apenas se teclea el primer dígito
-  // (price pasa a > 0), o sea el resto de la escritura cae al vacío y queda un
-  // precio de "2" en vez de "2400". Es exactamente el mismo defecto que este
-  // cambio vino a arreglar, una capa más arriba, y lo cazó la prueba de
-  // navegador tecleando carácter por carácter.
-  const [manualPriceFor, setManualPriceFor] = useState('')
-  useEffect(() => {
-    if (isMarketAsset && field === 'quantity' && price <= 0 && form.symbol) setManualPriceFor(form.symbol)
-  }, [isMarketAsset, field, price, form.symbol])
-  const needsManualPrice = isMarketAsset && field === 'quantity'
-    && (price <= 0 || manualPriceFor === form.symbol)
-
   const canAdvance = (() => {
     if (field === 'symbol') return !!form.symbol
-    if (field === 'quantity') return qty > 0 && (!isMarketAsset || price > 0)
+    if (field === 'quantity') return qty > 0
+    if (field === 'price') return price > 0
     if (field === 'name') return !!form.name.trim()
     if (field === 'amount') return isBank ? form.purchasePrice !== '' : price > 0
     // handleSubmit exige institución para TODO salvo inmueble y deuda (que ni
@@ -206,12 +195,12 @@ export default function GuidedAssetSteps({ ctx }) {
           )}
           {/* Sin esto, elegir un símbolo cuyo proveedor está caído simplemente
               NO pinta la línea de arriba, y ese silencio se lee como que la app
-              no hizo nada. El precio se pide en el paso siguiente, pero decir
-              acá por qué falta es la diferencia entre una espera y una duda. */}
+              no hizo nada. El precio tiene su propio paso más adelante, pero
+              decir acá por qué falta es la diferencia entre una espera y una duda. */}
           {quoteFailed && !fetchingQuote && form.symbol && (
             <p className="text-sm mt-3" style={{ color: 'var(--alert-warn-icon)' }}>
-              {t(`No pudimos traer el precio de ${form.symbol}. Te lo preguntamos en el paso siguiente.`,
-                 `We could not fetch a price for ${form.symbol}. We will ask for it in the next step.`)}
+              {t(`No pudimos traer el precio de ${form.symbol}. Te lo preguntamos más adelante.`,
+                 `We could not fetch a price for ${form.symbol}. We will ask for it further along.`)}
             </p>
           )}
         </div>
@@ -232,27 +221,31 @@ export default function GuidedAssetSteps({ ctx }) {
             className={inputCls}
             autoFocus
           />
-          {needsManualPrice && (
-            <div className="mt-4">
-              <label htmlFor="guided-price" className="block text-sm mb-2" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
-                {quoteFailed
-                  ? t(`No pudimos traer el precio de ${form.symbol}. ¿A cuánto está cada uno?`,
-                       `We could not fetch a price for ${form.symbol}. What is each one worth?`)
-                  : t('¿A cuánto está cada uno?', 'What is each one worth?')}
-              </label>
-              <input
-                id="guided-price"
-                value={form.purchasePrice}
-                onChange={e => set('purchasePrice', e.target.value)}
-                placeholder="150.00"
-                type="text" inputMode="decimal"
-                className={inputCls}
-              />
-              <p className="text-xs mt-2" style={{ color: 'var(--text-muted,#475569)' }}>
-                {t(`En ${form.currency}.`, `In ${form.currency}.`)}
-              </p>
-            </div>
-          )}
+        </div>
+      )}
+
+      {field === 'price' && (
+        <div>
+          {/* Pre-llenado por handleSelectSymbol con la cotización viva
+              (form.purchasePrice ya trae ese valor al llegar acá), pero
+              SIEMPRE editable: es el mismo trato que "Precio de entrada" en
+              el formulario largo, nunca un campo de solo-lectura. Cuando la
+              cotización falló llega vacío y esta es la única forma de
+              rellenarlo. */}
+          <input
+            value={form.purchasePrice}
+            onChange={e => set('purchasePrice', e.target.value)}
+            placeholder="150.00"
+            type="text" inputMode="decimal"
+            className={inputCls}
+            autoFocus
+          />
+          <p className="text-xs mt-2" style={{ color: 'var(--text-muted,#475569)' }}>
+            {quoteFailed
+              ? t(`No pudimos traer el precio de ${form.symbol}. ¿A cuánto está cada uno, en ${form.currency}?`,
+                   `We could not fetch a price for ${form.symbol}. What is each one worth, in ${form.currency}?`)
+              : t(`En ${form.currency}. Puedes ajustarlo si pagaste otra cosa.`, `In ${form.currency}. Adjust it if you paid a different price.`)}
+          </p>
           {liveTotal > 0 && (
             <p className="text-sm mt-3" style={{ color: 'var(--text-secondary,#94a3b8)' }}>
               {t('Eso son', 'That is')} <strong style={{ color: 'var(--text-primary,white)' }}>

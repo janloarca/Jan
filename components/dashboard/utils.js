@@ -175,6 +175,24 @@ export function getTypeCategory(itemOrType) {
   return 'other'
 }
 
+// FASE PG. `LIQUIDITY_ORDER`/`getLiquidityScore` vivían privados en
+// MonthlyBreakdown.jsx, para ordenar filas dentro de una institución en
+// Costos. Compartida acá porque TransferModal necesita EXACTAMENTE la misma
+// noción de "qué tan líquido es esto" para ordenar sus dos selectores de
+// cuenta (origen/destino, líquido arriba, ilíquido al fondo); con dos copias,
+// una se habría quedado atrás la próxima vez que alguien la tocara.
+// `isIlliquid` (marcado a mano por el usuario en el propio activo) manda
+// sobre la categoría: un CD bancario o un fondo con lock-up caen en
+// "banks"/"funds" por tipo, pero si el usuario ya dijo que ESTE no se puede
+// tocar hoy, tiene que hundirse debajo de TODA categoría, nunca competir
+// dentro de la suya.
+const LIQUIDITY_CATEGORY_ORDER = { banks: 0, bonds: 1, funds: 2, stocks: 3, crypto: 4, realestate: 5, alternatives: 6, receivables: 7, other: 7, debts: 8 }
+export function liquiditySortScore(item) {
+  if (!item) return 7
+  const base = LIQUIDITY_CATEGORY_ORDER[getTypeCategory(item)] ?? 7
+  return item.isIlliquid ? base + 100 : base
+}
+
 export { CATEGORY as TYPE_COLORS, CHART_PALETTE } from '@/lib/colors'
 
 // Etiquetas visibles de las categorías de getTypeCategory. Ya existían CUATRO

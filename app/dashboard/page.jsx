@@ -344,6 +344,7 @@ export default function DashboardPage() {
     bulkImport,
     saveGoals, saveSettings, saveProfile, incomePlan, saveIncomePlan,
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
+    reversalItems,
     marketPrices,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
@@ -1846,7 +1847,7 @@ export default function DashboardPage() {
           onClose={handleCloseModal}
           onTransfer={transferFunds}
           onAddTransaction={() => showToast(lang === 'es' ? 'Transferencia registrada' : 'Transfer recorded')}
-          existingItems={items} convert={convert} lang={lang}
+          existingItems={reversalItems} convert={convert} lang={lang}
         />
       )}
       </ModalMount>

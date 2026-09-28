@@ -267,6 +267,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // Se devuelven los precios en la moneda del propio ítem (`_originalPrice`,
   // que para un activo de mercado es la cotización viva y para una cuenta de
   // saldo es lo guardado) y se conserva todo lo demás del enriquecido.
+  //
+  // Segundo consumidor (TransferModal, comprar acciones con efectivo): por la
+  // MISMA razón, necesita el precio VIVO de un destino de mercado en SU propia
+  // moneda para prellenar "precio por unidad" — `enrichedItems` lo daría
+  // convertido a la base, que es un precio que ningún exchange cotiza. Por eso
+  // se exporta del hook en vez de quedar solo para el uso interno de arriba.
   const reversalItems = useMemo(() => enrichedItems.map((it) => ({
     ...it,
     currentPrice: it._originalPrice ?? it.currentPrice,
@@ -3906,6 +3912,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Market data
     enrichedItems, portfolioItems, marketPrices,
+    // Precios en moneda NATIVA (nunca convertidos a base): ver el comentario
+    // en la definición, arriba. TransferModal lo usa para prellenar el precio
+    // de un destino de mercado sin heredar la conversión a base de `items`.
+    reversalItems,
     pricesLoading, pricesError, pricesUpdate,
     // `pricesFetching` se expone para que /friends pueda gatear su publicación
     // con la MISMA lista que el tablero (lib/friendsPublish.js). Ojo: NO es lo
