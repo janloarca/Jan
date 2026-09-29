@@ -12,6 +12,7 @@ import { usdFlowEvents } from '@/lib/corruptSnapshots'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
 import { staticValueAt } from '@/lib/staticOverlay'
+import { currentOrLastSession } from '@/lib/marketHours'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import ErrorState from '@/components/ui/ErrorState'
@@ -622,10 +623,12 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
           pts = pts.filter((dp) => dp.ts >= monthStart)
         }
         if (period === 'DAY' && pts.length > 0) {
-          const latestTs = pts[pts.length - 1].ts
-          const latestDate = new Date(latestTs)
-          const dayStart = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate(), 7, 0, 0).getTime()
-          pts = pts.filter(dp => dp.ts >= dayStart)
+          // Ventana de la sesión regular de NYSE (9:30am-4pm ET, resuelto por
+          // hora del Este vía Intl), anclada en AHORA y no en la fecha del
+          // último punto: con datos ralos (broker EOD-only) la última fila
+          // puede ser de ayer, y anclar ahí dejaba la ventana un día atrás.
+          const { open, close } = currentOrLastSession(Date.now())
+          pts = pts.filter(dp => dp.ts >= open && dp.ts <= close)
         }
         setDataPoints(pts)
         setApiTransactional(!!data.transactional)
@@ -694,9 +697,21 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     }
 
     if (period === 'DAY') {
-      const threeDaysAgo = now - 3 * 86400000
+      // Ventana de la sesión regular de NYSE resuelta (hoy, o la última ya
+      // COMPLETA si cae fin de semana o el mercado aún no abrió). El
+      // lookback hacia atrás de `open` (y no de `now`) es para encontrar un
+      // snapshot ancla cuando solo hay NAV de cierre de broker y un fin de
+      // semana o feriado interrumpe la escritura diaria; el techo en
+      // `close`, aplicado al resultado FINAL, es lo que impide que un
+      // snapshot o el punto en vivo de "ahora" se salgan de la sesión que
+      // se está dibujando — incluido el caso "hoy es sábado": el punto en
+      // vivo cae después del `close` de la sesión del viernes y se
+      // descarta solo, sin necesitar una condición aparte para el fin de
+      // semana.
+      const { open, close } = currentOrLastSession(now)
+      const lookback = open - 3 * 86400000
       const recentSnaps = [...sourceSnaps]
-        .filter(s => s.date && new Date(s.date).getTime() >= threeDaysAgo
+        .filter(s => s.date && new Date(s.date).getTime() >= lookback
           && (shownInst === 'ALL' ? !s._calibrated : BROKER_NAV_SOURCES.includes(s._source)))
         .sort((a, b) => new Date(a.date) - new Date(b.date))
         .map(s => ({ ts: new Date(s.date).getTime(), date: new Date(s.date), value: convertVal(s), src: s._source || null, transactional: !!s._transactional }))
@@ -708,7 +723,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         // as market gain (the +1.98% vs +10.99% TWR bug this file documents).
         recentSnaps.push({ ts: Date.now(), date: new Date(), value: currentTotal, src: 'daily' })
       }
-      return recentSnaps
+      return recentSnaps.filter(p => p.ts <= close)
     }
 
     const periodDays = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null, CUSTOM: null }
@@ -1113,17 +1128,23 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       //
       // Sin esto, la vista DAY de una institución así caía al estado vacío: el
       // API sintetiza dos puntos (ayer y ahora) y el filtro de DAY, que recorta
-      // desde las 7:00 de hoy, dejaba UNO solo. Con un punto no hay serie, y la
+      // a la sesión de NYSE, dejaba UNO solo. Con un punto no hay serie, y la
       // pantalla culpaba al mercado por algo que no depende del mercado. La
       // respuesta correcta es la que da el cálculo de referencia del usuario
       // para todos los períodos sin eventos: 0.00%.
+      //
+      // Los dos puntos van a los bordes de la SESIÓN resuelta, no a un
+      // "7am de hoy" fijo: en pleno horario de mercado el segundo punto es
+      // `now` (nunca dibuja hacia el futuro, como antes); si la sesión
+      // resuelta ya es una completada (fin de semana, antes de abrir), el
+      // segundo punto es su `close` real, así se dibuja la sesión ENTERA en
+      // vez de estirarla hasta un "ahora" que puede ser mucho más tarde.
       const now = Date.now()
-      const d = new Date(now)
-      let dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 0, 0).getTime()
-      if (dayStart >= now) dayStart = now - 86400000
+      const { open, close } = currentOrLastSession(now)
+      const dayEnd = Math.min(close, now)
       pts = [
-        { ts: dayStart, date: new Date(dayStart), value: currentTotal },
-        { ts: now, date: new Date(now), value: currentTotal },
+        { ts: open, date: new Date(open), value: currentTotal },
+        { ts: dayEnd, date: new Date(dayEnd), value: currentTotal },
       ]
     } else {
       return []
