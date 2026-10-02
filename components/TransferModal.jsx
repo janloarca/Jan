@@ -63,6 +63,16 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // otra acá.
   const assets = existingItems.filter((i) => !i.isDebt).sort((a, b) => liquiditySortScore(a) - liquiditySortScore(b))
   const hasDebts = existingItems.some((i) => i.isDebt)
+  // El ORIGEN nunca puede ser un ítem de mercado. Bajarle un monto a una
+  // posición de mercado es EXACTAMENTE venderla — sin cantidad y precio
+  // exactos, `debitFields` cae en la misma aproximación silenciosa
+  // (monto ÷ precio de HOY) que esta pantalla ya cerró del lado del destino
+  // (el cuadro de "Cantidad comprada" de abajo). SellModal ya es la
+  // herramienta correcta para eso: cierra lotes por FIFO con cantidad y
+  // precio reales, así que acá se excluye y se apunta ahí en vez de construir
+  // una tercera copia de ese formulario.
+  const fromOptions = assets.filter((i) => !isMarketPriced(i))
+  const hasMarketSources = existingItems.some((i) => !i.isDebt && isMarketPriced(i))
   const fromItem = assets.find((i) => i.id === fromId)
   const toItem = assets.find((i) => i.id === toId)
   const sourceValue = fromItem ? getValue(fromItem) : 0
@@ -282,10 +292,16 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             <label className={labelCls}>{t('Origen', 'From')}</label>
             <select value={fromId} onChange={(e) => { setFromId(e.target.value); if (e.target.value === toId) setToId('') }} className={inputCls}>
               <option value="">{t('Seleccionar...', 'Select...')}</option>
-              {assets.map((item) => (
+              {fromOptions.map((item) => (
                 <option key={item.id} value={item.id}>{formatOption(item)}</option>
               ))}
             </select>
+            {hasMarketSources && (
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t('Para sacar dinero de una posición de mercado usa Vender: cierra las acciones exactas, no una aproximación.',
+                   'To take money out of a market position use Sell: it closes the exact shares, not an approximation.')}
+              </p>
+            )}
           </div>
 
           <div>

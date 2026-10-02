@@ -10,6 +10,7 @@ import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFie
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount } from '@/lib/numberParse'
 import { debtOptions, debtBalance as debtBalanceOf } from '@/lib/propertyEquity'
+import { isMarketPriced } from '@/components/dashboard/utils'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
@@ -44,7 +45,17 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // Account the external flow / yield lands in (or leaves from). Optional but
   // recommended: with it, the movement also updates that account's balance and
   // its historical reconstruction.
-  const [linkedId, setLinkedId] = useState(prefill?.linkedId || '')
+  // Un finding de dataCompleteness puede prefillar `linkedId` con un ítem de
+  // MERCADO (income-never-received no está gateado por isMarket). El lookup de
+  // abajo (balanceAssets) ya falla seguro ante eso, pero arrancar con el id
+  // puesto confundiría al usuario con un dropdown que parece vacío sin
+  // explicación: se limpia de entrada.
+  const [linkedId, setLinkedId] = useState(() => {
+    const id = prefill?.linkedId || ''
+    if (!id) return ''
+    const item = existingItems.find((i) => i.id === id)
+    return item && isMarketPriced(item) ? '' : id
+  })
   // Backfilling history: the current balance already includes this amount, so
   // only record the transaction (returns/history) without touching the balance.
   const [alreadyReflected, setAlreadyReflected] = useState(!!prefill?.alreadyReflected)
@@ -90,10 +101,23 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // nada. El pago sí las necesita, y solo ahí (`debtTargets`).
   const assets = existingItems.filter((i) => !i.isDebt)
   const debtTargets = debtOptions(existingItems)
-  const fromItem = assets.find((i) => i.id === fromId)
-  const toItem = assets.find((i) => i.id === toId)
+  // Un activo de MERCADO (acción, cripto, fondo con lotes reales) no se puede
+  // mover con un MONTO: `debitFields`/`creditFields`/`buildContributionFields`
+  // (los escritores que esta pantalla usa) harían `cantidad = monto / precio
+  // de HOY`, una aproximación silenciosa que corrompe la cantidad y el costo
+  // base. Comprar/vender exacto es trabajo de TransferModal (su caja dedicada
+  // de cantidad+precio) o de SellModal (cierre FIFO de lotes); acá se
+  // excluyen de origen, destino Y vínculo, en vez de construir una tercera
+  // copia de ese mecanismo.
+  const balanceAssets = assets.filter((i) => !isMarketPriced(i))
+  const hasMarketAssets = assets.some((i) => isMarketPriced(i))
+  const fromItem = balanceAssets.find((i) => i.id === fromId)
+  const toItem = balanceAssets.find((i) => i.id === toId)
+  // Solo atribución (de qué activo vino el ingreso, o a qué activo se le
+  // cobra un costo): nunca mueve el saldo de ESTE ítem, así que puede ser
+  // de mercado sin riesgo.
   const yieldSource = assets.find((i) => i.id === yieldSourceId)
-  const linkedItem = assets.find((i) => i.id === linkedId)
+  const linkedItem = balanceAssets.find((i) => i.id === linkedId)
   const sourceValue = fromItem ? getValue(fromItem) : 0
   const isTransfer = origin === 'transfer'
   // Pagar una deuda mueve dinero entre DOS cuentas tuyas (el efectivo baja, la
@@ -514,8 +538,14 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Cuenta que paga', 'Paying account')}</label>
                 <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={inputCls}>
                   <option value="">{t('Seleccionar...', 'Select...')}</option>
-                  {assets.map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
+                  {balanceAssets.map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
                 </select>
+                {hasMarketAssets && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {t('Las cuentas de mercado (acciones, cripto) no aparecen aquí: para sacar dinero exacto de ellas usa Vender.',
+                       'Market accounts (stocks, crypto) don\'t show here: to pull exact money out of them, use Sell.')}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Préstamo', 'Loan')}</label>
@@ -545,19 +575,25 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 <label className="text-xs text-slate-400 mb-1 block">{t('Cuenta origen', 'From account')}</label>
                 <select value={fromId} onChange={(e) => { setFromId(e.target.value); if (e.target.value === toId) setToId('') }} className={inputCls}>
                   <option value="">{t('Seleccionar...', 'Select...')}</option>
-                  {assets.map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
+                  {balanceAssets.map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">{t('Cuenta destino', 'To account')}</label>
                 <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputCls}>
                   <option value="">{t('Seleccionar...', 'Select...')}</option>
-                  {assets.filter((i) => i.id !== fromId).map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
+                  {balanceAssets.filter((i) => i.id !== fromId).map((item) => <option key={item.id} value={item.id}>{formatOption(item)}</option>)}
                 </select>
               </div>
               {fromItem && (
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {t('Disponible', 'Available')}: {fromItem.currency || 'USD'} {sourceValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              )}
+              {hasMarketAssets && (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {t('Las cuentas de mercado (acciones, cripto) no aparecen aquí: usa la pantalla de Transferir, que compra exacto con cantidad y precio.',
+                     'Market accounts (stocks, crypto) don\'t show here: use the Transfer screen, which buys in exact with quantity and price.')}
                 </p>
               )}
             </div>
@@ -615,12 +651,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                   setAlreadyReflected(false)
                   // Keep the currency in sync so unlinking later doesn't silently
                   // revert an EUR movement back to the base currency.
-                  const acc = assets.find((i) => i.id === e.target.value)
+                  const acc = balanceAssets.find((i) => i.id === e.target.value)
                   if (acc) setCurrency(acc.currency || 'USD')
                 }}
                 className={inputCls}>
                 <option value="">{t('- Sin vincular -', '- Not linked -')}</option>
-                {assets
+                {balanceAssets
                   .filter((i) => !isYield || i.id !== yieldSourceId)
                   // Un gasto no puede "pagarse desde" el mismo activo que lo
                   // generó: el gasto no revalúa al activo (FASE KW), así que
@@ -630,6 +666,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                     <option key={item.id} value={item.id}>{formatOption(item)}</option>
                   ))}
               </select>
+              {hasMarketAssets && (
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  {t('Las cuentas de mercado (acciones, cripto) no aparecen aquí: un monto no se puede convertir en cantidad exacta. Usa Transferir o Vender.',
+                     'Market accounts (stocks, crypto) don\'t show here: an amount can\'t be turned into an exact quantity. Use Transfer or Sell.')}
+                </p>
+              )}
               {balanceTarget ? (
                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                   {willTouchBalance
