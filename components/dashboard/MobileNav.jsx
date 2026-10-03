@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Sparkles, Zap } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Sparkles, Zap, SlidersHorizontal } from 'lucide-react'
 
-export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
+export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, onManage, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const t = (es, en) => lang === 'es' ? es : en
   const pathname = usePathname()
@@ -61,6 +61,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
               onEnrich && { action: onEnrich, icon: Sparkles, label: t('Completar información', 'Complete your data'), badge: enrichGapCount > 0 ? enrichGapCount : null },
               { action: onImport, icon: Upload, label: t('Importar archivo', 'Import file') },
               { action: onExport, icon: Download, label: t('Exportar Excel', 'Export Excel') },
+              onManage && { action: onManage, icon: SlidersHorizontal, label: t('Administrar gastos', 'Manage expenses') },
               onAuto && { action: onAuto, icon: Zap, label: t('Gastos automáticos', 'Automatic expenses') },
               { action: onShare, icon: Share2, label: t('Compartir resumen', 'Share summary') },
               { action: onSettings, icon: Settings, label: t('Configuración', 'Settings') },
