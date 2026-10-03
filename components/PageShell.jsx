@@ -47,6 +47,8 @@ export default function PageShell({
   // entrada cuando la recibe, así que una página sin captura automática no debe
   // ofrecerla. Solo Flujo la pasa.
   onAuto,
+  // Igual que `onAuto`: solo Flujo tiene algo que administrar.
+  onManage,
   // Modo demo: el tablero lleva su banner con salida desde siempre, pero las
   // demás pantallas mostraban los datos de ejemplo SIN ninguna marca — en la
   // Hoja o en Costos los números inventados se leían como propios. La banda
@@ -105,7 +107,7 @@ export default function PageShell({
       <MobileNav
         onAdd={onAdd || go} onImport={onImport || go} onExport={onExport || go}
         onShare={onShare || go} onSettings={onSettings || go} onSearch={onSearch}
-        onAuto={onAuto}
+        onAuto={onAuto} onManage={onManage}
         lang={lang} friendsEnabled={friendsEnabled}
       />
     </div>

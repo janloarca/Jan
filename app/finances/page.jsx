@@ -35,6 +35,7 @@ import FinancialProfileCard from '@/components/finance/FinancialProfileCard'
 import IncomePlanCalendar from '@/components/finance/IncomePlanCalendar'
 import AddFinanceTransactionModal from '@/components/finance/AddFinanceTransactionModal'
 import AutoCaptureModal from '@/components/finance/AutoCaptureModal'
+import ManageSheet from '@/components/finance/ManageSheet'
 import FileImportModal from '@/components/FileImportModal'
 import { SkeletonCard, SkeletonTable } from '@/components/dashboard/Skeleton'
 import InlineNotice from '@/components/ui/InlineNotice'
@@ -46,7 +47,7 @@ import { buildPnlStatement } from '@/lib/financePnl'
 import { financeReportCsv, downloadCsv } from '@/lib/financeCsv'
 import { planRecategorize, isMachineDescribed } from '@/lib/recategorize'
 import PageTour from '@/components/dashboard/PageTour'
-import { Wallet, Zap, Tags } from 'lucide-react'
+import { Wallet, Zap, Tags, SlidersHorizontal } from 'lucide-react'
 import { authFetch } from '@/lib/authFetch'
 
 // Los botones secundarios de la barra de acciones. Antes eran
@@ -430,6 +431,7 @@ export default function FinancesPage() {
       onImport={() => setModal('import')}
       onExport={handleExportCsv}
       onAuto={() => setModal('auto')}
+      onManage={() => setModal('manage')}
       onSettings={() => router.push('/dashboard')}
       headerProps={{
         onRefresh: refreshRates,
@@ -496,6 +498,10 @@ export default function FinancesPage() {
             <button onClick={() => setModal('import')}
               className={SECONDARY_BTN} style={SECONDARY_STYLE}>
               {t('Importar', 'Import')}
+            </button>
+            <button onClick={() => setModal('manage')}
+              className={`sm:hidden inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
+              <SlidersHorizontal size={12} aria-hidden="true" /> {t('Administrar', 'Manage')}
             </button>
             <button onClick={() => setModal('auto')}
               className={`hidden sm:inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
@@ -813,6 +819,17 @@ export default function FinancesPage() {
           existingItems={items}
           lang={lang}
           context="finance"
+        />
+      )}
+      </ModalMount>
+
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'manage' && (
+        <ManageSheet
+          lang={lang}
+          onClose={() => setModal(null)}
+          onCategories={() => setModal('categories')}
+          onAuto={() => setModal('auto')}
         />
       )}
       </ModalMount>
