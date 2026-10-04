@@ -1227,3 +1227,26 @@ html[data-journey="1"] .fixed.inset-0.z-50 {
 html[data-journey="1"] .fixed.inset-0.z-50 > * {
   max-height: calc(100dvh - var(--journey-bar-h, 46px) - 1.75rem);
 }
+
+/* Hoja en teléfono: la columna de nombres es sticky, y con sangría de
+   categoría + cantidad + moneda llegaba a ocupar más de la mitad de una
+   pantalla de 360px, dejando ~150px para deslizar los meses (en Safari se
+   notaba menos por el zoom del navegador; en Android se siente trabada).
+   Se acota el ancho en teléfono, el contenido ya trunca. `dvh` evita que la
+   barra de URL de Chrome/Samsung tape el pie de la caja, y `contain` impide
+   que al llegar al borde el gesto arrastre la página entera. */
+.sheet-scroll {
+  max-height: 75vh;
+  max-height: 75dvh;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 639px) {
+  .sheet-scroll :is(td, th).left-0:not([colspan]) {
+    max-width: 8.5rem;
+    overflow: hidden;
+    padding-left: 0.5rem;
+  }
+  .sheet-scroll th.left-0 { min-width: 0; }
+  .sheet-scroll td.sticky.left-0 > div { min-width: 0; }
+}
