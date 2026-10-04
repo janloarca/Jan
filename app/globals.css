@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 :root {
+  /* Samsung Internet (y el modo oscuro forzado de Chrome Android) invierte a
+     la fuerza toda página que no declara su esquema de color: sobre la Hoja
+     eso mezcla nuestros tokens con una inversión automática. Declararlo le
+     dice al navegador que la página ya maneja su propio tema. */
+  color-scheme: dark;
   --bg-primary: #0A0A12;
   --bg-secondary: rgba(22, 22, 35, 0.8);
   --bg-card: rgba(25, 25, 40, 0.6);
@@ -85,6 +90,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   /* Clean fintech light theme — flat surfaces, subtle borders, soft shadows */
   --bg-primary: #F8F9FB;
   --bg-secondary: #FFFFFF;
