@@ -1908,7 +1908,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           because both trace back to the same accidental second scroll
           container. A small portfolio that already fits on screen is
           unaffected: max-height only ever caps what would otherwise overflow. */}
-      <div className="overflow-auto max-h-[75vh]">
+      <div className="overflow-auto max-h-[75vh] sheet-scroll">
         {/* CSS zoom (not transform: scale) — a transform creates a containing
             block that disables position:sticky on the name column at zoom ≠ 1. */}
         <div style={{ zoom }}>
