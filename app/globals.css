@@ -1250,3 +1250,121 @@ html[data-journey="1"] .fixed.inset-0.z-50 > * {
   .sheet-scroll th.left-0 { min-width: 0; }
   .sheet-scroll td.sticky.left-0 > div { min-width: 0; }
 }
+
+/* ===================== World (FASE PK) =====================
+   El entorno del diorama tiene su PROPIA paleta: no es la card del tablero,
+   es una ciudad en miniatura. Oscuro por default (como el resto de la app) y
+   claro como referencia principal. Ningún valor de acá se usa como texto: son
+   rellenos de superficies del dibujo. Los acentos por tipo de edificio viven
+   en lib/worldPalette.js porque se leen igual en los dos temas. */
+.world-scene {
+  --w-sky-1: #0b1020;
+  --w-sky-2: #141b33;
+  --w-ground: #1e2740;
+  --w-ground-l: #151c30;
+  --w-ground-r: #0f1526;
+  --w-road: #262f4a;
+  --w-street-line: rgba(226, 232, 240, 0.28);
+  --w-plot: #222c47;
+  --w-plot-edge: rgba(148, 163, 184, 0.22);
+  --w-park: #1d3a33;
+  --w-wall-l: #2a3350;
+  --w-wall-r: #222a44;
+  --w-floor: #2b3456;
+  --w-floor-edge: rgba(148, 163, 184, 0.25);
+  --w-slab-l: #39446a;
+  --w-slab-r: #2c3556;
+  --w-roof: #3a4466;
+  --w-side-l: #303a5c;
+  --w-side-r: #252e4c;
+  --w-post: #8b97b8;
+  --w-glass: rgba(147, 197, 253, 0.10);
+  --w-glass-edge: rgba(191, 219, 254, 0.45);
+  --w-window: #1b2340;
+  --w-window-lit: #fcd98a;
+  --w-interior: rgba(253, 224, 140, 0.10);
+  --w-shadow: rgba(0, 0, 0, 0.45);
+  --w-desk: #4b5578;
+  --w-desk-top: #5d688f;
+  --w-screen: #93c5fd;
+  --w-tree: #2f7d5b;
+  --w-tree-2: #3f9b70;
+  --w-trunk: #6b4a2e;
+  --w-box: #b98a52;
+  --w-metal: #94a3b8;
+  --w-lamp-glow: rgba(253, 224, 140, 0.35);
+  --w-label-bg: rgba(15, 20, 38, 0.82);
+  --w-label-text: #e5e7eb;
+  --w-label-sub: #a5b0c8;
+  --w-focus: #60a5fa;
+  background: radial-gradient(120% 90% at 50% 15%, var(--w-sky-2), var(--w-sky-1));
+}
+[data-theme="light"] .world-scene {
+  --w-sky-1: #eef2f7;
+  --w-sky-2: #fbfcfe;
+  --w-ground: #e3e9f1;
+  --w-ground-l: #cdd6e2;
+  --w-ground-r: #bcc7d6;
+  --w-road: #d3dbe6;
+  --w-street-line: rgba(255, 255, 255, 0.95);
+  --w-plot: #edf1f6;
+  --w-plot-edge: rgba(100, 116, 139, 0.18);
+  --w-park: #d4ecd9;
+  --w-wall-l: #f4f6fa;
+  --w-wall-r: #e3e8f0;
+  --w-floor: #f8fafc;
+  --w-floor-edge: rgba(100, 116, 139, 0.25);
+  --w-slab-l: #ffffff;
+  --w-slab-r: #e6ebf2;
+  --w-roof: #ffffff;
+  --w-side-l: #f1f4f9;
+  --w-side-r: #dbe2ec;
+  --w-post: #94a3b8;
+  --w-glass: rgba(186, 220, 255, 0.22);
+  --w-glass-edge: rgba(100, 140, 190, 0.45);
+  --w-window: #c9d9ec;
+  --w-window-lit: #c9d9ec;
+  --w-interior: rgba(255, 255, 255, 0);
+  --w-shadow: rgba(30, 41, 59, 0.16);
+  --w-desk: #cbd5e1;
+  --w-desk-top: #e2e8f0;
+  --w-screen: #1e293b;
+  --w-tree: #4ea36f;
+  --w-tree-2: #6cbf86;
+  --w-trunk: #9a7350;
+  --w-box: #d4ad78;
+  --w-metal: #94a3b8;
+  --w-lamp-glow: rgba(253, 224, 140, 0);
+  --w-label-bg: rgba(255, 255, 255, 0.92);
+  --w-label-text: #111827;
+  --w-label-sub: #4b5563;
+  --w-focus: #2563eb;
+}
+
+/* Movimientos: todos en elementos SIN atributo transform (la posición la pone
+   un <g> padre), o el transform de CSS pisaría el del SVG. */
+@keyframes w-walk { from { transform: translate(0, 0); } to { transform: translate(var(--wdx, 6px), var(--wdy, 3px)); } }
+@keyframes w-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.7px); } }
+@keyframes w-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes w-blink { 0%, 70%, 100% { opacity: 1; } 80% { opacity: 0.25; } }
+@keyframes w-spin { to { transform: rotate(360deg); } }
+@keyframes w-swing { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+.world-scene .w-walk { animation: w-walk 3.4s ease-in-out infinite alternate; }
+.world-scene .w-bob { animation: w-bob 2.6s ease-in-out infinite; }
+.world-scene .w-sway { animation: w-sway 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.world-scene .w-blink { animation: w-blink 2.8s ease-in-out infinite; }
+.world-scene .w-spin { animation: w-spin 6s linear infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+.world-scene .w-swing { animation: w-swing 9s ease-in-out infinite; transform-box: fill-box; transform-origin: 0% 50%; }
+.world-scene[data-paused="true"] * { animation-play-state: paused !important; }
+.world-scene .w-building { cursor: pointer; transition: opacity var(--dur-base, 220ms) var(--ease-out, ease), filter var(--dur-base, 220ms) var(--ease-out, ease); }
+.world-scene .w-building:focus { outline: none; }
+.world-scene .w-building:focus-visible .w-plot { stroke: var(--w-focus); stroke-width: 2; }
+@media (hover: hover) and (pointer: fine) {
+  .world-scene .w-building:hover .w-plot { stroke: var(--w-focus); stroke-width: 1.4; }
+}
+.world-scene[data-focused="true"] .w-building[data-selected="false"] { opacity: 0.28; }
+.world-scene .w-zoom { transition: transform 520ms var(--ease-out, ease); transform-box: view-box; transform-origin: 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .world-scene .w-walk, .world-scene .w-bob, .world-scene .w-sway,
+  .world-scene .w-blink, .world-scene .w-spin, .world-scene .w-swing { animation: none !important; }
+}

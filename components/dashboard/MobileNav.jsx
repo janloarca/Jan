@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Sparkles, Zap, SlidersHorizontal } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Building2, Sparkles, Zap, SlidersHorizontal } from 'lucide-react'
 
 export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, onManage, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
   const [moreOpen, setMoreOpen] = useState(false)
@@ -53,6 +53,12 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
               style={{ color: pathname === '/costs' ? 'var(--accent-blue)' : undefined }}>
               <Receipt size={18} className="text-slate-400" />
               <span className="text-body">{t('Costos', 'Costs')}</span>
+            </Link>
+            <Link href="/world" onClick={() => setMoreOpen(false)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors"
+              style={{ color: pathname === '/world' ? 'var(--accent-blue)' : undefined }}>
+              <Building2 size={18} className="text-slate-400" />
+              <span className="text-body">{t('Mundo', 'World')}</span>
             </Link>
             {[
               // On a phone the header's "Nuevo" menu is cramped and the big +
