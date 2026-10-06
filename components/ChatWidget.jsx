@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { safeJson } from '@/lib/authFetch'
+import { isExcludedFromNetWorth } from '@/components/dashboard/utils'
 
 const STORAGE_KEY = 'chispudo-anthropic-key'
 
@@ -49,6 +50,13 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     setError('')
   }, [])
 
+  // FASE PL (auditoría de toggles, hallazgo 1). `netWorth`/`totalAssets` ya
+  // llegan correctos (useDashboardData los calcula excluyendo esta cuenta),
+  // pero `items` es la lista CRUDA de portfolioItems: sin este filtro, la
+  // cuenta que el usuario marcó "no cuentes esto en mi patrimonio" aparecía
+  // igual en el bloque de holdings que alimenta al modelo, dos líneas abajo
+  // del patrimonio CORRECTO en el prompt del servidor — un asistente que
+  // suma por su cuenta puede contradecir en vivo esa decisión explícita.
   const buildContext = useCallback(() => ({
     netWorth,
     totalAssets,
@@ -56,17 +64,19 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     annualDividends,
     baseCurrency,
     riskMetrics,
-    items: (items || []).map(it => ({
-      name: it.name, symbol: it.symbol, type: it.type, subtype: it.subtype,
-      quantity: it.quantity, purchasePrice: it.purchasePrice, currentPrice: it.currentPrice,
-      currency: it.currency, institution: it.institution,
-      isDebt: it.isDebt, isReceivable: it.isReceivable,
-      interestRate: it.interestRate, debtTerm: it.debtTerm,
-      monthlyPayment: it.monthlyPayment, installmentsRemaining: it.installmentsRemaining,
-      rewardType: it.rewardType, rewardBalance: it.rewardBalance, cardBrand: it.cardBrand,
-      incomeRate: it.incomeRate, maturityDate: it.maturityDate,
-      acquisitionDate: it.acquisitionDate, notes: it.notes,
-    })),
+    items: (items || [])
+      .filter(it => !isExcludedFromNetWorth(it))
+      .map(it => ({
+        name: it.name, symbol: it.symbol, type: it.type, subtype: it.subtype,
+        quantity: it.quantity, purchasePrice: it.purchasePrice, currentPrice: it.currentPrice,
+        currency: it.currency, institution: it.institution,
+        isDebt: it.isDebt, isReceivable: it.isReceivable,
+        interestRate: it.interestRate, debtTerm: it.debtTerm,
+        monthlyPayment: it.monthlyPayment, installmentsRemaining: it.installmentsRemaining,
+        rewardType: it.rewardType, rewardBalance: it.rewardBalance, cardBrand: it.cardBrand,
+        incomeRate: it.incomeRate, maturityDate: it.maturityDate,
+        acquisitionDate: it.acquisitionDate, notes: it.notes,
+      })),
   }), [items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency])
 
   const handleActions = useCallback((actions) => {
