@@ -2208,6 +2208,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <tr className="bg-theme-tertiary border-t-0">
                               <td className={`py-0.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 bg-theme-tertiary z-10`} colSpan={2 + (showOriginal ? 1 : 0) + months.length}>
                                 <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
+                                  {item._liveCardAdded > 0 && (
+                                    <span>{t(`incluye ${fmtD(item._liveCardAdded)} en ${item._liveCardCount} compra(s) desde el corte${item.balanceAsOf ? ` del ${formatDate(item.balanceAsOf)}` : ''}`, `includes ${fmtD(item._liveCardAdded)} from ${item._liveCardCount} purchase(s) since the ${item.balanceAsOf ? formatDate(item.balanceAsOf) : ''} cut`)}</span>
+                                  )}
                                   {item.debtTerm && <span>{debtTermLabel(item.debtTerm, lang)}</span>}
                                   {item.interestRate > 0 && <span>{item.interestRate}% {item.ratePeriod === 'monthly' ? t('mensual', 'monthly') : t('anual', 'yearly')}</span>}
                                   {/* FASE ME2: la cuota iba con `$` fijo al lado del interés en
