@@ -1,3 +1,4 @@
+import { liveCardAdditions } from '@/lib/cardLiveBalance'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useFirestoreItems } from './useFirestoreItems'
 import { useMarketPrices } from './useMarketPrices'
@@ -233,10 +234,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   const enrichedItems = useMemo(() => {
     if (!rates) return rawEnriched
+    // Saldo vivo de tarjetas: compras capturadas desde el corte, SOLO para
+    // mostrar. `_originalPrice` conserva el saldo guardado, así que ningún
+    // planificador de reversa escribe de vuelta un saldo inflado.
+    const liveCard = liveCardAdditions(rawEnriched, financeTransactions).byItemId
     return rawEnriched.map((it) => {
       const itemCurrency = it.marketCurrency || it.currency || 'USD'
       const price = it.currentPrice || it.purchasePrice || it.price || it.cost || 0
-      const convertedPrice = convert(price, itemCurrency, baseCurrency)
+      const live = it.isDebt ? liveCard[it.id] : null
+      const convertedPrice = convert(live ? price + live.amount : price, itemCurrency, baseCurrency)
       const purchaseConverted = it.purchasePrice ? convert(it.purchasePrice, it.currency || 'USD', baseCurrency) : 0
       return {
         ...it,
@@ -246,9 +252,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         _originalPurchasePrice: it.purchasePrice || 0,
         _originalCurrency: itemCurrency,
         _displayCurrency: baseCurrency,
+        ...(live ? { _liveCardAdded: live.amount, _liveCardCount: live.count } : null),
       }
     })
-  }, [rawEnriched, rates, convert, baseCurrency])
+  }, [rawEnriched, rates, convert, baseCurrency, financeTransactions])
 
   // FASE OD. Los ítems con los que se PLANIFICA una reversa de saldo.
   //
