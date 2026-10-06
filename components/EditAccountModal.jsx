@@ -24,6 +24,7 @@ import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
 import { useAutoDisarm } from '@/hooks/useAutoDisarm'
 import DiscardHint from '@/components/ui/DiscardHint'
+import { ARCHETYPES, archetypeLabel } from '@/lib/worldModel'
 
 const ACCOUNT_TYPES = [
   { key: 'taxable', es: 'Tributaria', en: 'Taxable' },
@@ -125,6 +126,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     custodyType: item.custodyType || '',
     custodyDetails: item.custodyDetails || '',
     notes: item.notes || '',
+    worldArchetype: item.worldArchetype || '',
     tags: (item.tags || []).join(', '),
     taxJurisdiction: item.taxJurisdiction || '',
     assetCountry: item.assetCountry || '',
@@ -754,6 +756,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
 
       // Notes & beneficiary
       updated.notes = form.notes || ''
+      // World: '' = Auto (se deriva de notas/nombre/sector/tipo). null y no
+      // undefined, porque Firestore rechaza undefined.
+      updated.worldArchetype = form.worldArchetype || null
       updated.tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
       updated.beneficiary = form.beneficiary || ''
 
@@ -1853,6 +1858,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             if (form.assetCountry) parts.push(form.assetCountry)
             if (form.tags) parts.push(`${form.tags.split(',').filter(Boolean).length} ${t('etiquetas', 'tags')}`)
             if (form.notes) parts.push(t('notas', 'notes'))
+            if (form.worldArchetype) parts.push(archetypeLabel(form.worldArchetype, lang))
             return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
           })()}>
             <div>
@@ -1860,6 +1866,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
                 placeholder={t('Notas adicionales...', 'Additional notes...')}
                 rows={2} className={inputCls + ' resize-none'} />
+            </div>
+            <div>
+              <label className={labelCls}>{t('Tipo en Mundo', 'World type')}</label>
+              <select value={form.worldArchetype} onChange={e => set('worldArchetype', e.target.value)} className={inputCls}>
+                <option value="">{t('Auto (según notas, nombre y sector)', 'Auto (from notes, name and sector)')}</option>
+                {ARCHETYPES.map(a => <option key={a} value={a}>{archetypeLabel(a, lang)}</option>)}
+              </select>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t('Solo cambia cómo se dibuja en Mundo. No mueve ningún número.', 'Only changes how it is drawn in World. It never changes a number.')}
+              </p>
             </div>
             <div>
               <label className={labelCls}>{t('Etiquetas', 'Tags')} <span className="text-[var(--text-muted,#475569)] font-normal">({t('separadas por coma', 'comma-separated')})</span></label>

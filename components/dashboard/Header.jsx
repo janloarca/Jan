@@ -56,6 +56,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     { href: '/finances', label: lang === 'es' ? 'Flujo' : 'Flow' },
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
     ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
+    { href: '/world', label: lang === 'es' ? 'Mundo' : 'World' },
   ]
 
   // Shared icon-button style (settings, logout, refresh) — 36px, hairline border.
