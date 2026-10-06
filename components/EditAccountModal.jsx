@@ -10,7 +10,7 @@ import DebtBreakdownPreview from './DebtBreakdownPreview'
 import { validateItem } from '@/lib/validation'
 import { toRawItem } from '@/lib/rawItem'
 import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
-import { getItemValue } from '@/components/dashboard/utils'
+import { getItemValue, industryOptions, INVESTMENT_STYLE_LABELS, investmentStyleLabel, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
 import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
@@ -130,6 +130,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     tags: (item.tags || []).join(', '),
     taxJurisdiction: item.taxJurisdiction || '',
     assetCountry: item.assetCountry || '',
+    sector: item.sector || '',
+    industry: item.industry || '',
+    // ⛔ FASE PM. Nunca un default: ver el mismo comentario en AddAccountModal.
+    investmentStyle: item.investmentStyle || '',
+    investmentStyleCustom: item.investmentStyleCustom || '',
     safeCap: item.safeCap?.toString() || '',
     safeDiscount: item.safeDiscount?.toString() || '',
     safeType: item.safeType || 'post_money',
@@ -479,6 +484,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const isBondOrAlt = /bond|bono|inversion|alternative|alternativ/i.test(form.type)
   const isCrypto = /crypto|cripto/i.test(form.type)
   const isDebt = /debt|deuda|pasivo|liability/i.test(form.type)
+  // FASE PM. Un banco en modalidad Depósito a Plazo/CD tiene fecha de
+  // vencimiento igual que un bono, y hasta ahora no había ningún campo para
+  // ella en toda la app. Variable PROPIA (no se ensancha isBondOrAlt): esa
+  // bandera no se usa en ningún otro lugar de este archivo salvo los dos
+  // puntos de vencimiento de abajo, pero mantenerla separada evita que un
+  // uso futuro de isBondOrAlt (ej. comisiones) herede este caso por error.
+  const showsMaturity = isBondOrAlt || (isBank && form.subtype === 'cd')
   const isProperty = isPropertyItem({ type: form.type })
   const propertyDebtOptions = useMemo(() => debtOptions(existingItems.filter(it => it.id !== item.id)), [existingItems, item.id])
   const isReceivable = form.isReceivable
@@ -510,6 +522,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         if (isMarket) return { id: 'edit-purchase-price' }
         return { id: 'edit-current-price' }
       case 'assetCountry': return { id: 'edit-asset-country', sectionKey: 'details' }
+      case 'industry': return { id: 'edit-industry', sectionKey: 'details' }
+      case 'investmentStyle': return { id: 'edit-investment-style', sectionKey: 'details' }
       case 'maturityDate':
         return isDebt ? { id: 'edit-debt-maturity-date' } : { id: 'edit-maturity-date', sectionKey: 'maturity' }
       case 'incomeMonths':
@@ -777,6 +791,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       updated.taxJurisdiction = form.taxJurisdiction || ''
       updated.assetCountry = form.assetCountry || ''
 
+      // FASE PM. Clasificación: industria y estilo de inversión. Escritura
+      // incondicional (igual que taxJurisdiction/assetCountry arriba): si no,
+      // vaciar el campo en el formulario no lo borraría de verdad.
+      updated.sector = form.sector || ''
+      updated.industry = form.industry || ''
+      updated.investmentStyle = form.investmentStyle || ''
+      updated.investmentStyleCustom = form.investmentStyle === 'custom' ? (form.investmentStyleCustom || '').trim() : ''
+
       // SAFE fields
       if (isAlternative && form.subtype === 'safe_note') {
         updated.safeType = form.safeType
@@ -1001,11 +1023,13 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             </div>
           )}
 
-          {/* Sector badge */}
-          {item.sector && (
+          {/* Sector badge: refleja form.sector/industry (lo que se va a
+              guardar), no item.sector/industry (lo ya guardado) — industry
+              es editable mas abajo y este badge debe seguirlo en vivo. */}
+          {form.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{item.sector}</span>
-              {item.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 10%, transparent)', color: 'var(--accent-purple)' }}>{item.industry}</span>}
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{form.sector}</span>
+              {form.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 10%, transparent)', color: 'var(--accent-purple)' }}>{form.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
           )}
@@ -1394,11 +1418,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {!isDebt && (
             <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} open={showMaturity} onToggle={setShowMaturity} summary={(() => {
               const parts = []
-              if (isBondOrAlt && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)
+              if (showsMaturity && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)
               if (form.isIlliquid) parts.push(t('ilíquido', 'illiquid'))
               return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
             })()}>
-              {isBondOrAlt && (
+              {showsMaturity && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
@@ -1856,6 +1880,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             if (form.beneficiary) parts.push(form.beneficiary)
             if (form.taxJurisdiction) parts.push(form.taxJurisdiction)
             if (form.assetCountry) parts.push(form.assetCountry)
+            if (form.industry) parts.push(form.industry)
+            if (form.investmentStyle) parts.push(investmentStyleLabel(form.investmentStyle, lang, form.investmentStyleCustom))
             if (form.tags) parts.push(`${form.tags.split(',').filter(Boolean).length} ${t('etiquetas', 'tags')}`)
             if (form.notes) parts.push(t('notas', 'notes'))
             if (form.worldArchetype) parts.push(archetypeLabel(form.worldArchetype, lang))
@@ -1894,47 +1920,62 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
                 <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                   <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                  <option value="GT">🇬🇹 Guatemala</option>
-                  <option value="MX">{'🇲🇽 '}{t('México', 'Mexico')}</option>
-                  <option value="US">🇺🇸 USA</option>
-                  <option value="CO">🇨🇴 Colombia</option>
-                  <option value="CL">🇨🇱 Chile</option>
-                  <option value="BR">{'🇧🇷 '}{t('Brasil', 'Brazil')}</option>
-                  <option value="PE">{'🇵🇪 '}{t('Perú', 'Peru')}</option>
-                  <option value="AR">🇦🇷 Argentina</option>
-                  <option value="OTHER">{t('Otro', 'Other')}</option>
+                  {TAX_JURISDICTION_OPTIONS.map(o => (
+                    <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className={labelCls}>{t('País del activo', 'Asset country')}</label>
+                <label className={labelCls}>
+                  {t('País del activo', 'Asset country')}
+                  {' '}
+                  <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
+                </label>
                 <select id="edit-asset-country" value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
                   <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                  <option value="GT">🇬🇹 Guatemala</option>
-                  <option value="MX">{'🇲🇽 '}{t('México', 'Mexico')}</option>
-                  <option value="US">🇺🇸 USA</option>
-                  <option value="CO">🇨🇴 Colombia</option>
-                  <option value="CL">🇨🇱 Chile</option>
-                  <option value="BR">{'🇧🇷 '}{t('Brasil', 'Brazil')}</option>
-                  <option value="PE">{'🇵🇪 '}{t('Perú', 'Peru')}</option>
-                  <option value="AR">🇦🇷 Argentina</option>
-                  <option value="CR">🇨🇷 Costa Rica</option>
-                  <option value="PA">{'🇵🇦 '}{t('Panamá', 'Panama')}</option>
-                  <option value="ES">{'🇪🇸 '}{t('España', 'Spain')}</option>
-                  <option value="UK">🇬🇧 UK</option>
-                  <option value="DE">{'🇩🇪 '}{t('Alemania', 'Germany')}</option>
-                  <option value="CH">{'🇨🇭 '}{t('Suiza', 'Switzerland')}</option>
-                  <option value="JP">{'🇯🇵 '}{t('Japón', 'Japan')}</option>
-                  <option value="CN">🇨🇳 China</option>
-                  <option value="KR">{'🇰🇷 '}{t('Corea del Sur', 'South Korea')}</option>
-                  <option value="HK">🇭🇰 Hong Kong</option>
-                  <option value="SG">{'🇸🇬 '}{t('Singapur', 'Singapore')}</option>
-                  <option value="AU">🇦🇺 Australia</option>
-                  <option value="CA">{'🇨🇦 '}{t('Canadá', 'Canada')}</option>
-                  <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
-                  <option value="OTHER">{t('Otro', 'Other')}</option>
+                  {ASSET_COUNTRY_OPTIONS.map(o => (
+                    <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
+                  ))}
                 </select>
               </div>
             </div>
+
+            {/* FASE PM. Clasificación: industria y estilo de inversión.
+                Ninguno de los dos se preselecciona jamás — el usuario pidió
+                explícitamente que esto nunca se asuma. No aplica a Banco
+                (efectivo no tiene industria ni estilo) ni a Deuda (un
+                pasivo no es una inversión). */}
+            {!isBank && !isDebt && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>{t('Industria', 'Industry')}</label>
+                  <select id="edit-industry" value={form.industry} onChange={e => set('industry', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                    {industryOptions(form.industry).map(o => (
+                      <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    {t('Estilo de inversión', 'Investment style')}
+                    {' '}
+                    <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
+                  </label>
+                  <select id="edit-investment-style" value={form.investmentStyle} onChange={e => set('investmentStyle', e.target.value)} className={inputCls}>
+                    <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                    {Object.entries(INVESTMENT_STYLE_LABELS).map(([key, lbl]) => (
+                      <option key={key} value={key}>{t(lbl.es, lbl.en)}</option>
+                    ))}
+                  </select>
+                  {form.investmentStyle === 'custom' && (
+                    <input value={form.investmentStyleCustom} onChange={e => set('investmentStyleCustom', e.target.value)}
+                      placeholder={t('Descríbelo...', 'Describe it...')}
+                      className={inputCls + ' mt-1.5'} />
+                  )}
+                </div>
+              </div>
+            )}
           </FormSection>
 
           {/* Section 3: Income/Dividends */}

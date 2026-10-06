@@ -16,7 +16,7 @@ import { buildLoanProceedsTransaction, buildLoanProceedsOutsideTransaction } fro
 import { buildContributionFields, isBankLikeItem } from '@/lib/contributions'
 import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import { InfoTip } from './ui/Tooltip'
-import { DEBT_CLARIFICATION } from './dashboard/utils'
+import { DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { debtOptions } from '@/lib/propertyEquity'
@@ -135,6 +135,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
     dividendAction: 'cash',
     sector: '', industry: '', exchangeName: '',
+    // ⛔ FASE PM. Nunca un default: el usuario pidió explícitamente que esto
+    // jamás se asuma. Arranca vacío y se queda vacío salvo que el usuario
+    // elija una opción.
+    investmentStyle: '', investmentStyleCustom: '',
     rateType: 'fixed', rateMin: '', rateMax: '',
     // 'monthly' (de siempre) | 'daily' (devenga diario, asienta a fin de mes)
     accrual: 'monthly',
@@ -521,6 +525,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       if (form.sector) item.sector = form.sector
       if (form.industry) item.industry = form.industry
       if (form.exchangeName) item.exchangeName = form.exchangeName
+      if (form.investmentStyle) {
+        item.investmentStyle = form.investmentStyle
+        if (form.investmentStyle === 'custom' && form.investmentStyleCustom.trim()) {
+          item.investmentStyleCustom = form.investmentStyleCustom.trim()
+        }
+      }
 
       if (isMarketAsset) {
         item.symbol = form.symbol.trim().toUpperCase()
@@ -1007,7 +1017,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -1998,8 +2008,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </p>
                 </div>
 
-                {/* Vencimiento (bonds/alternatives) */}
-                {(isBond || isAlternative) && (
+                {/* Vencimiento (bonds/alternatives, y un banco en modalidad
+                    Depósito a Plazo/CD: tiene fecha de vencimiento igual que
+                    un bono, y hasta ahora no había ningún campo para ella en
+                    toda la app). */}
+                {(isBond || isAlternative || (isBank && subtype === 'cd')) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {t('Vencimiento', 'Maturity')}</span>
                     <div className="grid grid-cols-2 gap-3">
@@ -2269,6 +2282,47 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </div>
                 )}
 
+                {/* Clasificación: industria y estilo de inversión. Ninguno
+                    de los dos se preselecciona jamás — el usuario pidió
+                    explícitamente que esto nunca se asuma; el único default
+                    posible es "sin elegir". No aplica a Banco (efectivo no
+                    tiene industria ni estilo) ni a Deuda (un pasivo no es
+                    una inversión). */}
+                {!isBank && !isDebt && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏷️ {t('Clasificación', 'Classification')}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Industria', 'Industry')}</label>
+                        <select value={form.industry} onChange={e => set('industry', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                          {industryOptions(form.industry).map(o => (
+                            <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          {t('Estilo de inversión', 'Investment style')}
+                          {' '}
+                          <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
+                        </label>
+                        <select value={form.investmentStyle} onChange={e => set('investmentStyle', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                          {Object.entries(INVESTMENT_STYLE_LABELS).map(([key, lbl]) => (
+                            <option key={key} value={key}>{t(lbl.es, lbl.en)}</option>
+                          ))}
+                        </select>
+                        {form.investmentStyle === 'custom' && (
+                          <input value={form.investmentStyleCustom} onChange={e => set('investmentStyleCustom', e.target.value)}
+                            placeholder={t('Descríbelo...', 'Describe it...')}
+                            className={inputCls + ' mt-1.5'} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Fiscal + país del activo */}
                 <div className="pt-3.5 border-t border-glass-border/50">
                   <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Fiscal', 'Tax')}</span>
@@ -2277,15 +2331,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
                       <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                        <option value="GT">Guatemala</option>
-                        <option value="MX">{t('México', 'Mexico')}</option>
-                        <option value="US">USA</option>
-                        <option value="CO">Colombia</option>
-                        <option value="CL">Chile</option>
-                        <option value="BR">{t('Brasil', 'Brazil')}</option>
-                        <option value="PE">{t('Perú', 'Peru')}</option>
-                        <option value="AR">Argentina</option>
-                        <option value="OTHER">{t('Otro', 'Other')}</option>
+                        {TAX_JURISDICTION_OPTIONS.map(o => (
+                          <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -2296,29 +2344,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       </label>
                       <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                        <option value="GT">Guatemala</option>
-                        <option value="MX">{t('México', 'Mexico')}</option>
-                        <option value="US">USA</option>
-                        <option value="CO">Colombia</option>
-                        <option value="CL">Chile</option>
-                        <option value="BR">{t('Brasil', 'Brazil')}</option>
-                        <option value="PE">{t('Perú', 'Peru')}</option>
-                        <option value="AR">Argentina</option>
-                        <option value="CR">Costa Rica</option>
-                        <option value="PA">{t('Panamá', 'Panama')}</option>
-                        <option value="ES">{t('España', 'Spain')}</option>
-                        <option value="UK">UK</option>
-                        <option value="DE">{t('Alemania', 'Germany')}</option>
-                        <option value="CH">{t('Suiza', 'Switzerland')}</option>
-                        <option value="JP">{t('Japón', 'Japan')}</option>
-                        <option value="CN">China</option>
-                        <option value="KR">{t('Corea del Sur', 'South Korea')}</option>
-                        <option value="HK">Hong Kong</option>
-                        <option value="SG">{t('Singapur', 'Singapore')}</option>
-                        <option value="AU">Australia</option>
-                        <option value="CA">{t('Canadá', 'Canada')}</option>
-                        <option value="GLOBAL">{t('Global / Multi-país', 'Global / Multi-country')}</option>
-                        <option value="OTHER">{t('Otro', 'Other')}</option>
+                        {ASSET_COUNTRY_OPTIONS.map(o => (
+                          <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
+                        ))}
                       </select>
                     </div>
                   </div>

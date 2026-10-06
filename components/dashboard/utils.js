@@ -234,6 +234,31 @@ export function debtTermLabel(term, lang) {
   return lang === 'en' ? e.en : e.es
 }
 
+// FASE PM. "Sector" en el sentido que pidió el usuario: Fixed Income / Growth /
+// Fixed and Growth / Other con texto libre. A propósito un campo NUEVO
+// (investmentStyle) y NO una reutilización de `item.sector`/getSectorFromItem,
+// que ya mezcla clase de activo (Fixed Income, Real Estate, Alternatives...)
+// con industria GICS (Technology, Financials...) para la pestaña "Sector" de
+// Asignación de Activos: un propósito distinto y ya establecido, que renombrar
+// o pisar rompería.
+//
+// ⛔ NUNCA se preselecciona ni se infiere. El pedido fue literal: "que sea una
+// opción por aparte, no asumir nada, que el usuario lo ponga". Todo <select>
+// de este campo arranca en '' (sin elegir), nunca en 'fixed_income' por
+// defecto, y ningún código debe derivarlo de otro campo (tipo, subtipo, etc.).
+export const INVESTMENT_STYLE_LABELS = {
+  fixed_income: { es: 'Renta fija', en: 'Fixed Income' },
+  growth: { es: 'Crecimiento', en: 'Growth' },
+  blend: { es: 'Renta fija y crecimiento', en: 'Fixed and Growth' },
+  custom: { es: 'Otro', en: 'Other' },
+}
+export function investmentStyleLabel(style, lang, customText) {
+  const e = INVESTMENT_STYLE_LABELS[style]
+  if (!e) return ''
+  if (style === 'custom' && customText) return customText
+  return lang === 'en' ? e.en : e.es
+}
+
 export function categoryLabel(cat, lang) {
   return CATEGORY_LABELS[cat]?.[lang === 'es' ? 'es' : 'en'] || cat
 }
@@ -1000,6 +1025,80 @@ export function getSectorFromType(type) {
   }
   return 'Unknown'
 }
+
+// FASE PM. "Industria": opciones curadas, bilingües de verdad (a diferencia de
+// SECTOR_PATTERNS, pensado solo como llave de agrupación en inglés fijo). Las
+// mismas 11 etiquetas que `getSectorFromType` ya produce, para que un ítem
+// clasificado a mano y uno detectado por símbolo hablen el mismo idioma en la
+// pestaña "Sector" de Asignación de Activos.
+export const INDUSTRY_OPTIONS = [
+  { key: 'Technology', es: 'Tecnología', en: 'Technology' },
+  { key: 'Financials', es: 'Financiero', en: 'Financials' },
+  { key: 'Healthcare', es: 'Salud', en: 'Healthcare' },
+  { key: 'Energy', es: 'Energía', en: 'Energy' },
+  { key: 'Consumer', es: 'Consumo', en: 'Consumer' },
+  { key: 'Industrials', es: 'Industrial', en: 'Industrials' },
+  { key: 'Real Estate', es: 'Bienes Raíces', en: 'Real Estate' },
+  { key: 'Communication', es: 'Comunicación', en: 'Communication' },
+  { key: 'Materials', es: 'Materiales', en: 'Materials' },
+  { key: 'Utilities', es: 'Servicios Públicos', en: 'Utilities' },
+  { key: 'Crypto', es: 'Cripto', en: 'Crypto' },
+]
+
+// Mismo problema que resolvió currencyOptions (lib/currencies.js): un <select>
+// cuyo value no está entre sus opciones renderiza la PRIMERA, así que una
+// industria detectada en vivo (Yahoo, `data.quote.industry`) que no calce con
+// esta lista curada se mostraría como otra industria distinta sin que nadie
+// lo note — el mismo bug que FASE IF ya encontró con monedas. Antepone el
+// valor guardado/detectado cuando no es uno de los curados, en vez de perderlo.
+export function industryOptions(selected) {
+  if (!selected || INDUSTRY_OPTIONS.some(o => o.key === selected)) return INDUSTRY_OPTIONS
+  return [{ key: selected, es: selected, en: selected }, ...INDUSTRY_OPTIONS]
+}
+
+// FASE PM. Las dos listas de país/jurisdicción vivían DUPLICADAS entre
+// AddAccountModal y EditAccountModal, y ya habían divergido: Edit lleva
+// emoji de bandera en cada opción, Add no. Dos copias es exactamente cómo una
+// se queda atrás (la misma lección que este archivo ya documenta para
+// InfoTip, lib/transferTx.js y los colores). Una sola lista, con bandera,
+// para las dos pantallas.
+export const TAX_JURISDICTION_OPTIONS = [
+  { key: 'GT', flag: '🇬🇹', es: 'Guatemala', en: 'Guatemala' },
+  { key: 'MX', flag: '🇲🇽', es: 'México', en: 'Mexico' },
+  { key: 'US', flag: '🇺🇸', es: 'USA', en: 'USA' },
+  { key: 'CO', flag: '🇨🇴', es: 'Colombia', en: 'Colombia' },
+  { key: 'CL', flag: '🇨🇱', es: 'Chile', en: 'Chile' },
+  { key: 'BR', flag: '🇧🇷', es: 'Brasil', en: 'Brazil' },
+  { key: 'PE', flag: '🇵🇪', es: 'Perú', en: 'Peru' },
+  { key: 'AR', flag: '🇦🇷', es: 'Argentina', en: 'Argentina' },
+  { key: 'OTHER', flag: '', es: 'Otro', en: 'Other' },
+]
+
+export const ASSET_COUNTRY_OPTIONS = [
+  { key: 'GT', flag: '🇬🇹', es: 'Guatemala', en: 'Guatemala' },
+  { key: 'MX', flag: '🇲🇽', es: 'México', en: 'Mexico' },
+  { key: 'US', flag: '🇺🇸', es: 'USA', en: 'USA' },
+  { key: 'CO', flag: '🇨🇴', es: 'Colombia', en: 'Colombia' },
+  { key: 'CL', flag: '🇨🇱', es: 'Chile', en: 'Chile' },
+  { key: 'BR', flag: '🇧🇷', es: 'Brasil', en: 'Brazil' },
+  { key: 'PE', flag: '🇵🇪', es: 'Perú', en: 'Peru' },
+  { key: 'AR', flag: '🇦🇷', es: 'Argentina', en: 'Argentina' },
+  { key: 'CR', flag: '🇨🇷', es: 'Costa Rica', en: 'Costa Rica' },
+  { key: 'PA', flag: '🇵🇦', es: 'Panamá', en: 'Panama' },
+  { key: 'ES', flag: '🇪🇸', es: 'España', en: 'Spain' },
+  { key: 'UK', flag: '🇬🇧', es: 'UK', en: 'UK' },
+  { key: 'DE', flag: '🇩🇪', es: 'Alemania', en: 'Germany' },
+  { key: 'CH', flag: '🇨🇭', es: 'Suiza', en: 'Switzerland' },
+  { key: 'JP', flag: '🇯🇵', es: 'Japón', en: 'Japan' },
+  { key: 'CN', flag: '🇨🇳', es: 'China', en: 'China' },
+  { key: 'KR', flag: '🇰🇷', es: 'Corea del Sur', en: 'South Korea' },
+  { key: 'HK', flag: '🇭🇰', es: 'Hong Kong', en: 'Hong Kong' },
+  { key: 'SG', flag: '🇸🇬', es: 'Singapur', en: 'Singapore' },
+  { key: 'AU', flag: '🇦🇺', es: 'Australia', en: 'Australia' },
+  { key: 'CA', flag: '🇨🇦', es: 'Canadá', en: 'Canada' },
+  { key: 'GLOBAL', flag: '', es: 'Global / Multi-país', en: 'Global / Multi-country' },
+  { key: 'OTHER', flag: '', es: 'Otro', en: 'Other' },
+]
 
 const GEO_SUFFIXES = {
   '.L': 'UK', '.TO': 'Canada', '.V': 'Canada', '.MX': 'Mexico',

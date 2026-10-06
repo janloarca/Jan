@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Shimmer } from '@/components/dashboard/Skeleton'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { formatCurrency, formatDate, getItemPrice, isMarketPriced } from './utils'
+import { formatCurrency, formatDate, getItemPrice, isMarketPriced, investmentStyleLabel } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { computeVentureMetrics } from '@/lib/ventureMetrics'
 import { computePropertyEquity, linkedDebtOf, isProperty } from '@/lib/propertyEquity'
@@ -285,6 +285,20 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               </span>
             )}
           </div>
+
+          {/* FASE PM. Clasificación: industria + estilo de inversión. Fila propia
+              y no mezclada con la línea de arriba porque son dos preguntas
+              distintas (qué ES el activo, de qué tipo cotiza) de la que ya
+              responde el badge de sector/exchange más arriba. Ninguno de los
+              dos se adivina: si no se ve esta línea es porque no se eligieron. */}
+          {(item.industry || item.investmentStyle) && (
+            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              {[
+                item.industry || null,
+                item.investmentStyle ? investmentStyleLabel(item.investmentStyle, lang, item.investmentStyleCustom) : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
 
           {/* VC/startup direct investment: cap-table snapshot, own row so it
               reads as a unit ("Series A · $10M valuation · 0.50% of the
