@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { X, ChevronDown } from 'lucide-react'
 import { archetypeLabel } from '@/lib/worldModel'
+import { industryLabel } from '@/lib/classification'
 import { accentOf } from '@/lib/worldPalette'
 import { formatCurrency } from '@/components/dashboard/utils'
 import { useEscClose } from '@/hooks/useEscClose'
@@ -43,7 +44,7 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
           <h2 className="text-h2 font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{name}</h2>
           <span className="inline-flex items-center gap-1.5 mt-1 text-caption" style={{ color: 'var(--text-secondary)' }}>
             <span className="w-2 h-2 rounded-full" style={{ background: accentOf(building.archetype) }} aria-hidden="true" />
-            {archetypeLabel(building.archetype, lang)}
+            {building.variant ? industryLabel(building.variant, lang) : archetypeLabel(building.archetype, lang)}
           </span>
         </div>
         <button onClick={onClose} aria-label={t('Cerrar', 'Close')}
@@ -94,7 +95,7 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
                   <div className="min-w-0 flex-1">
                     <div className="text-body truncate" style={{ color: 'var(--text-primary)' }}>{d.label}</div>
                     <div className="text-micro truncate" style={{ color: 'var(--text-muted)' }}>
-                      {archetypeLabel(d.archetype, lang)} · {(SOURCE_LABELS[d.source] || SOURCE_LABELS.default)[lang === 'es' ? 'es' : 'en']}
+                      {d.variant ? industryLabel(d.variant, lang) : archetypeLabel(d.archetype, lang)} · {(SOURCE_LABELS[d.source] || SOURCE_LABELS.default)[lang === 'es' ? 'es' : 'en']}
                     </div>
                   </div>
                   <div className="text-right shrink-0">

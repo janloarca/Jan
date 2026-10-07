@@ -10,7 +10,8 @@ import { memo } from 'react'
 import { GALLERY, PLINTH, ROOF, PLOT_MARGIN, gallerySlots } from '@/lib/worldLayout'
 import { accentOf } from '@/lib/worldPalette'
 import { poly, planeY, planeX } from './isoDraw'
-import { IsoBox, Worker, Desk, SlotProp, WallFeature, Rooftop, PlotProp, Lamp } from './WorldPieces'
+import { IsoBox, Worker, Desk, SlotProp, WallFeature, Rooftop, RoofMark, PlotProp, Lamp } from './WorldPieces'
+import { markFor } from '@/lib/worldMarks'
 
 const SL = 3 // grosor de cada losa
 const HAT_TYPES = new Set(['CONSTRUCTION', 'INFRASTRUCTURE', 'ENERGY'])
@@ -154,6 +155,7 @@ function WorldBuildingImpl({ building, placement, selected, highlightFloor, onSe
       <polygon points={poly([[ox + fw, oy, top + ROOF - 2.2], [ox + fw, oy + fd, top + ROOF - 2.2], [ox + fw, oy + fd, top + ROOF - 0.9], [ox + fw, oy, top + ROOF - 0.9]])} style={{ fill: accent, opacity: 0.8 }} />
       <polygon points={poly([[ox + 0.12, oy + 0.12, top + ROOF], [ox + fw - 0.12, oy + 0.12, top + ROOF], [ox + fw - 0.12, oy + fd - 0.12, top + ROOF], [ox + 0.12, oy + fd - 0.12, top + ROOF]])} style={{ fill: 'none', stroke: 'var(--w-floor-edge)', strokeWidth: 0.5 }} />
       <Rooftop archetype={building.archetype} ox={ox} oy={oy} fw={fw} fd={fd} z={top + ROOF} />
+      <RoofMark mark={markFor(building.archetype, building.variant)} archetype={building.archetype} ox={ox} oy={oy} fw={fw} fd={fd} z={top + ROOF} />
 
       <Lamp gx={ox + fw + M * 0.6} gy={oy + fd + M * 0.6} />
     </g>
