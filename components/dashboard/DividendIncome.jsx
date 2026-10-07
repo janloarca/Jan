@@ -430,7 +430,14 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
       <Group>{t('Lo que ya cobraste', 'What you have received')}</Group>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+        {/* El YTD cobrado también vive acá: el grupo se llama "lo que ya
+            cobraste" y era el único número de ese tipo que faltaba en él (el
+            del encabezado es el mismo, stats.totalYTD, no se recalcula). */}
+        <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
+          <span className="text-xs text-slate-500">YTD</span>
+          <span className="text-sm font-semibold block font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalYTD)}</span>
+        </div>
         <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
           <span className="text-xs text-slate-500">{t('Este mes', 'This month')}</span>
           <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
