@@ -19,6 +19,8 @@ import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import BusyLabel from '@/components/ui/BusyLabel'
 import FinanceWipePanel from '@/components/settings/FinanceWipePanel'
 import ShareTab from '@/components/settings/ShareTab'
+import CountrySelect from '@/components/ui/CountrySelect'
+import { TAX_JURISDICTION_OPTIONS } from '@/components/dashboard/utils'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -254,6 +256,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const [nameDraft, setNameDraft] = useState(savedName || userDisplayName || '')
   const [firmDraft, setFirmDraft] = useState(savedFirm)
   const [phoneDraft, setPhoneDraft] = useState(savedPhone)
+  // FASE PT. Residencia fiscal: OPCIONAL, vacía por defecto y jamás inferida
+  // (ni de la moneda base ni del país de un activo). Se guarda en el mismo doc
+  // de perfil. Un valor guardado que ya no esté en la lista se descarta al
+  // leerlo: este campo solo puede valer una llave que la lista conoce.
+  const rawResidence = typeof profile?.taxResidence === 'string' ? profile.taxResidence : ''
+  const savedResidence = TAX_JURISDICTION_OPTIONS.some(o => o.key === rawResidence) ? rawResidence : ''
+  const [residenceDraft, setResidenceDraft] = useState(savedResidence)
+  useEffect(() => { setResidenceDraft(savedResidence) }, [savedResidence])
   const [emailDraft, setEmailDraft] = useState(savedEmail)
   const [savingName, setSavingName] = useState(false)
   // Misma lección que los interruptores de correo de arriba: el estado inicial
@@ -370,7 +380,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   const trimmedEmail = emailDraft.trim()
   const nameDirty = !!onSaveProfile && (
     trimmedName !== savedName || trimmedFirm !== savedFirm ||
-    trimmedPhone !== savedPhone || trimmedEmail !== savedEmail
+    trimmedPhone !== savedPhone || trimmedEmail !== savedEmail ||
+    residenceDraft !== savedResidence
   )
   const handleSaveName = async () => {
     if (!nameDirty || savingName) return
@@ -379,7 +390,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       // Los cuatro campos van juntos en cada guardado: el merge de saveProfile
       // los escribe sobre el mismo doc sin tocar lo demás (financialUpdatedAt
       // incluido, la lección de FASE KB).
-      await onSaveProfile({ name: trimmedName, advisorFirm: trimmedFirm, advisorPhone: trimmedPhone, advisorEmail: trimmedEmail })
+      await onSaveProfile({ name: trimmedName, advisorFirm: trimmedFirm, advisorPhone: trimmedPhone, advisorEmail: trimmedEmail, taxResidence: residenceDraft })
       flash('ok', t('Perfil guardado', 'Profile saved'))
     } catch (e) {
       flash('err', isFirestoreQuotaError(e)
@@ -642,6 +653,19 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label htmlFor="settings-tax-residence" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Residencia fiscal (opcional)', 'Tax residence (optional)')}
+                      </label>
+                      <CountrySelect
+                        id="settings-tax-residence" value={residenceDraft} onChange={setResidenceDraft}
+                        options={TAX_JURISDICTION_OPTIONS} lang={lang}
+                        className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                      />
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('Nunca la adivinamos. Si la pones, al dar de alta un activo te ofrecemos usarla con un toque; nada se llena solo.', 'We never guess it. If you set it, when adding an asset we offer to use it in one tap; nothing is filled in on its own.')}
+                      </p>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>

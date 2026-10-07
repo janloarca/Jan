@@ -1826,6 +1826,7 @@ export default function DashboardPage() {
       <ModalMount closing={modalClosing}>
       {modalShown === 'account' && (
         <AddAccountModal
+          profileTaxResidence={profile?.taxResidence || ''}
           onClose={handleCloseModal}
           onAdd={async (item) => {
             // ⛔ LÓGICA CONGELADA (G). Ver
@@ -2214,6 +2215,7 @@ export default function DashboardPage() {
       <ModalMount closing={editClosing}>
       {editShown && (
         <EditAccountModal key={`${editShown.id}:${editFocusField || ''}`} item={editShown} onClose={handleCloseEdit} entities={entities}
+          profileTaxResidence={profile?.taxResidence || ''}
           focusField={editFocusField}
           onSave={async (updated) => {
             const { id, ...fields } = updated
