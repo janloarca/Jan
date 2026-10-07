@@ -1,3 +1,4 @@
+import { genPseudonym as genPseudonymFrom } from '@/lib/friendsPseudonyms'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { getAdminDb } from '@/lib/firebase-admin'
@@ -38,13 +39,10 @@ function genCode(len = 7) {
   return s
 }
 
-const PSEUDO_ADJ = ['Audaz', 'Sereno', 'Veloz', 'Astuto', 'Noble', 'Intrépido', 'Sabio', 'Ágil', 'Valiente', 'Tranquilo']
-const PSEUDO_NOUN = ['Quetzal', 'Jaguar', 'Colibrí', 'Tucán', 'Puma', 'Cóndor', 'Ocelote', 'Guacamayo', 'Venado', 'Búho']
+// La lista de nombres vive en lib/friendsPseudonyms.js. Los seudónimos ya
+// asignados quedan guardados en el perfil y no se regeneran.
 function genPseudonym() {
-  const a = PSEUDO_ADJ[crypto.randomBytes(1)[0] % PSEUDO_ADJ.length]
-  const n = PSEUDO_NOUN[crypto.randomBytes(1)[0] % PSEUDO_NOUN.length]
-  const num = crypto.randomBytes(1)[0] % 100
-  return `${n} ${a} ${num}`
+  return genPseudonymFrom((n) => crypto.randomInt(n))
 }
 
 // El acotado vive en lib/friendsStats.js y se IMPORTA, no se re-escribe: es la
