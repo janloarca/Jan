@@ -2009,46 +2009,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 divider between groups) instead of one flat pile of fields —
                 each group answers one question, so it scans instead of reads
                 like a form dump. */}
+            {/* FASE PU: orden de la spec (costos, clasificación, geografía,
+                características, notas). El primer bloque visible no lleva
+                divisor porque los bloques son condicionales. */}
             {showAdvanced && (
-              <div className="space-y-4">
-                {/* Cuenta */}
-                <div>
-                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏦 {t('Cuenta', 'Account')}</span>
-                  <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
-                    {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
-                  </select>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                    {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
-                     form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
-                     t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
-                  </p>
-                </div>
-
-                {/* Vencimiento (bonds/alternatives, y un banco en modalidad
-                    Depósito a Plazo/CD: tiene fecha de vencimiento igual que
-                    un bono, y hasta ahora no había ningún campo para ella en
-                    toda la app). */}
-                {(isBond || isAlternative || (isBank && subtype === 'cd')) && (
-                  <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {t('Vencimiento', 'Maturity')}</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>{t('Fecha', 'Date')}</label>
-                        <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
-                          type="date" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('Al vencer', 'At maturity')}</label>
-                        <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
-                          <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
-                          <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
-                          <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
+              <div className="space-y-4 [&>*:first-child]:border-t-0 [&>*:first-child]:pt-0">
                 {/* Costos y comisiones — entry fee, ongoing management fee,
                     plus (bonds only) interest already accrued at purchase.
                     Extendido a isPrivateStock: misma comisión de entrada que
@@ -2147,6 +2112,142 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         {parseAmount(form.expenseRatio) > 0 && `Expense: ${parseAmount(form.expenseRatio).toFixed(2)}%/yr`}
                       </p>
                     )}
+                  </div>
+                )}
+
+                {/* Clasificación: industria y estilo de inversión. Ninguno
+                    de los dos se preselecciona jamás — el usuario pidió
+                    explícitamente que esto nunca se asuma; el único default
+                    posible es "sin elegir". No aplica a Banco (efectivo no
+                    tiene industria ni estilo) ni a Deuda (un pasivo no es
+                    una inversión). */}
+                {!isBank && !isDebt && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏷️ {t('Clasificación', 'Classification')}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className={labelCls}>{t('Industria', 'Industry')}</label>
+                        <select id="add-industry" value={form.industry} onChange={e => {
+                          // Cambiar de industria suelta una subindustria que ya no le cuelga.
+                          set('industry', e.target.value)
+                          set('industrySource', e.target.value ? 'user' : '')
+                          if (form.subIndustry && form.subIndustry !== 'custom') { set('subIndustry', ''); set('subIndustryCustom', '') }
+                        }} className={inputCls}>
+                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                          {industryOptions(form.industry).map(o => (
+                            <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
+                          ))}
+                        </select>
+                        {showAutoDetected(form) && (
+                          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                            ✦ {t('Auto-detectado por tu proveedor de cotizaciones', 'Auto-detected by your quote provider')}
+                            {' · '}
+                            <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }}
+                              onClick={() => { const el = document.getElementById('add-industry'); if (el) el.focus() }}>
+                              {t('Corregir', 'Correct')}
+                            </button>
+                          </p>
+                        )}
+                      </div>
+                      <SubIndustryField
+                        id="add-subindustry"
+                        industry={form.industry}
+                        subIndustry={form.subIndustry}
+                        custom={form.subIndustryCustom}
+                        lang={lang}
+                        inputCls={inputCls}
+                        labelCls={labelCls}
+                        onPick={(ind, key, cust) => {
+                          if (ind && key && key !== 'custom') { set('industry', ind); set('industrySource', 'user') }
+                          set('subIndustry', key)
+                          set('subIndustryCustom', cust || '')
+                        }}
+                      />
+                      <div>
+                        <label className={labelCls}>
+                          {t('Estilo de inversión', 'Investment style')}
+                          {' '}
+                          <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
+                        </label>
+                        <select value={form.investmentStyle} onChange={e => set('investmentStyle', e.target.value)} className={inputCls}>
+                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
+                          {Object.entries(INVESTMENT_STYLE_LABELS).map(([key, lbl]) => (
+                            <option key={key} value={key}>{t(lbl.es, lbl.en)}</option>
+                          ))}
+                        </select>
+                        {form.investmentStyle === 'custom' && (
+                          <input value={form.investmentStyleCustom} onChange={e => set('investmentStyleCustom', e.target.value)}
+                            placeholder={t('Descríbelo...', 'Describe it...')}
+                            className={inputCls + ' mt-1.5'} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fiscal + país del activo */}
+                <div className="pt-3.5 border-t border-glass-border/50">
+                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Geografía e impuestos', 'Geography & tax')}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                      <CountrySelect value={form.taxJurisdiction} onChange={v => set('taxJurisdiction', v)} options={TAX_JURISDICTION_OPTIONS} lang={lang} className={inputCls} />
+                      {profileTaxResidence && !form.taxJurisdiction && (
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                          {t('Tu residencia fiscal', 'Your tax residence')}: {(() => { const o = TAX_JURISDICTION_OPTIONS.find(x => x.key === profileTaxResidence); return o ? t(o.es, o.en) : profileTaxResidence })()}
+                          {' · '}
+                          <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
+                            {t('Usar la de tu perfil', 'Use the one from your profile')}
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelCls}>
+                        {t('País del activo', 'Asset country')}
+                        {' '}
+                        <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
+                      </label>
+                      <CountrySelect value={form.assetCountry} onChange={v => set('assetCountry', v)} options={ASSET_COUNTRY_OPTIONS} lang={lang} className={inputCls} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cuenta */}
+                <div className="pt-3.5 border-t border-glass-border/50">
+                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏦 {t('Cuenta', 'Account')}</span>
+                  <select id="add-accountType" value={form.accountType} onChange={e => set('accountType', e.target.value)} className={inputCls}>
+                    {ACCOUNT_TYPES.map(at => <option key={at.key} value={at.key}>{lang === 'es' ? at.es : at.en}</option>)}
+                  </select>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {form.accountType === 'taxable' ? t('Paga impuestos (ej. cuenta de bolsa normal)', 'Pays taxes (e.g. regular brokerage)') :
+                     form.accountType === 'retirement' ? t('Ahorro para retiro (ej. 401k, IRA, AFP)', 'Retirement savings (e.g. 401k, IRA)') :
+                     t('Exenta de impuestos (ej. Roth IRA)', 'Tax-exempt (e.g. Roth IRA)')}
+                  </p>
+                </div>
+
+                {/* Vencimiento (bonds/alternatives, y un banco en modalidad
+                    Depósito a Plazo/CD: tiene fecha de vencimiento igual que
+                    un bono, y hasta ahora no había ningún campo para ella en
+                    toda la app). */}
+                {(isBond || isAlternative || (isBank && subtype === 'cd')) && (
+                  <div className="pt-3.5 border-t border-glass-border/50">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {t('Vencimiento', 'Maturity')}</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>{t('Fecha', 'Date')}</label>
+                        <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
+                          type="date" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('Al vencer', 'At maturity')}</label>
+                        <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
+                          <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
+                          <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
+                          <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -2293,104 +2394,6 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     })()}
                   </div>
                 )}
-
-                {/* Clasificación: industria y estilo de inversión. Ninguno
-                    de los dos se preselecciona jamás — el usuario pidió
-                    explícitamente que esto nunca se asuma; el único default
-                    posible es "sin elegir". No aplica a Banco (efectivo no
-                    tiene industria ni estilo) ni a Deuda (un pasivo no es
-                    una inversión). */}
-                {!isBank && !isDebt && (
-                  <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏷️ {t('Clasificación', 'Classification')}</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className={labelCls}>{t('Industria', 'Industry')}</label>
-                        <select id="add-industry" value={form.industry} onChange={e => {
-                          // Cambiar de industria suelta una subindustria que ya no le cuelga.
-                          set('industry', e.target.value)
-                          set('industrySource', e.target.value ? 'user' : '')
-                          if (form.subIndustry && form.subIndustry !== 'custom') { set('subIndustry', ''); set('subIndustryCustom', '') }
-                        }} className={inputCls}>
-                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                          {industryOptions(form.industry).map(o => (
-                            <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
-                          ))}
-                        </select>
-                        {showAutoDetected(form) && (
-                          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                            ✦ {t('Auto-detectado por tu proveedor de cotizaciones', 'Auto-detected by your quote provider')}
-                            {' · '}
-                            <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }}
-                              onClick={() => { const el = document.getElementById('add-industry'); if (el) el.focus() }}>
-                              {t('Corregir', 'Correct')}
-                            </button>
-                          </p>
-                        )}
-                      </div>
-                      <SubIndustryField
-                        id="add-subindustry"
-                        industry={form.industry}
-                        subIndustry={form.subIndustry}
-                        custom={form.subIndustryCustom}
-                        lang={lang}
-                        inputCls={inputCls}
-                        labelCls={labelCls}
-                        onPick={(ind, key, cust) => {
-                          if (ind && key && key !== 'custom') { set('industry', ind); set('industrySource', 'user') }
-                          set('subIndustry', key)
-                          set('subIndustryCustom', cust || '')
-                        }}
-                      />
-                      <div>
-                        <label className={labelCls}>
-                          {t('Estilo de inversión', 'Investment style')}
-                          {' '}
-                          <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
-                        </label>
-                        <select value={form.investmentStyle} onChange={e => set('investmentStyle', e.target.value)} className={inputCls}>
-                          <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                          {Object.entries(INVESTMENT_STYLE_LABELS).map(([key, lbl]) => (
-                            <option key={key} value={key}>{t(lbl.es, lbl.en)}</option>
-                          ))}
-                        </select>
-                        {form.investmentStyle === 'custom' && (
-                          <input value={form.investmentStyleCustom} onChange={e => set('investmentStyleCustom', e.target.value)}
-                            placeholder={t('Descríbelo...', 'Describe it...')}
-                            className={inputCls + ' mt-1.5'} />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Fiscal + país del activo */}
-                <div className="pt-3.5 border-t border-glass-border/50">
-                  <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Fiscal', 'Tax')}</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-                      <CountrySelect value={form.taxJurisdiction} onChange={v => set('taxJurisdiction', v)} options={TAX_JURISDICTION_OPTIONS} lang={lang} className={inputCls} />
-                      {profileTaxResidence && !form.taxJurisdiction && (
-                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                          {t('Tu residencia fiscal', 'Your tax residence')}: {(() => { const o = TAX_JURISDICTION_OPTIONS.find(x => x.key === profileTaxResidence); return o ? t(o.es, o.en) : profileTaxResidence })()}
-                          {' · '}
-                          <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
-                            {t('Usar la de tu perfil', 'Use the one from your profile')}
-                          </button>
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className={labelCls}>
-                        {t('País del activo', 'Asset country')}
-                        {' '}
-                        <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
-                      </label>
-                      <CountrySelect value={form.assetCountry} onChange={v => set('assetCountry', v)} options={ASSET_COUNTRY_OPTIONS} lang={lang} className={inputCls} />
-                    </div>
-                  </div>
-                </div>
 
                 {/* Notas */}
                 {(isBond || isAlternative || isProperty) && (
