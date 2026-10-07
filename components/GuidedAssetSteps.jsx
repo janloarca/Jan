@@ -59,7 +59,7 @@ export function guidedFieldsFor({ type, isMarketAsset }) {
   return FIELD_SEQUENCES[type] || FIELD_SEQUENCES.generic
 }
 
-const inputCls = 'w-full min-w-0 px-4 py-3 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-xl text-base text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
+const inputCls = 'form-input form-input-lg'
 
 export default function GuidedAssetSteps({ ctx }) {
   const {

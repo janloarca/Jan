@@ -970,6 +970,52 @@ html[data-ptr="on"] body {
   outline: none;
 }
 
+/* ─── CAMPOS DE FORMULARIO: una sola definición ──────────────────────────
+   AddAccountModal, EditAccountModal y GuidedAssetSteps tenían cada uno su
+   propio `inputCls`/`labelCls` como template string en JS: tres radios de
+   borde distintos (8px/8px/12px), tres paddings, y un `labelCls` con
+   `font-medium` en un archivo y sin él en el otro — mismo nombre de
+   variable, dos semánticas. Acá vive UNA vez, como `.card`/`.btn-primary`.
+
+   Construida sobre tokens, así que ya es theme-aware sin pedir overrides de
+   tema claro (`--bg-input`/`--card-border` ya cambian de valor en
+   `[data-theme="light"]`). El focus NO se redeclara acá: la regla de la
+   línea 275 (`input:focus-visible`) ya lo cubre para todo <input>/<select>
+   del repo; `.form-input` abajo solo decide el REPOSO.
+
+   `.form-input-lg` es el único modificador, y a propósito: GuidedAssetSteps
+   pregunta UN campo por pantalla (nada compite por espacio), así que ahí el
+   campo es más grande para el dedo; el resto de los formularios son densos
+   y usan el tamaño compacto. El font-size queda FUERA de <641px: la regla
+   de la línea 285 ya fuerza 16px en todo input/select/textarea bajo ese
+   ancho para que iOS no haga zoom al enfocar, y una clase (specificity 0,1,0)
+   le ganaría a esa regla por tag (0,0,1) sin importar el orden si pisara el
+   mismo font-size ahí — así que .form-input no entra a esa pelea. */
+.form-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  color: var(--text-primary);
+}
+.form-input::placeholder { color: var(--text-muted); }
+.form-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.form-input-lg { padding: 0.75rem 1rem; border-radius: 14px; }
+@media (min-width: 641px) {
+  .form-input { font-size: 0.875rem; }
+  .form-input-lg { font-size: 1rem; }
+}
+
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
 /* ── TACTO: respuesta al toque ────────────────────────────────────────────
    El diagnóstico, medido y no opinado: había 311 `hover:` en JSX y `:active`
    en exactamente TRES clases (.btn-primary, .btn-secondary, .btn-danger). O

@@ -957,8 +957,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       || it.linkedDebtId === item.id)
   )
 
-  const inputCls = 'w-full px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] focus:outline-none focus:border-blue-500/50'
-  const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
+  const inputCls = 'form-input'
+  const labelCls = 'form-label'
   // Ver AddAccountModal: 29/30/31 no caben en todos los meses, y la app paga el
   // último día real de cada uno.
   const payDayHint = (parseInt(form.incomePayDay, 10) || 0) >= 29

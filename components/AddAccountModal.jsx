@@ -16,6 +16,7 @@ import { buildLoanProceedsTransaction, buildLoanProceedsOutsideTransaction } fro
 import { buildContributionFields, isBankLikeItem } from '@/lib/contributions'
 import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import { InfoTip } from './ui/Tooltip'
+import Switch from './ui/Switch'
 import { DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
@@ -953,8 +954,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     setSaving(false)
   }
 
-  const inputCls = 'w-full min-w-0 px-3 py-2 bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg text-sm text-[var(--text-primary,white)] placeholder-[var(--text-muted,#475569)] focus:outline-none focus:border-blue-500/50'
-  const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block font-medium'
+  const inputCls = 'form-input'
+  const labelCls = 'form-label'
 
   // ---- MODO GUIADO ----
   // Va DESPUÉS de todos los hooks a propósito: un return temprano entre hooks
@@ -1183,7 +1184,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose}
-                className="flex-1 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
+                className="btn-secondary flex-1">
                 {t('Cancelar', 'Cancel')}
               </button>
               {/* Con el aviso de duplicado abierto, "Siguiente" desaparece: el
@@ -1192,7 +1193,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   decisión la toman sus dos botones, que dicen qué hacen. */}
               {!duplicateWarning && (
                 <button type="submit"
-                  className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
+                  className="btn-primary flex-1">
                   {t('Siguiente', 'Next')} →
                 </button>
               )}
@@ -1388,12 +1389,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="add-debtBalance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Saldo actual', 'Current balance')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                    <label htmlFor="add-debtBalance" className={labelCls}>{t('Saldo actual', 'Current balance')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
                     <input id="add-debtBalance" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
                       placeholder="50000" type="text" inputMode="decimal" className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="add-interestRate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa de interés %', 'Interest rate %')}</label>
+                    <label htmlFor="add-interestRate" className={labelCls}>{t('Tasa de interés %', 'Interest rate %')}</label>
                     <div className="flex gap-2">
                       <input id="add-interestRate" value={form.interestRate} onChange={e => set('interestRate', e.target.value)}
                         placeholder="7.5" type="text" inputMode="decimal" className={inputCls} />
@@ -1409,7 +1410,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="add-debtScheme" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Cómo se paga?', 'How is it paid?')}</label>
+                    <label htmlFor="add-debtScheme" className={labelCls}>{t('¿Cómo se paga?', 'How is it paid?')}</label>
                     <select id="add-debtScheme" value={form.debtScheme} onChange={e => set('debtScheme', e.target.value)} className={inputCls}>
                       <option value="">{t('-- Automático --', '-- Automatic --')}</option>
                       <option value="amortizing">{t('Cuota fija (banco)', 'Fixed installment (bank)')}</option>
@@ -1418,14 +1419,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="add-originalPrincipal" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto original (opcional)', 'Original amount (optional)')}</label>
+                    <label htmlFor="add-originalPrincipal" className={labelCls}>{t('Monto original (opcional)', 'Original amount (optional)')}</label>
                     <input id="add-originalPrincipal" value={form.originalPrincipal} onChange={e => set('originalPrincipal', e.target.value)}
                       placeholder="50000" type="text" inputMode="decimal" className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label htmlFor="add-debtTerm" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Plazo', 'Term')}</label>
+                    <label htmlFor="add-debtTerm" className={labelCls}>{t('Plazo', 'Term')}</label>
                     <select id="add-debtTerm" value={form.debtTerm} onChange={e => set('debtTerm', e.target.value)} className={inputCls}>
                       <option value="">{t('-- Plazo --', '-- Term --')}</option>
                       <option value="3m">3 {t('meses', 'months')}</option>
@@ -1438,24 +1439,24 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="add-installmentsTotal" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas total', 'Total pmts')}</label>
+                    <label htmlFor="add-installmentsTotal" className={labelCls}>{t('Cuotas total', 'Total pmts')}</label>
                     <input id="add-installmentsTotal" value={form.installmentsTotal} onChange={e => set('installmentsTotal', e.target.value)}
                       placeholder="24" type="number" inputMode="numeric" step="1" className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="add-installmentsRemaining" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cuotas rest.', 'Pmts left')}</label>
+                    <label htmlFor="add-installmentsRemaining" className={labelCls}>{t('Cuotas rest.', 'Pmts left')}</label>
                     <input id="add-installmentsRemaining" value={form.installmentsRemaining} onChange={e => set('installmentsRemaining', e.target.value)}
                       placeholder="18" type="number" inputMode="numeric" step="1" className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="add-monthlyPayment" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Pago mensual', 'Monthly payment')}</label>
+                    <label htmlFor="add-monthlyPayment" className={labelCls}>{t('Pago mensual', 'Monthly payment')}</label>
                     <input id="add-monthlyPayment" value={form.monthlyPayment} onChange={e => set('monthlyPayment', e.target.value)}
                       placeholder="500" type="text" inputMode="decimal" className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="add-debtMaturityDate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <label htmlFor="add-debtMaturityDate" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
                     <input id="add-debtMaturityDate" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                       type="date" className={inputCls} />
                   </div>
@@ -1483,7 +1484,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-negative)' }}>{t('Tarjeta de crédito', 'Credit Card')}</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="add-cardBrand" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Marca', 'Brand')}</label>
+                        <label htmlFor="add-cardBrand" className={labelCls}>{t('Marca', 'Brand')}</label>
                         <select id="add-cardBrand" value={form.cardBrand} onChange={e => set('cardBrand', e.target.value)} className={inputCls}>
                           <option value="">{t('-- Seleccionar --', '-- Select --')}</option>
                           <option value="visa">Visa</option>
@@ -1492,7 +1493,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         </select>
                       </div>
                       <div>
-                        <label htmlFor="add-rewardType" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo reward', 'Reward type')}</label>
+                        <label htmlFor="add-rewardType" className={labelCls}>{t('Tipo reward', 'Reward type')}</label>
                         <select id="add-rewardType" value={form.rewardType} onChange={e => set('rewardType', e.target.value)} className={inputCls}>
                           <option value="">{t('Ninguno', 'None')}</option>
                           <option value="miles">{t('Millas', 'Miles')}</option>
@@ -1504,12 +1505,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     {form.rewardType && (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor="add-rewardRate" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa reward %', 'Reward rate %')}</label>
+                          <label htmlFor="add-rewardRate" className={labelCls}>{t('Tasa reward %', 'Reward rate %')}</label>
                           <input id="add-rewardRate" value={form.rewardRate} onChange={e => set('rewardRate', e.target.value)}
                             placeholder="1.5" type="text" inputMode="decimal" className={inputCls} />
                         </div>
                         <div>
-                          <label htmlFor="add-rewardBalance" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Balance acumulado', 'Accumulated')}</label>
+                          <label htmlFor="add-rewardBalance" className={labelCls}>{t('Balance acumulado', 'Accumulated')}</label>
                           <input id="add-rewardBalance" value={form.rewardBalance} onChange={e => set('rewardBalance', e.target.value)}
                             placeholder="5000" type="text" inputMode="decimal" className={inputCls} />
                         </div>
@@ -1623,19 +1624,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="space-y-2 pt-1 border-t border-glass-border/50">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Rendimiento anual %', 'Annual yield %')}</label>
+                        <label className={labelCls}>{t('Rendimiento anual %', 'Annual yield %')}</label>
                         <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
                           placeholder={String(divInfo.dividendYield ?? '')} type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                        <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                         <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                           placeholder="15" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('¿En qué meses paga?', 'Which months does it pay?')}</label>
+                      <label className={labelCls}>{t('¿En qué meses paga?', 'Which months does it pay?')}</label>
                       <div className="flex flex-wrap gap-1">
                         {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
                           const active = form.incomeMonths.includes(i)
@@ -1683,7 +1684,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     de cada dividendo como una transacción de cash propia. */}
                 {form.dividendAction === 'cash' && (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿A dónde llega el efectivo?', 'Where does the cash land?')}</label>
+                    <label className={labelCls}>{t('¿A dónde llega el efectivo?', 'Where does the cash land?')}</label>
                     <select value={form.incomeDestination}
                       onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
                       className={inputCls}>
@@ -1714,7 +1715,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <div className="border border-[var(--card-border,#38383A)] rounded-lg p-3 space-y-3">
                 {/* Rate type selector */}
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('Tipo de tasa', 'Rate type')}</label>
+                  <label className={labelCls}>{t('Tipo de tasa', 'Rate type')}</label>
                   <div className="flex gap-1">
                     {[
                       { key: 'fixed', es: 'Fija (siempre igual)', en: 'Fixed (same rate)' },
@@ -1748,7 +1749,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     no devenga, se paga, y ahi "diario" no significa nada. */}
                 {form.incomeMode !== 'fixed' && form.rateType !== 'continuous' && (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Con qué frecuencia acumula?', 'How often does it accrue?')}</label>
+                    <label className={labelCls}>{t('¿Con qué frecuencia acumula?', 'How often does it accrue?')}</label>
                     <div className="flex gap-1">
                       {[{ k: 'monthly', es: 'Mensual', en: 'Monthly' }, { k: ACCRUAL_DAILY, es: 'Diario', en: 'Daily' }].map(o => (
                         <button key={o.k} type="button" onClick={() => set('accrual', o.k)}
@@ -1772,17 +1773,17 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
-                      <label htmlFor="add-rateMin" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa mín %', 'Min rate %')}</label>
+                      <label htmlFor="add-rateMin" className={labelCls}>{t('Tasa mín %', 'Min rate %')}</label>
                       <input id="add-rateMin" value={form.rateMin} onChange={e => set('rateMin', e.target.value)}
                         placeholder="4.5" type="text" inputMode="decimal" className={inputCls} />
                     </div>
                     <div>
-                      <label htmlFor="add-rateMax" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa máx %', 'Max rate %')}</label>
+                      <label htmlFor="add-rateMax" className={labelCls}>{t('Tasa máx %', 'Max rate %')}</label>
                       <input id="add-rateMax" value={form.rateMax} onChange={e => set('rateMax', e.target.value)}
                         placeholder="5.5" type="text" inputMode="decimal" className={inputCls} />
                     </div>
                     <div>
-                      <label htmlFor="add-varPayDay" className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                      <label htmlFor="add-varPayDay" className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                       <input id="add-varPayDay" value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                         placeholder="10" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
@@ -1796,25 +1797,25 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       {form.incomeMode === 'fixed' ? (<>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Monto por pago', 'Per payment')}</label>
+                        <label className={labelCls}>{t('Monto por pago', 'Per payment')}</label>
                         <input value={form.incomeAmount} onChange={e => set('incomeAmount', e.target.value)}
                           placeholder={isProperty ? '800' : '48'} type="text" inputMode="decimal" className={inputCls} />
                       </>) : (<>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tasa anual %', 'Annual rate %')}</label>
+                        <label className={labelCls}>{t('Tasa anual %', 'Annual rate %')}</label>
                         <input value={form.incomeRate} onChange={e => set('incomeRate', e.target.value)}
                           placeholder="5.5" type="text" inputMode="decimal" className={inputCls} />
                       </>)}
                     </div>
                     {isDaily ? (
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Se registra', 'Recorded on')}</label>
+                        <label className={labelCls}>{t('Se registra', 'Recorded on')}</label>
                         <p className="text-xs pt-2" style={{ color: 'var(--text-secondary)' }}>
                           {t('El último día de cada mes', 'The last day of each month')}
                         </p>
                       </div>
                     ) : (
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Día de pago', 'Pay day')}</label>
+                        <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                         <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
                           placeholder="10" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                         {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
@@ -1838,7 +1839,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* Payment months */}
                 {form.rateType !== 'continuous' && !isDaily && (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1.5 block">{t('¿En qué meses te pagan?', 'Which months do you get paid?')}</label>
+                    <label className={labelCls}>{t('¿En qué meses te pagan?', 'Which months do you get paid?')}</label>
                     <div className="flex flex-wrap gap-1">
                       {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((label, i) => {
                         const active = form.incomeMonths.includes(i)
@@ -1864,7 +1865,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {/* What happens with each payment — reinvest available for any
                     income asset, not just dividend stocks */}
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
+                  <label className={labelCls}>{t('¿Qué haces con los pagos?', 'What do you do with payments?')}</label>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => set('dividendAction', 'cash')}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
@@ -1886,7 +1887,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   </p>
                 ) : (
                   <div>
-                    <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
+                    <label className={labelCls}>{t('¿Dónde llega el rendimiento?', 'Where does the yield go?')}</label>
                     <select value={form.incomeDestination}
                       onChange={e => { if (e.target.value === '__new__') { setCreatingDest('income'); return } set('incomeDestination', e.target.value) }}
                       className={inputCls}>
@@ -1972,7 +1973,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
                 {/* Capital return */}
                 <div>
-                  <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿Te devuelven capital cada pago?', 'Capital returned per payment?')}</label>
+                  <label className={labelCls}>{t('¿Te devuelven capital cada pago?', 'Capital returned per payment?')}</label>
                   <input value={form.capitalReturn} onChange={e => set('capitalReturn', e.target.value)}
                     placeholder="0" type="text" inputMode="decimal" className={inputCls} />
                 </div>
@@ -2043,14 +2044,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💰 {t('Costos y comisiones', 'Costs & fees')}</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        <label className={labelCls}>
                           {t('Corretaje/entrada', 'Brokerage/entry')} <InfoTip text={t('Monto fijo, no porcentaje. Comisión o costo que pagaste una sola vez al comprar.', 'Fixed amount, not a percentage. One-time commission or cost you paid on purchase.')} />
                         </label>
                         <input value={form.entryFee} onChange={e => set('entryFee', e.target.value)}
                           placeholder="80" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        <label className={labelCls}>
                           {t('Mgmt fee', 'Mgmt fee')}
                           {' '}
                           <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
@@ -2062,14 +2063,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos anual, ej. 0.03 = 0.03%/año.', 'Annual expense ratio, e.g. 0.03 = 0.03%/yr.')} /></label>
+                        <label className={labelCls}>{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos anual, ej. 0.03 = 0.03%/año.', 'Annual expense ratio, e.g. 0.03 = 0.03%/yr.')} /></label>
                         <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
                           placeholder="0.03" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                     </div>
                     {isBond && (
                       <div className="mt-2">
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        <label className={labelCls}>
                           {t('Interés ya devengado al comprar', 'Interest already accrued at purchase')}
                           {' '}
                           <InfoTip text={t('Si el bono se emitió antes de que lo compraras (ej. emitido en enero, tú entraste en marzo), le pagaste al vendedor el interés acumulado desde la emisión. Te lo devuelven en tu primer pago, pero no es ganancia nueva: ponlo aquí para que el resumen lo aclare.', 'If the bond was issued before you bought it (e.g. issued January, you bought March), you paid the seller the interest already accrued since issuance. You get it back in your first payment, but it isn\'t new gain: enter it here so the summary flags it.')} />
@@ -2087,7 +2088,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       const fmtM = (v) => `${form.currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       return (
                         <div className="mt-2">
-                          <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                          <label className={labelCls}>
                             {t('¿Cómo se cobró?', 'How was it charged?')}
                             {' '}
                             <InfoTip text={t(
@@ -2148,11 +2149,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="pt-3.5 border-t border-glass-border/50">
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>💧 {t('Liquidez', 'Liquidity')}</span>
                     <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
-                      <button type="button" onClick={() => set('isIlliquid', !form.isIlliquid)}
-                        className="w-8 h-4 rounded-full transition-colors relative shrink-0"
-                        style={{ backgroundColor: form.isIlliquid ? 'var(--accent-orange)' : 'var(--card-border, #38383A)' }}>
-                        <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${form.isIlliquid ? 'left-4' : 'left-0.5'}`} />
-                      </button>
+                      <Switch checked={form.isIlliquid} onChange={(v) => set('isIlliquid', v)} color="var(--accent-orange)" />
                       <div>
                         <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Activo ilíquido', 'Illiquid asset')}</span>
                         <p className="text-xs text-[var(--text-muted,#475569)]">
@@ -2191,7 +2188,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🔮 SAFE Note</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Tipo', 'Type')}</label>
+                        <label className={labelCls}>{t('Tipo', 'Type')}</label>
                         <select value={form.safeType} onChange={e => set('safeType', e.target.value)} className={inputCls}>
                           <option value="post_money">Post-Money</option>
                           <option value="pre_money">Pre-Money</option>
@@ -2199,12 +2196,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Cap', 'Cap')}</label>
+                        <label className={labelCls}>{t('Cap', 'Cap')}</label>
                         <input value={form.safeCap} onChange={e => set('safeCap', e.target.value)}
                           placeholder="10000000" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Descuento %', 'Discount %')}</label>
+                        <label className={labelCls}>{t('Descuento %', 'Discount %')}</label>
                         <input value={form.safeDiscount} onChange={e => set('safeDiscount', e.target.value)}
                           placeholder="20" type="text" inputMode="decimal" className={inputCls} />
                       </div>
@@ -2221,7 +2218,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Etapa', 'Stage')}</label>
+                        <label className={labelCls}>{t('Etapa', 'Stage')}</label>
                         <select value={form.investmentStage} onChange={e => set('investmentStage', e.target.value)} className={inputCls}>
                           <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                           <option value="pre_seed">Pre-seed</option>
@@ -2234,7 +2231,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        <label className={labelCls}>
                           {t('Valuación de la ronda', 'Round valuation')}
                           {' '}
                           <InfoTip text={t('La valuación post-money de la ronda en la que entraste: se usa solo para calcular tu % de la empresa aquí abajo, no afecta el rendimiento del activo.', 'The round\'s post-money valuation: used only to calculate your % of the company below, it does not affect the asset\'s return.')} />
@@ -2243,12 +2240,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           placeholder="10000000" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">% {t('de la empresa', 'of the company')}</label>
+                        <label className={labelCls}>% {t('de la empresa', 'of the company')}</label>
                         <input value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
                           placeholder="0.5" type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        <label className={labelCls}>
                           {t('Capital comprometido', 'Committed capital')}
                           {' '}
                           <InfoTip text={t('Si te comprometiste a un monto total que se va llamando por partes (capital calls), ponlo aquí: la tarjeta de métricas VC/PE lo usa para calcular el PIC (qué % del compromiso ya se llamó). Opcional, no afecta el rendimiento.', 'If you committed to a total amount that gets called in pieces (capital calls), put it here: the VC/PE metrics card uses it for PIC (what % of the commitment has been called). Optional, does not affect returns.')} />
@@ -2293,7 +2290,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🏷️ {t('Clasificación', 'Classification')}</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Industria', 'Industry')}</label>
+                        <label className={labelCls}>{t('Industria', 'Industry')}</label>
                         <select value={form.industry} onChange={e => set('industry', e.target.value)} className={inputCls}>
                           <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                           {industryOptions(form.industry).map(o => (
@@ -2302,7 +2299,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                        <label className={labelCls}>
                           {t('Estilo de inversión', 'Investment style')}
                           {' '}
                           <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
@@ -2328,7 +2325,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>🌍 {t('Fiscal', 'Tax')}</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
+                      <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
                       <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
                         <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                         {TAX_JURISDICTION_OPTIONS.map(o => (
@@ -2337,7 +2334,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">
+                      <label className={labelCls}>
                         {t('País del activo', 'Asset country')}
                         {' '}
                         <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
@@ -2395,11 +2392,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* New money toggle */}
             {!(isDebt && subtype !== 'receivable') && (
             <div className="flex items-center gap-3 px-3 py-2 border border-[var(--card-border,#38383A)] rounded-lg">
-              <button type="button" onClick={() => setIsNewMoney(!isNewMoney)}
-                className="w-8 h-4 rounded-full transition-colors relative"
-                style={{ backgroundColor: isNewMoney ? 'var(--accent-blue)' : 'var(--card-border,#38383A)' }}>
-                <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${isNewMoney ? 'left-4' : 'left-0.5'}`} />
-              </button>
+              <Switch checked={isNewMoney} onChange={setIsNewMoney} color="var(--accent-blue)" />
               <div>
                 <span className="text-xs text-[var(--text-primary,white)] font-medium">{t('Es dinero nuevo para mi portafolio', 'This is new money for my portfolio')}</span>
                 <p className="text-xs text-[var(--text-muted,#475569)]">
@@ -2411,7 +2404,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             {!isNewMoney && (
               <div>
-                <label className="text-xs text-[var(--text-muted,#475569)] mb-1 block">{t('¿De dónde sale?', 'Source account?')}</label>
+                <label className={labelCls}>{t('¿De dónde sale?', 'Source account?')}</label>
                 <select value={form.capitalDestination}
                   onChange={e => { if (e.target.value === '__new__') { setCreatingDest('capital'); return } set('capitalDestination', e.target.value) }}
                   className={inputCls}>
@@ -2506,11 +2499,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setStep(1)}
-                className="flex-1 py-2.5 border border-[var(--card-border,#38383A)] text-[var(--text-secondary,#cbd5e1)] rounded-lg hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-sm">
+                className="btn-secondary flex-1">
                 ← {t('Atrás', 'Back')}
               </button>
               <button type="submit" disabled={saving}
-                className="flex-1 py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
+                className="btn-primary flex-1">
                 {<BusyLabel busy={saving} lang={lang}>{t('Registrar', 'Register')}</BusyLabel>}
               </button>
             </div>
