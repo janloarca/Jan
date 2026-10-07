@@ -1311,11 +1311,19 @@ export default function DashboardPage() {
         ibkrSyncSummary={ibkrSyncSummary}
         ibkrSyncStatus={ibkrSyncStatus}
         ibkrNeedsAttention={ibkrNeedsAttention}
+        ibkrLastSync={ibkrLastSync}
+        ibkrProgress={ibkrProgress}
         onIBKR={brokersOn ? handleIBKRPillClick : null}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
         onGuided={portfolioItems.length === 0 ? handleOpenGuided : null}
         enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
+        onCashFlow={handleOpenCashflow}
+        onSell={handleOpenSellPicker}
+        onTransfer={handleOpenTransfer}
+        onReview={handleOpenReview}
+        onPriceAlerts={() => setModal('priceAlerts')}
+        alertCount={(alerts || []).length}
       />
 
       {/* Eran SIETE bloques de ~20 líneas escritos a mano, seis de ellos copias
