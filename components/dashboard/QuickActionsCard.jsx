@@ -1,7 +1,7 @@
 'use client'
 
-import { Upload, Plus, ArrowLeftRight, Share2, Download, RefreshCw, ClipboardCheck, DollarSign, TrendingDown, Bell } from 'lucide-react'
-import { journeyProgressLabel } from '@/lib/ibkrJourney'
+import { Share2, Download } from 'lucide-react'
+import { dashboardActionGroups } from '@/lib/dashboardActions'
 import { InfoTip } from '../ui/Tooltip'
 
 // Todas las acciones del dashboard en UN marco, cada una con una línea que
@@ -17,6 +17,11 @@ import { InfoTip } from '../ui/Tooltip'
 // "pasó algo y lo quiero registrar" contra "quiero traer o revisar datos".
 // Compartir/Exportar quedan como texto al pie: son salidas, no registros, y
 // compiten por atención con lo que la gente de verdad viene a hacer.
+//
+// El contenido de los dos grupos sale de lib/dashboardActions.js, compartido
+// con el menú "+Nuevo" del header: esta tarjeta y ese menú ya habían
+// divergido (el header no tenía 5 de estas 8 acciones) por tener cada uno su
+// propia copia de la misma lista.
 // ⛔ Tile y GroupLabel viven FUERA del componente, y no es estilo.
 //
 // Definidos dentro del render, su identidad es NUEVA en cada render, así que
@@ -74,75 +79,14 @@ export default function QuickActionsCard({
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
-  // Mismo semáforo que usaban la barra vieja, el pill del header y el banner:
-  // una sola regla (ibkrNeedsAttention) decide si algo merece alarma.
-  const hasSyncIndicator = ibkrNeedsAttention || (ibkrSyncStatus === 'ok' && ibkrLastSync)
-  const syncDotColor = ibkrNeedsAttention ? 'var(--text-negative)'
-    : ibkrSyncStatus === 'ok' && ibkrLastSync && !isNaN(new Date(ibkrLastSync).getTime()) && Date.now() - new Date(ibkrLastSync).getTime() < 2 * 60 * 60 * 1000 ? 'var(--accent-green)'
-    : ibkrSyncStatus === 'ok' ? 'var(--accent-orange)' : null
-
-  // Solo cuando el viaje ARRANCÓ y todavía le falta algo: un panel de 0% sobre
-  // alguien que nunca conectó nada no describe un pendiente suyo, y uno al
-  // 100% no tiene nada que decir que la frase genérica no diga mejor.
-  const ibkrSetupLabel = ibkrProgress && ibkrProgress.started && !ibkrProgress.complete
-    ? `Interactive Brokers: ${journeyProgressLabel(ibkrProgress, lang)}`
-    : null
-
-  const record = [
-    onCashFlow && {
-      key: 'cashflow', icon: DollarSign, onClick: onCashFlow,
-      label: t('Registrar movimiento', 'Record a movement'),
-      desc: t('Depósito, retiro o interés cobrado', 'Deposit, withdrawal or interest received'),
-    },
-    onAddAccount && {
-      key: 'add', icon: Plus, onClick: onAddAccount,
-      label: t('Agregar o comprar', 'Add or buy'),
-      desc: t('Cuenta, acción, bono o cripto', 'Account, stock, bond or crypto'),
-    },
-    onSell && {
-      key: 'sell', icon: TrendingDown, onClick: onSell,
-      label: t('Vender', 'Sell'),
-      desc: t('Registrar la venta de una posición', 'Record the sale of a position'),
-    },
-    onTransfer && {
-      key: 'transfer', icon: ArrowLeftRight, onClick: onTransfer,
-      label: t('Transferir', 'Transfer'),
-      desc: t('Mover dinero entre tus cuentas', 'Move money between your accounts'),
-    },
-  ].filter(Boolean)
-
-  const data = [
-    onImport && {
-      key: 'import', icon: Upload, onClick: onImport,
-      label: t('Importar', 'Import'),
-      desc: t('Archivo o captura de tu broker', 'File or screenshot from your broker'),
-    },
-    onIntegrations && {
-      key: 'sync', icon: RefreshCw, onClick: onIntegrations,
-      label: t('Conectar y sincronizar', 'Connect and sync'),
-      // Un problema de sincronización gana sobre "te falta un paso": el punto
-      // rojo ya está diciendo algo más urgente y dos mensajes compitiendo en
-      // dos líneas de la misma baldosa es cómo se dejan de leer los dos.
-      desc: ibkrSetupLabel && !ibkrNeedsAttention
-        ? ibkrSetupLabel
-        : t('Tu broker, al día solo', 'Your broker, updated on its own'),
-      dot: hasSyncIndicator ? syncDotColor : null,
-    },
-    onReview && {
-      key: 'review', icon: ClipboardCheck, onClick: onReview,
-      label: t('Revisar datos', 'Review data'),
-      desc: t('Completar lo que falta', 'Fill in what is missing'),
-    },
-    onPriceAlerts && {
-      key: 'alerts', icon: Bell, onClick: onPriceAlerts,
-      label: t('Alertas de precio', 'Price alerts'),
-      desc: alertCount > 0
-        ? t(`${alertCount} ${alertCount === 1 ? 'activa' : 'activas'}`, `${alertCount} active`)
-        : t('Avisarme si un activo cruza un precio', 'Notify me when an asset crosses a price'),
-      badge: alertCount > 0 ? alertCount : null,
-    },
-  ].filter(Boolean)
-
+  // onGuided/onEnrich se quedan fuera: esta tarjeta no los ofrece (viven en
+  // el menú del header, como entradas del grupo `extra` que acá no se usa).
+  const { record, data } = dashboardActionGroups({
+    lang, onCashFlow, onAddAccount, onSell, onTransfer,
+    onImport, onIntegrations, onReview, onPriceAlerts,
+    alertCount,
+    ibkrSyncStatus, ibkrLastSync, ibkrNeedsAttention, ibkrProgress,
+  })
 
   // Mismo marco y mismo encabezado (punto + título en mayúsculas + InfoTip)
   // que el resto de las cards del tablero. Desde el rediseño de la sección 3

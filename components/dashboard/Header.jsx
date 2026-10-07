@@ -7,7 +7,8 @@ import { useState, useEffect, useRef } from 'react'
 import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
 import { RING_VIEWBOX, RING_CX, RING_CY, RING_R, sweepDash } from '@/lib/brandRing'
 import Logo from '@/components/ui/Logo'
-import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles, Compass } from 'lucide-react'
+import { Search, Settings, LogOut, Plus, ChevronDown } from 'lucide-react'
+import { dashboardActionGroups } from '@/lib/dashboardActions'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
@@ -18,7 +19,45 @@ import { Search, Settings, LogOut, Plus, Upload, ChevronDown, Link2, Sparkles, C
 // (R=13.5, 0.22/0.78 y su propio keyframe), exactamente lo que lib/brandRing.js
 // existe para impedir; el guardián solo miraba tres archivos y este se le
 // escapó. Ahora importa del módulo compartido y usa el keyframe global.
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided }) {
+
+// Fuera del componente a propósito: un sub-componente definido DENTRO del
+// render tiene identidad NUEVA en cada render, así que React lo desmonta y
+// remonta, y un clic que caiga entre el mousedown y el mouseup del usuario se
+// pierde (medido en QuickActionsCard.jsx: 40/40 clics perdidos adentro, 0/40
+// afuera). Este menú re-renderiza con cada tick de precios igual que el
+// tablero, así que el riesgo es el mismo.
+function MenuRow({ it, tour, onSelect }) {
+  return (
+    <button role="menuitem" data-tour={tour}
+      onClick={() => onSelect(it)}
+      className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
+      <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>{it.label}</span>
+        <span className="block text-micro" style={{ color: 'var(--text-muted)' }}>{it.desc}</span>
+      </span>
+      {it.dot && (
+        <span className="shrink-0 mt-1.5 w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: it.dot }} />
+      )}
+      {it.badge != null && !it.dot && (
+        <span className="shrink-0 mt-0.5 text-[11px] font-mono px-1.5 py-0.5 rounded-full"
+          style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
+          {it.badge}
+        </span>
+      )}
+    </button>
+  )
+}
+
+function MenuGroupLabel({ children }) {
+  return (
+    <span className="block text-micro uppercase tracking-wider font-medium px-2.5 pt-2 pb-1" style={{ color: 'var(--text-muted)' }}>
+      {children}
+    </span>
+  )
+}
+
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, ibkrLastSync, ibkrProgress = null, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided, onCashFlow, onSell, onTransfer, onReview, onPriceAlerts, alertCount = 0 }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -62,6 +101,21 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   // Shared icon-button style (settings, logout, refresh) — 36px, hairline border.
   const iconBtn = 'w-9 h-9 flex items-center justify-center rounded-lg border transition-colors'
   const iconBtnStyle = { color: 'var(--text-muted)', borderColor: 'var(--card-border)' }
+
+  // UNA sola definición de "qué podés hacer acá" (lib/dashboardActions.js),
+  // compartida con la tarjeta ACCIONES del tablero: antes cada superficie
+  // tenía su propia lista y ya habían divergido (la tarjeta ofrecía 8 cosas
+  // que este menú no tenía). El tour y el agrupado por secciones sí son de
+  // ESTA superficie, así que se resuelven acá y no en el módulo compartido.
+  const actionGroups = dashboardActionGroups({
+    lang, onCashFlow, onAddAccount, onSell, onTransfer,
+    onImport, onIntegrations: onOpenConnections, onReview, onPriceAlerts,
+    onGuided, onEnrich,
+    alertCount, enrichGapCount,
+    ibkrSyncStatus, ibkrLastSync, ibkrNeedsAttention, ibkrProgress,
+  })
+  const selectMenuItem = (it) => { setNewMenuOpen(false); it.onClick() }
+  const tourFor = (key) => (key === 'import' ? 'header-import' : undefined)
 
   return (
     <header className="border-b sticky top-0 z-20 bg-theme-base\/95"
@@ -185,55 +239,35 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 {newMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setNewMenuOpen(false)} />
+                    {/* max-h + scroll: el menú pasó de 5 a ~9 ítems al traer las
+                        opciones de la tarjeta ACCIONES, y un teléfono bajo puede
+                        no tener los 75vh que esto deja de margen. */}
                     <div role="menu"
-                      className="absolute right-0 mt-2 w-64 rounded-xl border p-1.5 z-40"
+                      className="absolute right-0 mt-2 w-64 max-h-[75vh] overflow-y-auto rounded-xl border p-1.5 z-40"
                       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', boxShadow: 'var(--shadow-modal)', backdropFilter: 'var(--glass-blur)' }}>
-                      {[
-                        // "Agregar manualmente" nombraba a la vez este destino
-                        // (el formulario largo) y al recorrido guiado de la
-                        // pantalla de bienvenida. Una etiqueta es una promesa
-                        // sobre dónde aterrizas, así que se separan: acá el
-                        // nombre que la paleta de comandos ya usaba para ESTE
-                        // mismo destino, y el recorrido entra como su propia
-                        // entrada, abajo.
-                        { icon: Plus, label: lang === 'es' ? 'Agregar posición' : 'Add position',
-                          desc: lang === 'es' ? 'Una posición a la vez' : 'One position at a time',
-                          onClick: onAddAccount },
-                        onGuided && { icon: Compass, label: lang === 'es' ? 'Guíame paso a paso' : 'Walk me through it',
-                          desc: lang === 'es' ? 'Te preguntamos qué tienes' : 'We ask what you have',
-                          onClick: onGuided },
-                        onOpenConnections && { icon: Link2, label: lang === 'es' ? 'Conectar tu broker' : 'Connect your broker',
-                          desc: lang === 'es' ? 'Sync automático' : 'Automatic sync',
-                          onClick: onOpenConnections },
-                        onImport && { icon: Upload, label: lang === 'es' ? 'Importar archivo' : 'Import file',
-                          desc: lang === 'es' ? 'Excel, CSV o Flex XML de IBKR' : 'Excel, CSV or IBKR Flex XML',
-                          onClick: onImport, tour: 'header-import' },
-                        // Enriching what is already here belongs next to the ways
-                        // of adding something new: both answer "my data is not
-                        // complete". It used to be a line of small print under the
-                        // YTD number, where it read as a complaint about the figure.
-                        onEnrich && { icon: Sparkles, label: lang === 'es' ? 'Completar información' : 'Complete your data',
-                          desc: enrichGapCount > 0
-                            ? (lang === 'es' ? `${enrichGapCount} ${enrichGapCount === 1 ? 'hueco' : 'huecos'} por llenar` : `${enrichGapCount} ${enrichGapCount === 1 ? 'gap' : 'gaps'} to fill`)
-                            : (lang === 'es' ? 'Fechas, costos y movimientos' : 'Dates, costs and movements'),
-                          onClick: onEnrich, badge: enrichGapCount > 0 ? enrichGapCount : null },
-                      ].filter(Boolean).map((it) => (
-                        <button key={it.label} role="menuitem" data-tour={it.tour}
-                          onClick={() => { setNewMenuOpen(false); it.onClick() }}
-                          className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
-                          <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>{it.label}</span>
-                            <span className="block text-micro" style={{ color: 'var(--text-muted)' }}>{it.desc}</span>
-                          </span>
-                          {it.badge && (
-                            <span className="shrink-0 mt-0.5 text-[11px] font-mono px-1.5 py-0.5 rounded-full"
-                              style={{ backgroundColor: 'var(--alert-warn-bg)', color: 'var(--alert-warn-icon)' }}>
-                              {it.badge}
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                      {actionGroups.record.length > 0 && (
+                        <>
+                          <MenuGroupLabel>{lang === 'es' ? 'Registrar lo que pasó' : 'Record what happened'}</MenuGroupLabel>
+                          {actionGroups.record.map((it) => (
+                            <MenuRow key={it.key} it={it} tour={tourFor(it.key)} onSelect={selectMenuItem} />
+                          ))}
+                        </>
+                      )}
+                      {actionGroups.data.length > 0 && (
+                        <>
+                          <MenuGroupLabel>{lang === 'es' ? 'Traer y revisar datos' : 'Bring in and review data'}</MenuGroupLabel>
+                          {actionGroups.data.map((it) => (
+                            <MenuRow key={it.key} it={it} tour={tourFor(it.key)} onSelect={selectMenuItem} />
+                          ))}
+                        </>
+                      )}
+                      {actionGroups.extra.length > 0 && (
+                        <div className="mt-1 pt-1" style={{ borderTop: '1px solid var(--glass-border)' }}>
+                          {actionGroups.extra.map((it) => (
+                            <MenuRow key={it.key} it={it} tour={tourFor(it.key)} onSelect={selectMenuItem} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
