@@ -20,6 +20,7 @@ const SpreadsheetGrid = dynamic(() => import('@/components/spreadsheet/Spreadshe
 const PortfolioSpreadsheet = dynamic(() => import('@/components/dashboard/PortfolioSpreadsheet'), { ssr: false })
 const DebtSpreadsheet = dynamic(() => import('@/components/dashboard/DebtSpreadsheet'), { ssr: false })
 const PatrimonioSpreadsheet = dynamic(() => import('@/components/dashboard/PatrimonioSpreadsheet'), { ssr: false })
+const AssetInfoModal = dynamic(() => import('@/components/dashboard/AssetInfoModal'), { ssr: false })
 const EditAccountModal = dynamic(() => import('@/components/EditAccountModal'), { ssr: false })
 const AccountReviewModal = dynamic(() => import('@/components/dashboard/AccountReviewModal'), { ssr: false })
 const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { ssr: false })
@@ -100,6 +101,9 @@ export default function SpreadsheetPage() {
   const handleCloseEditItem = useCallback(() => { setEditItem(null); setEditFocusField(null) }, [])
 
   const [editItem, setEditItem] = useState(null)
+  // FASE PP: tocar el nombre de un activo abre su ficha; el editor queda a un
+  // botón de ahí (handleEditFromInfo).
+  const [infoItem, setInfoItem] = useState(null)
   // Mismo mecanismo que app/dashboard/page.jsx: qué campo forzar visible al
   // abrir el editor (lib/dataCompleteness.js action.field), reseteado al cerrar.
   const [editFocusField, setEditFocusField] = useState(null)
@@ -113,6 +117,7 @@ export default function SpreadsheetPage() {
   // entera. `useModalExit(showAddModal)` con el useState debajo dejó
   // /spreadsheet caída para todos ("Cannot access 'ej' before initialization").
   const [editShown, editClosing] = useModalExit(editItem)
+  const [infoShown, infoClosing] = useModalExit(infoItem)
   const [addShown, addClosing] = useModalExit(showAddModal)
   const [reviewShown, reviewClosing] = useModalExit(showReview)
 
@@ -370,6 +375,7 @@ export default function SpreadsheetPage() {
             onUpdateItem={updateItem}
             onAddTransaction={addTransaction}
             onEditItem={handleOpenEditItem}
+            onShowItemInfo={setInfoItem}
             returnYTD={returnYTD}
             netWorth={netWorth}
             convert={convert}
@@ -425,6 +431,15 @@ export default function SpreadsheetPage() {
           />
         </>
       )}
+
+      <ModalMount closing={infoClosing}>
+      {infoShown && (
+        <AssetInfoModal item={infoShown} items={portfolioItems || enrichedItems} transactions={transactions}
+          convert={convert} baseCurrency={baseCurrency} lang={lang}
+          onClose={() => setInfoItem(null)}
+          onEdit={(it) => { setInfoItem(null); handleOpenEditItem(it) }} />
+      )}
+      </ModalMount>
 
       <ModalMount closing={editClosing}>
       {editShown && (
