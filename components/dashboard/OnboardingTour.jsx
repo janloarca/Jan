@@ -116,12 +116,10 @@ const DEMO_STEPS = (t) => [
     body: t('La distribución de tu dinero, con una pestaña por pregunta: por tipo de activo, por institución (qué banco o broker te está generando más), por moneda, por país y por vencimiento.',
             'How your money is split, with one tab per question: by asset type, by institution (which bank or broker is earning you more), by currency, by country and by maturity.'),
   },
-  {
-    anchor: '[data-tour="actions"]',
-    title: t('Todo se hace desde aquí', 'Everything happens here'),
-    body: t('Registrar un depósito, un retiro o una venta, agregar activos, importar de tu broker y revisar lo que falte. Cada botón dice para qué sirve.',
-            'Record a deposit, a withdrawal or a sale, add assets, import from your broker and review what is missing. Each button says what it is for.'),
-  },
+  // El paso "Todo se hace desde aquí" (ancla `[data-tour="actions"]`) se quitó
+  // mientras la card ACCIONES está oculta: un ancla que no existe deja el foco
+  // en la nada y el tour espera ~2s antes de saltarla. Volver a ponerlo junto
+  // con QUICK_ACTIONS_CARD_ENABLED en app/dashboard/page.jsx.
   {
     anchor: '[data-card-id="SUGG-01"]',
     title: t('Chispu te cuida los datos', 'Chispu watches your data'),

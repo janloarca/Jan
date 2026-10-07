@@ -143,6 +143,13 @@ import { scopeTagFor } from '@/lib/scopeTag'
 // de query param (?brokers=1) para revivir la UI sin redeploy.
 const BROKER_INTEGRATIONS_ENABLED = false
 
+// La card ACCIONES está OCULTA, no borrada (pedido del usuario): todo lo que
+// ofrece ya vive en el menú "+ Nuevo" del header, que sale de la MISMA
+// definición (`lib/dashboardActions.js`). Compartir y Exportar siguen en la
+// paleta de comandos (y Ctrl+E). Volver a `true` la remonta tal cual, en sus
+// dos lugares.
+const QUICK_ACTIONS_CARD_ENABLED = false
+
 export default function DashboardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1587,7 +1594,7 @@ export default function DashboardPage() {
             />
           )}
 
-          <CardBoundary id="ACT-01-M" className="lg:hidden">{quickActions}</CardBoundary>
+          {QUICK_ACTIONS_CARD_ENABLED && <CardBoundary id="ACT-01-M" className="lg:hidden">{quickActions}</CardBoundary>}
 
           <CardBoundary id="OR-01"><PortfolioGrowthChart items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} /></CardBoundary>
         </div>
@@ -1694,7 +1701,7 @@ export default function DashboardPage() {
                   {showFx && <CardBoundary id="FX-01" className="min-w-0"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>}
                 </div>
 
-                <CardBoundary id="ACT-01" className="hidden lg:block">{quickActions}</CardBoundary>
+                {QUICK_ACTIONS_CARD_ENABLED && <CardBoundary id="ACT-01" className="hidden lg:block">{quickActions}</CardBoundary>}
               </div>
 
               {!hasHigh && suggestionsCard}
