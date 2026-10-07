@@ -251,7 +251,7 @@ export function shareLabel(value, total) {
   return `${p.toFixed(0)}%`
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onAddTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -2124,8 +2124,8 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                           <tr className="hover:bg-[var(--bg-card-hover)] transition-colors border-t border-[var(--border-subtle)]" style={rowStyle}>
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 z-10`} style={stickyStyle}>
                               <div className="flex items-center gap-2 min-w-0">
-                                {onEditItem ? (
-                                  <button className="text-sm truncate text-left hover:underline transition-colors" style={{ color: isEditing ? 'var(--accent-blue-strong)' : 'var(--text-primary)', fontWeight: isEditing ? 600 : undefined }} onClick={(e) => { e.stopPropagation(); onEditItem(item) }}>
+                                {(onShowItemInfo || onEditItem) ? (
+                                  <button className="text-sm truncate text-left hover:underline transition-colors" style={{ color: isEditing ? 'var(--accent-blue-strong)' : 'var(--text-primary)', fontWeight: isEditing ? 600 : undefined }} onClick={(e) => { e.stopPropagation(); (onShowItemInfo || onEditItem)(item) }}>
                                     {item.name || item.symbol}
                                   </button>
                                 ) : (
