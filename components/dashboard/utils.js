@@ -1041,42 +1041,68 @@ export function industryOptions(selected) { return industryChoices(selected) }
 // InfoTip, lib/transferTx.js y los colores). Una sola lista, con bandera,
 // para las dos pantallas.
 export const TAX_JURISDICTION_OPTIONS = [
-  { key: 'GT', flag: '🇬🇹', es: 'Guatemala', en: 'Guatemala' },
-  { key: 'MX', flag: '🇲🇽', es: 'México', en: 'Mexico' },
-  { key: 'US', flag: '🇺🇸', es: 'USA', en: 'USA' },
-  { key: 'CO', flag: '🇨🇴', es: 'Colombia', en: 'Colombia' },
-  { key: 'CL', flag: '🇨🇱', es: 'Chile', en: 'Chile' },
-  { key: 'BR', flag: '🇧🇷', es: 'Brasil', en: 'Brazil' },
-  { key: 'PE', flag: '🇵🇪', es: 'Perú', en: 'Peru' },
-  { key: 'AR', flag: '🇦🇷', es: 'Argentina', en: 'Argentina' },
-  { key: 'OTHER', flag: '', es: 'Otro', en: 'Other' },
+  { key: 'GT', region: 'latam', flag: '🇬🇹', es: 'Guatemala', en: 'Guatemala' },
+  { key: 'MX', region: 'latam', flag: '🇲🇽', es: 'México', en: 'Mexico' },
+  { key: 'US', region: 'northamerica', flag: '🇺🇸', es: 'USA', en: 'USA' },
+  { key: 'CO', region: 'latam', flag: '🇨🇴', es: 'Colombia', en: 'Colombia' },
+  { key: 'CL', region: 'latam', flag: '🇨🇱', es: 'Chile', en: 'Chile' },
+  { key: 'BR', region: 'latam', flag: '🇧🇷', es: 'Brasil', en: 'Brazil' },
+  { key: 'PE', region: 'latam', flag: '🇵🇪', es: 'Perú', en: 'Peru' },
+  { key: 'AR', region: 'latam', flag: '🇦🇷', es: 'Argentina', en: 'Argentina' },
+  { key: 'OTHER', region: 'other', flag: '', es: 'Otro', en: 'Other' },
 ]
 
 export const ASSET_COUNTRY_OPTIONS = [
-  { key: 'GT', flag: '🇬🇹', es: 'Guatemala', en: 'Guatemala' },
-  { key: 'MX', flag: '🇲🇽', es: 'México', en: 'Mexico' },
-  { key: 'US', flag: '🇺🇸', es: 'USA', en: 'USA' },
-  { key: 'CO', flag: '🇨🇴', es: 'Colombia', en: 'Colombia' },
-  { key: 'CL', flag: '🇨🇱', es: 'Chile', en: 'Chile' },
-  { key: 'BR', flag: '🇧🇷', es: 'Brasil', en: 'Brazil' },
-  { key: 'PE', flag: '🇵🇪', es: 'Perú', en: 'Peru' },
-  { key: 'AR', flag: '🇦🇷', es: 'Argentina', en: 'Argentina' },
-  { key: 'CR', flag: '🇨🇷', es: 'Costa Rica', en: 'Costa Rica' },
-  { key: 'PA', flag: '🇵🇦', es: 'Panamá', en: 'Panama' },
-  { key: 'ES', flag: '🇪🇸', es: 'España', en: 'Spain' },
-  { key: 'UK', flag: '🇬🇧', es: 'UK', en: 'UK' },
-  { key: 'DE', flag: '🇩🇪', es: 'Alemania', en: 'Germany' },
-  { key: 'CH', flag: '🇨🇭', es: 'Suiza', en: 'Switzerland' },
-  { key: 'JP', flag: '🇯🇵', es: 'Japón', en: 'Japan' },
-  { key: 'CN', flag: '🇨🇳', es: 'China', en: 'China' },
-  { key: 'KR', flag: '🇰🇷', es: 'Corea del Sur', en: 'South Korea' },
-  { key: 'HK', flag: '🇭🇰', es: 'Hong Kong', en: 'Hong Kong' },
-  { key: 'SG', flag: '🇸🇬', es: 'Singapur', en: 'Singapore' },
-  { key: 'AU', flag: '🇦🇺', es: 'Australia', en: 'Australia' },
-  { key: 'CA', flag: '🇨🇦', es: 'Canadá', en: 'Canada' },
-  { key: 'GLOBAL', flag: '', es: 'Global / Multi-país', en: 'Global / Multi-country' },
-  { key: 'OTHER', flag: '', es: 'Otro', en: 'Other' },
+  { key: 'GT', region: 'latam', flag: '🇬🇹', es: 'Guatemala', en: 'Guatemala' },
+  { key: 'MX', region: 'latam', flag: '🇲🇽', es: 'México', en: 'Mexico' },
+  { key: 'US', region: 'northamerica', flag: '🇺🇸', es: 'USA', en: 'USA' },
+  { key: 'CO', region: 'latam', flag: '🇨🇴', es: 'Colombia', en: 'Colombia' },
+  { key: 'CL', region: 'latam', flag: '🇨🇱', es: 'Chile', en: 'Chile' },
+  { key: 'BR', region: 'latam', flag: '🇧🇷', es: 'Brasil', en: 'Brazil' },
+  { key: 'PE', region: 'latam', flag: '🇵🇪', es: 'Perú', en: 'Peru' },
+  { key: 'AR', region: 'latam', flag: '🇦🇷', es: 'Argentina', en: 'Argentina' },
+  { key: 'CR', region: 'latam', flag: '🇨🇷', es: 'Costa Rica', en: 'Costa Rica' },
+  { key: 'PA', region: 'latam', flag: '🇵🇦', es: 'Panamá', en: 'Panama' },
+  { key: 'ES', region: 'europe', flag: '🇪🇸', es: 'España', en: 'Spain' },
+  { key: 'UK', region: 'europe', flag: '🇬🇧', es: 'UK', en: 'UK' },
+  { key: 'DE', region: 'europe', flag: '🇩🇪', es: 'Alemania', en: 'Germany' },
+  { key: 'CH', region: 'europe', flag: '🇨🇭', es: 'Suiza', en: 'Switzerland' },
+  { key: 'JP', region: 'asiapac', flag: '🇯🇵', es: 'Japón', en: 'Japan' },
+  { key: 'CN', region: 'asiapac', flag: '🇨🇳', es: 'China', en: 'China' },
+  { key: 'KR', region: 'asiapac', flag: '🇰🇷', es: 'Corea del Sur', en: 'South Korea' },
+  { key: 'HK', region: 'asiapac', flag: '🇭🇰', es: 'Hong Kong', en: 'Hong Kong' },
+  { key: 'SG', region: 'asiapac', flag: '🇸🇬', es: 'Singapur', en: 'Singapore' },
+  { key: 'AU', region: 'asiapac', flag: '🇦🇺', es: 'Australia', en: 'Australia' },
+  { key: 'CA', region: 'northamerica', flag: '🇨🇦', es: 'Canadá', en: 'Canada' },
+  { key: 'GLOBAL', region: 'other', flag: '', es: 'Global / Multi-país', en: 'Global / Multi-country' },
+  { key: 'OTHER', region: 'other', flag: '', es: 'Otro', en: 'Other' },
 ]
+
+// FASE PT. Agrupar por región hace que una lista de 23 países se pueda
+// recorrer con el pulgar: el 90% de quien usa esto elige entre Latinoamérica y
+// EE.UU., y todo lo demás queda a un grupo de distancia en vez de al final de
+// un scroll plano. El orden de los grupos pone Latinoamérica primero (de
+// dónde es quien usa la app) y "Otros" al último.
+export const COUNTRY_REGIONS = [
+  { key: 'latam', es: 'Latinoamérica', en: 'Latin America' },
+  { key: 'northamerica', es: 'Norteamérica', en: 'North America' },
+  { key: 'europe', es: 'Europa', en: 'Europe' },
+  { key: 'asiapac', es: 'Asia y Oceanía', en: 'Asia & Oceania' },
+  { key: 'other', es: 'Otros', en: 'Other' },
+]
+
+// Devuelve los grupos NO vacíos, con las opciones en el orden en que vienen de
+// la lista. Una opción con una región desconocida cae en "Otros" en vez de
+// desaparecer: un país que no se puede elegir es peor que uno mal agrupado.
+export function groupCountryOptions(options) {
+  const known = new Set(COUNTRY_REGIONS.map(r => r.key))
+  return COUNTRY_REGIONS
+    .map(r => ({
+      ...r,
+      options: options.filter(o => (known.has(o.region) ? o.region : 'other') === r.key),
+    }))
+    .filter(g => g.options.length > 0)
+}
 
 const GEO_SUFFIXES = {
   '.L': 'UK', '.TO': 'Canada', '.V': 'Canada', '.MX': 'Mexico',

@@ -11,6 +11,8 @@ import { validateItem } from '@/lib/validation'
 import { toRawItem } from '@/lib/rawItem'
 import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
 import SubIndustryField from '@/components/ui/SubIndustryField'
+import CountrySelect from '@/components/ui/CountrySelect'
+import { classificationSourceFor, industrySourceOf, showAutoDetected } from '@/lib/classificationSource'
 import { getItemValue, industryOptions, INVESTMENT_STYLE_LABELS, investmentStyleLabel, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
@@ -81,7 +83,7 @@ function FxHint({ amount, from, to, convert, t }) {
   )
 }
 
-export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, lots = [], onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert, focusField }) {
+export default function EditAccountModal({ item, onClose, onSave, onDelete, existingItems = [], lang = 'es', allItems, onNavigate, onAddTransaction, onDeleteTransaction, onUpdateTransaction, transactions, lots = [], onExecuteContribution, onCreateDestination, baseCurrency, entities = [], findings = [], onOpenCashflow, convert, focusField, profileTaxResidence = '' }) {
   const trapRef = useFocusTrap()
   const [creatingDest, setCreatingDest] = useState(false)
   const [extraItems, setExtraItems] = useState([])
@@ -133,6 +135,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     assetCountry: item.assetCountry || '',
     sector: item.sector || '',
     industry: item.industry || '',
+    industrySource: item.industry ? (industrySourceOf(item) || '') : '',
     subIndustry: item.subIndustry || '',
     subIndustryCustom: item.subIndustryCustom || '',
     // ⛔ FASE PM. Nunca un default: ver el mismo comentario en AddAccountModal.
@@ -799,6 +802,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // vaciar el campo en el formulario no lo borraría de verdad.
       updated.sector = form.sector || ''
       updated.industry = form.industry || ''
+      // FASE PT: el origen viaja con el valor; sin industria no hay origen.
+      updated.classificationSource = classificationSourceFor({ industry: form.industry, industrySource: form.industrySource })
       updated.subIndustry = form.subIndustry || ''
       updated.subIndustryCustom = form.subIndustry === 'custom' ? (form.subIndustryCustom || '').trim() : ''
       updated.investmentStyle = form.investmentStyle || ''
@@ -1923,12 +1928,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-                <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-                  <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                  {TAX_JURISDICTION_OPTIONS.map(o => (
-                    <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
-                  ))}
-                </select>
+                <CountrySelect value={form.taxJurisdiction} onChange={v => set('taxJurisdiction', v)} options={TAX_JURISDICTION_OPTIONS} lang={lang} className={inputCls} />
+                {profileTaxResidence && !form.taxJurisdiction && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {t('Tu residencia fiscal', 'Your tax residence')}: {(() => { const o = TAX_JURISDICTION_OPTIONS.find(x => x.key === profileTaxResidence); return o ? t(o.es, o.en) : profileTaxResidence })()}
+                    {' · '}
+                    <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
+                      {t('Usar la de tu perfil', 'Use the one from your profile')}
+                    </button>
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelCls}>
@@ -1936,12 +1945,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {' '}
                   <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
                 </label>
-                <select id="edit-asset-country" value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
-                  <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                  {ASSET_COUNTRY_OPTIONS.map(o => (
-                    <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
-                  ))}
-                </select>
+                <CountrySelect id="edit-asset-country" value={form.assetCountry} onChange={v => set('assetCountry', v)} options={ASSET_COUNTRY_OPTIONS} lang={lang} className={inputCls} />
               </div>
             </div>
 
@@ -1956,6 +1960,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <label className={labelCls}>{t('Industria', 'Industry')}</label>
                   <select id="edit-industry" value={form.industry} onChange={e => {
                     set('industry', e.target.value)
+                    set('industrySource', e.target.value ? 'user' : '')
                     if (form.subIndustry && form.subIndustry !== 'custom') { set('subIndustry', ''); set('subIndustryCustom', '') }
                   }} className={inputCls}>
                     <option value="">{t('-- Opcional --', '-- Optional --')}</option>
@@ -1963,6 +1968,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
                     ))}
                   </select>
+                  {showAutoDetected(form) && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                      ✦ {t('Auto-detectado por tu proveedor de cotizaciones', 'Auto-detected by your quote provider')}
+                      {' · '}
+                      <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }}
+                        onClick={() => { const el = document.getElementById('edit-industry'); if (el) el.focus() }}>
+                        {t('Corregir', 'Correct')}
+                      </button>
+                    </p>
+                  )}
                 </div>
                 <SubIndustryField
                   id="edit-subindustry"
@@ -1973,7 +1988,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   inputCls={inputCls}
                   labelCls={labelCls}
                   onPick={(ind, key, cust) => {
-                    if (ind && key && key !== 'custom') set('industry', ind)
+                    if (ind && key && key !== 'custom') { set('industry', ind); set('industrySource', 'user') }
                     set('subIndustry', key)
                     set('subIndustryCustom', cust || '')
                   }}

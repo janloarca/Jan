@@ -18,6 +18,8 @@ import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import { InfoTip } from './ui/Tooltip'
 import Switch from './ui/Switch'
 import SubIndustryField from '@/components/ui/SubIndustryField'
+import CountrySelect from '@/components/ui/CountrySelect'
+import { classificationSourceFor, showAutoDetected } from '@/lib/classificationSource'
 import { DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
@@ -107,6 +109,9 @@ const GUIDED_SUBTYPE = {
 }
 
 export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, onExecuteContribution, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
+  // FASE PT. Residencia fiscal que el usuario declaró en su perfil (vacía por
+  // defecto, jamás inferida). Solo se OFRECE con un botón; nunca se escribe sola.
+  profileTaxResidence = '',
   // ---- Modo guiado (onboarding de usuario nuevo) ----
   // guidedType fija el tipo y cambia SOLO el render: una pregunta por pantalla
   // en vez del formulario de 2 pasos. El estado, la búsqueda de símbolo y
@@ -136,7 +141,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     incomePayDay: '', incomeMonths: [],
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
     dividendAction: 'cash',
-    sector: '', industry: '', subIndustry: '', subIndustryCustom: '', exchangeName: '',
+    sector: '', industry: '', industrySource: '', subIndustry: '', subIndustryCustom: '', exchangeName: '',
     // ⛔ FASE PM. Nunca un default: el usuario pidió explícitamente que esto
     // jamás se asuma. Arranca vacío y se queda vacío salvo que el usuario
     // elija una opción.
@@ -378,6 +383,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
           currency: data.quote.currency || prev.currency,
           sector: data.quote.sector || '',
           industry: data.quote.industry || '',
+          // FASE PT: lo que trae el proveedor se marca como tal; solo así la
+          // pantalla puede ofrecer 'Corregir' sin tocar nada que el usuario eligió.
+          industrySource: data.quote.industry ? 'api' : '',
         }))
       } else {
         // Este `else` faltaba, y su ausencia era el bug caro: sin él, el precio
@@ -388,14 +396,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         // peor que no tener ninguno: mejor vaciarlo y decirlo.
         setDetectedCurrency(null)
         setQuoteFailed(true)
-        setForm(prev => ({ ...prev, purchasePrice: '', sector: '', industry: '' }))
+        setForm(prev => ({ ...prev, purchasePrice: '', sector: '', industry: '', industrySource: '' }))
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.error('[quote]', err.message)
         setDetectedCurrency(null)
         setQuoteFailed(true)
-        setForm(prev => ({ ...prev, purchasePrice: '', sector: '', industry: '' }))
+        setForm(prev => ({ ...prev, purchasePrice: '', sector: '', industry: '', industrySource: '' }))
       }
     }
     setFetchingQuote(false)
@@ -526,6 +534,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       if (form.sector) item.sector = form.sector
       if (form.industry) item.industry = form.industry
+      const classificationSource = classificationSourceFor({ industry: form.industry, industrySource: form.industrySource })
+      if (classificationSource) item.classificationSource = classificationSource
       if (form.subIndustry) {
         item.subIndustry = form.subIndustry
         if (form.subIndustry === 'custom' && form.subIndustryCustom.trim()) item.subIndustryCustom = form.subIndustryCustom.trim()
@@ -1023,7 +1033,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', industrySource: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -2296,9 +2306,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className={labelCls}>{t('Industria', 'Industry')}</label>
-                        <select value={form.industry} onChange={e => {
+                        <select id="add-industry" value={form.industry} onChange={e => {
                           // Cambiar de industria suelta una subindustria que ya no le cuelga.
                           set('industry', e.target.value)
+                          set('industrySource', e.target.value ? 'user' : '')
                           if (form.subIndustry && form.subIndustry !== 'custom') { set('subIndustry', ''); set('subIndustryCustom', '') }
                         }} className={inputCls}>
                           <option value="">{t('-- Opcional --', '-- Optional --')}</option>
@@ -2306,6 +2317,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                             <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
                           ))}
                         </select>
+                        {showAutoDetected(form) && (
+                          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                            ✦ {t('Auto-detectado por tu proveedor de cotizaciones', 'Auto-detected by your quote provider')}
+                            {' · '}
+                            <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }}
+                              onClick={() => { const el = document.getElementById('add-industry'); if (el) el.focus() }}>
+                              {t('Corregir', 'Correct')}
+                            </button>
+                          </p>
+                        )}
                       </div>
                       <SubIndustryField
                         id="add-subindustry"
@@ -2316,7 +2337,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         inputCls={inputCls}
                         labelCls={labelCls}
                         onPick={(ind, key, cust) => {
-                          if (ind && key && key !== 'custom') set('industry', ind)
+                          if (ind && key && key !== 'custom') { set('industry', ind); set('industrySource', 'user') }
                           set('subIndustry', key)
                           set('subIndustryCustom', cust || '')
                         }}
@@ -2349,12 +2370,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className={labelCls}>{t('Jurisdicción fiscal', 'Tax jurisdiction')}</label>
-                      <select value={form.taxJurisdiction} onChange={e => set('taxJurisdiction', e.target.value)} className={inputCls}>
-                        <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                        {TAX_JURISDICTION_OPTIONS.map(o => (
-                          <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
-                        ))}
-                      </select>
+                      <CountrySelect value={form.taxJurisdiction} onChange={v => set('taxJurisdiction', v)} options={TAX_JURISDICTION_OPTIONS} lang={lang} className={inputCls} />
+                      {profileTaxResidence && !form.taxJurisdiction && (
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                          {t('Tu residencia fiscal', 'Your tax residence')}: {(() => { const o = TAX_JURISDICTION_OPTIONS.find(x => x.key === profileTaxResidence); return o ? t(o.es, o.en) : profileTaxResidence })()}
+                          {' · '}
+                          <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
+                            {t('Usar la de tu perfil', 'Use the one from your profile')}
+                          </button>
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className={labelCls}>
@@ -2362,12 +2387,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         {' '}
                         <InfoTip text={t('De dónde es la empresa/activo en sí, para "Asignación de activos > Geo". Sin esto, un símbolo que no reconocemos (típico en bonos, alternativos o acciones privadas) se asume EE.UU. por defecto, no por la moneda en que lo tengas.', 'Where the company/asset itself is from, for "Asset Allocation > Geo". Without this, a symbol we don\'t recognize (typical for bonds, alternatives or private stock) defaults to the US, not based on the currency it\'s held in.')} />
                       </label>
-                      <select value={form.assetCountry} onChange={e => set('assetCountry', e.target.value)} className={inputCls}>
-                        <option value="">{t('-- Opcional --', '-- Optional --')}</option>
-                        {ASSET_COUNTRY_OPTIONS.map(o => (
-                          <option key={o.key} value={o.key}>{o.flag ? o.flag + ' ' : ''}{t(o.es, o.en)}</option>
-                        ))}
-                      </select>
+                      <CountrySelect value={form.assetCountry} onChange={v => set('assetCountry', v)} options={ASSET_COUNTRY_OPTIONS} lang={lang} className={inputCls} />
                     </div>
                   </div>
                 </div>
