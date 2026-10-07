@@ -77,7 +77,7 @@ export default function SpreadsheetPage() {
     snapshots, addItem, addItemInScope, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots,
     addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
-    addLot, closeLotsFIFO, executeContribution, dataLoading, settings,
+    addLot, closeLotsFIFO, executeContribution, dataLoading, settings, profile,
     handleRefresh, pricesLoading, ratesLoading,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
@@ -465,7 +465,8 @@ export default function SpreadsheetPage() {
           onAddTransaction={addTransaction} onExecuteContribution={executeContribution}
           onDeleteTransaction={deleteTransactionWithReversal} onUpdateTransaction={updateTransactionWithReversal}
           onCreateDestination={addItemInScope}
-          transactions={transactions} lots={lots} baseCurrency={baseCurrency} convert={convert} />
+          transactions={transactions} lots={lots} baseCurrency={baseCurrency} convert={convert}
+          profileTaxResidence={profile?.taxResidence || ''} />
       )}
       </ModalMount>
 
@@ -480,6 +481,7 @@ export default function SpreadsheetPage() {
           existingItems={items}
           lang={lang}
           defaults={addModalDefaults}
+          profileTaxResidence={profile?.taxResidence || ''}
         />
       )}
       </ModalMount>
