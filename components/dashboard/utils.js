@@ -970,6 +970,7 @@ export function getInvestmentClass(item) {
 }
 
 import { INVESTMENT_CLASS_COLORS } from '@/lib/colors'
+import { INDUSTRIES, industryChoices } from '@/lib/classification'
 import { isDailyAccrual, accrualAnnualRate } from '@/lib/dailyAccrual'
 // FASE NM: la lista de códigos donde IBKR ya dio un veredicto se importa, NO
 // se copia: el planificador de sync (lib/ibkrSchedule.js) ya detiene la
@@ -1026,35 +1027,12 @@ export function getSectorFromType(type) {
   return 'Unknown'
 }
 
-// FASE PM. "Industria": opciones curadas, bilingües de verdad (a diferencia de
-// SECTOR_PATTERNS, pensado solo como llave de agrupación en inglés fijo). Las
-// mismas 11 etiquetas que `getSectorFromType` ya produce, para que un ítem
-// clasificado a mano y uno detectado por símbolo hablen el mismo idioma en la
-// pestaña "Sector" de Asignación de Activos.
-export const INDUSTRY_OPTIONS = [
-  { key: 'Technology', es: 'Tecnología', en: 'Technology' },
-  { key: 'Financials', es: 'Financiero', en: 'Financials' },
-  { key: 'Healthcare', es: 'Salud', en: 'Healthcare' },
-  { key: 'Energy', es: 'Energía', en: 'Energy' },
-  { key: 'Consumer', es: 'Consumo', en: 'Consumer' },
-  { key: 'Industrials', es: 'Industrial', en: 'Industrials' },
-  { key: 'Real Estate', es: 'Bienes Raíces', en: 'Real Estate' },
-  { key: 'Communication', es: 'Comunicación', en: 'Communication' },
-  { key: 'Materials', es: 'Materiales', en: 'Materials' },
-  { key: 'Utilities', es: 'Servicios Públicos', en: 'Utilities' },
-  { key: 'Crypto', es: 'Cripto', en: 'Crypto' },
-]
-
-// Mismo problema que resolvió currencyOptions (lib/currencies.js): un <select>
-// cuyo value no está entre sus opciones renderiza la PRIMERA, así que una
-// industria detectada en vivo (Yahoo, `data.quote.industry`) que no calce con
-// esta lista curada se mostraría como otra industria distinta sin que nadie
-// lo note — el mismo bug que FASE IF ya encontró con monedas. Antepone el
-// valor guardado/detectado cuando no es uno de los curados, en vez de perderlo.
-export function industryOptions(selected) {
-  if (!selected || INDUSTRY_OPTIONS.some(o => o.key === selected)) return INDUSTRY_OPTIONS
-  return [{ key: selected, es: selected, en: selected }, ...INDUSTRY_OPTIONS]
-}
+// FASE PM / PR. "Industria": la UNICA definicion vive en lib/classification.js
+// (22 industrias, con `Consumer` como alias legado que solo se muestra si ya
+// es el valor guardado y NUNCA se migra solo). Aca solo se re-exporta con los
+// nombres que ya usaban los modales y los tests.
+export const INDUSTRY_OPTIONS = INDUSTRIES
+export function industryOptions(selected) { return industryChoices(selected) }
 
 // FASE PM. Las dos listas de país/jurisdicción vivían DUPLICADAS entre
 // AddAccountModal y EditAccountModal, y ya habían divergido: Edit lleva

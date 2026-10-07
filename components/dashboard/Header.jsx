@@ -107,9 +107,13 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   // tenía su propia lista y ya habían divergido (la tarjeta ofrecía 8 cosas
   // que este menú no tenía). El tour y el agrupado por secciones sí son de
   // ESTA superficie, así que se resuelven acá y no en el módulo compartido.
+  // FASE PR (decision del usuario): "Registrar movimiento" y "Alertas de
+  // precio" NO se ofrecen en este menu (quedan en la tarjeta ACCIONES y en la
+  // paleta de comandos). Es una decision de ESTA superficie, no del modulo
+  // compartido: lib/dashboardActions.js sigue ofreciendo las 8 a quien las pida.
   const actionGroups = dashboardActionGroups({
-    lang, onCashFlow, onAddAccount, onSell, onTransfer,
-    onImport, onIntegrations: onOpenConnections, onReview, onPriceAlerts,
+    lang, onAddAccount, onSell, onTransfer,
+    onImport, onIntegrations: onOpenConnections, onReview,
     onGuided, onEnrich,
     alertCount, enrichGapCount,
     ibkrSyncStatus, ibkrLastSync, ibkrNeedsAttention, ibkrProgress,

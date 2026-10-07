@@ -12,6 +12,8 @@ import { useEscClose } from '@/hooks/useEscClose'
 
 const SOURCE_LABELS = {
   override: { es: 'Elegido por ti', en: 'Set by you' },
+  subindustry: { es: 'Por tu subindustria', en: 'From your sub-industry' },
+  industry: { es: 'Por tu industria', en: 'From your industry' },
   notes: { es: 'Según tus notas', en: 'From your notes' },
   name: { es: 'Por el nombre', en: 'From the name' },
   sector: { es: 'Por el sector', en: 'From the sector' },

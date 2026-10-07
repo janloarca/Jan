@@ -17,6 +17,7 @@ import { buildContributionFields, isBankLikeItem } from '@/lib/contributions'
 import { ACCRUAL_DAILY, dailyAccrualScheduleFields } from '@/lib/dailyAccrual'
 import { InfoTip } from './ui/Tooltip'
 import Switch from './ui/Switch'
+import SubIndustryField from '@/components/ui/SubIndustryField'
 import { DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
@@ -135,7 +136,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     incomePayDay: '', incomeMonths: [],
     capitalReturn: '', incomeDestination: '', capitalDestination: '',
     dividendAction: 'cash',
-    sector: '', industry: '', exchangeName: '',
+    sector: '', industry: '', subIndustry: '', subIndustryCustom: '', exchangeName: '',
     // ⛔ FASE PM. Nunca un default: el usuario pidió explícitamente que esto
     // jamás se asuma. Arranca vacío y se queda vacío salvo que el usuario
     // elija una opción.
@@ -525,6 +526,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
       if (form.sector) item.sector = form.sector
       if (form.industry) item.industry = form.industry
+      if (form.subIndustry) {
+        item.subIndustry = form.subIndustry
+        if (form.subIndustry === 'custom' && form.subIndustryCustom.trim()) item.subIndustryCustom = form.subIndustryCustom.trim()
+      }
       if (form.exchangeName) item.exchangeName = form.exchangeName
       if (form.investmentStyle) {
         item.investmentStyle = form.investmentStyle
@@ -2291,13 +2296,31 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className={labelCls}>{t('Industria', 'Industry')}</label>
-                        <select value={form.industry} onChange={e => set('industry', e.target.value)} className={inputCls}>
+                        <select value={form.industry} onChange={e => {
+                          // Cambiar de industria suelta una subindustria que ya no le cuelga.
+                          set('industry', e.target.value)
+                          if (form.subIndustry && form.subIndustry !== 'custom') { set('subIndustry', ''); set('subIndustryCustom', '') }
+                        }} className={inputCls}>
                           <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                           {industryOptions(form.industry).map(o => (
                             <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
                           ))}
                         </select>
                       </div>
+                      <SubIndustryField
+                        id="add-subindustry"
+                        industry={form.industry}
+                        subIndustry={form.subIndustry}
+                        custom={form.subIndustryCustom}
+                        lang={lang}
+                        inputCls={inputCls}
+                        labelCls={labelCls}
+                        onPick={(ind, key, cust) => {
+                          if (ind && key && key !== 'custom') set('industry', ind)
+                          set('subIndustry', key)
+                          set('subIndustryCustom', cust || '')
+                        }}
+                      />
                       <div>
                         <label className={labelCls}>
                           {t('Estilo de inversión', 'Investment style')}

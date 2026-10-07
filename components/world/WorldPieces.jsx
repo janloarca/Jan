@@ -107,6 +107,25 @@ export function SlotProp({ gx, gy, gz, archetype, seed }) {
   if (archetype === 'TECH') {
     return <IsoBox x0={gx - 0.14} y0={gy - 0.14} z0={gz} x1={gx + 0.14} y1={gy + 0.14} z1={gz + 14} top="var(--w-desk-top)" left="var(--w-screen)" right="var(--w-desk)" />
   }
+  if (archetype === 'DIGITAL_VAULT') {
+    // Un nodo: cubo oscuro con un punto de luz del color del arquetipo.
+    const [nx, ny] = iso(gx, gy, gz + 11)
+    return (
+      <g>
+        <IsoBox x0={gx - 0.13} y0={gy - 0.13} z0={gz} x1={gx + 0.13} y1={gy + 0.13} z1={gz + 10} top="var(--w-metal)" left="var(--w-desk)" right="var(--w-desk)" />
+        <circle cx={nx.toFixed(2)} cy={ny.toFixed(2)} r="1.3" className="w-blink" style={{ fill: accent }} />
+      </g>
+    )
+  }
+  if (archetype === 'FUND_HALL' || archetype === 'SOVEREIGN') {
+    // Archivero: caja baja con una franja del color del arquetipo.
+    return (
+      <g>
+        <IsoBox x0={gx - 0.2} y0={gy - 0.12} z0={gz} x1={gx + 0.2} y1={gy + 0.12} z1={gz + 9} top="var(--w-desk-top)" left="var(--w-desk)" right="var(--w-desk)" />
+        <polygon points={poly([[gx - 0.18, gy + 0.12, gz + 5], [gx + 0.18, gy + 0.12, gz + 5], [gx + 0.18, gy + 0.12, gz + 6.4], [gx - 0.18, gy + 0.12, gz + 6.4]])} style={{ fill: accent }} />
+      </g>
+    )
+  }
   if (archetype === 'RETAIL') {
     return (
       <g>
@@ -206,6 +225,39 @@ export function WallFeature({ archetype, w, h }) {
           <path d={`M${w * 0.15},${h * 0.7} Q${w * 0.4},${h * 0.2} ${w * 0.6},${h * 0.55} T${w * 0.88},${h * 0.3}`} style={{ fill: 'none', stroke: accent, strokeWidth: 0.8, strokeDasharray: '1.4 1' }} />
           <circle cx={w * 0.15} cy={h * 0.7} r="1" style={{ fill: accent }} />
           <circle cx={w * 0.88} cy={h * 0.3} r="1" style={{ fill: accent }} />
+        </g>
+      )
+    case 'FUND_HALL':
+      // Barras de alturas distintas: muchas partes, un solo fondo.
+      return (
+        <g>
+          {frame}
+          {[0.5, 0.78, 0.38, 0.9, 0.62].map((t, i) => (
+            <rect key={i} x={w * (0.12 + i * 0.17)} y={h * (1 - t) * 0.8 + h * 0.12} width={w * 0.1} height={h * t * 0.8} rx="0.3" style={{ fill: i % 2 ? accent : 'var(--w-screen)' }} />
+          ))}
+        </g>
+      )
+    case 'SOVEREIGN':
+      // Frontón y columnas: la fachada que todo el mundo reconoce como "gobierno".
+      return (
+        <g>
+          <rect x="0" y="0" width={w} height={h} rx="1" style={{ fill: 'var(--w-slab-l)', stroke: 'var(--w-floor-edge)', strokeWidth: 0.5 }} />
+          <path d={`M${w * 0.08},${h * 0.3} L${w / 2},${h * 0.08} L${w * 0.92},${h * 0.3} Z`} style={{ fill: accent }} />
+          {[0.2, 0.4, 0.6, 0.8].map((t, i) => (
+            <rect key={i} x={w * t - 0.5} y={h * 0.34} width="1" height={h * 0.5} style={{ fill: 'var(--w-desk-top)' }} />
+          ))}
+          <rect x={w * 0.08} y={h * 0.86} width={w * 0.84} height="0.8" style={{ fill: 'var(--w-desk)' }} />
+        </g>
+      )
+    case 'DIGITAL_VAULT':
+      // Nodos unidos por lineas: una red, sin ninguna cifra.
+      return (
+        <g>
+          {frame}
+          <path d={`M${w * 0.2},${h * 0.7} L${w * 0.45},${h * 0.3} L${w * 0.75},${h * 0.6} L${w * 0.9},${h * 0.25} M${w * 0.45},${h * 0.3} L${w * 0.6},${h * 0.85}`} style={{ fill: 'none', stroke: 'var(--w-metal)', strokeWidth: 0.5 }} />
+          {[[0.2, 0.7], [0.45, 0.3], [0.75, 0.6], [0.9, 0.25], [0.6, 0.85]].map(([tx, ty], i) => (
+            <circle key={i} cx={w * tx} cy={h * ty} r="1" className={i === 1 ? 'w-blink' : undefined} style={{ fill: accent }} />
+          ))}
         </g>
       )
     case 'AGRICULTURE':
@@ -328,6 +380,44 @@ export function Rooftop({ archetype, ox, oy, fw, fd, z }) {
             <rect x="3" y="7" width={fw * 0.4 * 18} height="1.4" rx="0.7" style={{ fill: 'var(--w-slab-l)', opacity: 0.7 }} />
           </g>
           <path d={`M${iso(cx - fw * 0.25, cy + fd * 0.1, z).join(',')} L${iso(cx - fw * 0.25, cy + fd * 0.1, z + 4).join(',')} M${iso(cx + fw * 0.25, cy + fd * 0.1, z).join(',')} L${iso(cx + fw * 0.25, cy + fd * 0.1, z + 4).join(',')}`} style={{ stroke: 'var(--w-metal)', strokeWidth: 0.8 }} />
+        </g>
+      )
+    }
+    case 'FUND_HALL': {
+      // Tragaluz de vidrio sobre la sala: un volumen bajo y luminoso.
+      const [lx, ly] = iso(cx, cy, z + 8)
+      return (
+        <g>
+          <IsoBox x0={cx - fw * 0.28} y0={cy - fd * 0.28} z0={z} x1={cx + fw * 0.2} y1={cy + fd * 0.2} z1={z + 6} top="var(--w-glass)" left="var(--w-glass)" right="var(--w-glass)" stroke="var(--w-glass-edge)" />
+          <ellipse cx={lx.toFixed(2)} cy={ly.toFixed(2)} rx="6" ry="2.6" style={{ fill: 'none', stroke: accent, strokeWidth: 1 }} />
+        </g>
+      )
+    }
+    case 'SOVEREIGN': {
+      // Cupula institucional con mastil y bandera.
+      const [dx, dy] = iso(cx, cy, z + 5)
+      return (
+        <g>
+          <IsoBox x0={cx - fw * 0.26} y0={cy - fd * 0.26} z0={z} x1={cx + fw * 0.18} y1={cy + fd * 0.18} z1={z + 5} top="var(--w-roof)" left="var(--w-side-l)" right="var(--w-side-r)" />
+          <g transform={`translate(${dx.toFixed(2)},${dy.toFixed(2)})`}>
+            <path d="M-9,0 A9,8 0 0 1 9,0 Z" style={{ fill: 'var(--w-slab-l)', stroke: accent, strokeWidth: 0.8 }} />
+            <rect x="-0.4" y="-18" width="0.8" height="10" style={{ fill: 'var(--w-metal)' }} />
+            <g className="w-sway"><path d="M0.4,-18 L7.5,-16 L0.4,-13.5 Z" style={{ fill: accent }} /></g>
+          </g>
+        </g>
+      )
+    }
+    case 'DIGITAL_VAULT': {
+      // Cristal que flota sobre el techo, con un anillo de datos que gira lento.
+      const [kx, ky] = iso(cx, cy, z)
+      return (
+        <g transform={`translate(${kx.toFixed(2)},${ky.toFixed(2)})`}>
+          <g className="w-spin" style={{ transformOrigin: '0px -14px' }}>
+            <ellipse cx="0" cy="-14" rx="9" ry="3" style={{ fill: 'none', stroke: 'var(--w-metal)', strokeWidth: 0.6, strokeDasharray: '2 2' }} />
+          </g>
+          <path d="M0,-26 L6,-14 L0,-4 L-6,-14 Z" style={{ fill: accent, opacity: 0.9, stroke: 'var(--w-slab-l)', strokeWidth: 0.5 }} />
+          <path d="M0,-26 L0,-4 M-6,-14 L6,-14" style={{ stroke: 'var(--w-slab-l)', strokeWidth: 0.4, opacity: 0.7 }} />
+          <circle cx="0" cy="-14" r="1.5" className="w-blink" style={{ fill: 'var(--w-window-lit)' }} />
         </g>
       )
     }

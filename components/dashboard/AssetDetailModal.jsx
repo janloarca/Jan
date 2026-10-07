@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Shimmer } from '@/components/dashboard/Skeleton'
+import { industryLabel, subIndustryLabel } from '@/lib/classification'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, formatDate, getItemPrice, isMarketPriced, investmentStyleLabel } from './utils'
@@ -291,10 +292,11 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               distintas (qué ES el activo, de qué tipo cotiza) de la que ya
               responde el badge de sector/exchange más arriba. Ninguno de los
               dos se adivina: si no se ve esta línea es porque no se eligieron. */}
-          {(item.industry || item.investmentStyle) && (
+          {(item.industry || item.subIndustry || item.investmentStyle) && (
             <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {[
-                item.industry || null,
+                item.industry ? industryLabel(item.industry, lang) : null,
+                item.subIndustry ? subIndustryLabel(item.industry, item.subIndustry, lang, item.subIndustryCustom) : null,
                 item.investmentStyle ? investmentStyleLabel(item.investmentStyle, lang, item.investmentStyleCustom) : null,
               ].filter(Boolean).join(' · ')}
             </div>

@@ -10,6 +10,7 @@ import DebtBreakdownPreview from './DebtBreakdownPreview'
 import { validateItem } from '@/lib/validation'
 import { toRawItem } from '@/lib/rawItem'
 import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributions'
+import SubIndustryField from '@/components/ui/SubIndustryField'
 import { getItemValue, industryOptions, INVESTMENT_STYLE_LABELS, investmentStyleLabel, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
@@ -132,6 +133,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     assetCountry: item.assetCountry || '',
     sector: item.sector || '',
     industry: item.industry || '',
+    subIndustry: item.subIndustry || '',
+    subIndustryCustom: item.subIndustryCustom || '',
     // ⛔ FASE PM. Nunca un default: ver el mismo comentario en AddAccountModal.
     investmentStyle: item.investmentStyle || '',
     investmentStyleCustom: item.investmentStyleCustom || '',
@@ -796,6 +799,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // vaciar el campo en el formulario no lo borraría de verdad.
       updated.sector = form.sector || ''
       updated.industry = form.industry || ''
+      updated.subIndustry = form.subIndustry || ''
+      updated.subIndustryCustom = form.subIndustry === 'custom' ? (form.subIndustryCustom || '').trim() : ''
       updated.investmentStyle = form.investmentStyle || ''
       updated.investmentStyleCustom = form.investmentStyle === 'custom' ? (form.investmentStyleCustom || '').trim() : ''
 
@@ -1949,13 +1954,30 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>{t('Industria', 'Industry')}</label>
-                  <select id="edit-industry" value={form.industry} onChange={e => set('industry', e.target.value)} className={inputCls}>
+                  <select id="edit-industry" value={form.industry} onChange={e => {
+                    set('industry', e.target.value)
+                    if (form.subIndustry && form.subIndustry !== 'custom') { set('subIndustry', ''); set('subIndustryCustom', '') }
+                  }} className={inputCls}>
                     <option value="">{t('-- Opcional --', '-- Optional --')}</option>
                     {industryOptions(form.industry).map(o => (
                       <option key={o.key} value={o.key}>{t(o.es, o.en)}</option>
                     ))}
                   </select>
                 </div>
+                <SubIndustryField
+                  id="edit-subindustry"
+                  industry={form.industry}
+                  subIndustry={form.subIndustry}
+                  custom={form.subIndustryCustom}
+                  lang={lang}
+                  inputCls={inputCls}
+                  labelCls={labelCls}
+                  onPick={(ind, key, cust) => {
+                    if (ind && key && key !== 'custom') set('industry', ind)
+                    set('subIndustry', key)
+                    set('subIndustryCustom', cust || '')
+                  }}
+                />
                 <div>
                   <label className={labelCls}>
                     {t('Estilo de inversión', 'Investment style')}
