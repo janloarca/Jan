@@ -496,3 +496,36 @@ export function Lamp({ gx, gy }) {
     </g>
   )
 }
+
+// FASE PR. Marca de industria en la azotea (ver lib/worldMarks.js): un mastil
+// en la esquina del fondo con un emblema de FORMA propia. Va en el acento del
+// arquetipo, la forma es lo que distingue a la industria.
+const MARK_PATH = {
+  dish: 'M-5,-2 A5,5 0 0 0 5,-2 Z',
+  wing: 'M-6,3 L0,-6 L6,3 L0,0.5 Z',
+  diamond: 'M0,-6 L5,0 L0,6 L-5,0 Z',
+  bell: 'M-5,4 Q-5,-5 0,-5 Q5,-5 5,4 Z',
+  drop: 'M0,-6 Q6,1 0,6 Q-6,1 0,-6 Z',
+  cube: 'M0,-6 L5,-3 L5,3 L0,6 L-5,3 L-5,-3 Z',
+}
+
+export function RoofMark({ mark, archetype, ox, oy, fw, fd, z }) {
+  if (!mark) return null
+  const accent = accentOf(archetype)
+  const [px, py] = iso(ox + fw * 0.82, oy + fd * 0.16, z)
+  return (
+    <g transform={`translate(${px.toFixed(2)},${py.toFixed(2)})`} aria-hidden="true">
+      <rect x="-0.4" y="-12" width="0.8" height="12" style={{ fill: 'var(--w-metal)' }} />
+      <g transform="translate(0,-17)">
+        {mark === 'wheel' ? (
+          <g>
+            <circle r="5" style={{ fill: accent, stroke: 'var(--w-post)', strokeWidth: 0.6 }} />
+            <circle r="1.8" style={{ fill: 'var(--w-roof)' }} />
+          </g>
+        ) : (
+          <path d={MARK_PATH[mark]} style={{ fill: accent, stroke: 'var(--w-post)', strokeWidth: 0.6, strokeLinejoin: 'round' }} />
+        )}
+      </g>
+    </g>
+  )
+}
