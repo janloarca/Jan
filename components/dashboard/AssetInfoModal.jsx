@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { assetSummary } from '@/lib/assetSummary'
+import { learnedRateSuggestion, applyPatch, dismissPatch } from '@/lib/learnedRate'
 import { formatCurrency, categoryLabel, itemLabel } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 
@@ -29,7 +30,7 @@ const Row = ({ label, children, tip }) => (
   </div>
 )
 
-export default function AssetInfoModal({ item, items = [], transactions = [], convert, baseCurrency = 'USD', lang = 'es', onClose, onEdit }) {
+export default function AssetInfoModal({ item, items = [], transactions = [], convert, baseCurrency = 'USD', lang = 'es', observations, currentMonthKey, onUpdateItem, onClose, onEdit }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
   useEscClose(onClose)
@@ -38,6 +39,20 @@ export default function AssetInfoModal({ item, items = [], transactions = [], co
     () => assetSummary(item, { transactions, items, convert, baseCurrency }),
     [item, items, transactions, convert, baseCurrency],
   )
+  // FASE QC: la tasa que los saldos corregidos en la Hoja dicen que la cuenta
+  // rinde. Solo se SUGIERE: aplicarla o descartarla es un toque del usuario.
+  const learned = useMemo(
+    () => learnedRateSuggestion({ item, observations, items, transactions, convert, currentMonthKey }),
+    [item, observations, items, transactions, convert, currentMonthKey],
+  )
+  const [rateBusy, setRateBusy] = useState(false)
+  const [rateError, setRateError] = useState(false)
+  const settleRate = async (patch) => {
+    if (!onUpdateItem || !item?.id) return
+    setRateBusy(true); setRateError(false)
+    try { await onUpdateItem(item.id, patch) } catch { setRateError(true) }
+    setRateBusy(false)
+  }
   if (!s) return null
 
   const money = (v) => formatCurrency(v, s.currency)
@@ -96,6 +111,44 @@ export default function AssetInfoModal({ item, items = [], transactions = [], co
           <Row label={t('Sector', 'Sector')}>{s.sector || dash}</Row>
           <Row label={t('Ubicación', 'Location')}>{s.location || dash}</Row>
         </div>
+
+        {learned && onUpdateItem && (
+          <div className="mt-3 rounded-xl p-3" style={{ border: '1px solid var(--card-border)', background: 'var(--bg-tertiary)' }}>
+            <p className="text-body font-medium" style={{ color: 'var(--text-primary)' }}>
+              {t('Tasa que parece rendir: ', 'Rate it seems to earn: ')}{learned.ratePct.toFixed(2)}%
+              {learned.declaredPct != null && (
+                <span className="text-caption font-normal" style={{ color: 'var(--text-muted)' }}>
+                  {t(` (declaraste ${learned.declaredPct}%)`, ` (you set ${learned.declaredPct}%)`)}
+                </span>
+              )}
+            </p>
+            <p className="text-micro mt-1" style={{ color: 'var(--text-muted)' }}>
+              {t(
+                `Sale de ${learned.used} meses de saldos que corregiste en la Hoja, sin contar lo que metiste o sacaste. Es un promedio de lo que pasó, no una promesa.`,
+                `From ${learned.used} months of balances you corrected in the Sheet, not counting what you put in or took out. It is an average of what happened, not a promise.`,
+              )}
+              {learned.ignored.length > 0 && t(` Se dejaron fuera ${learned.ignored.length} mes(es) que no parecen rendimiento.`, ` ${learned.ignored.length} month(s) that don't look like yield were left out.`)}
+            </p>
+            {!learned.canApply && (
+              <p className="text-micro mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t('Esta cuenta no tiene una tasa fija declarada, así que no se cambia nada sola: si quieres usarla, edítala.', 'This account has no fixed rate set, so nothing changes by itself: edit it if you want to use it.')}
+              </p>
+            )}
+            {rateError && <p className="text-micro mt-1" style={{ color: 'var(--text-negative)' }}>{t('No se pudo guardar. Intenta de nuevo.', 'Could not save. Try again.')}</p>}
+            <div className="flex gap-2 mt-2">
+              {learned.canApply && (
+                <button type="button" disabled={rateBusy} onClick={() => settleRate(applyPatch(learned))}
+                  className="btn-primary min-h-[36px] px-3 py-1.5 rounded-lg text-caption font-medium">
+                  {t(`Usar ${learned.ratePct.toFixed(2)}%`, `Use ${learned.ratePct.toFixed(2)}%`)}
+                </button>
+              )}
+              <button type="button" disabled={rateBusy} onClick={() => settleRate(dismissPatch(learned))}
+                className="btn-secondary min-h-[36px] px-3 py-1.5 rounded-lg text-caption font-medium">
+                {t('No, gracias', 'No thanks')}
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="text-micro mt-3" style={{ color: 'var(--text-muted)' }}>
           {t(`Cifras en ${s.currency}.`, `Figures in ${s.currency}.`)}

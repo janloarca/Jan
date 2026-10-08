@@ -443,6 +443,8 @@ export default function SpreadsheetPage() {
       {infoShown && (
         <AssetInfoModal item={infoShown} items={portfolioItems || enrichedItems} transactions={transactions}
           convert={convert} baseCurrency={baseCurrency} lang={lang}
+          observations={sheetObservations} onUpdateItem={updateItem}
+          currentMonthKey={new Date().toISOString().slice(0, 7)}
           onClose={() => setInfoItem(null)}
           onEdit={(it) => { setInfoItem(null); handleOpenEditItem(it) }} />
       )}
