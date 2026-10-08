@@ -401,7 +401,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return Object.values(found).sort((a, b) => Math.max(...Object.values(b.months)) - Math.max(...Object.values(a.months)))
   }, [liveIbkrInstitutions, months, currentMonthKey, historicalItems])
 
-  const monthlyTotals = useMemo(() => {
+  const { monthlyTotals, monthlyAssetTotals, monthlyDebtTotals } = useMemo(() => {
     const base = baseCurrency || 'USD'
     // Snapshot NAV per month — used as a fallback for months that have no per-item
     // reconstruction yet. IBKR equityHistory snapshots (_source:'ibkr') are broker
@@ -456,15 +456,30 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // snapshot NAV for any month not reconstructed yet — augmenting IBKR-only
     // snapshots with the manual assets so the fallback never undercounts.
     const result = {}
+    // Partición de `result` por signo, para los renglones "Activos"/"Deudas"
+    // del pie (pedido del usuario: antes una sola línea "TOTAL" mezclaba las
+    // dos cosas). Se acumulan en el MISMO recorrido que ya produce `sum`, no en
+    // uno aparte: dos pasadas sobre `hist` podrían divergir en qué cuenta como
+    // huérfana o cerrada, que es justo la clase de bug que este archivo ya
+    // documenta (FASE FT/GN). Solo existen para los meses con reconstrucción
+    // por ítem (`hist`); un mes que cae al NAV crudo del snapshot no trae
+    // desglose por signo, así que esos dos mapas simplemente no tienen entrada
+    // ahí — igual que las filas de categoría ya muestran "-" en ese caso.
+    const assetsResult = {}
+    const debtsResult = {}
     const allKeys = new Set([...Object.keys(snapByMonth), ...Object.keys(historicalItems)])
     allKeys.forEach(mk => {
       const hist = historicalItems[mk]
       if (hist && Object.keys(hist).length > 0) {
         let sum = 0
+        let assetsSum = 0
+        let debtsSum = 0
         const seen = new Set()
         items.forEach(it => {
           if (it.id && hist[it.id]) {
-            sum += (it.isDebt ? -1 : 1) * (hist[it.id].value || 0)
+            const v = hist[it.id].value || 0
+            if (it.isDebt) { sum -= v; debtsSum += v }
+            else { sum += v; assetsSum += v }
             seen.add(it.id)
           }
         })
@@ -489,16 +504,21 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         Object.entries(hist).forEach(([id, v]) => {
           if (seen.has(id)) return
           if (!liveIbkrBucketKeys.has(id) && !countsClosed(id, v)) return
+          // Un bucket huérfano (IBKR sin dueño, o posición ya vendida) describe
+          // una POSICIÓN, nunca una deuda: va siempre del lado de los activos.
           sum += v.value || 0
+          assetsSum += v.value || 0
         })
         result[mk] = sum
+        assetsResult[mk] = assetsSum
+        debtsResult[mk] = debtsSum
       } else if (snapByMonth[mk] != null) {
         let total = snapByMonth[mk]
         if (ibkrSourceByMonth[mk] && nonIbkrItems.length) total += nonIbkrValueAtMonth(mk)
         result[mk] = total
       }
     })
-    return result
+    return { monthlyTotals: result, monthlyAssetTotals: assetsResult, monthlyDebtTotals: debtsResult }
   }, [snapshots, convert, baseCurrency, historicalItems, items, liveIbkrBucketKeys, liveIbkrInstitutions])
 
   // Months whose TOTAL comes from a snapshot NAV fallback (no per-item breakdown):
@@ -2555,9 +2575,54 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 )
               })}
 
+            {/* Pedido del usuario: antes una sola fila "TOTAL" mezclaba
+                Activos − Pasivos = Patrimonio en una cifra, sin mostrar los
+                dos términos. Ahora son tres filas en cascada: Activos, Deudas
+                (restando) y Patrimonio (el total de siempre, solo renombrado
+                para que diga lo que YA significaba — "Patrimonio Neto" es el
+                término que el resto de la app usa para activos menos deuda,
+                ver app/spreadsheet/page.jsx). Ningún número nuevo: son
+                totalAssets/totalDebt (mes actual) y monthlyAssetTotals/
+                monthlyDebtTotals (meses pasados, partición de la MISMA suma
+                que ya alimentaba monthlyTotals), así que las tres filas no
+                pueden discrepar entre sí ni con la cifra de antes. */}
+            <tr className="border-t-2 border-[var(--border-color)] bg-theme-tertiary">
+              <td className="py-2 pl-4 pr-2 sticky left-0 bg-theme-tertiary z-10">
+                <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>{t('Activos', 'Assets')}</span>
+              </td>
+              <td />
+              {showOriginal && <td />}
+              {months.map(mk => {
+                const isCurrent = mk === currentMonthKey
+                const val = isCurrent ? totalAssets : monthlyAssetTotals[mk]
+                return (
+                  <td key={mk} className="text-right py-2 px-2 font-semibold tabular-nums font-mono text-sm" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--text-primary)' } : { color: val != null ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                    {val != null ? formatCurrency(val) : '-'}
+                  </td>
+                )
+              })}
+            </tr>
+
+            <tr className="bg-theme-tertiary">
+              <td className="py-2 pl-4 pr-2 sticky left-0 bg-theme-tertiary z-10">
+                <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>{t('Deudas', 'Debts')}</span>
+              </td>
+              <td />
+              {showOriginal && <td />}
+              {months.map(mk => {
+                const isCurrent = mk === currentMonthKey
+                const val = isCurrent ? totalDebt : monthlyDebtTotals[mk]
+                return (
+                  <td key={mk} className="text-right py-2 px-2 font-semibold tabular-nums font-mono text-sm" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--text-negative)' } : { color: val != null ? 'var(--text-negative)' : 'var(--text-muted)' }}>
+                    {val != null ? formatCurrency(val ? -val : 0) : '-'}
+                  </td>
+                )
+              })}
+            </tr>
+
             <tr className="border-t-2 border-[var(--border-color)] bg-theme-tertiary">
               <td className="py-3.5 pl-4 pr-2 sticky left-0 bg-theme-tertiary z-10">
-                <span className="font-black text-base" style={{ color: 'var(--text-primary)' }}>TOTAL</span>
+                <span className="font-black text-base" style={{ color: 'var(--text-primary)' }}>{t('Patrimonio', 'Net Worth')}</span>
                 {showOriginal && (
                   <span className="text-xs ml-2 font-normal" style={{ color: 'var(--text-muted)' }}>({baseCurrency || 'USD'})</span>
                 )}
