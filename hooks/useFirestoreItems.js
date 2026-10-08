@@ -428,6 +428,21 @@ export function useFirestoreItems() {
       })
       if (isCount > 0) await isBatch.commit()
     } catch (err) { console.error('[delete-itemSnapshots]', err.message) }
+    // FASE QA2. Las observaciones de la Hoja de una cuenta borrada se van con
+    // ella (misma regla de FASE GL: borrar una cuenta = nunca aparece en el
+    // historial). Sin esto quedaban huérfanas: sin efecto en la Hoja (necesitan
+    // un ítem vivo), pero acumulándose en el doc para siempre. Best-effort: si
+    // esta limpieza falla, el borrado de la cuenta YA ocurrió y no se revierte.
+    try {
+      const keepObs = sheetObservations.filter((o) => !idSet.has(o.itemId))
+      if (keepObs.length !== sheetObservations.length) {
+        await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'sheetObservations'), {
+          observations: keepObs,
+          updatedAt: new Date().toISOString(),
+        })
+        setSheetObservations(keepObs)
+      }
+    } catch (err) { console.error('[delete-sheetObservations]', err.message) }
     setItems((cur) => cur.filter((it) => !idSet.has(it.id)))
     if (orphanSnapIds.length > 0) {
       const goneSnaps = new Set(orphanSnapIds)
@@ -435,7 +450,7 @@ export function useFirestoreItems() {
     }
     setDeletionEpoch((e) => e + 1)
     return groupItems.length
-  }, [uid, items, lots, transactions, snapshots])
+  }, [uid, items, lots, transactions, snapshots, sheetObservations])
 
   const deleteItem = useCallback(async (itemId, opts) => {
     if (!uid) return
@@ -466,6 +481,14 @@ export function useFirestoreItems() {
       collections.push(`users/${uid}/lots`, `users/${uid}/transactions`, `users/${uid}/snapshots`, `users/${uid}/itemSnapshots`)
     }
     for (const path of collections) await deleteAllDocsIn(db, fs, path)
+    // Borrarlo todo con cascada también borra las observaciones de la Hoja: no
+    // queda ninguna cuenta a la que pertenezcan.
+    if (cascade) {
+      try {
+        await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'sheetObservations'), { observations: [], updatedAt: new Date().toISOString() })
+        setSheetObservations([])
+      } catch (err) { console.error('[delete-sheetObservations]', err.message) }
+    }
     setDeletionEpoch((e) => e + 1)
   }, [uid])
 
