@@ -7,6 +7,7 @@ import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { todayLocalISO } from '@/lib/localDate'
 import { formatCurrency, formatDate, getItemValue, getTypeCategory, isExcludedFromNetWorth, isBankLike, isMarketPriced, getEffectiveYield, TYPE_COLORS, BROKER_NAV_SOURCES, DEBT_CLARIFICATION, CATEGORY_ORDER, debtTermLabel } from './utils'
 import { toRawItem } from '@/lib/rawItem'
+import { applyObservations, upsertObservation, removeObservation, findObservation, observationGap } from '@/lib/sheetObservations'
 import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_CORRECTION, ANSWER_RETURN, ANSWER_FLOW } from '@/lib/spreadsheetEdit'
 // El mismo veredicto que liquidYieldCandidates (hooks/useDashboardData.js)
 // computaría para este ítem, pero sobre el estado que el patch de abajo está
@@ -252,7 +253,7 @@ export function shareLabel(value, total) {
   return `${p.toFixed(0)}%`
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, onUpdateTransaction, onDeleteTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, onUpdateTransaction, onDeleteTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, observations, onSaveObservations, lots, transactions, onRegisterRecalculate }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -339,7 +340,18 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     return result
   }, [selectedYear, viewMode, availableYears, currentMonthKey])
 
-  const [historicalItems, setHistoricalItems] = useState({})
+  // `derivedHistorical` es lo que la reconstrucción (y su caché) produjo;
+  // `historicalItems` es eso MÁS las observaciones del usuario (FASE QA, lib/
+  // sheetObservations.js): el saldo real que leyó de su estado de cuenta para un
+  // mes cerrado. Todo lo que dibuja o suma lee `historicalItems`; todo lo que
+  // decide qué falta por calcular o qué guardar en el caché lee la derivada, así
+  // una observación jamás se hornea en itemSnapshots y borrarla devuelve la
+  // derivación tal cual.
+  const [derivedHistorical, setHistoricalItems] = useState({})
+  const historicalItems = useMemo(
+    () => applyObservations(derivedHistorical, observations, { items, convert, baseCurrency, currentMonthKey }),
+    [derivedHistorical, observations, items, convert, baseCurrency, currentMonthKey]
+  )
 
   // Las keys de bucket sintético que un item de IBKR VIVO produciría hoy. Se
   // arma con la misma expresión que `cacheKeyFor` (más abajo) para que no puedan
@@ -660,7 +672,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // emptying missingMonths almost immediately; the stricter per-item test of FASE
   // DS removed that accident and exposed the real loop.
   const historicalItemsRef = useRef({})
-  useEffect(() => { historicalItemsRef.current = historicalItems }, [historicalItems])
+  useEffect(() => { historicalItemsRef.current = derivedHistorical }, [derivedHistorical])
   const [cacheEpoch, setCacheEpoch] = useState(0)
   // FASE FO. Has the Firestore itemSnapshots cache had its FIRST chance to
   // answer? On a cold mount the compute effect below used to evaluate
@@ -1360,6 +1372,38 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       : `${label}: could not read that value. Use numbers only, no minus sign.`)
     setTimeout(() => setBlockMsg(null), 5000)
   }, [lang])
+
+  // FASE QA. Fijar (o quitar) el saldo real de un mes CERRADO. Escribe el doc de
+  // observaciones completo y sin merge; si Firestore falla, lo dice en vez de
+  // dejar un "guardado" sobre nada (updateItem también lanza al revertir).
+  const handleObserve = useCallback(async (item, mk, value, cur) => {
+    if (!onSaveObservations || !item?.id) return
+    const label = item.name || item.symbol
+    try {
+      await onSaveObservations(upsertObservation(observations, { itemId: item.id, month: mk, value, currency: cur }))
+      setSaveMsg(lang === 'es'
+        ? `${label}: ${getMonthLabel(mk, lang)} fijado en ${formatNum(value)} ${cur}. Los demás meses no cambian.`
+        : `${label}: ${getMonthLabel(mk, lang)} set to ${formatNum(value)} ${cur}. Other months are unchanged.`)
+      setTimeout(() => setSaveMsg(null), 5000)
+    } catch (e) {
+      setBlockMsg(lang === 'es' ? `${label}: no se pudo guardar el saldo de ${getMonthLabel(mk, lang)}. Intenta de nuevo.` : `${label}: could not save the ${getMonthLabel(mk, lang)} balance. Try again.`)
+      setTimeout(() => setBlockMsg(null), 5000)
+    }
+  }, [onSaveObservations, observations, lang])
+
+  const handleClearObservation = useCallback(async (item, mk) => {
+    if (!onSaveObservations || !item?.id) return
+    try {
+      await onSaveObservations(removeObservation(observations, item.id, mk))
+      setSaveMsg(lang === 'es'
+        ? `${item.name || item.symbol}: ${getMonthLabel(mk, lang)} vuelve al valor calculado.`
+        : `${item.name || item.symbol}: ${getMonthLabel(mk, lang)} is back to the calculated value.`)
+      setTimeout(() => setSaveMsg(null), 5000)
+    } catch (e) {
+      setBlockMsg(lang === 'es' ? 'No se pudo quitar la corrección. Intenta de nuevo.' : 'Could not remove the correction. Try again.')
+      setTimeout(() => setBlockMsg(null), 5000)
+    }
+  }, [onSaveObservations, observations, lang])
 
   // CSV of the reconstructed monthly matrix — the dashboard export only covers
   // current items + transactions, not this per-month history.
@@ -2206,6 +2250,46 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 const cell = histMonth && item.id ? histMonth[item.id] : null
                                 const histVal = cell?.value ?? null
                                 const isEst = histVal != null && cell?.estimated
+                                // FASE QA: un mes cerrado de un ítem NO sincronizado se
+                                // corrige tocando la celda. Fuera: la vista año a año (sus
+                                // columnas son cierres de diciembre, no meses) y los ítems de
+                                // broker, cuyo pasado es el NAV real del broker y no una
+                                // reconstrucción que el usuario pueda contradecir.
+                                const canObserve = !!onSaveObservations && viewMode === 'monthly' && !!item.id && item._source !== 'ibkr'
+                                if (canObserve) {
+                                  const obs = findObservation(observations, item.id, mk)
+                                  const shown = histVal != null ? toDisplayCurrency(histVal, cur) : null
+                                  const derivedCell = derivedHistorical[mk]?.[item.id]
+                                  const gap = obs && derivedCell ? observationGap(derivedCell.value, histVal) : null
+                                  return (
+                                    <td key={mk} className="text-right py-1.5 px-1 tabular-nums font-mono text-sm" style={{ color: histVal != null ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                                      <div className="flex items-center justify-end gap-0.5">
+                                        {obs && (
+                                          <>
+                                            <button type="button" onClick={() => handleClearObservation(item, mk)}
+                                              title={t('Saldo fijado por ti. Toca para volver al valor calculado', 'Balance set by you. Tap to go back to the calculated value')}
+                                              aria-label={t('Quitar la corrección de este mes', 'Remove this month\'s correction')}
+                                              className="shrink-0 text-xs leading-none rounded px-1 min-h-[24px] min-w-[24px]"
+                                              style={{ color: 'var(--accent-blue)' }}>↺</button>
+                                          </>
+                                        )}
+                                        {!obs && isEst && (
+                                          <span title={t('Valor estimado: mantenido plano; sin precio histórico real', 'Estimated: held flat; no real historical price')} style={{ color: 'var(--text-muted)', marginRight: '1px' }}>~</span>
+                                        )}
+                                        <EditableCell
+                                          displayValue={shown}
+                                          editValue={shown != null ? String(Math.round(shown * 100) / 100) : ''}
+                                          onSave={(v) => handleObserve(item, mk, v, cur)}
+                                          onReject={() => handleValueReject(item)}
+                                          editLabel={t(`Saldo real al cierre de ${getMonthLabel(mk, lang)}`, `Actual balance at the end of ${getMonthLabel(mk, lang)}`)}
+                                          livePreview={() => t('Solo cambia este mes', 'Only this month changes')}
+                                          hint={obs && gap != null && Math.abs(gap) >= 0.005 ? t('corregido', 'corrected') : undefined}
+                                          currency={cur}
+                                        />
+                                      </div>
+                                    </td>
+                                  )
+                                }
                                 return (
                                   <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
                                     {histVal != null ? (

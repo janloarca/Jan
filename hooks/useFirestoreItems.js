@@ -7,6 +7,7 @@ import { roundQty, closesWholeLot, closedLotDocId, openLotDocId } from '@/lib/lo
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 import { planPortfolioDelete } from '@/lib/portfolioDelete'
+import { sanitizeObservations } from '@/lib/sheetObservations'
 // Historial de bumps de SNAPSHOT_VERSION (el número vive en lib/snapshotVersion.js
 // para que el lector del servidor use la MISMA vara). Cada bump es porque un doc
 // ya cacheado quedó con una reconstrucción que el merge NUNCA corrige por su
@@ -158,6 +159,9 @@ export function useFirestoreItems() {
   const [settings, setSettings] = useState(initCache?.settings || null)
   const [profile, setProfile] = useState(initCache?.profile || null)
   const [incomePlan, setIncomePlan] = useState(initCache?.incomePlan || null)
+  // FASE QA: saldos reales de meses cerrados que el usuario leyó de su estado de
+  // cuenta (capa sobre la reconstrucción de la Hoja; lib/sheetObservations.js).
+  const [sheetObservations, setSheetObservations] = useState(initCache?.sheetObservations || [])
   const [loading, setLoading] = useState(!initCache)
   // El código de error de la última lectura que falló, o null. Existe para
   // que la pantalla pueda distinguir "no tenés nada" de "no pude leer lo que
@@ -231,16 +235,18 @@ export function useFirestoreItems() {
 
       try {
         // Independent docs — fetch in parallel instead of three round-trips in series.
-        const [goalsDoc, prefsDoc, profileDoc, planDoc] = await Promise.all([
+        const [goalsDoc, prefsDoc, profileDoc, planDoc, obsDoc] = await Promise.all([
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'incomePlan')),
+          fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'sheetObservations')),
         ])
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
         if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
         if (!cancelled && planDoc.exists()) setIncomePlan(sanitizeDoc(planDoc.data()))
+        if (!cancelled && obsDoc.exists()) setSheetObservations(sanitizeObservations(obsDoc.data()))
       } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
 
       if (!cancelled) setLoading(false)
@@ -277,9 +283,9 @@ export function useFirestoreItems() {
   // no se escribe nada, así una navegación rápida nunca cachea arrays vacíos.
   useEffect(() => {
     if (uid && !loading) {
-      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan }
+      _cacheByUid[uid] = { items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations }
     }
-  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan])
+  }, [uid, loading, items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations])
 
   const addItem = useCallback(async (item) => {
     if (!uid) { console.error('[addItem] No uid — write skipped'); return }
@@ -644,6 +650,20 @@ export function useFirestoreItems() {
     )
     await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'incomePlan'), clean)
     setIncomePlan(clean)
+  }, [uid])
+
+  // Se escribe el arreglo COMPLETO y SIN merge (mismo criterio que el plan de
+  // ingresos): borrar una observación tiene que borrarla de verdad. Lanza si
+  // Firestore falla, para que la Hoja no diga "guardado" sobre nada.
+  const saveSheetObservations = useCallback(async (list) => {
+    if (!uid) return
+    const clean = sanitizeObservations(list)
+    const { db, fs } = await getFirebase()
+    await fs.setDoc(fs.doc(db, `users/${uid}/settings`, 'sheetObservations'), {
+      observations: clean,
+      updatedAt: new Date().toISOString(),
+    })
+    setSheetObservations(clean)
   }, [uid])
 
   const addAlert = useCallback(async (alert) => {
@@ -1389,7 +1409,7 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, loading, loadError,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations, loading, loadError,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
@@ -1400,7 +1420,7 @@ export function useFirestoreItems() {
     transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution,
     bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
     addPortfolio, deletePortfolio,
-    saveGoals, saveSettings, saveProfile, saveIncomePlan,
+    saveGoals, saveSettings, saveProfile, saveIncomePlan, saveSheetObservations,
     saveItemSnapshots, loadItemSnapshots,
   }
 }
