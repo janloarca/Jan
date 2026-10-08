@@ -92,6 +92,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteFinanceTransactionsByIds,
     saveGoals, saveSettings, saveProfile,
     incomePlan, saveIncomePlan,
+    sheetObservations, saveSheetObservations,
     saveItemSnapshots, loadItemSnapshots,
   } = firestoreData
 
@@ -3915,6 +3916,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // re-exportarlo, el tablero recibía `undefined` y mostraba "todavía no hay
     // ingresos planeados" sobre un plan que sí existía.
     incomePlan, saveIncomePlan,
+    sheetObservations, saveSheetObservations,
     saveItemSnapshots, loadItemSnapshots,
 
     // Market data

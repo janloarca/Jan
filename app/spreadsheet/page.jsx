@@ -79,6 +79,7 @@ export default function SpreadsheetPage() {
     addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
     addLot, closeLotsFIFO, executeContribution, dataLoading, settings, profile,
     handleRefresh, pricesLoading, ratesLoading,
+    sheetObservations, saveSheetObservations,
   } = useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   // El usuario lo pidio con estas palabras: "utilizar el boton de refresh propio
@@ -386,6 +387,8 @@ export default function SpreadsheetPage() {
             baseCurrency={baseCurrency}
             onSaveItemSnapshots={saveItemSnapshots}
             onLoadItemSnapshots={loadItemSnapshots}
+            observations={sheetObservations}
+            onSaveObservations={saveSheetObservations}
             lots={lots}
             transactions={transactions}
             onRegisterRecalculate={registerRecalculate}
