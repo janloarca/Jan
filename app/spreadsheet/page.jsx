@@ -374,6 +374,10 @@ export default function SpreadsheetPage() {
             lang={lang}
             onUpdateItem={updateItem}
             onAddTransaction={addTransaction}
+            // CRUDAS a propósito (no las *WithReversal): la absorción de FASE PZ
+            // ajusta eventos de rendimiento reinvertido, que no mueven otra cuenta.
+            onUpdateTransaction={updateTransaction}
+            onDeleteTransaction={deleteTransaction}
             onEditItem={handleOpenEditItem}
             onShowItemInfo={setInfoItem}
             returnYTD={returnYTD}
