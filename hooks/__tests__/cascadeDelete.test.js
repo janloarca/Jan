@@ -111,3 +111,46 @@ describe('FASE OB: deleteItem (el editor) cascadea igual que deleteItemGroup', (
     expect(JSON.stringify(store)).toBe(viaEditor)
   })
 })
+
+// FASE QA2. Las observaciones de la Hoja (saldo real de un mes cerrado) de una
+// cuenta borrada se van con ella; las de las demás cuentas se quedan.
+describe('FASE QA2: borrar una cuenta limpia sus observaciones de la Hoja', () => {
+  const withObs = () => ({
+    ...base(),
+    [P('settings')]: {
+      sheetObservations: { observations: [
+        { itemId: 'cash', month: '2026-02', value: 990, currency: 'USD' },
+        { itemId: 'fund', month: '2026-02', value: 505, currency: 'USD' },
+      ], updatedAt: 'x' },
+    },
+  })
+
+  it('deleteItem se lleva solo las observaciones de ESA cuenta', async () => {
+    const r = boot(withObs())
+    await tick()
+    await act(async () => { await r.result.current.deleteItem('cash') })
+    expect(store[P('settings')].sheetObservations.observations.map(o => o.itemId)).toEqual(['fund'])
+    expect(r.result.current.sheetObservations.map(o => o.itemId)).toEqual(['fund'])
+  })
+
+  it('deleteItemGroup hace lo mismo (las dos puertas coinciden)', async () => {
+    const r = boot(withObs())
+    await tick()
+    await act(async () => { await r.result.current.deleteItemGroup(['cash']) })
+    expect(store[P('settings')].sheetObservations.observations.map(o => o.itemId)).toEqual(['fund'])
+  })
+
+  it('control: borrar una cuenta sin observaciones no escribe el doc', async () => {
+    const r = boot(withObs())
+    await tick()
+    await act(async () => { await r.result.current.deleteItem('casa') })
+    expect(store[P('settings')].sheetObservations.observations).toHaveLength(2)
+  })
+
+  it('borrarlo todo con cascada vacía las observaciones', async () => {
+    const r = boot(withObs())
+    await tick()
+    await act(async () => { await r.result.current.deleteAllItems({ cascade: true }) })
+    expect(store[P('settings')].sheetObservations.observations).toEqual([])
+  })
+})
