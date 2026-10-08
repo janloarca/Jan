@@ -12,6 +12,7 @@ import { planCellEdit, editNeedsAnswer, accruesInBalance, canRecordFlow, ANSWER_
 // computaría para este ítem, pero sobre el estado que el patch de abajo está
 // por escribir: ver el comentario en answerPendingEdit.
 import { dismissalFor } from '@/lib/liquidYield'
+import { planYieldAbsorption, applyAbsorptionToTransactions, lastClosedMonthEndISO } from '@/lib/yieldAbsorb'
 import { explainMovement, movementNote } from '@/lib/movementContext'
 import { balanceDiagnostic, balanceDiagnosticText } from '@/lib/balanceDiagnostic'
 import { buildSheetDebtPaymentTransaction } from '@/lib/transferTx'
@@ -251,7 +252,7 @@ export function shareLabel(value, total) {
   return `${p.toFixed(0)}%`
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, onUpdateTransaction, onDeleteTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, lots, transactions, onRegisterRecalculate }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -1063,7 +1064,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // hacía que el usuario leyera "guardado" y un segundo después la celda
   // volviera sola al número viejo, indistinguible de "la app me borró la
   // corrección".
-  const commitPatch = useCallback(async (item, patch, income, flow, debtPayment) => {
+  const commitPatch = useCallback(async (item, patch, income, flow, debtPayment, yieldAdjust) => {
     const label = item.symbol || item.name
     try {
       await onUpdateItem(item.id, patch)
@@ -1106,6 +1107,22 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           _linkedItemId: item.id,
         })
       }
+      // ⛔ FASE PZ. El delta de una corrección se absorbe en el rendimiento del
+      // mes en curso para que los meses cerrados no se muevan (ver
+      // lib/yieldAbsorb.js). Va DESPUÉS del saldo y cada escritura se atrapa por
+      // separado: si una falla, el saldo ya quedó bien y lo que se pierde es el
+      // ajuste, que se dice en vez de callarse.
+      let adjustFailed = false
+      if (yieldAdjust && (yieldAdjust.updates.length || yieldAdjust.deletes.length)) {
+        for (const u of yieldAdjust.updates) {
+          try { if (onUpdateTransaction) await onUpdateTransaction(u.id, { totalAmount: u.totalAmount }); else adjustFailed = true }
+          catch (e) { adjustFailed = true; console.error('[spreadsheet] ajuste de rendimiento', e) }
+        }
+        for (const id of yieldAdjust.deletes) {
+          try { if (onDeleteTransaction) await onDeleteTransaction(id); else adjustFailed = true }
+          catch (e) { adjustFailed = true; console.error('[spreadsheet] ajuste de rendimiento', e) }
+        }
+      }
       const extra = income
         ? (lang === 'es' ? ' y rendimiento registrado' : ', yield recorded')
         : debtPayment
@@ -1129,13 +1146,27 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           lang,
           fmt: (a, c) => `${c} ${Number(a).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         }))
+      } else if (yieldAdjust && yieldAdjust.hadCandidates) {
+        const fmtA = (a) => Number(Math.abs(a)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const spill = Math.abs(yieldAdjust.spill || 0) > 0.005
+        setSaveNote(adjustFailed
+          ? t('No se pudo ajustar el rendimiento de este mes: los meses anteriores pueden haber cambiado.', 'Could not adjust this month\'s yield: earlier months may have changed.')
+          : spill
+            ? t(
+                `El cambio superó el rendimiento de este mes por ${fmtA(yieldAdjust.spill)}: esa parte sí ajustó los meses anteriores.`,
+                `The change exceeded this month's yield by ${fmtA(yieldAdjust.spill)}: that part did adjust earlier months.`,
+              )
+            : t(
+                'Se ajustó el rendimiento de este mes. Los meses anteriores no cambiaron.',
+                'This month\'s yield was adjusted. Earlier months did not change.',
+              ))
       } else {
         setSaveNote(null)
       }
       setSaveMsg((lang === 'es' ? `${label}: guardado` : `${label}: saved`) + extra)
       // Una frase que explica a dónde fue el dinero necesita más de 2.6s para
       // leerse; un "guardado" a secas no.
-      setTimeout(() => { setSaveMsg(null); setSaveNote(null) }, moved ? 6000 : 2600)
+      setTimeout(() => { setSaveMsg(null); setSaveNote(null) }, (moved || (yieldAdjust && yieldAdjust.hadCandidates)) ? 6000 : 2600)
     } catch (e) {
       console.error('[spreadsheet] no se pudo guardar', e)
       setBlockMsg(lang === 'es'
@@ -1143,7 +1174,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         : `${label}: could not save. Check your connection and try again.`)
       setTimeout(() => setBlockMsg(null), 6000)
     }
-  }, [onUpdateItem, onAddTransaction, lang])
+  }, [onUpdateItem, onAddTransaction, onUpdateTransaction, onDeleteTransaction, lang])
 
   // La respuesta a la pregunta. `balanceAsOf` se estampa en las DOS ramas y no
   // es un detalle: es el campo que le dice al motor de rendimiento deducido
@@ -1179,6 +1210,27 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // acaba de contestar por otra vía. Mismos gates y mismas fórmulas que
     // liquidYieldCandidates (hooks/useDashboardData.js), sobre el estado que
     // este patch está por escribir en vez del ya guardado.
+    // ⛔ FASE PZ. Corregir el mes en curso no puede mover los meses cerrados.
+    // Un mes pasado se deriva restando del saldo de hoy los eventos de
+    // rendimiento fechados después de su cierre; si el saldo baja y el evento
+    // se queda, el pasado baja con él (5,015 → 5,006 con el caso del usuario).
+    // Aplica cuando el parche NO escribe un movimiento propio: la corrección
+    // (incluida la respuesta "metí/saqué dinero" que degradó a corrección) y
+    // "perdió valor". Un rendimiento o un flujo ya escriben su propio evento, y
+    // el saldo y el evento suben juntos, así que no hay nada que absorber.
+    let yieldAdjust = null
+    const absorbs = !raw.isDebt && !plan.income && !plan.flow && !plan.debtPayment
+      && (answer !== ANSWER_RETURN || (Number(newValue) - Number(oldValue)) < 0)
+    if (absorbs) {
+      yieldAdjust = planYieldAbsorption({
+        transactions,
+        item: raw,
+        delta: Number(newValue) - Number(oldValue),
+        currency: raw.currency || raw._originalCurrency,
+        lastClosedEnd: lastClosedMonthEndISO(todayLocalISO()),
+      })
+      if (!yieldAdjust.hadCandidates) yieldAdjust = null
+    }
     if (answer === ANSWER_CORRECTION) {
       const postItem = { ...raw, ...patch }
       if (!isMarketPriced(postItem) && postItem.type !== 'Debt' && !postItem.isReceivable) {
@@ -1187,7 +1239,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           const finalBalance = (Number(postItem.quantity) || 1) * (Number(postItem.currentPrice ?? postItem.purchasePrice) || 0)
           if (finalBalance > 0) {
             const dismissal = dismissalFor({
-              item: postItem, items, transactions, convert, asOfTs, finalBalance,
+              item: postItem, items, transactions: applyAbsorptionToTransactions(transactions, yieldAdjust), convert, asOfTs, finalBalance,
               declaredRatePct: getEffectiveYield(postItem) || 0,
             })
             if (dismissal) patch._liquidYield = { ...dismissal, asOf: patch.balanceAsOf }
@@ -1195,7 +1247,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         }
       }
     }
-    await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment)
+    await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment, yieldAdjust)
   }, [pendingEdit, commitPatch, items, transactions, convert])
 
   const handleValueUpdate = useCallback(async (item, newVal) => {
