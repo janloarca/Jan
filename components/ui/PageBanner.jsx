@@ -24,6 +24,12 @@ const ICONS = {
   refresh: (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
   ),
+  // Un aviso puramente informativo (ej. "esta pantalla suma TODO, no lo que
+  // tengas seleccionado en otra") no es un warning: forzarlo bajo el triángulo
+  // de 'warn' se lee como que algo está mal cuando no lo está.
+  info: (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+  ),
 }
 
 export default function PageBanner({
