@@ -854,8 +854,12 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   const reconstructionIsExact = useMemo(() => {
     const list = scopedItems || []
     if (list.length === 0) return false
-    return list.every((it) => it && it._source !== 'ibkr'
-      && !(/stock|crypto|fund|etf/i.test(it.type || '') && !/realestate|inmueble/i.test(it.type || '')))
+    // FASE JD2: "estático" se decide con isMarketPriced, la MISMA pregunta que
+    // hace portfolio-history/route.js para elegir entre precio histórico y
+    // rebobinado por eventos. La regex anterior miraba solo `type`, así que una
+    // acción privada (type 'Stock', sin cotización) se leía como de mercado y su
+    // línea exacta se dibujaba punteada como "estimado".
+    return list.every((it) => it && it._source !== 'ibkr' && !isMarketPriced(it))
   }, [scopedItems])
 
   // First timestamp with REAL broker NAV (vs reconstructed estimates). Drives the
