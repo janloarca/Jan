@@ -24,7 +24,6 @@ import { DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURIS
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { debtOptions } from '@/lib/propertyEquity'
-import GuidedAssetSteps, { guidedFieldsFor } from './GuidedAssetSteps'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
@@ -112,18 +111,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   // FASE PT. Residencia fiscal que el usuario declaró en su perfil (vacía por
   // defecto, jamás inferida). Solo se OFRECE con un botón; nunca se escribe sola.
   profileTaxResidence = '',
-  // ---- Modo guiado (onboarding de usuario nuevo) ----
-  // guidedType fija el tipo y cambia SOLO el render: una pregunta por pantalla
-  // en vez del formulario de 2 pasos. El estado, la búsqueda de símbolo y
-  // handleSubmit son exactamente los mismos, así que el depósito de apertura
-  // (⛔ superficie G de lib/assetLogic/corporateBondWithEntryFee.js) se sigue
-  // escribiendo en un solo lugar.
+  // ---- Primeros pasos ----
+  // guidedType solo PRESELECCIONA el tipo; el formulario es SIEMPRE el completo
+  // de 2 pasos (no existe una versión simplificada). El orquestador
+  // (GuidedSetup) decide qué sigue vía onSaved. handleSubmit es el mismo de
+  // siempre, y con él el depósito de apertura (⛔ superficie G).
   guidedType = null, guidedProgress = null, onSaved = null, onExitGuided = null }) {
   const trapRef = useFocusTrap()
   const [step, setStep] = useState(1)
   const [type, setType] = useState(guidedType || 'Stock')
   const [subtype, setSubtype] = useState(guidedType ? (GUIDED_SUBTYPE[guidedType] || '') : '')
-  const [guidedIndex, setGuidedIndex] = useState(0)
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD',
@@ -135,7 +132,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // sugerencia real (la fecha del primer movimiento), que es justo el bulletin
     // que el usuario echaba de menos. El formulario largo sí la ofrece prellena:
     // ahí el campo está a la vista y se corrige de un vistazo.
-    acquisitionDate: guidedType ? '' : new Date().toISOString().split('T')[0],
+    acquisitionDate: new Date().toISOString().split('T')[0],
     accountType: 'taxable',
     incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
     incomePayDay: '', incomeMonths: [],
@@ -304,14 +301,6 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   useEscClose(onClose)
 
-  // En modo guiado el tipo puede cambiar solo: elegir un resultado de la
-  // búsqueda lo re-clasifica (handleSelectSymbol). El subtipo por defecto tiene
-  // que seguirlo, o una acción quedaría guardada con el subtipo de cripto.
-  useEffect(() => {
-    if (!guidedType) return
-    setSubtype(GUIDED_SUBTYPE[type] || '')
-  }, [type, guidedType])
-
   const usedInstitutions = useMemo(() => {
     const insts = new Set()
     existingItems.forEach(it => { if (it.institution) insts.add(it.institution) })
@@ -477,7 +466,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // caen a hoy con su propio `|| new Date()`, y `effectiveAcqDate` cae a enero
     // del año de `createdAt`. El ítem se queda sin fecha, que es justo lo que
     // hace disparar `no-acq-date` en el boletín.
-    if (!form.acquisitionDate && !guidedType) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
+    if (!form.acquisitionDate ) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
     // FASE OL. "Agregar a posición" solo puede sumar en la moneda del ítem que
     // ya existe: la moneda se elige en ESTE paso, después del aviso de
@@ -837,7 +826,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // apertura que se escribe abajo ya explica el saldo en el caso normal, así
       // que el hallazgo sigue callado; lo que se recupera es que vuelva a
       // preguntar cuando ese depósito falta o no alcanza, que es su trabajo.
-      if (isNewMoney && !isDebt && !guidedType) item._newMoneyConfirmed = true
+      if (isNewMoney && !isDebt) item._newMoneyConfirmed = true
 
       // Same guardrails as file imports (future dates, absurd values, bad currency) —
       // manual entry previously skipped them entirely.
@@ -990,38 +979,6 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const inputCls = 'form-input'
   const labelCls = 'form-label'
 
-  // ---- MODO GUIADO ----
-  // Va DESPUÉS de todos los hooks a propósito: un return temprano entre hooks
-  // cambia el conteo entre renders y tumba el árbol (regla dura de CLAUDE.md).
-  if (guidedType) {
-    const guidedFields = guidedFieldsFor({ type, isMarketAsset })
-    const idx = Math.min(guidedIndex, guidedFields.length - 1)
-    const exit = onExitGuided || onClose
-    const goNext = () => {
-      if (idx < guidedFields.length - 1) { setError(''); setGuidedIndex(idx + 1); return }
-      handleSubmit({ preventDefault: () => {} })
-    }
-    return (
-      <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={exit} role="dialog" aria-modal="true">
-        <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-          <GuidedAssetSteps ctx={{
-            t, form, set, type,
-            typeLabel: currentTypeInfo ? t(currentTypeInfo.es, currentTypeInfo.en) : type,
-            typeIcon: currentTypeInfo?.icon || '',
-            isMarketAsset, isBank, isDebt, isProperty,
-            fieldIndex: idx, fields: guidedFields, goNext,
-            goBack: () => { setError(''); setGuidedIndex(Math.max(0, idx - 1)) },
-            onExit: exit,
-            searchResults, showDropdown, setShowDropdown, searchLoading, fetchingQuote, quoteFailed,
-            handleSelectSymbol, inputRef, dropdownRef,
-            filteredInstitutions, showInstSuggestions, setShowInstSuggestions,
-            saving, error, progress: guidedProgress,
-          }} />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onBackdropClick} role="dialog" aria-modal="true" aria-labelledby="add-account-title">
       <DiscardHint show={backdropArmed} lang={lang} />
@@ -1041,6 +998,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close add asset modal">&times;</button>
           </div>
         </div>
+
+        {guidedProgress && (
+          <div className="flex items-center gap-2 px-6 pt-3" aria-label={t(`Activo ${guidedProgress.index + 1} de ${guidedProgress.items.length}`, `Asset ${guidedProgress.index + 1} of ${guidedProgress.items.length}`)}>
+            {guidedProgress.items.map((it, i) => (
+              <div key={it + i} className="h-1 rounded-full flex-1"
+                style={{ background: i < guidedProgress.index ? 'var(--accent-blue)' : i === guidedProgress.index ? 'color-mix(in srgb, var(--accent-blue) 45%, transparent)' : 'var(--card-border,#38383A)' }} />
+            ))}
+          </div>
+        )}
 
         <form onSubmit={step === 1 ? (e) => { e.preventDefault(); goToStep2() } : handleSubmit} className="p-6 space-y-4">
           {error && <div role="alert" aria-live="assertive" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
