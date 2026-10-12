@@ -122,6 +122,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     rateMax: item.rateMax?.toString() || '',
     businessDayRule: item.businessDayRule || 'exact',
     maturityDate: item.maturityDate || '',
+    valuationSource: item.valuationSource || '',
+    valuationReview: item.valuationReview || 'round',
     maturityAction: item.maturityAction || 'return_capital',
     conversionDetails: item.conversionDetails || '',
     isIlliquid: item.isIlliquid || false,
@@ -496,7 +498,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   // bandera no se usa en ningún otro lugar de este archivo salvo los dos
   // puntos de vencimiento de abajo, pero mantenerla separada evita que un
   // uso futuro de isBondOrAlt (ej. comisiones) herede este caso por error.
-  const showsMaturity = isBondOrAlt || (isBank && form.subtype === 'cd')
+  const showsMaturity = isBondOrAlt || isPrivateStock || (isBank && form.subtype === 'cd')
   const isProperty = isPropertyItem({ type: form.type })
   const propertyDebtOptions = useMemo(() => debtOptions(existingItems.filter(it => it.id !== item.id)), [existingItems, item.id])
   const isReceivable = form.isReceivable
@@ -758,6 +760,16 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         if (form.conversionDetails) updated.conversionDetails = form.conversionDetails
       } else {
         updated.maturityDate = ''
+      }
+
+      // Acción privada: fuente y cadencia de revisión del valor; si el valor
+      // cambió, esa es una valuación nueva y reinicia el reloj de
+      // valuation-review-due.
+      if (isPrivateStock) {
+        updated.valuationReview = form.valuationReview || 'round'
+        updated.valuationSource = form.valuationSource || ''
+        const before = Number(item._originalPrice ?? item.currentPrice) || 0
+        if (form.currentPrice && Math.abs((parseAmount(form.currentPrice) || 0) - before) > 0.005) updated.lastValuationDate = todayLocalISO()
       }
 
       // Illiquid
@@ -1428,17 +1440,40 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           {!isDebt && (
             <FormSection icon="📅" title={t('Vencimiento & Liquidez', 'Maturity & Liquidity')} open={showMaturity} onToggle={setShowMaturity} summary={(() => {
               const parts = []
-              if (showsMaturity && form.maturityDate) parts.push(`${t('Vence', 'Due')} ${form.maturityDate}`)
+              if (showsMaturity && form.maturityDate) parts.push(`${isPrivateStock ? t('Salida', 'Exit') : t('Vence', 'Due')} ${form.maturityDate}`)
               if (form.isIlliquid) parts.push(t('ilíquido', 'illiquid'))
               return parts.length > 0 ? parts.join(' · ') : t('sin configurar', 'not set')
             })()}>
               {showsMaturity && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="edit-maturity-date" className={labelCls}>{t('Fecha vencimiento', 'Maturity date')}</label>
+                    <label htmlFor="edit-maturity-date" className={labelCls}>{isPrivateStock ? t('Salida esperada', 'Expected exit') : t('Fecha vencimiento', 'Maturity date')}</label>
                     <input id="edit-maturity-date" value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                       type="date" className={inputCls} />
                   </div>
+                  {isPrivateStock ? (
+                    <>
+                      <div>
+                        <label htmlFor="edit-valuation-source" className={labelCls}>{t('¿De dónde sale el valor?', 'Where does the value come from?')}</label>
+                        <select id="edit-valuation-source" value={form.valuationSource} onChange={e => set('valuationSource', e.target.value)} className={inputCls}>
+                          <option value="">{t('Sin indicar', 'Not set')}</option>
+                          <option value="round">{t('Ronda reciente', 'Recent round')}</option>
+                          <option value="409a">409A</option>
+                          <option value="secondary">{t('Oferta secundaria', 'Secondary offer')}</option>
+                          <option value="own">{t('Mi estimación', 'My own estimate')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="edit-valuation-review" className={labelCls}>{t('Revisar valor', 'Review value')}</label>
+                        <select id="edit-valuation-review" value={form.valuationReview} onChange={e => set('valuationReview', e.target.value)} className={inputCls}>
+                          <option value="round">{t('Cada ronda (~12 meses)', 'Each round (~12 months)')}</option>
+                          <option value="quarterly">{t('Cada trimestre', 'Quarterly')}</option>
+                          <option value="annual">{t('Cada año', 'Yearly')}</option>
+                          <option value="never">{t('Nunca', 'Never')}</option>
+                        </select>
+                      </div>
+                    </>
+                  ) : (
                   <div>
                     <label htmlFor="edit-at-maturity" className={labelCls}>{t('Al vencimiento', 'At maturity')}</label>
                     <select id="edit-at-maturity" value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
@@ -1447,6 +1482,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <option value="convert_equity">{t('Convertir', 'Convert to equity')}</option>
                     </select>
                   </div>
+                  )}
                 </div>
               )}
 
