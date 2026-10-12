@@ -854,7 +854,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   const reconstructionIsExact = useMemo(() => {
     const list = scopedItems || []
     if (list.length === 0) return false
-    // FASE JD2: "estático" se decide con isMarketPriced, la MISMA pregunta que
+    // FASE LY2: "estático" se decide con isMarketPriced, la MISMA pregunta que
     // hace portfolio-history/route.js para elegir entre precio histórico y
     // rebobinado por eventos. La regex anterior miraba solo `type`, así que una
     // acción privada (type 'Stock', sin cotización) se leía como de mercado y su
