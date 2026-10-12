@@ -122,6 +122,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     rateMax: item.rateMax?.toString() || '',
     businessDayRule: item.businessDayRule || 'exact',
     maturityDate: item.maturityDate || '',
+    holdingOrigin: item.holdingOrigin || 'purchase',
+    holdingStatus: item.holdingStatus || 'active',
+    shares: item.shares?.toString() || '',
     valuationSource: item.valuationSource || '',
     valuationReview: item.valuationReview || 'round',
     maturityAction: item.maturityAction || 'return_capital',
@@ -667,6 +670,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       // Se juzga contra `updated.currentPrice`, que es el saldo que de verdad
       // se va a guardar, asi que no puede volver a desincronizarse.
       if (isBankLike) Object.assign(updated, balanceQuantityPatch({ quantity: updated.quantity }, updated.currentPrice))
+      // Empresa cerrada: la posición ya no vale nada. Cantidad 0 es la forma
+      // en que la app expresa "ya no la tengo" (como una venta total); se
+      // aplica DESPUÉS del parche de saldo, que si no la devolvería a 1.
+      if (isPrivateStock && form.holdingStatus === 'closed') updated.quantity = 0
 
       // FASE HV. Desde cuándo es cierto el saldo guardado. Se sella en CADA
       // guardado de un activo que no cotiza, no solo cuando el número cambia:
@@ -768,6 +775,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       if (isPrivateStock) {
         updated.valuationReview = form.valuationReview || 'round'
         updated.valuationSource = form.valuationSource || ''
+        updated.holdingOrigin = form.holdingOrigin || 'purchase'
+        updated.holdingStatus = form.holdingStatus || 'active'
+        updated.shares = parseQuantity(form.shares) || 0
+        updated.ownershipPct = parseAmount(form.ownershipPct) || 0
         const before = Number(item._originalPrice ?? item.currentPrice) || 0
         if (form.currentPrice && Math.abs((parseAmount(form.currentPrice) || 0) - before) > 0.005) updated.lastValuationDate = todayLocalISO()
       }
@@ -1453,6 +1464,31 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </div>
                   {isPrivateStock ? (
                     <>
+                      <div>
+                        <label htmlFor="edit-holding-status" className={labelCls}>{t('Estado de la empresa', 'Company status')}</label>
+                        <select id="edit-holding-status" value={form.holdingStatus} onChange={e => set('holdingStatus', e.target.value)} className={inputCls}>
+                          <option value="active">{t('Activa', 'Active')}</option>
+                          <option value="acquired">{t('Adquirida / salió', 'Acquired / exited')}</option>
+                          <option value="closed">{t('Cerró (valor 0)', 'Shut down (value 0)')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="edit-holding-origin" className={labelCls}>{t('Origen', 'Origin')}</label>
+                        <select id="edit-holding-origin" value={form.holdingOrigin} onChange={e => set('holdingOrigin', e.target.value)} className={inputCls}>
+                          <option value="purchase">{t('Compra', 'Purchase')}</option>
+                          <option value="founder">{t('Grant de fundador', 'Founder grant')}</option>
+                          <option value="options">{t('Opciones ejercidas', 'Exercised options')}</option>
+                          <option value="rsu">RSU</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="edit-shares" className={labelCls}>{t('Acciones', 'Shares')}</label>
+                        <input id="edit-shares" value={form.shares} onChange={e => set('shares', e.target.value)} type="text" inputMode="decimal" className={inputCls} />
+                      </div>
+                      <div>
+                        <label htmlFor="edit-ownership-pct" className={labelCls}>{t('% de la empresa', '% of the company')}</label>
+                        <input id="edit-ownership-pct" value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)} type="text" inputMode="decimal" className={inputCls} />
+                      </div>
                       <div>
                         <label htmlFor="edit-valuation-source" className={labelCls}>{t('¿De dónde sale el valor?', 'Where does the value come from?')}</label>
                         <select id="edit-valuation-source" value={form.valuationSource} onChange={e => set('valuationSource', e.target.value)} className={inputCls}>

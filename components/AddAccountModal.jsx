@@ -153,6 +153,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     businessDayRule: 'exact',
     maturityDate: '', maturityAction: 'return_capital', conversionDetails: '',
     valuationSource: '', valuationReview: 'round', valuationDate: '',
+    holdingOrigin: 'purchase', shares: '', costPerShare: '', valuePerShare: '',
     isIlliquid: false,
     custodyType: '', custodyDetails: '',
     notes: '',
@@ -496,7 +497,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
     const qty = effectiveQuantity()
     const price = parseAmount(form.purchasePrice)
-    if (!isBank && price <= 0) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
+    // Acción privada: un grant de fundador o unas opciones sin costo base valen 0
+    // de costo y > 0 de valor. Basta con que haya costo o valor.
+    const privateHasValue = isPrivateStock && price === 0 && parseAmount(form.currentPrice) > 0
+    if (!isBank && price <= 0 && !privateHasValue) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
     if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
     // At least one past payment is confirmed received, in cash: make sure
@@ -708,6 +712,10 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // `lastValuationDate` es el reloj que lee valuation-review-due (balanceAsOf
       // se sella en cada guardado, no sirve para esto).
       if (isPrivateStock) {
+        item.holdingOrigin = form.holdingOrigin || 'purchase'
+        item.holdingStatus = 'active'
+        if (parseQuantity(form.shares) > 0) item.shares = parseQuantity(form.shares)
+        if (form.ownershipPct) item.ownershipPct = parseAmount(form.ownershipPct) || 0
         item.valuationReview = form.valuationReview || 'round'
         if (form.valuationSource) item.valuationSource = form.valuationSource
         item.lastValuationDate = (form.currentPrice && form.valuationDate) || form.acquisitionDate || todayLocalISO()
@@ -1043,7 +1051,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', industrySource: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '', valuationSource: '', valuationReview: 'round', valuationDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', industrySource: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '', valuationSource: '', valuationReview: 'round', valuationDate: '', holdingOrigin: 'purchase', shares: '', costPerShare: '', valuePerShare: '', ownershipPct: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -1391,6 +1399,42 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 avisa cuando toca (hallazgo valuation-review-due). */}
             {isPrivateStock && (
               <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-holdingOrigin" className={labelCls}>{t('¿Cómo la obtuviste?', 'How did you get it?')}</label>
+                    <select id="add-holdingOrigin" value={form.holdingOrigin} onChange={e => { const v = e.target.value; set('holdingOrigin', v); if (v !== 'purchase') setIsNewMoney(false) }} className={inputCls}>
+                      <option value="purchase">{t('Compra', 'Purchase')}</option>
+                      <option value="founder">{t('Grant de fundador', 'Founder grant')}</option>
+                      <option value="options">{t('Opciones ejercidas', 'Exercised options')}</option>
+                      <option value="rsu">RSU</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="add-ownershipPct" className={labelCls}>{t('% de la empresa', '% of the company')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-ownershipPct" value={form.ownershipPct} onChange={e => set('ownershipPct', e.target.value)}
+                      placeholder="0.5" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label htmlFor="add-shares" className={labelCls}>{t('Acciones', 'Shares')}</label>
+                    <input id="add-shares" value={form.shares} onChange={e => { const v = e.target.value; set('shares', v); const n = parseQuantity(v); const c = parseAmount(form.costPerShare); const p = parseAmount(form.valuePerShare); if (n > 0 && c > 0) set('purchasePrice', String(Math.round(n * c * 100) / 100)); if (n > 0 && p > 0) set('currentPrice', String(Math.round(n * p * 100) / 100)) }}
+                      placeholder="10000" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-costPerShare" className={labelCls}>{t('Costo/acción', 'Cost/share')}</label>
+                    <input id="add-costPerShare" value={form.costPerShare} onChange={e => { const v = e.target.value; set('costPerShare', v); const n = parseQuantity(form.shares); const c = parseAmount(v); if (n > 0 && c >= 0 && v !== '') set('purchasePrice', String(Math.round(n * c * 100) / 100)) }}
+                      placeholder="1.00" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-valuePerShare" className={labelCls}>{t('Valor/acción', 'Value/share')}</label>
+                    <input id="add-valuePerShare" value={form.valuePerShare} onChange={e => { const v = e.target.value; set('valuePerShare', v); const n = parseQuantity(form.shares); const p = parseAmount(v); if (n > 0 && p > 0) set('currentPrice', String(Math.round(n * p * 100) / 100)) }}
+                      placeholder="1.20" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Opcional: con acciones y precio por acción calculamos los totales de abajo. Un grant de fundador puede tener costo 0 si pones un valor de hoy.', 'Optional: with shares and a per-share price we fill in the totals below. A founder grant can have a cost of 0 if you enter a value today.')}
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="add-amountInvested" className={labelCls}>{t('Lo que invertiste', 'What you invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
