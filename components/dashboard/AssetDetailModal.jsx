@@ -308,6 +308,16 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               below. A later round dilutes this — it's a manual snapshot the
               user updates when they hear about a new one, not tracked
               automatically. */}
+          {item.subtype?.startsWith('private_') && (item.holdingOrigin || item.shares > 0 || (item.holdingStatus && item.holdingStatus !== 'active')) && (
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {[
+                item.holdingOrigin ? ({ purchase: t('Compra', 'Purchase'), founder: t('Grant de fundador', 'Founder grant'), options: t('Opciones ejercidas', 'Exercised options'), rsu: 'RSU' }[item.holdingOrigin] || null) : null,
+                item.shares > 0 ? `${item.shares.toLocaleString()} ${t('acciones', 'shares')}` : null,
+                item.holdingStatus === 'acquired' ? t('Empresa adquirida / salió', 'Company acquired / exited') : item.holdingStatus === 'closed' ? t('Empresa cerrada', 'Company shut down') : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
+
           {(item.investmentStage || item.roundValuation > 0 || item.ownershipPct > 0) && (
             <div className="text-xs" style={{ color: 'var(--accent-purple)' }}>
               🚀 {[
