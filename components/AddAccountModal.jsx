@@ -152,6 +152,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     accrualMethod: 'simple', paymentSchedule: 'monthly',
     businessDayRule: 'exact',
     maturityDate: '', maturityAction: 'return_capital', conversionDetails: '',
+    valuationSource: '', valuationReview: 'round', valuationDate: '',
     isIlliquid: false,
     custodyType: '', custodyDetails: '',
     notes: '',
@@ -703,6 +704,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         if (form.conversionDetails) item.conversionDetails = form.conversionDetails
       }
 
+      // Acción privada: de dónde sale su valor y cada cuánto revisarlo.
+      // `lastValuationDate` es el reloj que lee valuation-review-due (balanceAsOf
+      // se sella en cada guardado, no sirve para esto).
+      if (isPrivateStock) {
+        item.valuationReview = form.valuationReview || 'round'
+        if (form.valuationSource) item.valuationSource = form.valuationSource
+        item.lastValuationDate = (form.currentPrice && form.valuationDate) || form.acquisitionDate || todayLocalISO()
+      }
+
       // Illiquid
       if (form.isIlliquid) {
         item.isIlliquid = true
@@ -1033,7 +1043,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               <label className={labelCls}>{t('Tipo de activo', 'Asset type')}</label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {TYPES.map(tp => (
-                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', industrySource: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
+                  <button key={tp.key} type="button" onClick={() => { setType(tp.key); setSubtype(''); setForm(prev => ({ ...prev, symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', industrySource: '', investmentStyle: '', investmentStyleCustom: '', isIlliquid: false, custodyType: '', maturityDate: '', valuationSource: '', valuationReview: 'round', valuationDate: '' })); setDivInfo(null); setMarketDivOverride(false); setValueTimeline('single'); setTimelineRows([]); setExcludedPayDates([]) }}
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
@@ -1370,6 +1380,59 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted,#475569)' }}>
                   {t('Si dejas "Valor de hoy" vacío, usamos lo que invertiste.', 'If you leave "Value today" empty, we use what you invested.')}
                 </p>
+              </div>
+            )}
+
+            {/* Acción privada (common/preferred): no cotiza, así que el monto y el
+                valor los fija el usuario. Sin este bloque el validador exigía un
+                precio que ningún campo de este paso podía llenar. Además de cuánto,
+                se pregunta de dónde sale el valor y cada cuánto revisarlo: el
+                valor de una startup envejece (un 409A vale ~12 meses) y la app
+                avisa cuando toca (hallazgo valuation-review-due). */}
+            {isPrivateStock && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-amountInvested" className={labelCls}>{t('Lo que invertiste', 'What you invested')} <span style={{ color: 'var(--text-negative)' }}>*</span></label>
+                    <input id="add-amountInvested" value={form.purchasePrice} onChange={e => set('purchasePrice', e.target.value)}
+                      placeholder="10000" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="add-currentValue" className={labelCls}>{t('Valor de hoy', 'Value today')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-currentValue" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)}
+                      placeholder="12000" type="text" inputMode="decimal" className={inputCls} />
+                  </div>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--text-muted,#475569)' }}>
+                  {t('Monto total, no por acción. Si dejas "Valor de hoy" vacío, usamos lo que invertiste.', 'Total amount, not per share. If you leave "Value today" empty, we use what you invested.')}
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="add-valuationSource" className={labelCls}>{t('¿De dónde sale el valor?', 'Where does the value come from?')}</label>
+                    <select id="add-valuationSource" value={form.valuationSource} onChange={e => set('valuationSource', e.target.value)} className={inputCls}>
+                      <option value="">{t('Sin indicar', 'Not set')}</option>
+                      <option value="round">{t('Ronda reciente', 'Recent round')}</option>
+                      <option value="409a">409A</option>
+                      <option value="secondary">{t('Oferta secundaria', 'Secondary offer')}</option>
+                      <option value="own">{t('Mi estimación', 'My own estimate')}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="add-valuationReview" className={labelCls}>{t('Revisar valor', 'Review value')}</label>
+                    <select id="add-valuationReview" value={form.valuationReview} onChange={e => set('valuationReview', e.target.value)} className={inputCls}>
+                      <option value="round">{t('Cada ronda (~12 meses)', 'Each round (~12 months)')}</option>
+                      <option value="quarterly">{t('Cada trimestre', 'Quarterly')}</option>
+                      <option value="annual">{t('Cada año', 'Yearly')}</option>
+                      <option value="never">{t('Nunca', 'Never')}</option>
+                    </select>
+                  </div>
+                </div>
+                {form.currentPrice && (
+                  <div>
+                    <label htmlFor="add-valuationDate" className={labelCls}>{t('Fecha de esa valuación', 'Valuation date')} <span style={{ color: 'var(--text-muted)' }}>({t('opcional', 'optional')})</span></label>
+                    <input id="add-valuationDate" value={form.valuationDate} onChange={e => set('valuationDate', e.target.value)} type="date" className={inputCls} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -2230,23 +2293,23 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     Depósito a Plazo/CD: tiene fecha de vencimiento igual que
                     un bono, y hasta ahora no había ningún campo para ella en
                     toda la app). */}
-                {(isBond || isAlternative || (isBank && subtype === 'cd')) && (
+                {(isBond || isAlternative || isPrivateStock || (isBank && subtype === 'cd')) && (
                   <div className="pt-3.5 border-t border-glass-border/50">
-                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {t('Vencimiento', 'Maturity')}</span>
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📅 {isPrivateStock ? t('Salida esperada', 'Expected exit') : t('Vencimiento', 'Maturity')}</span>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>{t('Fecha', 'Date')}</label>
                         <input value={form.maturityDate} onChange={e => set('maturityDate', e.target.value)}
                           type="date" className={inputCls} />
                       </div>
-                      <div>
+                      {!isPrivateStock && <div>
                         <label className={labelCls}>{t('Al vencer', 'At maturity')}</label>
                         <select value={form.maturityAction} onChange={e => set('maturityAction', e.target.value)} className={inputCls}>
                           <option value="return_capital">{t('Devolver capital', 'Return capital')}</option>
                           <option value="auto_renew">{t('Renovar', 'Auto-renew')}</option>
                           <option value="convert_equity">{t('Convertir a acciones', 'Convert to equity')}</option>
                         </select>
-                      </div>
+                      </div>}
                     </div>
                   </div>
                 )}
