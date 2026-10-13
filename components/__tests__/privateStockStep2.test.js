@@ -28,3 +28,17 @@ it('Private Common muestra monto, origen, valor, fuente y cadencia en el paso 2'
   expect(document.getElementById('add-amountInvested')).toBeTruthy()
   expect(document.getElementById('add-currentValue')).toBeTruthy()
 })
+
+it('Privada Común nunca busca precios, ni descarta lo tecleado antes en el buscador', async () => {
+  const { authFetch } = require('../../lib/authFetch')
+  authFetch.mockClear()
+  render(<AddAccountModal onClose={() => {}} onAdd={async () => 'x'} existingItems={[]} lang="es" baseCurrency="USD" />)
+  fireEvent.click(screen.getByRole('button', { name: /Acción/ }))
+  fireEvent.change(document.getElementById('add-symbol'), { target: { value: 'ACME' } })
+  fireEvent.click(screen.getByRole('button', { name: /Privada Común/ }))
+  // Sin buscador de mercado y con el símbolo tecleado descartado.
+  expect(document.getElementById('add-symbol')).toBeNull()
+  await new Promise(r => setTimeout(r, 600))
+  const searches = authFetch.mock.calls.filter(c => String(c[0]).includes('/api/prices/search'))
+  expect(searches).toHaveLength(0)
+})

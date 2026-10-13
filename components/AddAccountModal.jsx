@@ -317,6 +317,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   // Symbol search
   useEffect(() => {
     if (!isMarketAsset || !form.symbol || form.symbol.length < 1) {
+      // Una acción privada no tiene cotización: si había una búsqueda o un
+      // quote en vuelo (el usuario tecleó antes de elegir "Privada"), se aborta
+      // para que no aterrice un precio de mercado sobre ella.
+      if (!isMarketAsset) {
+        searchAbortRef.current?.abort()
+        setSearchLoading(false); setFetchingQuote(false); setQuoteFailed(false)
+      }
       setSearchResults([]); setShowDropdown(false); return
     }
     const timer = setTimeout(async () => {
@@ -1030,7 +1037,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               {currentTypeInfo?.subtypes && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {currentTypeInfo.subtypes.map(st => (
-                    <button key={st.key} type="button" onClick={() => setSubtype(st.key)}
+                    <button key={st.key} type="button" onClick={() => {
+                      // Cambiar entre acción pública y privada descarta lo que trajo
+                      // la búsqueda de mercado (símbolo, nombre, precio, sector).
+                      const toPrivate = type === 'Stock' && (st.key === 'private_common' || st.key === 'private_preferred')
+                      if (type === 'Stock' && toPrivate !== isPrivateStock) {
+                        setForm(prev => ({ ...prev, symbol: '', name: '', purchasePrice: '', currentPrice: '', sector: '', industry: '', industrySource: '', exchangeName: '' }))
+                        setDivInfo(null); setMarketDivOverride(false)
+                      }
+                      setSubtype(st.key)
+                    }}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all border ${
                         subtype !== st.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                       }`}
