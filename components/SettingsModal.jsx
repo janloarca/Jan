@@ -967,19 +967,15 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                             </p>
                           )
                         }
-                        // El barrido de usuarios funciona, pero significa que la
-                        // consulta rápida está fallando: el motivo suele traer el
-                        // enlace exacto para crear el índice que falta, y
-                        // esconderlo dejaría el problema de raíz sin arreglar
-                        // detrás de un estado en verde (FASE IF3).
-                        if (l.via === 'userScan') {
-                          return (
-                            <p key={l.cadence} className="text-[11px] leading-relaxed" style={{ color: 'var(--alert-warn-icon)' }}>
-                              {t(`El ${l.cadence} sale por el camino lento porque la consulta rápida falla: ${l.error || 'sin detalle'}`,
-                                 `The ${l.cadence} brief uses the slow path because the fast query fails: ${l.error || 'no detail'}`)}
-                            </p>
-                          )
-                        }
+                        // El aviso ámbar del "camino lento" (userScan) se quitó
+                        // (FASE QE): el envío semanal ya se confirmó llegando
+                        // semana tras semana por ese camino, así que mostrarlo
+                        // era ruido permanente sobre algo que funciona. El
+                        // motivo sigue viajando en `via`/`error` de la
+                        // respuesta de /api/notifications/status y en el
+                        // reporte del cron, para diagnosticar sin UI. Lo que
+                        // SÍ queda es el rojo de arriba: que el envío no te
+                        // encuentre es accionable.
                         return null
                       })}
                     </div>
