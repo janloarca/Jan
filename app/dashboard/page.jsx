@@ -94,7 +94,6 @@ const GoalTracker = dynamic(() => import('@/components/dashboard/GoalTracker'), 
 // montaje igual emite su chunk, o sea todo el mundo pagaba la descarga de una
 // card que nadie pide. Remontarla sigue siendo una línea, ahora dos.
 const InvestedByYearCard = dynamic(() => import('@/components/dashboard/InvestedByYearCard'), { loading: () => <SkeletonCard /> })
-const ExchangeRatesCard = dynamic(() => import('@/components/dashboard/ExchangeRatesCard'), { loading: () => <SkeletonCard /> })
 const RebalanceSuggestions = dynamic(() => import('@/components/dashboard/RebalanceSuggestions'), { loading: () => <SkeletonCard /> })
 const WealthProjectionCard = dynamic(() => import('@/components/dashboard/WealthProjectionCard'), { loading: () => <SkeletonCard /> })
 const InvestmentComparator = dynamic(() => import('@/components/dashboard/InvestmentComparator'), { loading: () => <SkeletonCard /> })
@@ -1661,10 +1660,10 @@ export default function DashboardPage() {
                   propia razón:
                    1. Asignación | Análisis: las dos cards de alto FIJO (FASE
                       PB), así que cierran en la misma línea por construcción.
-                   2. Invertido por año | Tipo de cambio. La segunda se oculta
-                      sola con una sola moneda, y ahí Invertido toma la fila
-                      entera en vez de dejar media fila vacía: por eso la
-                      decisión usa showsRateTable, la MISMA regla que la card.
+                   2. Invertido por año, con la sección de monedas y tipo de
+                      cambio DENTRO (una sola card). La sección se oculta sola
+                      con una sola moneda: showsRateTable es la MISMA regla
+                      que usa la card.
                    3. Acciones a lo ancho, TODAS a la vista (decisión del
                       usuario: nada detrás de un menú "Más acciones"; Vender,
                       Transferir e Importar estaban escondidas antes y un
@@ -1693,12 +1692,8 @@ export default function DashboardPage() {
                   </CardBoundary>
                 </div>
 
-                <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${showFx ? 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]' : ''}`}>
-                  <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
-                  {/* Va al lado de Invertido y no de Asignación: su vista
-                      "Moneda" contesta cuánto tienes en cada una; esta, a qué
-                      tasa se está convirtiendo. */}
-                  {showFx && <CardBoundary id="FX-01" className="min-w-0"><ExchangeRatesCard items={portfolioItems} rates={rates} baseCurrency={baseCurrency} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /></CardBoundary>}
+                <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                  <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
                 </div>
 
                 {QUICK_ACTIONS_CARD_ENABLED && <CardBoundary id="ACT-01" className="hidden lg:block">{quickActions}</CardBoundary>}
