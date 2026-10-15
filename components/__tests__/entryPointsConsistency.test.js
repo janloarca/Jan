@@ -95,29 +95,31 @@ describe('Vender: el telón respeta lo tecleado', () => {
   })
 })
 
-describe('Alta guiada: la ruta del primerizo también protege lo tecleado', () => {
-  const mount = ({ onExitGuided, onClose }) => render(
+describe('Alta con el tipo preseleccionado por el recorrido: el telón también protege lo tecleado', () => {
+  // `guidedType` ya solo PRESELECCIONA el tipo (FASE QG): el formulario es el
+  // completo de siempre. El telón sale por `onClose`.
+  const mount = (onClose) => render(
     <AddAccountModal guidedType="Bank" guidedProgress={{ items: ['Bank'], index: 0 }}
-      onExitGuided={onExitGuided} onClose={onClose} onAdd={async () => 'id'} onSaved={() => {}}
+      onExitGuided={onClose} onClose={onClose} onAdd={async () => 'id'} onSaved={() => {}}
       existingItems={[]} lang="es" baseCurrency="USD" />
   )
 
-  it('limpio, el telón sale del recorrido al primer toque', () => {
-    const onExitGuided = jest.fn()
-    mount({ onExitGuided, onClose: jest.fn() })
+  it('limpio, el telón sale al primer toque', () => {
+    const onClose = jest.fn()
+    mount(onClose)
     fireEvent.click(screen.getByRole('dialog'))
-    expect(onExitGuided).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('con el banco tecleado el primer toque ARMA y el segundo sale', () => {
-    const onExitGuided = jest.fn()
-    mount({ onExitGuided, onClose: jest.fn() })
-    fireEvent.change(screen.getByPlaceholderText('Banco Industrial'), { target: { value: 'BAM' } })
+  it('con algo tecleado el primer toque ARMA y el segundo sale', () => {
+    const onClose = jest.fn()
+    mount(onClose)
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'BAM' } })
     fireEvent.click(screen.getByRole('dialog'))
-    expect(onExitGuided).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByText(HINT)).toBeTruthy()
     fireEvent.click(screen.getByRole('dialog'))
-    expect(onExitGuided).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -182,13 +184,16 @@ describe('AddAccountModal acepta `defaults` (antes era un no-op silencioso en la
     expect(document.getElementById('add-name')).toBeNull()
   })
 
-  it('el modo guiado manda sobre `defaults`: su tipo y su subtipo no se pisan', () => {
+  it('el tipo del recorrido (guidedType) manda sobre `defaults`: no se pisa', async () => {
     render(
       <AddAccountModal guidedType="Bank" guidedProgress={{ items: ['Bank'], index: 0 }} defaults={{ type: 'Debt' }}
         onExitGuided={() => {}} onClose={() => {}} onAdd={async () => 'id'} onSaved={() => {}}
         existingItems={[]} lang="es" baseCurrency="USD" />
     )
-    // Sigue preguntando por el banco (Bank), no por una deuda.
-    expect(screen.getByPlaceholderText('Banco Industrial')).toBeTruthy()
+    fireEvent.change(document.getElementById('add-name'), { target: { value: 'Cuenta de ahorro' } })
+    fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Registrar/ })).toBeTruthy())
+    // Sigue siendo el banco que el recorrido pidió: el paso 2 no es el de una deuda.
+    expect(document.getElementById('add-debtBalance')).toBeNull()
   })
 })
