@@ -31,6 +31,13 @@ function generateId() {
   return `sheet_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 }
 
+// La Hoja corre SIN escopar a propósito (ver la nota del banner de demo más
+// abajo): es una vista de todo el patrimonio, no de un portafolio. Una sola
+// constante para el hook Y para el alta, porque si las dos puntas se escriben
+// aparte un día la Hoja se vuelve escopeable y el alta sigue creando en
+// `__default__`, que es exactamente el defecto de FASE OJ.
+const SHEET_SCOPE = '__all__'
+
 export default function SpreadsheetPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -81,7 +88,7 @@ export default function SpreadsheetPage() {
     addLot, closeLotsFIFO, executeContribution, dataLoading, settings, profile,
     handleRefresh, pricesLoading, ratesLoading,
     sheetObservations, saveSheetObservations,
-  } = useDashboardData({ user, lang, activePortfolio: '__all__' })
+  } = useDashboardData({ user, lang, activePortfolio: SHEET_SCOPE })
 
   // El usuario lo pidio con estas palabras: "utilizar el boton de refresh propio
   // para que recapacite y repare la tabla despues de poner info nueva". El
@@ -503,15 +510,21 @@ export default function SpreadsheetPage() {
       )}
       </ModalMount>
 
+      {/* FASE QK. El montaje del tablero pasa `onAddLot` y este no: sin el, una
+          posicion de mercado creada desde la Hoja nacia SIN lote, y el FIFO se
+          rompe en la primera venta. `defaults` tampoco existia en el modal: era
+          un no-op silencioso (ver lib/addDefaults.js). */}
       <ModalMount closing={addClosing}>
       {addShown && (
         <AddAccountModal
           onClose={() => { setShowAddModal(false); setAddModalDefaults(null) }}
           onAdd={addItem}
           onAddTransaction={addTransaction}
+          onAddLot={addLot}
           onExecuteContribution={executeContribution}
           onCreateDestination={addItemInScope}
           existingItems={items}
+          activePortfolio={SHEET_SCOPE}
           lang={lang}
           defaults={addModalDefaults}
           profileTaxResidence={profile?.taxResidence || ''}

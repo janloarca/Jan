@@ -1321,7 +1321,11 @@ export default function DashboardPage() {
         ibkrProgress={ibkrProgress}
         onIBKR={brokersOn ? handleIBKRPillClick : null}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
-        onGuided={portfolioItems.length === 0 ? handleOpenGuided : null}
+        // FASE QK. Siempre alcanzable: dashboardActions filtra por onClick
+        // truthy, asi que un `? handleOpenGuided : null` por conteo sacaba la
+        // entrada del menu PARA SIEMPRE en cuanto habia un activo. Quien ya
+        // tiene cuentas tambien quiere agregar la siguiente paso a paso.
+        onGuided={handleOpenGuided}
         enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
         friendsEnabled={settings?.friendsEnabled !== false}
         onCashFlow={handleOpenCashflow}
@@ -1669,7 +1673,7 @@ export default function DashboardPage() {
                       Transferir e Importar estaban escondidas antes y un
                       usuario no encontraba cómo registrar una venta). */}
               <div className="stagger-3 space-y-4 sm:space-y-6">
-                {/* FASE QI: Asignación pasa a tabla de ancho completo (con cuatro
+                {/* FASE QK: Asignación pasa a tabla de ancho completo (con cuatro
                     filas el alto fijo dejaba medio panel vacío). Debajo, Análisis
                     (ya solo Rendimiento y Riesgo) comparte fila con Invertido por
                     año y Tipo de cambio, que se apilan en la otra columna. Aquí
@@ -2478,7 +2482,11 @@ export default function DashboardPage() {
       <ModalMount closing={guidedClosing}>
       {guidedShown && (
         <GuidedSetup
-          initialPicked={firstRunPicked}
+          // Lo marcado en la bienvenida solo vale mientras la bienvenida
+          // existe. Con activos ya cargados esas marcas son de un recorrido
+          // anterior, y pasarlas haria que "Guiame paso a paso" abriera
+          // directo en el primer tipo viejo en vez de en el checklist.
+          initialPicked={portfolioItems.length === 0 ? firstRunPicked : []}
           onClose={() => setShowGuided(false)}
           onAdd={async (item) => {
             // Mismo wrapper que el alta manual: DEBE devolver el id o el

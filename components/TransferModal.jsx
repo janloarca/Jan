@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
 import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
@@ -9,6 +10,7 @@ import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { liquiditySortScore, isMarketPriced } from '@/components/dashboard/utils'
 import { roundQty } from '@/lib/lotClose'
 import BusyLabel from '@/components/ui/BusyLabel'
+import DiscardHint from '@/components/ui/DiscardHint'
 import { todayLocalISO } from '@/lib/localDate'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], convert, lang = 'es' }) {
@@ -50,6 +52,15 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const getValue = accountValue
 
   useEscClose(onClose)
+
+  // FASE QK. Esta pantalla MUEVE DINERO y su telon cerraba de un toque: un dedo
+  // fuera del panel perdia el monto tecleado. Mismo patron que CashFlowModal
+  // (FASE NC): limpia cierra igual, con un monto encima el primer toque avisa y
+  // el segundo descarta. La x, Cancelar y Esc siguen siendo instantaneos (gestos
+  // explicitos). Sin helper unico de `set`, el sucio se calcula al click, y el
+  // comprobante NO cuenta: ahi lo tecleado ya se escribio.
+  const { onBackdropClick, backdropArmed } = useDirtyClose(onClose)
+  const dirty = !receipt && (amount.trim() !== '' || toAmount.trim() !== '' || shares.trim() !== '')
 
   // Un pasivo NO puede ser ninguno de los dos lados de una transferencia.
   // Como origen no tiene saldo que mover, y como destino el crédito le SUBÍA la
@@ -255,7 +266,8 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => onBackdropClick(dirty)} role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-glass max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="transfer-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Transferencia', 'Transfer')}</h2>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Trash2, Download } from 'lucide-react'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { useAutoDisarm } from '@/hooks/useAutoDisarm'
 import { planFinanceWipe, monthsPresent, transportsPresent, methodOfTx } from '@/lib/financeWipe'
 import { financeBackupCsv, downloadCsv } from '@/lib/financeCsv'
 
@@ -60,6 +61,12 @@ export default function FinanceWipePanel({
   const [armed, setArmed] = useState(null)
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
+  // FASE QK. Armar y no tocar nada dejaba el borrado de historial a UN toque
+  // para toda la sesion: FASE ND cableo el desarme automatico en cuatro sitios
+  // y este quedo fuera. `armed` guarda cual de los DOS botones armo, asi que
+  // pasar de "descargar y borrar" a "borrar" reinicia la cuenta, que es lo
+  // correcto: el usuario acaba de tocar otra cosa.
+  useAutoDisarm(armed, () => setArmed(null))
 
   const months = useMemo(() => monthsPresent(transactions), [transactions])
   const transports = useMemo(() => transportsPresent(transactions), [transactions])
