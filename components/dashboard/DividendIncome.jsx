@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { formatCurrency, getTypeCategory, projectItemAnnualIncome, itemLabel } from './utils'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
+import { ymOfDate } from '@/lib/dateParts'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 
 // Subtítulo de grupo. La card llevaba ONCE bloques bajo un solo título, así que
@@ -117,7 +118,17 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     const currentMonth = now.getMonth()
     const sources = []
 
+    // Pagos del mes en curso que el motor (o el usuario) ya registró, por activo
+    // (reinvertidos incluidos: ya se pagaron). Se descuentan de lo "por venir".
+    const paidThisMonth = new Set()
+    ;(transactions || []).forEach((tx) => {
+      if ((tx.type || '').toUpperCase() !== 'DIVIDEND' || !tx._linkedItemId) return
+      const ym = ymOfDate(tx.date)
+      if (ym && ym.y === now.getFullYear() && ym.m === currentMonth) paidThisMonth.add(tx._linkedItemId)
+    })
+
     items.forEach((it) => {
+      if (it.isDebt || Number(it.quantity) === 0) return
       const cur = it._originalCurrency || it.currency || 'USD'
       const qty = it.quantity || 1
       const price = it._originalPrice || it.currentPrice || it.purchasePrice || 0
@@ -157,6 +168,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       const perPayment = s.annual / (s.months.length || 12)
       for (let offset = 0; offset < 12; offset++) {
         const m = (currentMonth + offset) % 12
+        if (offset === 0 && paidThisMonth.has(s.id)) continue
         if (s.months.includes(m)) {
           next12[offset].value += perPayment
           if (offset < 3) {
@@ -182,7 +194,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       annualTotal, sources: sources.sort((a, b) => b.annual - a.annual), upcoming: upcoming.slice(0, 6),
       next12, next12Total, restOfYearTotal,
     }
-  }, [items, convert, baseCurrency])
+  }, [items, transactions, convert, baseCurrency])
 
   const stats = useMemo(() => {
     // Exclude reinvested dividends — same filter as the dashboard's annualDividends,
@@ -208,10 +220,10 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       totalAll += amt
       const sym = tx.symbol || tx.description || 'Other'
       bySymbol[sym] = (bySymbol[sym] || 0) + amt
-      const d = tx.date ? new Date(tx.date) : null
-      if (d) {
-        const y = d.getFullYear()
-        const m = d.getMonth()
+      const ym = ymOfDate(tx.date)
+      if (ym) {
+        const y = ym.y
+        const m = ym.m
         const key = `${y}-${String(m).padStart(2, '0')}`
         byMonth[key] = (byMonth[key] || 0) + amt
         if (y === thisYear) totalYTD += amt
@@ -291,11 +303,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     const lastYear = thisYear - 1
     let thisYearTotal = 0, lastYearTotal = 0
     divs.forEach(tx => {
-      const d = tx.date ? new Date(tx.date) : null
-      if (!d) return
+      const ym = ymOfDate(tx.date)
+      if (!ym) return
       const amt = convert ? convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency || 'USD') : (tx.totalAmount ?? 0)
-      if (d.getFullYear() === thisYear) thisYearTotal += amt
-      if (d.getFullYear() === lastYear) lastYearTotal += amt
+      if (ym.y === thisYear) thisYearTotal += amt
+      if (ym.y === lastYear) lastYearTotal += amt
     })
     if (lastYearTotal === 0 && thisYearTotal === 0) return null
     const growth = lastYearTotal > 0 ? ((thisYearTotal - lastYearTotal) / lastYearTotal) * 100 : null
