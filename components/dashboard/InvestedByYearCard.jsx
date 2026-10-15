@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { formatCurrency } from './utils'
 import { InfoTip } from '../ui/Tooltip'
+import ExchangeRatesCard from './ExchangeRatesCard'
 import { buildReportSeries } from '@/lib/reportData'
 import { computeInvestedByYear } from '@/lib/investedByYear'
 
@@ -29,7 +30,7 @@ import { computeInvestedByYear } from '@/lib/investedByYear'
 //    hoy, exacto por construcción. Antes el total imprimía "-" y tiraba a la
 //    basura tanto la suma de los años medidos como el residuo, que es un
 //    número real y calculable.
-export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, totalAssets = null, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es' }) {
+export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, totalAssets = null, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es', fxItems = null, rates, ratesUpdate, ratesStale, ratesLoading }) {
   // FASE LV: la identidad del pie cierra contra los ACTIVOS (el universo del
   // rendimiento, FASE LU); sin el prop, netWorth: en un portafolio sin deuda
   // son el mismo número y nada cambia.
@@ -42,7 +43,17 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
     return computeInvestedByYear({ transactions, items, series, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth, totalAssets })
   }, [transactions, items, snapshots, convert, baseCurrency, returnYTD, ytdChange, ytdStartValue, netWorth, totalAssets])
 
-  if (!data.hasData) return null
+  const fx = fxItems && (
+    <ExchangeRatesCard embedded={data.hasData} items={fxItems} rates={rates} baseCurrency={baseCurrency}
+      ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} />
+  )
+
+  // Sin historial de aportes pero con varias monedas, la sección de monedas
+  // sola sigue valiendo: se dibuja en su propia card en vez de desaparecer.
+  if (!data.hasData) {
+    return fxItems ? <ExchangeRatesCard items={fxItems} rates={rates} baseCurrency={baseCurrency}
+      ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /> : null
+  }
 
   const fmt = (n) => formatCurrency(n, baseCurrency)
   const signFmt = (n) => `${n >= 0 ? '+' : ''}${fmt(n)}`
@@ -242,6 +253,8 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
         {t('"-" = sin datos suficientes de ese año para medirlo. Detalle en el (i).',
            '"-" = not enough data from that year to measure it. Details under the (i).')}
       </p>
+
+      {fx}
     </div>
   )
 }

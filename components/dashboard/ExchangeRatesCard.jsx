@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react'
 import { InfoTip } from '../ui/Tooltip'
-import { usedCurrencies, buildRateRows, formatRate, showsRateTable, ANCHOR } from '@/lib/currencyRates'
+import { usedCurrencies, buildRateRows, buildCurrencyHoldings, formatRate, showsRateTable, ANCHOR } from '@/lib/currencyRates'
+import { formatCurrency, getItemValue, isExcludedFromNetWorth } from './utils'
 
 // Las tasas que la app está usando AHORA MISMO, para las monedas que este
 // portafolio de verdad tiene.
@@ -27,7 +28,7 @@ import { usedCurrencies, buildRateRows, formatRate, showsRateTable, ANCHOR } fro
 //    mejor que 1:1 (por eso se persisten entre sesiones), pero tiene que
 //    decirse que es de ayer.
 export default function ExchangeRatesCard({
-  items, rates, baseCurrency = 'USD', ratesUpdate, ratesStale, ratesLoading, lang = 'es',
+  items, rates, baseCurrency = 'USD', ratesUpdate, ratesStale, ratesLoading, lang = 'es', embedded = false,
 }) {
   const t = (es, en) => (lang === 'es' ? es : en)
 
@@ -35,6 +36,12 @@ export default function ExchangeRatesCard({
     const currencies = usedCurrencies(items)
     return buildRateRows({ currencies, rates, baseCurrency })
   }, [items, rates, baseCurrency])
+
+  const holdings = useMemo(() => buildCurrencyHoldings({
+    items, rates, baseCurrency,
+    valueOf: (it) => (isExcludedFromNetWorth(it) ? null : getItemValue(it)),
+  }), [items, rates, baseCurrency])
+  const holdingOf = (code) => holdings.find((h) => h.code === code)
 
   // Con una sola moneda (y siendo esa el ancla) la tarjeta diría "1 USD = 1
   // USD": un control que no informa nada. Misma regla que el resto de la app
@@ -51,11 +58,11 @@ export default function ExchangeRatesCard({
     : null
 
   return (
-    <div className="card p-4 sm:p-5 h-full">
+    <div className={embedded ? 'pt-3 mt-3' : 'card p-4 sm:p-5 h-full'} style={embedded ? { borderTop: '1px solid var(--glass-border)' } : undefined}>
       <div className="flex items-center justify-between gap-2 mb-1">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
-          {t('TIPO DE CAMBIO', 'EXCHANGE RATES')}
+          {t('POR MONEDA Y TIPO DE CAMBIO', 'BY CURRENCY & RATES')}
           <InfoTip text={t(
             'Las tasas con las que se está convirtiendo tu patrimonio ahora mismo. Solo se listan las monedas que tienes. El dólar es el ancla: las demás se leen como cuántas unidades hay en un dólar.',
             'The rates your net worth is being converted with right now. Only the currencies you hold are listed. The dollar is the anchor: the others read as how many units make one dollar.'
@@ -76,6 +83,7 @@ export default function ExchangeRatesCard({
       <div className="divide-y" style={{ borderColor: 'var(--card-border)' }}>
         {rows.map((r) => {
           const formatted = formatRate(r.rate, lang)
+          const h = holdingOf(r.code)
           return (
             <div key={r.code} className="flex items-center justify-between gap-3 py-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -90,8 +98,23 @@ export default function ExchangeRatesCard({
                 )}
               </div>
               <div className="text-right shrink-0">
+                {h && (
+                  <div className="text-sm font-mono tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {formatCurrency(h.native, r.code)}
+                    {!r.isBase && h.hasRate && (
+                      <span className="ml-1.5 text-[10px] font-normal" style={{ color: 'var(--text-muted)' }}>
+                        ≈ {formatCurrency(h.baseValue, baseCurrency)}
+                      </span>
+                    )}
+                    {h.pct != null && (
+                      <span className="ml-1.5 text-[10px] font-normal" style={{ color: 'var(--text-muted)' }}>
+                        {(h.pct * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                )}
                 {formatted ? (
-                  <span className="text-sm font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                  <span className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>
                     {r.isAnchor
                       ? t('1.0000 · ancla', '1.0000 · anchor')
                       : <>1 {ANCHOR} = {formatted}</>}

@@ -89,8 +89,24 @@ describe('ExchangeRatesCard', () => {
 
   it('en ingles no queda nada en espanol', () => {
     const { container } = show({ lang: 'en', ratesStale: true })
-    expect(container.textContent).toContain('EXCHANGE RATES')
+    expect(container.textContent).toContain('BY CURRENCY & RATES')
     expect(container.textContent).toContain('Last known')
     expect(container.textContent).not.toMatch(/Actualizado|Últimas|ancla/)
+  })
+
+  it('muestra cuanto hay en cada moneda, con equivalente en base', () => {
+    const items = [
+      { id: 'a', quantity: 1, currentPrice: 1000, _originalCurrency: 'USD' },
+      { id: 'b', quantity: 1, currentPrice: 1000, _originalCurrency: 'GTQ' },
+    ]
+    const { container } = show({ items, baseCurrency: 'USD' })
+    // 1000 USD en base == 1000 USD nativos; 1000 en base de GTQ == 7,700 GTQ.
+    expect(container.textContent).toContain('7,700')
+    expect(container.textContent).toContain('50.0%')
+  })
+
+  it('embebida no dibuja su propio marco de card', () => {
+    const { container } = show({ embedded: true })
+    expect(container.firstChild.className).not.toContain('card')
   })
 })
