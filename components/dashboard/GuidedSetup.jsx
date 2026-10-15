@@ -46,6 +46,11 @@ export default function GuidedSetup({
   const [phase, setPhase] = useState(() => (orderPicked(initialPicked).length > 0 ? 'asset' : 'checklist')) // checklist | asset | done
   const [index, setIndex] = useState(0)
   const [addedCount, setAddedCount] = useState(0)
+  // FASE QK. El selector de brokers (ConnectionsModal) se abre ENCIMA de este
+  // modal, y los dos son z-50: el que va despues en el DOM gana, y este se
+  // monta despues, o sea tapaba al selector que acababa de pedir. Mientras el
+  // traspaso esta vivo el cierre se dibuja un nivel mas abajo.
+  const [handedOff, setHandedOff] = useState(false)
 
   const toggle = (key) =>
     setPicked(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]))
@@ -112,7 +117,13 @@ export default function GuidedSetup({
                  'That way you do not have to type position by position: we bring them in and keep them up to date.')}
             </p>
           </div>
-          <button type="button" onClick={() => { onConnectBroker?.(); onClose() }}
+          {/* FASE QK. Avanza a la pantalla de cierre en vez de cerrar todo:
+              'broker' es SIEMPRE el ultimo de la cola (categoryFor lo deja al
+              final), asi que cerrar aqui se saltaba para siempre el conteo de
+              cuentas agregadas y el "Completar los datos (N)". El selector de
+              brokers se abre ENCIMA (otro modal) y al cerrarlo el usuario
+              aterriza en el cierre, no en la nada. */}
+          <button type="button" onClick={() => { setHandedOff(true); onConnectBroker?.(); advance() }}
             className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
             style={{ background: 'var(--accent-blue)', color: '#ffffff' }}>
             {t('Elegir mi broker', 'Pick my broker')}
@@ -151,7 +162,7 @@ export default function GuidedSetup({
 
   // ---------- Pantalla 3: cierre ----------
   return (
-    <Shell onClose={onClose}>
+    <Shell onClose={onClose} behind={handedOff}>
       <div className="p-6 space-y-5 text-center">
         <div className="text-4xl">🎉</div>
         <div>
@@ -179,7 +190,7 @@ export default function GuidedSetup({
             {t(`Completar los datos (${pendingCount})`, `Complete the details (${pendingCount})`)}
           </button>
         )}
-        <button type="button" onClick={() => { setPicked([]); setPhase('checklist') }}
+        <button type="button" onClick={() => { setPicked([]); setHandedOff(false); setPhase('checklist') }}
           className="w-full px-4 py-3 rounded-xl text-sm font-medium"
           style={pendingCount > 0 && onCompleteData
             ? { color: 'var(--text-secondary,#94a3b8)', border: '1px solid var(--card-border,#38383A)' }
@@ -207,9 +218,9 @@ function Progress({ items, index }) {
   )
 }
 
-function Shell({ children, onClose }) {
+function Shell({ children, onClose, behind = false }) {
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true">
+    <div className={`modal-backdrop fixed inset-0 ${behind ? 'z-40' : 'z-50'} flex items-center justify-center p-4`} onClick={onClose} role="dialog" aria-modal="true">
       <div className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {children}
       </div>

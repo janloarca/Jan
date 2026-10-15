@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
+import { useDirtyClose } from '@/hooks/useDirtyClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import BusyLabel from '@/components/ui/BusyLabel'
+import DiscardHint from '@/components/ui/DiscardHint'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { accountValue, creditFields } from '@/lib/transferFields'
@@ -34,6 +36,13 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   const [error, setError] = useState('')
 
   useEscClose(onClose)
+
+  // FASE QK. Vender mueve dinero y el telon cerraba de un toque. Lo unico que el
+  // usuario TECLEA de verdad es la cantidad: el precio y la fecha vienen
+  // prellenados, asi que por si solos no cuentan como trabajo que perder. La x,
+  // Cancelar y Esc siguen cerrando al instante.
+  const { onBackdropClick, backdropArmed } = useDirtyClose(onClose)
+  const dirty = quantity.trim() !== ''
 
   const totalValue = (item.quantity || 0) * origPriceOf(item)
   // La cantidad va por parseQuantity y el precio por parseAmount, y NO es lo
@@ -176,7 +185,8 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   const labelCls = 'text-xs text-[var(--text-secondary,#94a3b8)] mb-1 block'
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => onBackdropClick(dirty)} role="dialog" aria-modal="true" aria-labelledby="sell-modal-title">
+      <DiscardHint show={backdropArmed} lang={lang} />
       <div ref={trapRef} className="modal-glass max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">

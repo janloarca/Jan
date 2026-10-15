@@ -7,6 +7,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { validateItem } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 import { scopeTagFor } from '@/lib/scopeTag'
+import { addDefaults } from '@/lib/addDefaults'
 import { mergeCurrencyOf, mergeCurrencyConflict, mergedAcquisitionDate, mergePositionFields } from '@/lib/mergePosition'
 import TimelineEditor, { validateTimelineRows } from './TimelineEditor'
 import { detectCurrency } from '@/lib/institutionCurrency'
@@ -111,6 +112,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   // FASE PT. Residencia fiscal que el usuario declaró en su perfil (vacía por
   // defecto, jamás inferida). Solo se OFRECE con un botón; nunca se escribe sola.
   profileTaxResidence = '',
+  // FASE QK. Con qué tipo/subtipo abre el formulario cuando la pantalla que lo
+  // abre ya lo sabe ("+ Agregar deuda", las altas rápidas de Patrimonio). Ver
+  // lib/addDefaults.js: este prop se pasaba desde la Hoja y NO estaba en esta
+  // lista, o sea era un no-op silencioso.
+  defaults = null,
   // ---- Primeros pasos ----
   // guidedType solo PRESELECCIONA el tipo; el formulario es SIEMPRE el completo
   // de 2 pasos (no existe una versión simplificada). El orquestador
@@ -119,8 +125,13 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   guidedType = null, guidedProgress = null, onSaved = null, onExitGuided = null }) {
   const trapRef = useFocusTrap()
   const [step, setStep] = useState(1)
-  const [type, setType] = useState(guidedType || 'Stock')
-  const [subtype, setSubtype] = useState(guidedType ? (GUIDED_SUBTYPE[guidedType] || '') : '')
+  // El recorrido de primeros pasos fija el tipo él mismo, así que `defaults`
+  // solo aplica cuando no viene `guidedType`. Se LEE en los inicializadores
+  // lazy de abajo y nunca en un efecto: un efecto que resembrara pisaría lo
+  // que el usuario ya tecleó.
+  const seed = guidedType ? { type: '', subtype: '' } : addDefaults(defaults)
+  const [type, setType] = useState(() => guidedType || seed.type || 'Stock')
+  const [subtype, setSubtype] = useState(() => (guidedType ? (GUIDED_SUBTYPE[guidedType] || '') : seed.subtype))
   const [form, setForm] = useState({
     symbol: '', name: '', quantity: '', purchasePrice: '', currentPrice: '',
     institution: '', currency: 'USD',
