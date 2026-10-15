@@ -1669,31 +1669,30 @@ export default function DashboardPage() {
                       Transferir e Importar estaban escondidas antes y un
                       usuario no encontraba cómo registrar una venta). */}
               <div className="stagger-3 space-y-4 sm:space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                  <CardBoundary id="OR-02" className="min-w-0"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
-                  {/* Aquí vivía InstitutionPerformance (INST-01). Se dejó de
-                      montar porque sus seis filas repetían, número por número,
-                      lo que ya muestra la vista "Inst." de Asignación de
-                      Activos; el conteo de posiciones y el badge de historial
-                      de IBKR, que solo estaban ahí, se movieron a esa vista.
-                      El componente y su fórmula no se tocaron y siguen en
-                      disco: volver a montarlo es una línea. */}
+                {/* FASE QI: Asignación pasa a tabla de ancho completo (con cuatro
+                    filas el alto fijo dejaba medio panel vacío). Debajo, Análisis
+                    (ya solo Rendimiento y Riesgo) comparte fila con Invertido por
+                    año y Tipo de cambio, que se apilan en la otra columna. Aquí
+                    vivía InstitutionPerformance (INST-01): sus filas repetían la
+                    vista "Inst." de Asignación y no se monta; el componente y su
+                    fórmula siguen en disco. */}
+                <CardBoundary id="OR-02" className="min-w-0"><AssetAllocation items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start">
                   <CardBoundary id="AN-00" className="min-w-0">
                     <AnalysisTabs
                       lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
                       snapshots={augmentedSnapshots} lots={lots} transactions={assetTransactions}
-                      convert={convert} baseCurrency={baseCurrency} rates={rates}
+                      convert={convert} baseCurrency={baseCurrency}
                       benchmarkData={benchmarkData} benchmarkName={benchmarkName}
                       benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
-                      volatility={riskMetrics?.volatility} goalValue={goals?.portfolioGoal}
                       beginnerMode={beginnerMode} brokersOn={brokersOn}
                       onConnect={brokersOn ? handleOpenConnections : null} onImportBroker={brokersOn ? handleOpenImport : null}
                     />
                   </CardBoundary>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:gap-6">
-                  <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
+                  <div className="space-y-4 sm:space-y-6 min-w-0">
+                    <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
+                  </div>
                 </div>
 
                 {QUICK_ACTIONS_CARD_ENABLED && <CardBoundary id="ACT-01" className="hidden lg:block">{quickActions}</CardBoundary>}

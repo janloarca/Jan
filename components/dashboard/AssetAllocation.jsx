@@ -106,6 +106,9 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
         value,
         pct: total > 0 ? (value / total) * 100 : 0,
         returnPct: costByGroup[name] > 0 ? ((gainByGroup[name] || 0) / costByGroup[name]) * 100 : null,
+        // Solo presentación: la ganancia en dinero ya se acumulaba arriba para
+        // calcular returnPct; acá se muestra tal cual, sin recalcular nada.
+        gain: gainByGroup[name] || 0,
         count: countByGroup[name] || 0,
         hasIbkr: !!ibkrByGroup[name],
         order: orderByGroup[name] || 0,
@@ -147,26 +150,30 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
   const inMore = moreViews.some((v) => v.key === view)
   const tabs = [...primaryViews, { key: MORE_KEY, label: `${t('Más', 'More')} ▾` }]
 
+  // Rediseño (FASE QI): era una lista de barras dentro de una card de alto
+  // fijo, y con cuatro filas quedaba medio panel vacío. Ahora es una TABLA a lo
+  // ancho que dice cada cosa una sola vez: grupo, posiciones, peso (barra + %),
+  // valor, ganancia en dinero y retorno. Ninguna fórmula se movió: gain y
+  // returnPct salen del mismo memo de arriba.
+  const COLS = 'sm:grid-cols-[minmax(0,1.5fr)_3.5rem_minmax(0,2fr)_7.5rem_7rem_6rem]'
+  const signed = (n) => `${n >= 0 ? '+' : '-'}${formatCurrency(Math.abs(n))}`
+  const tone = (n) => (n == null ? 'var(--text-muted)' : n >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')
+
   return (
-    // Alto FIJO desde lg (el mismo que Análisis): cambiar de pestaña ya no
-    // estira ni encoge la card, así que la fila del tablero no salta y las dos
-    // cards cierran en la misma línea. Lo que no entra se desplaza DENTRO del
-    // cuerpo. En móvil el alto es el del contenido, como siempre.
-    <div className="card p-4 sm:p-5 flex flex-col lg:h-[var(--composition-card-h)]">
+    <div className="card p-4 sm:p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
           {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
           <InfoTip text={t(
-            'El % junto al monto es el retorno propio de ese grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambiá la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte. Tus deudas no entran acá: se restan en el patrimonio de arriba.',
-            'The % next to the amount is that group\'s own return: gain ÷ what you invested in it (includes entry costs, excludes new capital). Switch the view to group the same holdings by type, institution, maturity and more: the total never changes, only how it is split. Your debts are not in here: they subtract in the net worth above.'
+            'El % de retorno es propio de cada grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambiá la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte. Tus deudas no entran acá: se restan en el patrimonio de arriba.',
+            'The return % is each group\'s own: gain ÷ what you invested in it (includes entry costs, excludes new capital). Switch the view to group the same holdings by type, institution, maturity and more: the total never changes, only how it is split. Your debts are not in here: they subtract in the net worth above.'
           )} />
         </h3>
         {/* El total de esta card son ACTIVOS (isDebt se filtra arriba) y el
             hero muestra el patrimonio NETO: difieren por la deuda y nada lo
-            decia. La caption solo existe cuando hay deudas; sin ellas las dos
-            cifras coinciden y el rotulo seria ruido. */}
+            decia. La caption solo existe cuando hay deudas. */}
         <span className="text-right">
           <span className="text-sm font-bold text-white font-mono tabular-nums block">
             {formatCurrency(totalValue)}
@@ -177,12 +184,8 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
         </span>
       </div>
 
-      {/* View toggle — segmented control */}
-      {/* Estas siete SÍ se quedan planas: son siete formas paralelas de agrupar
-          el mismo dinero, una dimensión cada una, así que meterlas en familias
-          sería una jerarquía inventada. Lo que les faltaba era el difuminado de
-          borde (esta fila lo había perdido al copiarse a mano desde Análisis) y
-          un objetivo táctil que no midiera exactamente el mínimo. */}
+      {/* Siete formas paralelas de agrupar el mismo dinero: tres a la vista y
+          cuatro detrás de "Más" (una fila de chips dentro de la card). */}
       <SegmentedTabs
         tabs={tabs}
         value={inMore ? MORE_KEY : view}
@@ -192,15 +195,25 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
         }}
         deps={[lang]}
         ariaLabel={t('Agrupar por', 'Group by')}
-        className={inMore ? 'mb-2' : 'mb-4'}
+        className={inMore ? 'mb-2' : 'mb-3'}
       />
       {inMore && (
         <SubTabs tabs={moreViews} value={view} onChange={setView}
-          ariaLabel={t('Más formas de agrupar', 'More ways to group')} className="mb-4" />
+          ariaLabel={t('Más formas de agrupar', 'More ways to group')} className="mb-3" />
       )}
 
-      {/* Horizontal bar breakdown */}
-      <div className="space-y-0 flex-1 min-h-0 lg:overflow-y-auto lg:pr-1 lg:-mr-1">
+      {/* Encabezado de columnas (desde sm; en teléfono cada fila se explica sola) */}
+      <div className={`hidden sm:grid ${COLS} gap-x-4 px-2 -mx-2 pb-2 text-[11px] font-semibold uppercase tracking-wide`}
+        style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--card-border)' }}>
+        <span>{t('Grupo', 'Group')}</span>
+        <span className="text-right">{t('Pos.', 'Pos.')}</span>
+        <span>{t('Peso', 'Weight')}</span>
+        <span className="text-right">{t('Valor', 'Value')}</span>
+        <span className="text-right">{t('Ganancia', 'Gain')}</span>
+        <span className="text-right">{t('Retorno', 'Return')}</span>
+      </div>
+
+      <div>
         {allocation.map((seg) => {
           const displayName = view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
             ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
@@ -209,82 +222,67 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
             ? INVESTMENT_CLASS_META[seg.name].returnType[lang]
             : null
 
+          const ibkrBadge = view === 'institution' && seg.hasIbkr && ibkrDataComplete != null && (
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+              style={ibkrDataComplete
+                ? { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }
+                : { color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
+              title={ibkrDataComplete
+                ? t('Historial y retornos completos: los pasos de conexión están hechos.', 'History and returns complete: all connection steps are done.')
+                : t('Historial incompleto: faltan pasos en "Nuevo → Completar información".', 'History incomplete: steps missing in "New → Complete your data".')}>
+              {ibkrDataComplete ? t('100%', '100%') : t('parcial', 'partial')}
+            </span>
+          )
+
+          const nameBlock = (
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+              <div className="flex flex-col min-w-0">
+                {/* `capitalize` solo donde el nombre llega en minúscula: las
+                    etiquetas de vencimiento ya son frases. */}
+                <span className={`text-sm text-slate-300 truncate ${view === 'maturity' ? '' : 'capitalize'}`}>{displayName}</span>
+                {returnTypeDesc && <span className="text-xs text-slate-500 leading-tight">{returnTypeDesc}</span>}
+              </div>
+              {/* En teléfono no hay columna de posiciones: va junto al nombre */}
+              <span className="sm:hidden text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{seg.count} {t('pos.', 'pos.')}</span>
+              {ibkrBadge}
+            </div>
+          )
+
+          const returnText = seg.returnPct == null ? '-' : `${seg.returnPct >= 0 ? '+' : ''}${seg.returnPct.toFixed(2)}%`
+          const bar = (
+            <div className="rounded-full overflow-hidden flex-1" style={{ height: 6, backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="h-full rounded-full bar-fill" style={{ width: `${Math.max(seg.pct, 0.5)}%`, backgroundColor: seg.color }} />
+            </div>
+          )
+
           return (
-            <div key={seg.name} className="rounded-lg px-2 -mx-2 transition-colors hover:bg-theme-elevated" style={{ paddingTop: 6, paddingBottom: 6 }}>
-              {/* Top row: label left, contribution + value + pct right */}
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: seg.color }}
-                  />
-                  <div className="flex flex-col min-w-0">
-                    {/* `capitalize` existe porque los nombres de tipo y sector
-                        llegan en minúscula. Las etiquetas de vencimiento ya
-                        vienen escritas como frase ("Menos de 1 año"), y
-                        capitalizarlas palabra por palabra las rompe. */}
-                    <span className={`text-sm text-slate-300 truncate ${view === 'maturity' ? '' : 'capitalize'}`}>
-                      {displayName}
-                    </span>
-                    {returnTypeDesc && (
-                      <span className="text-xs text-slate-500 leading-tight">
-                        {returnTypeDesc}
-                      </span>
-                    )}
-                  </div>
-                  {/* Rediseño, sección 2: el conteo va en TODAS las vistas, así
-                      cada fila tiene la misma forma (punto, nombre, posiciones,
-                      retorno, valor, %). Es un conteo de tenencias, igual de
-                      cierto agrupando por tipo que por institución. */}
-                  <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
-                    {seg.count} {t('pos.', 'pos.')}
-                  </span>
-                  {view === 'institution' && seg.hasIbkr && ibkrDataComplete != null && (
-                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                      style={ibkrDataComplete
-                        ? { color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 15%, transparent)' }
-                        : { color: 'var(--accent-orange)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 15%, transparent)' }}
-                      title={ibkrDataComplete
-                        ? t('Historial y retornos completos: los pasos de conexión están hechos.', 'History and returns complete: all connection steps are done.')
-                        : t('Historial incompleto: faltan pasos en "Nuevo → Completar información".', 'History incomplete: steps missing in "New → Complete your data".')}>
-                      {/* Etiqueta corta a propósito: en esta card el nombre de
-                          la institución comparte la línea con el conteo y con
-                          esto, y "100% historial" lo truncaba ("Interactive…").
-                          El texto completo vive en el title de arriba. */}
-                      {ibkrDataComplete ? t('100%', '100%') : t('parcial', 'partial')}
-                    </span>
-                  )}
+            <div key={seg.name} className="rounded-lg px-2 -mx-2 py-2.5 transition-colors hover:bg-theme-elevated"
+              style={{ borderBottom: '1px solid var(--card-border)' }}>
+              {/* Teléfono: nombre y valor arriba, barra con % y retorno debajo */}
+              <div className="sm:hidden">
+                <div className="flex items-center justify-between gap-3 mb-1.5">
+                  {nameBlock}
+                  <span className="text-sm text-white font-mono tabular-nums shrink-0">{formatCurrency(seg.value)}</span>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span
-                    className="text-xs w-14 text-right"
-                    style={seg.returnPct == null ? { color: 'var(--text-muted)' } : { color: seg.returnPct >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}
-                  >
-                    {/* 2 decimals, same as InstitutionPerformance and the YTD headline: the
-                        same return shown three ways must not read as three numbers. */}
-                    {seg.returnPct == null ? '-' : `${seg.returnPct >= 0 ? '+' : ''}${seg.returnPct.toFixed(2)}%`}
-                  </span>
-                  <span className="text-sm text-white font-mono tabular-nums text-right min-w-[80px]">
-                    {formatCurrency(seg.value)}
-                  </span>
-                  <span className="text-xs text-slate-500 w-12 text-right">
-                    {seg.pct.toFixed(1)}%
-                  </span>
+                <div className="flex items-center gap-2">
+                  {bar}
+                  <span className="text-xs text-slate-500 tabular-nums w-11 text-right">{seg.pct.toFixed(1)}%</span>
+                  <span className="text-xs tabular-nums w-16 text-right" style={{ color: tone(seg.returnPct) }}>{returnText}</span>
                 </div>
               </div>
 
-              {/* Bar track + fill */}
-              <div
-                className="rounded-full overflow-hidden"
-                style={{ height: 6, backgroundColor: 'var(--bg-tertiary)' }}
-              >
-                <div
-                  className="h-full rounded-full bar-fill"
-                  style={{
-                    width: `${Math.max(seg.pct, 0.5)}%`,
-                    backgroundColor: seg.color,
-                  }}
-                />
+              {/* Tabla desde sm */}
+              <div className={`hidden sm:grid ${COLS} gap-x-4 items-center`}>
+                {nameBlock}
+                <span className="text-xs text-right tabular-nums" style={{ color: 'var(--text-muted)' }}>{seg.count}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  {bar}
+                  <span className="text-xs text-slate-500 tabular-nums w-12 text-right shrink-0">{seg.pct.toFixed(1)}%</span>
+                </div>
+                <span className="text-sm text-white font-mono tabular-nums text-right">{formatCurrency(seg.value)}</span>
+                <span className="text-sm font-mono tabular-nums text-right" style={{ color: tone(seg.gain) }}>{signed(seg.gain)}</span>
+                <span className="text-sm tabular-nums text-right" style={{ color: tone(seg.returnPct) }}>{returnText}</span>
               </div>
             </div>
           )
