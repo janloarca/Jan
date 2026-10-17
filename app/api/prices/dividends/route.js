@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { fetchWithRetry } from '@/lib/fetchWithRetry'
-import { ttmAnnualDividend, projectNextDate } from '@/lib/dividendSchedule'
+import { ttmAnnualDividend, projectNextDate, paymentMonthsFrom, monthOfISO } from '@/lib/dividendSchedule'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,9 +72,9 @@ async function fetchDividendInfo(symbol) {
     // febrero no existe) y el corrimiento se quedaba para siempre.
     const nextExDate = projectNextDate(lastDiv.date.getTime(), monthsApart)
 
-    const paymentMonths = []
-    const baseMonth = lastDiv.date.getMonth()
-    for (let i = 0; i < 12; i += monthsApart) paymentMonths.push((baseMonth + i) % 12)
+    // Respaldo anclado al mes del ex-dividendo; el GET lo corrige con la fecha
+    // de PAGO real cuando Yahoo la da.
+    const paymentMonths = paymentMonthsFrom(lastDiv.date.getUTCMonth(), monthsApart)
 
     // FASE II: el rendimiento suma lo REALMENTE pagado en los últimos 12 meses
     // (TTM). "Último pago × frecuencia" solo acierta en pagadores parejos y en
@@ -98,7 +98,8 @@ async function fetchDividendInfo(symbol) {
       dividendYield: Math.round(dividendYield * 100) / 100,
       yieldMethod: ttm != null ? 'ttm' : 'extrapolated',
       frequency,
-      paymentMonths: paymentMonths.sort((a, b) => a - b),
+      paymentMonths,
+      monthsApart,
       // Compat: nextPaymentDate sigue existiendo con la proyección de ex-date.
       // El GET del alta lo REEMPLAZA con la fecha de pago real cuando Yahoo la
       // da (paymentDateIsReal pasa a true); los consumidores viejos no cambian.
@@ -136,6 +137,8 @@ export async function GET(request) {
     if (payDate) {
       info.nextPaymentDate = payDate
       info.paymentDateIsReal = true
+      const realMonth = monthOfISO(payDate)
+      if (realMonth != null) info.paymentMonths = paymentMonthsFrom(realMonth, info.monthsApart)
     }
   }
   return NextResponse.json(info, {
