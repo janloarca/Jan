@@ -4,6 +4,10 @@ import { useMemo, useState } from 'react'
 import { formatCurrency, getTypeCategory, projectItemAnnualIncome, itemLabel } from './utils'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { ymOfDate } from '@/lib/dateParts'
+import { buildReceivedByMonth, projectNext12, yoySamePeriod, incomeTypeOf, monthKey as monthKeyOf } from '@/lib/incomeBreakdown'
+import useModalExit from '@/hooks/useModalExit'
+import ModalMount from '@/components/ui/ModalMount'
+import IncomeMonthModal from './IncomeMonthModal'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 
 // Subtítulo de grupo. La card llevaba ONCE bloques bajo un solo título, así que
@@ -108,6 +112,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   // direcciones del tiempo, así que tener dos meses resaltados a la vez
   // invitaría a compararlos como si fueran el mismo dato.
   const [selectedBar, setSelectedBar] = useState(null)
+  // Popup de un mes (cobrado o por venir). Guarda el desglose completo y no
+  // solo la llave: durante la animacion de salida el modal sigue montado con el
+  // ultimo valor.
+  const [detail, setDetail] = useState(null)
+  const [detailShown, detailClosing] = useModalExit(detail)
   const t = (es, en) => lang === 'es' ? es : en
   const now = new Date()
 
@@ -115,16 +124,16 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     if (!items || items.length === 0) return { annualTotal: 0, sources: [], upcoming: [] }
 
     const now = new Date()
-    const currentMonth = now.getMonth()
     const sources = []
+    const byId = new Map(items.map((i) => [i.id, i]))
 
-    // Pagos del mes en curso que el motor (o el usuario) ya registró, por activo
+    // Pagos del mes en curso que el motor (o el usuario) ya registro, por activo
     // (reinvertidos incluidos: ya se pagaron). Se descuentan de lo "por venir".
     const paidThisMonth = new Set()
     ;(transactions || []).forEach((tx) => {
       if ((tx.type || '').toUpperCase() !== 'DIVIDEND' || !tx._linkedItemId) return
       const ym = ymOfDate(tx.date)
-      if (ym && ym.y === now.getFullYear() && ym.m === currentMonth) paidThisMonth.add(tx._linkedItemId)
+      if (ym && ym.y === now.getFullYear() && ym.m === now.getMonth()) paidThisMonth.add(tx._linkedItemId)
     })
 
     items.forEach((it) => {
@@ -137,59 +146,36 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       if (annual <= 0) return
 
       const converted = convert ? convert(annual, cur, baseCurrency || 'USD') : annual
-      const months = Array.isArray(it.incomeMonths) ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
+      // Un arreglo vacio no significa "ningun mes": proyectaba el ingreso a
+      // cero meses y lo sacaba del calendario. Igual que sin arreglo, todos.
+      const months = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0 ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
       const payDay = it.incomePayDay || 1
-
-      const cat = getTypeCategory(it.type)
-      const incomeType = cat === 'bonds' ? 'coupon' : cat === 'banks' ? 'interest' : 'dividend'
-      // El rótulo sale de `itemLabel`, la MISMA regla que usa la Hoja: para un
-      // activo de mercado manda el símbolo (es su identidad y cabe en la
-      // columna), para todo lo demás manda el nombre. Esta card leía
-      // `symbol || name`, o sea al revés, así que renombrar un bono de "RV4" a
-      // "Milésimo" en la Hoja no cambiaba nada acá: dos pantallas nombrando el
-      // mismo activo distinto.
-      // Rinde pero no sabemos EN QUE MESES paga: el calendario de abajo lo
-      // reparte parejo en los doce, o sea es un supuesto, y el motor de pagos
-      // no puede registrar nada sin un mes. Se avisa en vez de callarlo.
+      const dest = it.incomeDestination ? byId.get(it.incomeDestination) : null
+      // Rinde pero no sabemos EN QUE MESES paga: el calendario lo reparte parejo
+      // en los doce, o sea es un supuesto, y el motor de pagos no puede
+      // registrar nada sin un mes. Se avisa en vez de callarlo.
       const noCalendar = !Array.isArray(it.incomeMonths) || it.incomeMonths.length === 0
-      sources.push({ id: it.id, label: itemLabel(it), annual: converted, months, payDay, currency: cur, incomeType, noCalendar: noCalendar && it.rateType !== 'continuous' && cat !== 'banks' })
+      // El rotulo sale de `itemLabel`, la MISMA regla que usa la Hoja.
+      sources.push({
+        id: it.id, label: itemLabel(it), annual: converted, months, payDay, currency: cur,
+        incomeType: incomeTypeOf(it), destLabel: dest ? itemLabel(dest) : null,
+        reinvest: it.dividendAction === 'reinvest',
+        noCalendar: noCalendar && it.rateType !== 'continuous' && getTypeCategory(it.type) !== 'banks',
+      })
     })
 
+    // Los proximos 12 meses EMPIEZAN en el mes actual y descuentan lo ya
+    // cobrado este mes; el mismo recorrido alimenta la barra, el calendario y
+    // la lista de proximos pagos.
+    const next12 = projectNext12(sources, paidThisMonth, now)
     const upcoming = []
-    // Rolling forward-looking projection, THIS month through +11 (a real
-    // "next 12 months" window, not "however much of the current calendar year
-    // is left") — the counterpart to the trailing 12-month history chart
-    // below. Built off the same per-source months/perPayment math as
-    // `upcoming`, just walked out further and bucketed by month instead of
-    // kept as a flat list.
-    const next12 = []
-    for (let offset = 0; offset < 12; offset++) {
-      const m = (currentMonth + offset) % 12
-      const y = now.getFullYear() + (currentMonth + offset >= 12 ? 1 : 0)
-      next12.push({ key: `${y}-${String(m).padStart(2, '0')}`, month: m, year: y, value: 0 })
-    }
-    sources.forEach((s) => {
-      const perPayment = s.annual / (s.months.length || 12)
-      for (let offset = 0; offset < 12; offset++) {
-        const m = (currentMonth + offset) % 12
-        if (offset === 0 && paidThisMonth.has(s.id)) continue
-        if (s.months.includes(m)) {
-          next12[offset].value += perPayment
-          if (offset < 3) {
-            const y = now.getFullYear() + (currentMonth + offset >= 12 ? 1 : 0)
-            upcoming.push({ id: s.id, label: s.label, amount: perPayment, month: m, year: y, day: s.payDay })
-          }
-        }
-      }
-    })
+    next12.slice(0, 3).forEach((b) => b.rows.forEach((r) => {
+      upcoming.push({ id: r.id, label: r.label, amount: r.amount, month: b.month, year: b.year, day: r.day })
+    }))
     upcoming.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month) || a.day - b.day)
 
     const annualTotal = sources.reduce((s, x) => s + x.annual, 0)
     const next12Total = next12.reduce((s, m) => s + m.value, 0)
-    // "What's still coming this calendar year" — offset 0 is the current
-    // month, which may be partially elapsed, so it's included as-is (an
-    // estimate for the whole month, same convention incomeCalendar already
-    // uses) rather than trying to prorate a single in-progress month.
     const restOfYearTotal = next12
       .filter((m) => m.year === now.getFullYear())
       .reduce((s, m) => s + m.value, 0)
@@ -215,6 +201,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     let totalAll = 0
     let totalYTD = 0
     let totalThisMonth = 0
+    let ytdCount = 0
     const byMonth = {}
     const bySymbol = {}
 
@@ -230,7 +217,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         const m = ym.m
         const key = `${y}-${String(m).padStart(2, '0')}`
         byMonth[key] = (byMonth[key] || 0) + amt
-        if (y === thisYear) totalYTD += amt
+        if (y === thisYear) { totalYTD += amt; ytdCount += 1 }
         if (y === thisYear && m === thisMonth) totalThisMonth += amt
       }
     })
@@ -289,7 +276,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
 
     return {
       totalAll, totalYTD, totalThisMonth, avgMonthly, dailyAvg,
-      divCount: divs.length, byMonth, last6, maxBar, topPayers, monthly12, maxBar12,
+      divCount: divs.length, ytdCount, byMonth, last6, maxBar, topPayers, monthly12, maxBar12,
     }
   }, [transactions, items, convert, baseCurrency])
 
@@ -298,25 +285,29 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   // the yield for anyone with debt.
   const portfolioYield = totalAssets > 0 && estAnnual > 0 ? (estAnnual / totalAssets) * 100 : 0
 
-  const yoyComparison = useMemo(() => {
-    if (!transactions || transactions.length === 0) return null
-    const divs = transactions.filter(tx => (tx.type || '').toUpperCase() === 'DIVIDEND' && !isReinvestedDividend(tx, reinvestIndex(items)))
-    if (divs.length === 0) return null
-    const now = new Date()
-    const thisYear = now.getFullYear()
-    const lastYear = thisYear - 1
-    let thisYearTotal = 0, lastYearTotal = 0
-    divs.forEach(tx => {
-      const ym = ymOfDate(tx.date)
-      if (!ym) return
-      const amt = convert ? convert(tx.totalAmount ?? 0, tx.currency || 'USD', baseCurrency || 'USD') : (tx.totalAmount ?? 0)
-      if (ym.y === thisYear) thisYearTotal += amt
-      if (ym.y === lastYear) lastYearTotal += amt
-    })
-    if (lastYearTotal === 0 && thisYearTotal === 0) return null
-    const growth = lastYearTotal > 0 ? ((thisYearTotal - lastYearTotal) / lastYearTotal) * 100 : null
-    return { thisYear: thisYearTotal, lastYear: lastYearTotal, growth }
-  }, [transactions, items, convert, baseCurrency])
+  const yoyComparison = useMemo(
+    () => yoySamePeriod({ transactions, items, convert, baseCurrency }),
+    [transactions, items, convert, baseCurrency]
+  )
+
+  const receivedByMonth = useMemo(
+    () => buildReceivedByMonth({ transactions, items, convert, baseCurrency }),
+    [transactions, items, convert, baseCurrency]
+  )
+
+  const openReceived = (key) => {
+    setSelectedBar(key)
+    const bucket = key && receivedByMonth[key]
+    if (bucket) setDetail({ kind: 'received', bucket })
+    else if (key) {
+      const [y, m] = key.split('-').map(Number)
+      setDetail({ kind: 'received', bucket: { key, year: y, month: m, total: 0, rows: [], reinvestedRows: [] } })
+    }
+  }
+  const openComing = (bucket) => {
+    setSelectedBar(bucket.key)
+    setDetail({ kind: 'coming', bucket })
+  }
 
   const incomeByType = useMemo(() => {
     const types = { dividend: 0, coupon: 0, interest: 0 }
@@ -346,15 +337,6 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       .sort((a, b) => b.converted - a.converted)
   }, [projected.sources, convert, baseCurrency])
 
-  const incomeCalendar = useMemo(() => {
-    const monthTotals = Array(12).fill(0)
-    projected.sources.forEach((s) => {
-      const perPayment = s.annual / (s.months.length || 12)
-      s.months.forEach((m) => { monthTotals[m] += perPayment })
-    })
-    return monthTotals
-  }, [projected.sources])
-
   const hasData = stats.divCount > 0 || projected.annualTotal > 0
   // This card lives inside the collapsible "Ingresos" section — returning null
   // left an expandable header that opened to nothing. Show guidance instead.
@@ -374,7 +356,6 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
   }
 
   const monthName = (m) => new Date(2024, m).toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
-  const calendarMax = Math.max(...incomeCalendar, 1)
   // UN solo máximo para las dos tiras de barras. Cada una escalaba contra el
   // suyo, así que una barra de $50 salía alta en la tira floja y baja en la
   // otra: comparar "lo que cobré" con "lo que viene" a ojo, que es para lo que
@@ -423,7 +404,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         return (
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-slate-500">{new Date().getFullYear() - 1}</span>
+              <span className="text-xs text-slate-500">
+                {new Date().getFullYear() - 1}{yoyComparison.samePeriod ? ` ${t('(mismo período)', '(same period)')}` : ` ${t('(año completo)', '(full year)')}`}
+              </span>
               <span className="text-xs text-slate-500">{new Date().getFullYear()} YTD</span>
             </div>
             <div className="relative flex items-center w-full rounded-full overflow-hidden" style={{ height: '24px' }}>
@@ -440,6 +423,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                 </span>
               )}
             </div>
+            {yoyComparison.samePeriod && yoyComparison.lastYearFull > yoyComparison.lastYear && (
+              <p className="text-caption mt-1" style={{ color: 'var(--text-muted)' }}>
+                {t(`El año pasado completo fue ${formatCurrency(yoyComparison.lastYearFull)}.`, `Full last year was ${formatCurrency(yoyComparison.lastYearFull)}.`)}
+              </p>
+            )}
           </div>
         )
       })()}
@@ -454,13 +442,15 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           <span className="text-xs text-slate-500">YTD</span>
           <span className="text-sm font-semibold block font-mono tabular-nums" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalYTD)}</span>
         </div>
-        <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
+        <button type="button" className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-left"
+          onClick={() => openReceived(monthKeyOf(now.getFullYear(), now.getMonth()))}
+          aria-label={t('Ver el detalle de este mes', 'See this month in detail')}>
           <span className="text-xs text-slate-500">{t('Este mes', 'This month')}</span>
-          <span className="text-sm font-semibold text-white block">{formatCurrency(stats.totalThisMonth)}</span>
-        </div>
+          <span className="text-sm font-semibold block font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(stats.totalThisMonth)}</span>
+        </button>
         <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-          <span className="text-xs text-slate-500">{t('Pagos', 'Payments')}</span>
-          <span className="text-sm font-semibold text-white block">{stats.divCount}</span>
+          <span className="text-xs text-slate-500">{t('Pagos YTD', 'Payments YTD')}</span>
+          <span className="text-sm font-semibold block font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{stats.ytdCount}</span>
         </div>
       </div>
 
@@ -470,10 +460,10 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           bars={stats.monthly12}
           max={barMax}
           color="var(--accent-green)"
-          label={t('Historial (12 meses)', 'History (12 months)')}
+          label={t('Historial (12 meses) · toca un mes', 'History (12 months) · tap a month')}
           monthName={monthName}
           selected={selectedBar}
-          onSelect={setSelectedBar}
+          onSelect={openReceived}
           lang={lang}
         />
       )}
@@ -541,10 +531,10 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           max={barMax}
           color="var(--accent-blue)"
           dim
-          label={t('Mes a mes (proyectado)', 'Month by month (projected)')}
+          label={t('Mes a mes (proyectado) · toca un mes', 'Month by month (projected) · tap a month')}
           monthName={monthName}
           selected={selectedBar}
-          onSelect={setSelectedBar}
+          onSelect={(key) => { const b = projected.next12.find((x) => x.key === key); if (b) openComing(b); else setSelectedBar(null) }}
           lang={lang}
         />
       )}
@@ -557,25 +547,31 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         </div>
       )}
 
-      {/* 12-month income calendar */}
+      {/* Calendario de los proximos 12 meses: EMPIEZA en el mes actual (con su
+          ano) y descuenta lo ya cobrado este mes, la misma cifra que la tira
+          "Mes a mes". Tocar un mes abre de que cuentas viene. */}
       {projected.sources.length > 0 && (
         <div className="mb-4">
-          <span className="text-xs text-slate-500 mb-2 block">{t('Calendario de ingresos', 'Income calendar')}</span>
+          <span className="text-xs text-slate-500 mb-2 block">{t('Calendario de ingresos · toca un mes', 'Income calendar · tap a month')}</span>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
-            {incomeCalendar.map((amt, m) => {
-              const paid = amt > 0
-              // Azul y no verde: este calendario sale del CALENDARIO configurado
-              // de cada fuente, o sea es proyeccion igual que la tira "Mes a
-              // mes" de arriba; el verde de la card es solo para lo cobrado.
+            {projected.next12.map((b) => {
+              const paid = b.value > 0
+              const current = b.offset === 0
+              const yearSuffix = b.year !== now.getFullYear() || b.month === 0 ? ` ${String(b.year).slice(2)}` : ''
               return (
-                <div key={m} className="text-center p-1.5 rounded-lg border transition-transform hover:scale-[1.03]" style={paid
-                  ? { backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }
-                  : { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: 'var(--card-border)' }}>
-                  <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{monthName(m)}</span>
+                <button key={b.key} type="button" onClick={() => openComing(b)}
+                  aria-label={`${monthName(b.month)} ${b.year}: ${paid ? formatCurrency(b.value) : t('sin pagos', 'no payments')}`}
+                  className="text-center p-1.5 rounded-lg border" style={{
+                    ...(paid
+                      ? { backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }
+                      : { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: 'var(--card-border)' }),
+                    outline: current ? '2px solid var(--accent-blue)' : 'none', outlineOffset: '-2px',
+                  }}>
+                  <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{monthName(b.month)}{yearSuffix}</span>
                   <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                    {paid ? formatCurrency(amt) : '-'}
+                    {paid ? formatCurrency(b.value) : '-'}
                   </span>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -589,7 +585,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           {incomeByType.map((bt) => (
             <div key={bt.type} className="flex-1 bg-theme-base rounded-lg p-2 border border-glass-border/50 text-center">
               <span className="text-xs text-slate-500 block">{bt.label}</span>
-              <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}/yr</span>
+              <span className="text-xs font-semibold text-white">{formatCurrency(bt.annual)}{t('/año', '/yr')}</span>
             </div>
           ))}
         </div>
@@ -603,7 +599,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               <div key={c.currency} className="flex items-center justify-between">
                 <span className="text-xs font-medium text-white">{c.currency}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400">{formatCurrency(c.original, c.currency)}/yr</span>
+                  <span className="text-xs text-slate-400">{formatCurrency(c.original, c.currency)}{t('/año', '/yr')}</span>
                   {c.currency !== (baseCurrency || 'USD') && (
                     <span className="text-xs text-slate-500">= {formatCurrency(c.converted)}</span>
                   )}
@@ -630,7 +626,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className="h-full rounded-full bar-fill" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-green)' }} />
                   </div>
-                  <span className="text-xs text-slate-400 w-20 text-right">{formatCurrency(s.annual)}/yr</span>
+                  <span className="text-xs text-slate-400 w-24 text-right whitespace-nowrap">{formatCurrency(s.annual)}{t('/año', '/yr')}</span>
                 </div>
               )
             })}
@@ -659,6 +655,18 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           </div>
         </div>
       )}
+
+      <ModalMount closing={detailClosing}>
+        {detailShown && (
+          <IncomeMonthModal
+            detail={detailShown}
+            onClose={() => { setDetail(null); setSelectedBar(null) }}
+            lang={lang}
+            baseCurrency={baseCurrency || 'USD'}
+            monthName={monthName}
+          />
+        )}
+      </ModalMount>
     </div>
   )
 }
