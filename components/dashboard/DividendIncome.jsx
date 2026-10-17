@@ -148,7 +148,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       // `symbol || name`, o sea al revés, así que renombrar un bono de "RV4" a
       // "Milésimo" en la Hoja no cambiaba nada acá: dos pantallas nombrando el
       // mismo activo distinto.
-      sources.push({ id: it.id, label: itemLabel(it), annual: converted, months, payDay, currency: cur, incomeType })
+      // Rinde pero no sabemos EN QUE MESES paga: el calendario de abajo lo
+      // reparte parejo en los doce, o sea es un supuesto, y el motor de pagos
+      // no puede registrar nada sin un mes. Se avisa en vez de callarlo.
+      const noCalendar = !Array.isArray(it.incomeMonths) || it.incomeMonths.length === 0
+      sources.push({ id: it.id, label: itemLabel(it), annual: converted, months, payDay, currency: cur, incomeType, noCalendar: noCalendar && it.rateType !== 'continuous' && cat !== 'banks' })
     })
 
     const upcoming = []
@@ -543,6 +547,14 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           onSelect={setSelectedBar}
           lang={lang}
         />
+      )}
+
+      {projected.sources.some((s) => s.noCalendar) && (
+        <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--alert-warn-bg)', color: 'var(--text-primary)', border: '1px solid var(--alert-warn-border)' }}>
+          {t('Sin calendario de pagos: ', 'No payment calendar: ')}
+          {projected.sources.filter((s) => s.noCalendar).map((s) => s.label).join(', ')}
+          {t('. Rinden, pero no sabemos en qué meses pagan, así que se reparten parejo en el año y no se registran pagos. Abre cada activo, Editar, y marca los meses.', '. They yield, but we do not know which months they pay, so the estimate is spread evenly and no payments get recorded. Open each asset, Edit, and set the months.')}
+        </div>
       )}
 
       {/* 12-month income calendar */}
