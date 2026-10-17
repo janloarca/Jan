@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { formatCurrency, projectItemAnnualIncome, itemLabel } from './utils'
+import { formatCurrency, getTypeCategory, projectItemAnnualIncome, itemLabel } from './utils'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
 import { ymOfDate } from '@/lib/dateParts'
 import { buildReceivedByMonth, projectNext12, yoySamePeriod, incomeTypeOf, monthKey as monthKeyOf } from '@/lib/incomeBreakdown'
@@ -151,11 +151,16 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       const months = Array.isArray(it.incomeMonths) && it.incomeMonths.length > 0 ? it.incomeMonths : [0,1,2,3,4,5,6,7,8,9,10,11]
       const payDay = it.incomePayDay || 1
       const dest = it.incomeDestination ? byId.get(it.incomeDestination) : null
+      // Rinde pero no sabemos EN QUE MESES paga: el calendario lo reparte parejo
+      // en los doce, o sea es un supuesto, y el motor de pagos no puede
+      // registrar nada sin un mes. Se avisa en vez de callarlo.
+      const noCalendar = !Array.isArray(it.incomeMonths) || it.incomeMonths.length === 0
       // El rotulo sale de `itemLabel`, la MISMA regla que usa la Hoja.
       sources.push({
         id: it.id, label: itemLabel(it), annual: converted, months, payDay, currency: cur,
         incomeType: incomeTypeOf(it), destLabel: dest ? itemLabel(dest) : null,
         reinvest: it.dividendAction === 'reinvest',
+        noCalendar: noCalendar && it.rateType !== 'continuous' && getTypeCategory(it.type) !== 'banks',
       })
     })
 
@@ -532,6 +537,14 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
           onSelect={(key) => { const b = projected.next12.find((x) => x.key === key); if (b) openComing(b); else setSelectedBar(null) }}
           lang={lang}
         />
+      )}
+
+      {projected.sources.some((s) => s.noCalendar) && (
+        <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--alert-warn-bg)', color: 'var(--text-primary)', border: '1px solid var(--alert-warn-border)' }}>
+          {t('Sin calendario de pagos: ', 'No payment calendar: ')}
+          {projected.sources.filter((s) => s.noCalendar).map((s) => s.label).join(', ')}
+          {t('. Rinden, pero no sabemos en qué meses pagan, así que se reparten parejo en el año y no se registran pagos. Abre cada activo, Editar, y marca los meses.', '. They yield, but we do not know which months they pay, so the estimate is spread evenly and no payments get recorded. Open each asset, Edit, and set the months.')}
+        </div>
       )}
 
       {/* Calendario de los proximos 12 meses: EMPIEZA en el mes actual (con su
