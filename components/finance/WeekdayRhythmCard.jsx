@@ -8,7 +8,7 @@ import { categoryLabel } from '@/lib/financeCategories'
 import { detectRecurringCharges, annualPaymentsOfMonth } from '@/lib/recurringCharges'
 import { formatFinanceDate } from '@/lib/financeMonth'
 import {
-  buildSpendingRhythm, windowRange, monthKeysBetween, MIN_WEEKS_OBSERVED,
+  buildSpendingRhythm, dailySpendStats, windowRange, monthKeysBetween, MIN_WEEKS_OBSERVED,
   RHYTHM_WINDOWS, WIDEST_RHYTHM_MONTHS,
 } from '@/lib/spendingByWeekday'
 import { nowDateKey, weekdayRhythmHasContent } from '@/lib/financeSections'
@@ -41,6 +41,9 @@ export default function WeekdayRhythmCard({
   const t = (es, en) => (lang === 'es' ? es : en)
   const [months, setMonths] = useState(3)
   const [picked, setPicked] = useState(null)
+  // Con qué vara se juzga cada día de la semana. El promedio cuenta todo; la
+  // mediana ignora los cargos grandes e inusuales (la prima anual, un viaje).
+  const [stat, setStat] = useState('avg')
 
   const todayKey = today || nowDateKey()
   const labelIndex = useMemo(() => buildMerchantLabelIndex(transactions, rules), [transactions, rules])
@@ -64,8 +67,18 @@ export default function WeekdayRhythmCard({
 
   const range = useMemo(() => windowRange(months, todayKey), [months, todayKey])
   const rhythm = useMemo(() => buildSpendingRhythm(transactions, {
-    fromDate: range?.fromDate, toDate: range?.toDate, convert, labelIndex, annualDates,
-  }), [transactions, range, convert, labelIndex, annualDates])
+    fromDate: range?.fromDate, toDate: range?.toDate, convert, labelIndex, annualDates, stat,
+  }), [transactions, range, convert, labelIndex, annualDates, stat])
+
+  // Gasto por día en CADA ventana a la vez, con promedio y mediana: es una
+  // comparación entre ventanas, así que no depende de la que está elegida.
+  const dailyByWindow = useMemo(() => RHYTHM_WINDOWS.map((n) => {
+    const r = windowRange(n, todayKey)
+    const rh = buildSpendingRhythm(transactions, {
+      fromDate: r?.fromDate, toDate: r?.toDate, convert, labelIndex,
+    })
+    return { months: n, ...dailySpendStats(rh.days) }
+  }), [transactions, convert, labelIndex, todayKey])
 
   // Un portafolio sin un solo gasto no gana una card vacía. Se pregunta con el
   // selector COMPARTIDO (lib/financeSections.js), que es el mismo que decide si
@@ -96,7 +109,9 @@ export default function WeekdayRhythmCard({
   }
 
   const { claim, profile } = rhythm
-  const maxAvg = Math.max(...profile.map((p) => p.avg), 1)
+  const maxAvg = Math.max(...profile.map((p) => p.value), 1)
+  const isMedian = stat === 'median'
+  const statWord = isMedian ? t('de mediana', 'median') : t('en promedio', 'on average')
   const sel = picked ? rhythm.days.find((d) => d.date === picked) : null
 
   // La frase del día caro. Se arma por partes porque cada una tiene su propia
@@ -162,11 +177,48 @@ export default function WeekdayRhythmCard({
         ) : t('Tocá un día para ver su monto.', 'Tap a day to see its amount.')}
       </p>
 
-      {/* ── SENSIBILIDAD ── */}
+      {/* ── GASTO POR DÍA ── */}
+      {/* Cuánto sale en un día cualquiera, con las dos varas lado a lado y para
+          cada ventana: la diferencia entre promedio y mediana ES la señal de
+          cuánto pesan los gastos grandes e inusuales. */}
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--card-border)' }}>
         <p className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>
-          {t('Promedio por día de la semana', 'Average by day of week')}
+          {t('Gasto por día', 'Spending per day')}
         </p>
+        <div className="grid items-center gap-x-3 gap-y-1 text-[11px] max-w-[560px]" style={{ gridTemplateColumns: 'minmax(0,1fr) 4.5rem 4.5rem' }}>
+          <span aria-hidden="true" />
+          <span className="text-right" style={{ color: 'var(--text-muted)' }}>{t('Promedio', 'Average')}</span>
+          <span className="text-right" style={{ color: 'var(--text-muted)' }}>{t('Mediana', 'Median')}</span>
+          {dailyByWindow.map((w) => (
+            <DailyRow key={w.months} w={w} fmt={fmt} t={t} />
+          ))}
+        </div>
+        <p className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
+          {t(
+            'La mediana es el día típico: ignora los gastos grandes e inusuales. Si el promedio sale mucho más alto, algo grande lo está jalando.',
+            'The median is the typical day: it ignores big unusual expenses. If the average is much higher, something big is pulling it up.'
+          )}
+        </p>
+      </div>
+
+      {/* ── SENSIBILIDAD ── */}
+      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--card-border)' }}>
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            {isMedian ? t('Mediana por día de la semana', 'Median by day of week') : t('Promedio por día de la semana', 'Average by day of week')}
+          </p>
+          <SegmentedTabs
+            variant="range"
+            value={stat}
+            onChange={setStat}
+            deps={[lang]}
+            ariaLabel={t('Promedio o mediana', 'Average or median')}
+            tabs={[
+              { key: 'avg', label: t('Promedio', 'Average'), title: t('Cuenta todos los gastos, incluso los grandes e inusuales', 'Counts every expense, including big unusual ones') },
+              { key: 'median', label: t('Mediana', 'Median'), title: t('El día típico: ignora los gastos grandes e inusuales', 'The typical day: ignores big unusual expenses') },
+            ]}
+          />
+        </div>
         <div className="flex flex-col gap-1">
           {profile.map((p) => {
             const isTop = claim.top && p.weekday === claim.top.weekday
@@ -180,13 +232,13 @@ export default function WeekdayRhythmCard({
                   <span
                     className="block h-full rounded-full bar-fill"
                     style={{
-                      width: `${Math.max(p.avg > 0 ? 3 : 0, (Math.max(0, p.avg) / maxAvg) * 100)}%`,
+                      width: `${Math.max(p.value > 0 ? 3 : 0, (Math.max(0, p.value) / maxAvg) * 100)}%`,
                       backgroundColor: isTop ? 'var(--text-negative)' : 'color-mix(in srgb, var(--text-negative) 45%, transparent)',
                     }}
                   />
                 </span>
                 <span className="text-[11px] text-right tabular-nums" style={{ color: isTop ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                  {fmt(p.avg)}
+                  {fmt(p.value)}
                 </span>
                 <span className="sr-only">
                   {t(`${p.occurrences} ${dayNames[p.weekday]} observados`, `${p.occurrences} ${dayNames[p.weekday]}s observed`)}
@@ -208,8 +260,15 @@ export default function WeekdayRhythmCard({
 
           {claim.status === 'flat' && (
             <p>{t(
-              `Tus días son parejos: el ${topName} es el más caro con ${fmt(claim.top.avg)} de promedio, pero ninguno se despega de los demás.`,
-              `Your days are even: ${topName} is the priciest at ${fmt(claim.top.avg)} on average, but none really stands out.`
+              `Tus días son parejos: el ${topName} es el más caro con ${fmt(claim.top.value)} ${statWord}, pero ninguno se despega de los demás.`,
+              `Your days are even: ${topName} is the priciest at ${fmt(claim.top.value)} ${statWord}, but none really stands out.`
+            )}</p>
+          )}
+
+          {claim.status === 'zero' && (
+            <p>{t(
+              'Con la mediana, un día típico de la semana sale en Q0: casi siempre se gasta en pocos días y el resto queda vacío. Cambiá a Promedio para ver el peso de los días con gasto.',
+              'By median, a typical day of the week comes out at Q0: spending usually lands on a few days and the rest stay empty. Switch to Average to see the weight of the days you do spend.'
             )}</p>
           )}
 
@@ -223,21 +282,21 @@ export default function WeekdayRhythmCard({
             <p style={{ color: 'var(--text-secondary)' }}>
               {claim.overPct != null && !claim.top.pulledBy
                 ? t(
-                  `Los ${topName} gastás ${fmt(claim.top.avg)} en promedio, un ${Math.round(claim.overPct)}% más que un día normal.`,
-                  `On ${topName}s you spend ${fmt(claim.top.avg)} on average, ${Math.round(claim.overPct)}% more than a typical day.`
+                  `Los ${topName} gastás ${fmt(claim.top.value)} ${statWord}, un ${Math.round(claim.overPct)}% más que un día normal.`,
+                  `On ${topName}s you spend ${fmt(claim.top.value)} ${statWord}, ${Math.round(claim.overPct)}% more than a typical day.`
                 )
                 : t(
-                  `El ${topName} es tu día más caro: ${fmt(claim.top.avg)} en promedio.`,
-                  `${topName} is your priciest day: ${fmt(claim.top.avg)} on average.`
+                  `El ${topName} es tu día más caro: ${fmt(claim.top.value)} ${statWord}.`,
+                  `${topName} is your priciest day: ${fmt(claim.top.value)} ${statWord}.`
                 )}
               {clause}
             </p>
           )}
 
-          {claim.status !== 'insufficient' && claim.bottom && claim.bottom.weekday !== claim.top?.weekday && (
+          {claim.status !== 'insufficient' && claim.status !== 'zero' && claim.bottom && claim.bottom.weekday !== claim.top?.weekday && (
             <p>{t(
-              `El más barato es el ${dayNames[claim.bottom.weekday]}: ${fmt(claim.bottom.avg)}.`,
-              `The cheapest is ${dayNames[claim.bottom.weekday]}: ${fmt(claim.bottom.avg)}.`
+              `El más barato es el ${dayNames[claim.bottom.weekday]}: ${fmt(claim.bottom.value)}.`,
+              `The cheapest is ${dayNames[claim.bottom.weekday]}: ${fmt(claim.bottom.value)}.`
             )}</p>
           )}
 
@@ -304,6 +363,22 @@ function WeekRow({ wk, shade, picked, setPicked, todayKey, fmt, fmtExact, shortD
       <span className="text-[11px] text-right tabular-nums self-center" style={{ color: 'var(--text-muted)' }}>
         {fmt(wk.total)}
       </span>
+    </>
+  )
+}
+
+function DailyRow({ w, fmt, t }) {
+  const label = w.months === 1
+    ? t('Este mes', 'This month')
+    : w.months === 12 ? t('12 meses', '12 months') : t(`${w.months} meses`, `${w.months} months`)
+  return (
+    <>
+      <span style={{ color: 'var(--text-primary)' }}>
+        {label}
+        <span style={{ color: 'var(--text-muted)' }}> · {t(`${w.days} días`, `${w.days} days`)}</span>
+      </span>
+      <span className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{w.days ? fmt(w.avg) : '-'}</span>
+      <span className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{w.days ? fmt(w.median) : '-'}</span>
     </>
   )
 }
