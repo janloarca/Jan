@@ -28,7 +28,7 @@ function maturityBucketKey(it) {
   return 'over3y'
 }
 
-export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency, ibkrDataComplete }) {
+export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency, ibkrDataComplete, embedded = false }) {
   const [view, setView] = useState('type')
 
   const allocation = useMemo(() => {
@@ -160,12 +160,12 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
   const tone = (n) => (n == null ? 'var(--text-muted)' : n >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')
 
   return (
-    <div className="card p-4 sm:p-5">
+    <div className={embedded ? '' : 'card p-4 sm:p-5'}>
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="card-title">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
-          {t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
+        <h3 className={`card-title${embedded ? ' card-title-quiet' : ''}`}>
+          {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />}
+          {embedded ? t('Asignación de activos', 'Asset allocation') : t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
           <InfoTip text={t(
             'El % de retorno es propio de cada grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambiá la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte. Tus deudas no entran acá: se restan en el patrimonio de arriba.',
             'The return % is each group\'s own: gain ÷ what you invested in it (includes entry costs, excludes new capital). Switch the view to group the same holdings by type, institution, maturity and more: the total never changes, only how it is split. Your debts are not in here: they subtract in the net worth above.'
