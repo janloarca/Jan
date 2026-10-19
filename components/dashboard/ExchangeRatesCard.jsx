@@ -60,9 +60,9 @@ export default function ExchangeRatesCard({
   return (
     <div className={embedded ? 'pt-3 mt-3' : 'card p-4 sm:p-5 h-full'} style={embedded ? { borderTop: '1px solid var(--glass-border)' } : undefined}>
       <div className="flex items-center justify-between gap-2 mb-1">
-        <h3 className="card-title">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />
-          {t('POR MONEDA Y TIPO DE CAMBIO', 'BY CURRENCY & RATES')}
+        <h3 className={`card-title${embedded ? ' card-title-quiet' : ''}`}>
+          {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)' }} />}
+          {embedded ? t('Por moneda y tipo de cambio', 'By currency & rates') : t('POR MONEDA Y TIPO DE CAMBIO', 'BY CURRENCY & RATES')}
           <InfoTip text={t(
             'Las tasas con las que se está convirtiendo tu patrimonio ahora mismo. Solo se listan las monedas que tienes. El dólar es el ancla: las demás se leen como cuántas unidades hay en un dólar.',
             'The rates your net worth is being converted with right now. Only the currencies you hold are listed. The dollar is the anchor: the others read as how many units make one dollar.'

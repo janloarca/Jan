@@ -30,7 +30,7 @@ import { computeInvestedByYear } from '@/lib/investedByYear'
 //    hoy, exacto por construcción. Antes el total imprimía "-" y tiraba a la
 //    basura tanto la suma de los años medidos como el residuo, que es un
 //    número real y calculable.
-export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, totalAssets = null, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es', fxItems = null, rates, ratesUpdate, ratesStale, ratesLoading }) {
+export default function InvestedByYearCard({ transactions, items, snapshots, netWorth, totalAssets = null, returnYTD, ytdChange, ytdStartValue, convert, baseCurrency = 'USD', lang = 'es', fxItems = null, rates, ratesUpdate, ratesStale, ratesLoading, embedded = false }) {
   // FASE LV: la identidad del pie cierra contra los ACTIVOS (el universo del
   // rendimiento, FASE LU); sin el prop, netWorth: en un portafolio sin deuda
   // son el mismo número y nada cambia.
@@ -51,7 +51,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
   // Sin historial de aportes pero con varias monedas, la sección de monedas
   // sola sigue valiendo: se dibuja en su propia card en vez de desaparecer.
   if (!data.hasData) {
-    return fxItems ? <ExchangeRatesCard items={fxItems} rates={rates} baseCurrency={baseCurrency}
+    return fxItems ? <ExchangeRatesCard embedded={embedded} items={fxItems} rates={rates} baseCurrency={baseCurrency}
       ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} lang={lang} /> : null
   }
 
@@ -68,11 +68,11 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
   // columna vecina y el bloque de patrimonio queda pegado abajo, de modo que
   // las dos columnas terminan en la misma línea.
   return (
-    <div className="card p-4 sm:p-5 h-full flex flex-col">
+    <div className={embedded ? 'flex flex-col' : 'card p-4 sm:p-5 h-full flex flex-col'}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="card-title">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
-          {t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
+        <h3 className={`card-title${embedded ? ' card-title-quiet' : ''}`}>
+          {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />}
+          {embedded ? t('Invertido por año', 'Invested by year') : t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
         </h3>
         <InfoTip text={t(
           'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). El % es el RENDIMIENTO del año: se mide contra el valor con el que arrancaste ese año, no contra lo que invertiste en él. Un "-" en Ganado significa que el archivo no tiene datos de valor suficientes de ese año para medirlo; un año con "-" en las dos columnas es un año del que el archivo no tiene nada, y aparece igual para que la lista no salte años. La fila "Sin repartir por año" es lo que falta para llegar a tus activos de hoy: casi todo es la ganancia de esos años. Toca un año para ver su valor de arranque y el detalle.',

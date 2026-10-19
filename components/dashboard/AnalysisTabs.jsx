@@ -19,7 +19,7 @@ const PerformanceAttribution = dynamic(() => import('@/components/dashboard/Perf
 const RiskMetrics = dynamic(() => import('@/components/dashboard/RiskMetrics'), { loading: () => <SkeletonCard /> })
 const BenchmarkComparison = dynamic(() => import('@/components/dashboard/BenchmarkComparison'), { loading: () => <SkeletonCard /> })
 
-export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, beginnerMode, onConnect, onImportBroker, brokersOn = true }) {
+export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAssets, snapshots, lots, transactions, convert, baseCurrency, benchmarkData, benchmarkName, benchmarkReturn, portfolioReturn, beginnerMode, onConnect, onImportBroker, brokersOn = true, embedded = false }) {
   const t = (es, en) => lang === 'es' ? es : en
   const hasLots = lots && lots.length > 0
 
@@ -68,12 +68,12 @@ export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAsse
   const activeTab = activeFamily.views.some((v) => v.key === tab) ? tab : activeFamily.views[0].key
 
   return (
-    <div className="card p-4 sm:p-5">
+    <div className={embedded ? '' : 'card p-4 sm:p-5'}>
       {/* Header — mirrors AssetAllocation's so the two read as one pair */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="card-title">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />
-          {t('ANÁLISIS', 'ANALYSIS')}
+        <h3 className={`card-title${embedded ? ' card-title-quiet' : ''}`}>
+          {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />}
+          {embedded ? t('Análisis', 'Analysis') : t('ANÁLISIS', 'ANALYSIS')}
           <InfoTip text={t(
             'Distintas lecturas del mismo portafolio, agrupadas por la pregunta que contestan. Ninguna pestaña cambia tus datos.',
             'Different readings of the same portfolio, grouped by the question each one answers. No tab changes your data.'

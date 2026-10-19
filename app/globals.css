@@ -737,6 +737,15 @@ html[data-ptr="on"] body {
  * de una clase de Tailwind: `.text-slate-400` solo se ve bien en tema claro
  * porque globals lo remapea con !important más abajo, que es una indirección
  * que no hace falta pagar acá. */
+/* Título de sección DENTRO de un bloque unificado (modo `embedded`): sin
+   mayúsculas ni punto de color, en tinta primaria. Solo diseño. */
+.card-title.card-title-quiet {
+  font-size: 0.875rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+
 .card-title {
   font-size: 0.8125rem;
   line-height: 1.38;
