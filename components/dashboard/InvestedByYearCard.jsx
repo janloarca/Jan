@@ -72,7 +72,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
       <div className="flex items-center justify-between mb-3">
         <h3 className={`card-title${embedded ? ' card-title-quiet' : ''}`}>
           {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />}
-          {embedded ? t('Invertido por año', 'Invested by year') : t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
+          {!embedded && t('INVERTIDO POR AÑO', 'INVESTED BY YEAR')}
         </h3>
         <InfoTip text={t(
           'Invertido = depósitos menos retiros de ese año en todas tus cuentas, descontando comisiones de entrada. Sin ganancias ni intereses, y el dinero movido entre tus propias cuentas no cuenta. Ganado = lo que rindieron las inversiones ese año, neto de tus aportes (método Dietz, el mismo del YTD). El % es el RENDIMIENTO del año: se mide contra el valor con el que arrancaste ese año, no contra lo que invertiste en él. Un "-" en Ganado significa que el archivo no tiene datos de valor suficientes de ese año para medirlo; un año con "-" en las dos columnas es un año del que el archivo no tiene nada, y aparece igual para que la lista no salte años. La fila "Sin repartir por año" es lo que falta para llegar a tus activos de hoy: casi todo es la ganancia de esos años. Toca un año para ver su valor de arranque y el detalle.',

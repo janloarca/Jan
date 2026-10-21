@@ -73,7 +73,7 @@ export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAsse
       <div className="flex items-center justify-between mb-3">
         <h3 className={`card-title${embedded ? ' card-title-quiet' : ''}`}>
           {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-purple)' }} />}
-          {embedded ? t('Análisis', 'Analysis') : t('ANÁLISIS', 'ANALYSIS')}
+          {!embedded && t('ANÁLISIS', 'ANALYSIS')}
           <InfoTip text={t(
             'Distintas lecturas del mismo portafolio, agrupadas por la pregunta que contestan. Ninguna pestaña cambia tus datos.',
             'Different readings of the same portfolio, grouped by the question each one answers. No tab changes your data.'
