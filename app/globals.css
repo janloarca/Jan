@@ -1423,3 +1423,25 @@ html[data-journey="1"] .fixed.inset-0.z-50 > * {
   .world-scene .w-walk, .world-scene .w-bob, .world-scene .w-sway,
   .world-scene .w-blink, .world-scene .w-spin, .world-scene .w-swing { animation: none !important; }
 }
+
+
+/* ─── APP INSTALADA EN LA PANTALLA DE INICIO ───────────────────────────────
+   Dentro del navegador estas reglas no aplican (display-mode: browser), asi
+   que una pestana normal no cambia. Instalada, la app deja de tener barra de
+   direcciones y de recarga, y se siente nativa o se siente una web rara segun
+   estos detalles. */
+html {
+  /* El rebote elastico de iOS y el area detras del status bar enseñan ESTE
+     fondo, no el del body: sin el, en la app instalada se asoma blanco. */
+  background-color: var(--bg-primary);
+}
+@media (display-mode: standalone) {
+  /* Chrome de la interfaz (navegacion, botones, encabezados): no se
+     selecciona ni abre el menu de "copiar" al mantener presionado. Los
+     numeros y el texto de contenido SI siguen seleccionables. */
+  header, nav, button, [role="tab"], [role="button"], .fixed.bottom-0 {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

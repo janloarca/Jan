@@ -71,7 +71,7 @@ export default function IBKRJourneyBar({
 
   return (
     <div ref={barRef} className="fixed top-0 inset-x-0 z-[60] px-3 sm:px-4 py-2.5 flex items-center gap-2 sm:gap-3"
-      style={{ backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}>
+      style={{ paddingTop: 'calc(0.625rem + env(safe-area-inset-top, 0px))', backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--card-border)', boxShadow: 'var(--shadow-modal)' }}>
 
       <div className="flex items-center shrink-0">
         {Array.from({ length: total }, (_, i) => {
