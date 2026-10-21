@@ -25,6 +25,7 @@ import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
 import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import AnalysisTabs from '@/components/dashboard/AnalysisTabs'
+import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -1680,32 +1681,36 @@ export default function DashboardPage() {
                     vivía InstitutionPerformance (INST-01): sus filas repetían la
                     vista "Inst." de Asignación y no se monta; el componente y su
                     fórmula siguen en disco. */}
-                {/* Diseño: UN solo bloque. Asignación, Análisis e Invertido por
-                    año (con monedas adentro) dejan de ser tres cards con marco
-                    propio y pasan a secciones de la misma card, separadas por
-                    una línea fina y con títulos en tinta normal. Cada una se
-                    monta con `embedded`; ninguna cifra ni fórmula se tocó. */}
-                <div className="card p-4 sm:p-6 space-y-6 sm:space-y-8">
-                <CardBoundary id="OR-02" className="min-w-0"><AssetAllocation embedded items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
+                {/* Diseño: UN solo bloque con UNA sección visible a la vez
+                    (Asignación / Análisis / Invertido por año, con monedas
+                    adentro). Cada sección es el componente de siempre en modo
+                    `embedded`; ninguna cifra ni fórmula se tocó. */}
+                <PortfolioBlock
+                  lang={lang}
+                  sections={[
+                    { key: 'allocation', label: lang === 'es' ? 'Asignación' : 'Allocation', node: (
+                      <CardBoundary id="OR-02" className="min-w-0"><AssetAllocation embedded items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} ibkrDataComplete={brokersOn ? ibkrDataComplete : null} /></CardBoundary>
+                    ) },
+                    { key: 'analysis', label: lang === 'es' ? 'Análisis' : 'Analysis', node: (
+                      <CardBoundary id="AN-00" className="min-w-0">
+                        <AnalysisTabs
+                          embedded
+                          lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
+                          snapshots={augmentedSnapshots} lots={lots} transactions={assetTransactions}
+                          convert={convert} baseCurrency={baseCurrency}
+                          benchmarkData={benchmarkData} benchmarkName={benchmarkName}
+                          benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
+                          beginnerMode={beginnerMode} brokersOn={brokersOn}
+                          onConnect={brokersOn ? handleOpenConnections : null} onImportBroker={brokersOn ? handleOpenImport : null}
+                        />
+                      </CardBoundary>
+                    ) },
+                    { key: 'invested', label: lang === 'es' ? 'Por año' : 'By year', node: (
+                      <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard embedded transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
+                    ) },
+                  ]}
+                />
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-start pt-6 sm:pt-8" style={{ borderTop: '1px solid var(--glass-border)' }}>
-                  <CardBoundary id="AN-00" className="min-w-0">
-                    <AnalysisTabs
-                      embedded
-                      lang={lang} portfolioItems={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-                      snapshots={augmentedSnapshots} lots={lots} transactions={assetTransactions}
-                      convert={convert} baseCurrency={baseCurrency}
-                      benchmarkData={benchmarkData} benchmarkName={benchmarkName}
-                      benchmarkReturn={benchmarkReturn} portfolioReturn={returnYTD}
-                      beginnerMode={beginnerMode} brokersOn={brokersOn}
-                      onConnect={brokersOn ? handleOpenConnections : null} onImportBroker={brokersOn ? handleOpenImport : null}
-                    />
-                  </CardBoundary>
-                  <div className="space-y-4 sm:space-y-6 min-w-0 lg:pl-8 lg:border-l border-glass-border" style={{ borderColor: 'var(--glass-border)' }}>
-                    <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard embedded transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
-                  </div>
-                </div>
-                </div>
 
                 {QUICK_ACTIONS_CARD_ENABLED && <CardBoundary id="ACT-01" className="hidden lg:block">{quickActions}</CardBoundary>}
               </div>
