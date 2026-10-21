@@ -123,7 +123,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
 
   return (
     <header className="border-b sticky top-0 z-20 bg-theme-base\/95"
-      style={{ borderColor: 'var(--card-border)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      style={{ borderColor: 'var(--card-border)', paddingTop: 'env(safe-area-inset-top, 0px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-4">

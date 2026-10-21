@@ -263,7 +263,7 @@ export default function PullToRefresh({
       aria-live="polite"
       style={{
         position: 'fixed',
-        top: 0,
+        top: 'env(safe-area-inset-top, 0px)',
         left: 0,
         right: 0,
         // DEBAJO del header (que es sticky z-20), a propósito: así el

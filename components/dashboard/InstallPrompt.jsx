@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Share } from 'lucide-react'
 import Logo from '@/components/ui/Logo'
 
 export default function InstallPrompt({ lang }) {
@@ -58,9 +59,13 @@ export default function InstallPrompt({ lang }) {
             {t('Instala Chispudo', 'Install Chispudo')}
           </p>
           <p className="text-xs text-slate-400">
-            {isIOS
-              ? t('Toca Compartir → Agregar a pantalla de inicio', 'Tap Share → Add to Home Screen')
-              : t('Acceso rápido desde tu pantalla de inicio', 'Quick access from your home screen')}
+            {isIOS ? (
+              <span className="inline-flex flex-wrap items-center gap-1">
+                {t('Toca', 'Tap')}
+                <Share size={12} aria-label={t('Compartir', 'Share')} style={{ color: 'var(--accent-blue)' }} />
+                {t('y luego "Agregar a pantalla de inicio": se abre a pantalla completa.', 'then "Add to Home Screen": it opens full screen.')}
+              </span>
+            ) : t('Acceso rápido desde tu pantalla de inicio', 'Quick access from your home screen')}
           </p>
         </div>
       </div>

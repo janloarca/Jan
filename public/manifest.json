@@ -1,22 +1,17 @@
 {
-  "name": "Chispudo — Portfolio Tracker",
+  "id": "/dashboard",
+  "name": "Chispudo: Portfolio Tracker",
   "short_name": "Chispudo",
   "description": "Track your entire portfolio. Built for Latin America.",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#0A0A12",
   "theme_color": "#0A0A12",
-  "orientation": "portrait-primary",
+  "categories": ["finance", "productivity"],
   "icons": [
-    {
-      "src": "/icon",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "/apple-icon",
-      "sizes": "180x180",
-      "type": "image/png"
-    }
+    { "src": "/icon", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/apple-icon", "sizes": "180x180", "type": "image/png" }
   ]
 }

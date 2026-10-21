@@ -20,7 +20,10 @@ export const metadata = {
     description: 'Track every asset type. Built for Latin America.',
   },
   metadataBase: new URL('https://chispu.xyz'),
-  // manifest: '/manifest.json',  // disabled — SW causes stale cache issues
+  // El manifest SE ACTIVA otra vez: lo que causaba el cache viejo era el
+  // service worker, y ese se desregistra en cada carga (script de abajo), asi
+  // que el manifest solo aporta nombre, icono, color y display standalone.
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -62,6 +65,20 @@ export default function RootLayout({ children }) {
         var tc = theme === 'light' ? '#F8F9FB' : '#0A0A12';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
         metas.forEach(function(m) { m.setAttribute('content', tc); });
+        // Fondo del documento ANTES de que pinte nada: sin esto, al abrir la
+        // app desde el icono hay un destello blanco mientras carga el CSS, y el
+        // rebote elastico de iOS enseña el fondo del navegador.
+        document.documentElement.style.backgroundColor = tc;
+        // Barra de estado de la app instalada. 'black-translucent' dibuja el
+        // reloj en BLANCO siempre, ilegible sobre el header claro: en tema
+        // claro se usa 'default' (texto oscuro, el contenido arranca debajo).
+        var sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (!sb) {
+          sb = document.createElement('meta');
+          sb.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
+          document.head.appendChild(sb);
+        }
+        sb.setAttribute('content', theme === 'light' ? 'default' : 'black-translucent');
       } catch(e) {}
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {

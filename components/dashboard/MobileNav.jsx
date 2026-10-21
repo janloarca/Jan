@@ -12,7 +12,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-theme-base\/95 border-t border-glass-border" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
+      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-theme-base\/95 border-t border-glass-border" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 4px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
         <div className="flex items-center justify-around h-14 px-2">
           <Link href="/dashboard" aria-label={t('Patrimonio', 'Net Worth')} className="flex flex-col items-center gap-0.5 transition-colors p-2.5 min-w-[44px] min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
             <Home size={20} />
@@ -88,7 +88,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
         </div>
       )}
 
-      <div className="sm:hidden" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }} />
+      <div className="sm:hidden" style={{ height: 'calc(3.5rem + max(env(safe-area-inset-bottom, 0px), 4px))' }} />
     </>
   )
 }
