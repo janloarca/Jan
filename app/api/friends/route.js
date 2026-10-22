@@ -1,3 +1,4 @@
+import { readBrokerStamps } from '@/lib/brokerSyncStamp'
 import { genPseudonym as genPseudonymFrom } from '@/lib/friendsPseudonyms'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
@@ -138,7 +139,10 @@ export async function POST(request) {
         if (prefs?.data?.friendsEnabled === false) {
           return NextResponse.json({ error: 'Friends is disabled', code: 'friends_disabled' }, { status: 403 })
         }
-        verification = brokerVerification(docs)
+        // Los sellos de sync salen de una colección que solo el Admin SDK
+        // escribe: el `lastSync` del vault vive bajo users/{uid}/** y el
+        // dueño puede reescribirlo, o sea no sirve como evidencia.
+        verification = brokerVerification(await readBrokerStamps(db, uid))
       } catch (err) {
         // Best-effort: un fallo de lectura no puede impedir publicar tus
         // números. Sin insignia es el lado correcto del error.

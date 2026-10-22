@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { stampBrokerSync } from '@/lib/brokerSyncStamp'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { retryRequest } from '@/lib/fetchWithRetry'
@@ -229,6 +230,7 @@ export async function POST(request) {
       }
 
       await getCredentialsPath(uid).set({ lastSync: new Date().toISOString() }, { merge: true })
+      await stampBrokerSync(uid, 'tradestation')
 
       return NextResponse.json({
         positions: allPositions,

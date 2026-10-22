@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { stampBrokerSync } from '@/lib/brokerSyncStamp'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { retryRequest } from '@/lib/fetchWithRetry'
@@ -293,6 +294,7 @@ export async function POST(request) {
       try {
         const docRef = getCredentialsPath(uid)
         await docRef.set({ lastSync: new Date().toISOString() }, { merge: true })
+        await stampBrokerSync(uid, 'tastytrade')
       } catch (err) {
         console.error('[api/tastytrade] lastSync update error:', err.message)
         // Non-fatal: still return positions

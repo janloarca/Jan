@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { stampBrokerSync } from '@/lib/brokerSyncStamp'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { retryRequest } from '@/lib/fetchWithRetry'
@@ -96,6 +97,7 @@ async function stampLastSync(uid) {
     if (!db) return
     await db.collection('users').doc(uid).collection('settings').doc('ibkr')
       .set({ lastSync: new Date().toISOString() }, { merge: true })
+      await stampBrokerSync(uid, 'ibkr')
   } catch (err) {
     console.error('[api/ibkr] lastSync update error:', err.message)
   }
