@@ -42,7 +42,7 @@ import { SkeletonCard, SkeletonChart, Shimmer } from '@/components/dashboard/Ske
 function ModalSkeleton() {
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center" role="status" aria-live="polite" aria-label="Loading">
-      <div className="bg-theme-card border border-glass-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="modal-glass w-full max-w-md mx-4 p-6">
         <Shimmer className="h-5 w-32 mb-4" />
         <div className="space-y-3">
           <Shimmer className="h-10" />
