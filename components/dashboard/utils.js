@@ -1152,6 +1152,11 @@ export function getGeographyFromItem(item) {
   if (item.assetCountry) return item.assetCountry
   const cat = getTypeCategory(item)
   if (cat === 'crypto') return 'Global'
+  // Un activo que NO cotiza (bono, cuenta, plazo fijo, coleccionable) trae un
+  // símbolo sintético armado del nombre: pasarlo por la tabla de tickers lo
+  // mandaba al default 'US' (BBVA México salía como EE.UU., el oro de Colombia
+  // también). Sin país declarado se dice que no se sabe.
+  if (!isMarketPriced(item)) return 'Unknown'
   return getGeographyFromSymbol(item.symbol)
 }
 

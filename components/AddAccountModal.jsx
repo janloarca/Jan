@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { validateItem } from '@/lib/validation'
+import { validateItem, maxPriceFor, translateValidationError } from '@/lib/validation'
 import InlineCreateAccount from './InlineCreateAccount'
 import { scopeTagFor } from '@/lib/scopeTag'
 import { addDefaults } from '@/lib/addDefaults'
@@ -21,7 +21,7 @@ import Switch from './ui/Switch'
 import SubIndustryField from '@/components/ui/SubIndustryField'
 import CountrySelect from '@/components/ui/CountrySelect'
 import { classificationSourceFor, showAutoDetected } from '@/lib/classificationSource'
-import { DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from './dashboard/utils'
+import { isMarketPriced, getTypeCategory, DEBT_CLARIFICATION, industryOptions, INVESTMENT_STYLE_LABELS, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from './dashboard/utils'
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
 import { debtOptions } from '@/lib/propertyEquity'
@@ -240,7 +240,19 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const set = (k, v) => { markDirty(); setForm(prev => ({ ...prev, [k]: v })) }
   const [creatingDest, setCreatingDest] = useState(null) // 'income' | 'capital' | null
   const [extraItems, setExtraItems] = useState([])
-  const destItems = useMemo(() => [...existingItems, ...extraItems], [existingItems, extraItems])
+  // El error vive arriba del formulario: en el paso 2 (largo) quedaba fuera de
+  // pantalla y "Registrar" parecía no hacer nada. Se lleva a la vista al aparecer.
+  useEffect(() => {
+    if (!error) return
+    document.getElementById('add-error')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  }, [error])
+  // Cuentas que de verdad pueden RECIBIR efectivo: no una deuda, un inmueble, un
+  // coleccionable/alternativo, ni una posición de mercado (su dinero va por lotes).
+  const destItems = useMemo(() => [...existingItems, ...extraItems].filter((it) => {
+    if (it.isDebt || isMarketPriced(it)) return false
+    const cat = getTypeCategory(it)
+    return cat !== 'realestate' && cat !== 'alternatives' && cat !== 'debts' && cat !== 'crypto'
+  }), [existingItems, extraItems])
   const handleDestCreated = (field, newId, newItem) => {
     setExtraItems(prev => [...prev, { id: newId, ...newItem }])
     set(field, newId)
@@ -446,6 +458,15 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // "Crear separado" elegido en silencio, sin que nadie lo eligiera.
     if (duplicateWarning) return
     if (isMarketAsset && !form.symbol) { setError(t('Busca y selecciona un activo', 'Search and select an asset')); return }
+    // Teclear "AAPL" y apretar Siguiente sin tocar la lista dejaba el activo sin
+    // nombre, sector ni cotización (o la lista abierta tapando el botón). Si
+    // la búsqueda ya trajo una coincidencia EXACTA del símbolo tecleado, se elige.
+    if (isMarketAsset && !form.name && searchResults.length > 0) {
+      const typed = form.symbol.trim().toUpperCase()
+      const exact = searchResults.find(r => (r.symbol || '').toUpperCase() === typed)
+      if (exact) handleSelectSymbol(exact)
+    }
+    setShowDropdown(false)
     if (!isMarketAsset && !form.name && !isBank) { setError(t('Ingresa el nombre', 'Enter the name')); return }
     if (isBank && !form.institution) { setError(t('Ingresa el banco', 'Enter the bank')); return }
 
@@ -484,6 +505,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // caen a hoy con su propio `|| new Date()`, y `effectiveAcqDate` cae a enero
     // del año de `createdAt`. El ítem se queda sin fecha, que es justo lo que
     // hace disparar `no-acq-date` en el boletín.
+    if (form.acquisitionDate && form.acquisitionDate > todayLocalISO()) { setError(t('La fecha de compra no puede ser futura', 'The purchase date cannot be in the future')); return }
     if (!form.acquisitionDate ) { setError(t('La fecha es obligatoria para calcular rendimientos', 'Date is required for return calculations')); return }
     if (!form.institution && !isProperty && !isDebt) { setError(t('La institución es obligatoria', 'Institution is required')); return }
     // FASE OL. "Agregar a posición" solo puede sumar en la moneda del ítem que
@@ -850,7 +872,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       // manual entry previously skipped them entirely.
       const validationErrors = validateItem(item)
       if (validationErrors.length > 0) {
-        setError(validationErrors.join(' · '))
+        setError(validationErrors.map((e) => translateValidationError(e, lang)).join(' · '))
         setSaving(false)
         return
       }
@@ -1027,7 +1049,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         )}
 
         <form onSubmit={step === 1 ? (e) => { e.preventDefault(); goToStep2() } : handleSubmit} className="p-6 space-y-4">
-          {error && <div role="alert" aria-live="assertive" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
+          {error && <div id="add-error" role="alert" aria-live="assertive" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{error}</div>}
 
           {/* === STEP 1 === */}
           {step === 1 && (<>
@@ -1900,7 +1922,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div>
                       <label htmlFor="add-varPayDay" className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                       <input id="add-varPayDay" value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                        placeholder="10" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
+                        placeholder="1" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                       {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                     </div>
                   </div>
@@ -1932,7 +1954,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <div>
                         <label className={labelCls}>{t('Día de pago', 'Pay day')}</label>
                         <input value={form.incomePayDay} onChange={e => set('incomePayDay', e.target.value)}
-                          placeholder="10" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
+                          placeholder="1" type="number" inputMode="numeric" min="1" max="31" className={inputCls} />
                         {payDayHint && <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{payDayHint}</p>}
                       </div>
                     )}
@@ -2625,7 +2647,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               if (total > 0) {
                 const warnings = []
-                if (total > 10000000) warnings.push(t('⚠ Valor muy alto: verifica los datos', '⚠ Very high value: check your data'))
+                if (total > maxPriceFor(form.currency)) warnings.push(t('⚠ Valor muy alto: verifica los datos', '⚠ Very high value: check your data'))
                 if (isMarketAsset && qty > 0 && price > 0 && qty === price) warnings.push(t('⚠ Cantidad y precio son iguales: ¿es correcto?', '⚠ Quantity and price are the same: is this correct?'))
                 return (
                   <div className="p-3 rounded-lg border text-xs"
