@@ -1047,9 +1047,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       const isUSD = cur === 'USD' || cur === '$'
       const bucket = isUSD ? 'USD' : cur
       const origVal = getOriginalValue(it)
-      curBreak[bucket] = curBreak[bucket] || { usd: 0, original: 0 }
-      curBreak[bucket].usd += Math.abs(val)
-      curBreak[bucket].original += Math.abs(origVal)
+      // Por moneda se suma CON SIGNO (activos menos pasivos), igual que el
+      // Patrimonio de abajo: con Math.abs una tarjeta de crédito SUMABA a su
+      // moneda y los porcentajes pasaban de 100%. Lo excluido del patrimonio
+      // (cuenta por cobrar apagada) tampoco cuenta. La exposición bruta va
+      // aparte (`gross`) y solo se muestra rotulada como tal.
+      if (isExcludedFromNetWorth(it)) return
+      curBreak[bucket] = curBreak[bucket] || { usd: 0, original: 0, gross: 0 }
+      curBreak[bucket].usd += val
+      curBreak[bucket].original += origVal
+      curBreak[bucket].gross += Math.abs(val)
     })
 
     const ordered = CATEGORY_ORDER
@@ -1085,6 +1092,10 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   // La edición queda EN ESPERA hasta que el usuario diga qué significa. Ver
   // lib/spreadsheetEdit.js: la app no puede saberlo, solo quien teclea.
   const [pendingEdit, setPendingEdit] = useState(null)
+  // Fecha del movimiento que se registra al responder "metí/saqué dinero" o "hice un pago".
+  // Determina los subperíodos del retorno, así que se pregunta en vez de asumir hoy.
+  const [flowDate, setFlowDate] = useState(() => todayLocalISO())
+  useEffect(() => { if (pendingEdit) setFlowDate(todayLocalISO()) }, [pendingEdit])
   // El diagnóstico de campos: por qué existe está en lib/balanceDiagnostic.js.
   // Tres rondas sobre la MISMA cuenta se fueron en deducir los campos guardados
   // desde capturas; esto los deja leer.
@@ -1232,7 +1243,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     // crudo: con base USD, teclear Q5,200 sobre una cuenta de Q5,000 guardaba
     // Q849.35. Ver lib/rawItem.js.
     const raw = toRawItem(item)
-    const plan = planCellEdit({ item: raw, oldValue, newValue, answer })
+    const plan = planCellEdit({ item: raw, oldValue, newValue, answer, date: flowDate })
     if (!plan) return
     // ⛔ FASE MS. El DIA LOCAL, la misma regla que las otras dos puertas que
     // sellan este campo: `toISOString()` devuelve el dia UTC, que en Guatemala
@@ -1286,7 +1297,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
       }
     }
     await commitPatch(item, patch, plan.income, plan.flow, plan.debtPayment, yieldAdjust)
-  }, [pendingEdit, commitPatch, items, transactions, convert])
+  }, [pendingEdit, commitPatch, items, transactions, convert, flowDate])
 
   const handleValueUpdate = useCallback(async (item, newVal) => {
     if (!onUpdateItem || !item.id) return
@@ -1838,6 +1849,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {t(`${item.symbol || item.name}: la deuda bajó ${amt}. ¿Qué pasó?`,
                  `${item.symbol || item.name}: the debt went down by ${amt}. What happened?`)}
             </p>
+            <label className="flex items-center gap-2 pt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {t('Fecha del movimiento', 'Movement date')}
+              <input type="date" value={flowDate} max={todayLocalISO()} onChange={(e) => setFlowDate(e.target.value || todayLocalISO())}
+                className="px-2 py-1 rounded border text-xs" style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--card-border)', color: 'var(--text-primary)' }} />
+            </label>
             <div className="flex flex-wrap gap-2 pt-0.5">
               <button type="button" onClick={() => answerPendingEdit(ANSWER_FLOW)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium"
@@ -1881,6 +1897,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               {t(`${item.symbol || item.name}: ${subio ? 'subió' : 'bajó'} ${amt}. ¿Qué pasó?`,
                  `${item.symbol || item.name}: ${subio ? 'went up' : 'went down'} by ${amt}. What happened?`)}
             </p>
+            {conFlujo && <label className="flex items-center gap-2 pt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {t('Fecha del movimiento', 'Movement date')}
+              <input type="date" value={flowDate} max={todayLocalISO()} onChange={(e) => setFlowDate(e.target.value || todayLocalISO())}
+                className="px-2 py-1 rounded border text-xs" style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--card-border)', color: 'var(--text-primary)' }} />
+            </label>}
             <div className="flex flex-wrap gap-2 pt-0.5">
               {/* Entró o salió dinero: NO es ganancia ni pérdida, es capital
                   tuyo moviéndose. Sin esta opción un retiro se registraba como
@@ -2548,11 +2569,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
           <tfoot>
             {Object.entries(currencyBreakdown)
-              .sort((a, b) => b[1].usd - a[1].usd)
+              .sort((a, b) => Math.abs(b[1].usd) - Math.abs(a[1].usd))
               .map(([cur, data]) => {
                 const pct = grandTotal > 0 ? (data.usd / grandTotal) * 100 : 0
                 const displayVal = showOriginal ? data.original : data.usd
-                const rate = data.original > 0 && cur !== 'USD' ? (data.usd / data.original) : null
+                const rate = data.original > 0 && data.usd > 0 && cur !== 'USD' ? (data.usd / data.original) : null
                 return (
                   <tr key={cur} className="border-t border-[var(--border-subtle)] bg-theme-surface" style={{ color: 'var(--text-muted)' }}>
                     <td className="py-1.5 pl-8 pr-2 sticky left-0 bg-theme-surface z-10 text-xs">
@@ -2561,13 +2582,13 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                         <span className="ml-1.5" style={{ color: 'var(--text-muted)' }}>1 {cur} = {rate.toFixed(4)} USD</span>
                       )}
                     </td>
-                    <td className="text-right py-1.5 px-1 text-xs">{pct.toFixed(0)}%</td>
+                    <td className="text-right py-1.5 px-1 text-xs" title={t(`Neto de deudas, sobre el patrimonio. Exposición bruta: ${formatCurrency(data.gross)}`, `Net of debts, over net worth. Gross exposure: ${formatCurrency(data.gross)}`)}>{pct.toFixed(0)}%</td>
                     {showOriginal && <td className="text-center py-1.5 px-1 text-xs">{cur}</td>}
                     {months.map(mk => {
                       const isCurrent = mk === currentMonthKey
                       return (
                         <td key={mk} className="text-right py-1.5 px-2 text-xs tabular-nums font-mono" style={isCurrent ? { backgroundColor: CURRENT_COL_BG } : undefined}>
-                          {isCurrent ? formatNum(displayVal) : ''}
+                          {isCurrent ? `${displayVal < 0 ? '-' : ''}${formatNum(displayVal)}` : ''}
                         </td>
                       )
                     })}
