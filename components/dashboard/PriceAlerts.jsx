@@ -21,6 +21,7 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
   const [direction, setDirection] = useState('above')
   const [targetPrice, setTargetPrice] = useState('')
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
 
   const symbolOptions = [...new Set(
     (items || []).map((it) => (it.symbol || '').toUpperCase()).filter(Boolean)
@@ -35,13 +36,20 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
     e.preventDefault()
     const sym = symbol.trim().toUpperCase()
     const price = parseAmount(targetPrice)
-    if (!sym || !isFinite(price) || price <= 0) return
+    if (!sym || !isFinite(price) || price <= 0) {
+      setFormError(t('Escribe un símbolo y un precio mayor a 0.', 'Enter a symbol and a price above 0.'))
+      return
+    }
+    setFormError('')
     setSaving(true)
     try {
       await addAlert({ symbol: sym, direction, targetPrice: price })
       setSymbol('')
       setTargetPrice('')
       setAdding(false)
+    } catch (err) {
+      console.error('No se pudo crear la alerta:', err)
+      setFormError(t('No se pudo guardar la alerta. Intenta de nuevo.', 'Could not save the alert. Try again.'))
     } finally {
       setSaving(false)
     }
@@ -115,6 +123,7 @@ export default function PriceAlerts({ items, alerts, marketPrices, addAlert, del
               {t('Crear', 'Create')}
             </button>
           </div>
+          {formError && <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>{formError}</p>}
         </form>
       )}
 

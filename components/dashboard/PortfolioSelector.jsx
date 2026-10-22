@@ -34,11 +34,18 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
     return () => window.removeEventListener('keydown', handleKey)
   }, [showMenu, focusIdx, items, onSelect])
 
-  const handleAdd = () => {
+  const [addError, setAddError] = useState('')
+  const handleAdd = async () => {
     if (!newName.trim()) return
-    onAdd({ name: newName.trim(), icon: '💼' })
-    setNewName('')
-    setShowAdd(false)
+    setAddError('')
+    try {
+      await onAdd({ name: newName.trim(), icon: '💼' })
+      setNewName('')
+      setShowAdd(false)
+    } catch (err) {
+      console.error('No se pudo crear el portafolio:', err)
+      setAddError(t('No se pudo crear. Intenta de nuevo.', 'Could not create. Try again.'))
+    }
   }
 
   return (
@@ -127,6 +134,7 @@ export default function PortfolioSelector({ portfolios, activePortfolio, onSelec
                   <button onClick={handleAdd} className="px-2 py-1.5 text-xs rounded hover:opacity-90" style={{ backgroundColor: '#059669', color: '#ffffff' }}>
                     {t('Ok', 'Ok')}
                   </button>
+                  {addError && <p className="text-xs self-center" style={{ color: 'var(--alert-warn-icon)' }}>{addError}</p>}
                 </div>
               ) : (
                 <button onClick={() => setShowAdd(true)}

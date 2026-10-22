@@ -10,6 +10,7 @@ import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, format
 import { hasRealObservationAt } from '@/lib/snapshotSelect'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
 import DiscardHint from '@/components/ui/DiscardHint'
+import ConfirmTap from '@/components/ui/ConfirmTap'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
 // single % for the whole portfolio cannot represent accounts with different
@@ -419,11 +420,13 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
                       </span>
                     )}
                   </span>
-                  <button type="button" disabled={saving} onClick={() => removeCalibration(s)}
+                  <ConfirmTap disabled={saving} onConfirm={() => removeCalibration(s)}
                     className="px-2 py-0.5 rounded transition-colors hover:bg-white/5"
-                    style={{ color: 'var(--text-negative)' }}>
+                    style={{ color: 'var(--text-muted)' }}
+                    confirmStyle={{ color: 'var(--text-negative)' }}
+                    confirmContent={t('¿Quitar?', 'Remove?')}>
                     {t('Quitar', 'Remove')}
-                  </button>
+                  </ConfirmTap>
                 </div>
               ))}
             </div>

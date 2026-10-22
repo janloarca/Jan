@@ -67,6 +67,9 @@ describe('CalibrateReturnModal: las calibraciones ignoradas se ven y se pueden q
   it('"Quitar" sobre una ignorada borra EXACTAMENTE su documento', () => {
     const { container, deleteSnapshot } = show({ ignoredCalibrations: [ignoredAccount] })
     const row = container.querySelector('[data-calibration-row="ignored"]')
+    // FASE de auditoría: dos toques. El primero arma, el segundo borra.
+    fireEvent.click(row.querySelector('button'))
+    expect(deleteSnapshot).not.toHaveBeenCalled()
     fireEvent.click(row.querySelector('button'))
     expect(deleteSnapshot).toHaveBeenCalledTimes(1)
     expect(deleteSnapshot).toHaveBeenCalledWith('2026-01-01~cal~ibkr')

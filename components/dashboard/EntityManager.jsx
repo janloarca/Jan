@@ -16,22 +16,36 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
   const [editId, setEditId] = useState(null)
   const [editName, setEditName] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
 
   const countFor = (entityId) => items.filter((it) => (it.entityId || 'default') === entityId).length
 
   const handleAdd = async () => {
-    if (!newName.trim()) return
+    if (!newName.trim() || saving) return
     const typeInfo = ENTITY_TYPES.find(et => et.key === newType) || ENTITY_TYPES[0]
-    await onAdd({ name: newName.trim(), type: newType, icon: typeInfo.icon })
-    setNewName('')
-    setNewType('personal')
-    setAdding(false)
+    setSaving(true); setErr('')
+    try {
+      await onAdd({ name: newName.trim(), type: newType, icon: typeInfo.icon })
+      setNewName('')
+      setNewType('personal')
+      setAdding(false)
+    } catch (e) {
+      console.error(e)
+      setErr(t('No se pudo guardar. Intenta de nuevo.', 'Could not save. Try again.'))
+    } finally { setSaving(false) }
   }
 
   const handleRename = async (id) => {
-    if (!editName.trim()) return
-    await onUpdate(id, { name: editName.trim() })
-    setEditId(null)
+    if (!editName.trim() || saving) return
+    setSaving(true); setErr('')
+    try {
+      await onUpdate(id, { name: editName.trim() })
+      setEditId(null)
+    } catch (e) {
+      console.error(e)
+      setErr(t('No se pudo guardar. Intenta de nuevo.', 'Could not save. Try again.'))
+    } finally { setSaving(false) }
   }
 
   return (
@@ -95,7 +109,12 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
                       : t('La entidad está vacía.', 'The entity is empty.')}
                   </p>
                   <div className="flex gap-1.5 shrink-0">
-                    <button onClick={async () => { await onDelete(entity.id); setConfirmDeleteId(null) }}
+                    <button disabled={saving} onClick={async () => {
+                      setSaving(true); setErr('')
+                      try { await onDelete(entity.id); setConfirmDeleteId(null) }
+                      catch (e) { console.error(e); setErr(t('No se pudo eliminar. Intenta de nuevo.', 'Could not delete. Try again.')) }
+                      finally { setSaving(false) }
+                    }}
                       className="px-2.5 py-1 text-xs font-medium rounded-md" style={{ color: '#ffffff', backgroundColor: 'var(--text-negative)' }}>
                       {t('Eliminar', 'Delete')}
                     </button>
@@ -110,6 +129,8 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
           )
         })}
       </div>
+
+      {err && <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>{err}</p>}
 
       {adding ? (
         <div className="space-y-2 p-3 bg-theme-base rounded-xl border border-glass-border">
@@ -134,7 +155,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
             ))}
           </div>
           <div className="flex gap-2">
-            <button onClick={handleAdd} className="px-3 py-1 text-xs rounded hover:opacity-90" style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>{t('Crear', 'Create')}</button>
+            <button onClick={handleAdd} disabled={saving} className="px-3 py-1 text-xs rounded hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}>{t('Crear', 'Create')}</button>
             <button onClick={() => setAdding(false)} className="px-3 py-1 text-xs text-slate-400 hover:text-white">{t('Cancelar', 'Cancel')}</button>
           </div>
         </div>
