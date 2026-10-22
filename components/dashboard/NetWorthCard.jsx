@@ -31,7 +31,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdAnchorIgnored = 0, pricesUpdate = null, scopedView = false, ytdBreakdownOpen = false, onToggleYtdBreakdown = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdAnchorIgnored = 0, ytdStartValue = null, ytdStartTs = null, pricesUpdate = null, scopedView = false, ytdBreakdownOpen = false, onToggleYtdBreakdown = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -350,6 +350,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           </span>
         )}
       </div>
+
+      {hasYTD && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartTs != null && (
+        <div className="mt-0.5 text-[11px] tabular-nums" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es' ? 'Arranque del año' : 'Year start'}: {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}
+        </div>
+      )}
 
       {/* El CTA que abre la sección de ancho completo de abajo. Texto + chevron
           (no solo un ícono), con aria-expanded/aria-controls apuntando a la

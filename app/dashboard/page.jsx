@@ -1579,6 +1579,7 @@ export default function DashboardPage() {
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
               ytdAnchorIgnored={ytdAnchorIgnored}
+              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs}
               pricesUpdate={pricesUpdate}
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
