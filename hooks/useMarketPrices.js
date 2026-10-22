@@ -43,7 +43,14 @@ export function useMarketPrices(items) {
     const symbols = items
       .filter((it) => isMarketPriced(it))
       .map((it) => ({ symbol: it.symbol, type: it.type }))
-    if (symbols.length === 0) return
+    if (symbols.length === 0) {
+      // Sin nada que cotizar no hay vuelo pendiente: una corrida anterior pudo
+      // dejar las banderas en true y bloquear a los escritores de fondo.
+      abortRef.current?.abort()
+      setLoading(false)
+      setIsFetching(false)
+      return
+    }
 
     abortRef.current?.abort()
     abortRef.current = new AbortController()
@@ -90,7 +97,17 @@ export function useMarketPrices(items) {
         setDividends(_cachedDividends)
       }
     } catch (err) {
-      if (err.name === 'AbortError') return
+      if (err.name === 'AbortError') {
+        // Si una corrida MAS NUEVA nos abortó, ella es dueña de las banderas.
+        // Si fue el cleanup (desmontaje, cambio a cero símbolos), nadie más las
+        // apagará: quedarían en true y bloquearían snapshot, backfill, dividendos
+        // y publicación a Amigos hasta recargar.
+        if (abortRef.current?.signal === signal) {
+          setLoading(false)
+          setIsFetching(false)
+        }
+        return
+      }
       console.error('Failed to fetch market prices:', err)
       consecutiveFailuresRef.current += 1
       if (consecutiveFailuresRef.current >= 2) setError(err.message)

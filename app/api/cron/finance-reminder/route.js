@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { buildFinanceReminderEmail } from '@/lib/financeReminderEmail'
+import { findSubscribers } from '@/app/api/cron/notifications/route'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // Month-end reminder: users who opted in ("Recordarme por correo si no he
 // llenado el mes") get ONE email when the month is about to close and their
@@ -74,7 +76,15 @@ export async function GET(request) {
   })
 
   // All opted-in users: settings docs live at users/{uid}/settings/preferences.
-  const snap = await db.collectionGroup('settings').where('financeReminder', '==', true).get()
+  // Misma búsqueda que el cron de notificaciones: la consulta de grupo exige un
+  // índice que Firestore no crea solo, y sin respaldo un índice faltante daba
+  // 500 y ningún recordatorio. `findSubscribers` cae al barrido de usuarios.
+  const found = await findSubscribers(db, 'financeReminder')
+  if (found.via === 'failed') {
+    console.error('[cron/finance-reminder] no se pudo buscar suscriptores:', found.error)
+    return NextResponse.json({ ok: false, error: 'subscriber lookup failed' }, { status: 500 })
+  }
+  const snap = { docs: found.docs }
 
   let sent = 0
   let skipped = 0

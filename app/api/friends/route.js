@@ -252,11 +252,19 @@ export async function POST(request) {
       if (action === 'kick' && group.ownerUid !== uid) {
         return NextResponse.json({ error: 'Only the owner can remove members', code: 'owner_only' }, { status: 403 })
       }
+      // Quien no es miembro no tiene nada que quitar: sin esto el update era
+      // una escritura inútil (y un kick a un uid ajeno la disparaba igual).
+      if (!(group.memberUids || []).includes(target)) return NextResponse.json({ ok: true })
       const members = (group.memberUids || []).filter((m) => m !== target)
       const groupRef = db.collection('friendGroups').doc(groupId)
       if (members.length === 0) {
+        // La memoria semanal no se borra con el doc padre (misma razón que en delete-group).
+        await deleteGroupHistory({ db, groupId })
         await groupRef.delete()
       } else {
+        // Privacidad: quien sale (o es sacado) no puede dejar uid, nombre y
+        // porcentajes en `history`. Antes solo lo hacían `disable` y `delete-group`.
+        await purgeUserFromGroupHistory({ db, groupId, uid: target })
         const patch = { memberUids: members }
         if (group.ownerUid === target) patch.ownerUid = members[0] // transfer to oldest remaining
         await groupRef.update(patch)

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
 import { getAdminDb } from '@/lib/firebase-admin'
-import { findSubscribers, CADENCE_FLAGS } from '@/app/api/cron/notifications/route'
+import { findSubscribers, makeSubscriberScanCache, CADENCE_FLAGS } from '@/app/api/cron/notifications/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,10 +69,12 @@ export async function GET(request) {
   }
 
   const lookups = []
+  // Un solo barrido de usuarios compartido entre cadencias (la cuota ya se agotó una vez).
+  const scanCache = makeSubscriberScanCache()
   for (const [cadence, flag] of Object.entries(CADENCE_FLAGS)) {
     if (prefs[flag] !== true) continue
     try {
-      const found = await findSubscribers(db, flag)
+      const found = await findSubscribers(db, flag, scanCache)
       lookups.push({
         cadence,
         flag,
