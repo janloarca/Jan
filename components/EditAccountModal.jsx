@@ -13,7 +13,7 @@ import { buildContributionFields, balanceQuantityPatch } from '@/lib/contributio
 import SubIndustryField from '@/components/ui/SubIndustryField'
 import CountrySelect from '@/components/ui/CountrySelect'
 import { classificationSourceFor, industrySourceOf, showAutoDetected } from '@/lib/classificationSource'
-import { getItemValue, industryOptions, INVESTMENT_STYLE_LABELS, investmentStyleLabel, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS } from '@/components/dashboard/utils'
+import { getItemValue, industryOptions, INVESTMENT_STYLE_LABELS, investmentStyleLabel, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS, isMarketPriced } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
 import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
@@ -415,6 +415,10 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           if (dest && dest.id === item.id) source = src
         }
       } else return
+      // Un activo de mercado (acción, cripto) no recibe efectivo de otros: su
+      // saldo son sus unidades. Un pago ruteado hacia él por un destino viejo o
+      // mal puesto no explica nada de su posición y solo ensucia su historial.
+      if (isMarketPriced(item)) return
       if (source || (tx._destinationItemId && tx._destinationItemId === item.id)) {
         incoming.push({ ...tx, _incomingFrom: source ? (source.name || source.symbol) : null })
       }
