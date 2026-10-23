@@ -66,7 +66,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
     const ok = await onAdd({
       type: form.type,
       amount: parseAmount(form.amount),
-      category: form.category,
+      category: categories.includes(form.category) ? form.category : (form.type === 'INCOME' ? 'Otros Ingresos' : 'Otros Gastos'),
       description: form.description,
       date: form.date,
       currency: form.currency,
@@ -117,7 +117,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
 
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Categoría', 'Category')}</label>
-            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+            <select value={categories.includes(form.category) ? form.category : categories[categories.length - 1]} onChange={e => setForm({ ...form, category: e.target.value })}
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none input-focus">
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
