@@ -1538,3 +1538,41 @@ describe('FASE OM: reinvertir en un ítem de saldo no corrompe la cantidad', () 
     expect(patch.quantity).toBe(1)
   })
 })
+
+// FASE QN. Un activo agregado DESPUÉS de la pasada diaria del backfill dejaba
+// el ancla del 1 de enero archivada sin él, y el YTD lo contaba entero como
+// ganancia. Agregar/editar un activo re-arma la pasada; un tick de precios no.
+describe('FASE QN: agregar un activo a mitad de día re-arma el backfill', () => {
+  // Solo las llamadas del BACKFILL: las del ancla del YTD llevan breakdown:true.
+  const histCalls = () => authFetch.mock.calls
+    .filter((c) => String(c[0]).includes('portfolio-history') && !String(c[1]?.body || '').includes('"breakdown":true')).length
+
+  async function renderWith(items) {
+    const r = setup({ firestore: { items, snapshots: [] }, prices: { enrichedItems: items } })
+    await act(async () => {})
+    return r
+  }
+
+  it('la firma del pasado cambia con un activo nuevo y el backfill vuelve a pedir historial', async () => {
+    const a = item({ id: 'a1' })
+    const { rerender, unmount } = await renderWith([a])
+    const before = histCalls()
+    fakeFirestore.items = [a, item({ id: 'b2', symbol: 'BTC', acquisitionDate: '2021-03-01' })]
+    fakePrices.enrichedItems = fakeFirestore.items
+    rerender()
+    await act(async () => {})
+    expect(histCalls()).toBeGreaterThan(before)
+    unmount()
+  })
+
+  it('control: un tick de precios (mismos items) no re-arma nada', async () => {
+    const a = item({ id: 'a1' })
+    const { rerender, unmount } = await renderWith([a])
+    const before = histCalls()
+    fakePrices.enrichedItems = [{ ...a, currentPrice: 101 }]
+    rerender()
+    await act(async () => {})
+    expect(histCalls()).toBe(before)
+    unmount()
+  })
+})

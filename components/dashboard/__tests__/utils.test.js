@@ -1321,3 +1321,22 @@ describe('formatShortDate (FASE ME5)', () => {
     expect(formatShortDate('no-fecha')).toBe('no-fecha')
   })
 })
+
+describe('FASE QN: el ingreso que llega a un activo de MERCADO no baja su costo', () => {
+  const { getIncomeReceivedByItem, getInvestedCapital } = require('../utils')
+  const aapl = { id: 'a', symbol: 'AAPL', name: 'Apple', type: 'Stock', quantity: 10, purchasePrice: 58 }
+  const bond = { id: 'b', symbol: 'BND', name: 'Bono', type: 'Bond', quantity: 1, purchasePrice: 6000, incomeDestination: 'AAPL' }
+  const tx = [{ type: 'DIVIDEND', totalAmount: 178, currency: 'USD', _linkedItemId: 'b' }]
+
+  it('un destino de mercado no recibe crédito de capital', () => {
+    const m = getIncomeReceivedByItem(tx, [aapl, bond], null, 'USD')
+    expect(m.get('a')).toBeUndefined()
+    expect(getInvestedCapital(aapl, m.get('a'))).toBe(580)
+  })
+
+  it('control: un destino de saldo SÍ lo recibe (el caso DY)', () => {
+    const fondo = { id: 'f', symbol: 'FL', name: 'Fondo', type: 'Bank', quantity: 1, purchasePrice: 500 }
+    const m = getIncomeReceivedByItem(tx, [fondo, { ...bond, incomeDestination: 'f' }], null, 'USD')
+    expect(m.get('f')).toBe(178)
+  })
+})
