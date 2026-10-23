@@ -53,7 +53,8 @@ export function useMarketPrices(items) {
     setIsFetching(true)
     setError(null)
     try {
-      const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || ''))
+      // Un nombre ("REALTY INCOME") no es un ticker: el endpoint de dividendos lo rechaza con 400.
+      const stockSyms = symbols.filter((s) => !/crypto|cripto|blockchain/i.test(s.type || '') && !/\s/.test(String(s.symbol || '').trim()))
 
       const [priceRes, divRes] = await Promise.all([
         authFetch('/api/prices', {

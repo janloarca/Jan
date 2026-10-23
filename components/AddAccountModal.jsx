@@ -108,6 +108,14 @@ const GUIDED_SUBTYPE = {
   Bank: 'savings', RealEstate: 'property', Alternative: 'other', Debt: 'other',
 }
 
+// Un precio con exactamente tres decimales ("346.105") se lee como miles
+// ("346105") por parseAmount, la convención LatAm. Se rellena a 4 decimales
+// para que nunca sea ambiguo.
+function quotePriceText(price) {
+  const s = String(price)
+  return /^\d+\.\d{3}$/.test(s) ? Number(price).toFixed(4) : s
+}
+
 export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAddLot, onCreateDestination, onExecuteContribution, existingItems = [], activePortfolio, activeEntity = 'default', lang = 'es',
   // FASE PT. Residencia fiscal que el usuario declaró en su perfil (vacía por
   // defecto, jamás inferida). Solo se OFRECE con un botón; nunca se escribe sola.
@@ -400,7 +408,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
         if (data.quote.currency) setDetectedCurrency(data.quote.currency)
         setForm(prev => ({
           ...prev,
-          purchasePrice: data.quote.price.toString(),
+          purchasePrice: quotePriceText(data.quote.price),
           currency: data.quote.currency || prev.currency,
           sector: data.quote.sector || '',
           industry: data.quote.industry || '',
@@ -439,7 +447,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     setMarketDivOverride(false)
     const timer = setTimeout(async () => {
       const sym = form.symbol.trim().toUpperCase()
-      if (sym.length < 1) return
+      if (sym.length < 1 || /\s/.test(sym)) { setDivInfo(null); return }
       setDivLoading(true)
       try {
         const res = await authFetch(`/api/prices/dividends?symbol=${encodeURIComponent(sym)}`)
@@ -2069,7 +2077,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     <div className="rounded-lg p-3 space-y-2" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--accent-orange) 25%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-orange) 6%, transparent)' }}>
                       <p className="text-xs font-medium" style={{ color: 'var(--accent-orange)' }}>
                         ⏱ {t(
-                          `Según este calendario, ya deberían haberte pagado ${pastDuePayDates.length} vez${pastDuePayDates.length > 1 ? 'es' : ''}`,
+                          `Según este calendario, ya deberían haberte pagado ${pastDuePayDates.length} ${pastDuePayDates.length > 1 ? 'veces' : 'vez'}`,
                           `Based on this schedule, you should have already been paid ${pastDuePayDates.length} time${pastDuePayDates.length > 1 ? 's' : ''}`
                         )}
                       </p>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getOwnReinvestedYieldByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getOwnReinvestedYieldByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo, CATEGORY_LABELS } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import SubTabs from '@/components/ui/SubTabs'
@@ -217,7 +217,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
         {allocation.map((seg) => {
           const displayName = view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
             ? INVESTMENT_CLASS_META[seg.name].label[lang] || seg.name
-            : seg.name
+            : (view === 'type' && CATEGORY_LABELS[seg.name] ? CATEGORY_LABELS[seg.name][lang === 'es' ? 'es' : 'en'] : seg.name)
           const returnTypeDesc = view === 'returnType' && INVESTMENT_CLASS_META[seg.name]
             ? INVESTMENT_CLASS_META[seg.name].returnType[lang]
             : null
