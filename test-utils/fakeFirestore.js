@@ -76,7 +76,15 @@ function makeFake(initial) {
     // así que aplicar cada escritura en el acto es equivalente para un doble en
     // memoria sin contención.
     runTransaction: async (db, fn) => fn({
-      get: async (target) => (target.__coll || target.__path === undefined ? snapOf(target.__coll || target.__path) : fs.getDoc(target)),
+      // Como el SDK cliente real: dentro de una transacción solo se leen
+      // DocumentReference. `tx.get(query)` lanza ese mismo error ("reading
+      // 'path'"), que es lo que un doble permisivo escondía en producción.
+      get: async (target) => {
+        if (target.__coll || target.__path === undefined || target.__id === undefined) {
+          throw new TypeError("Cannot read properties of undefined (reading 'path')")
+        }
+        return fs.getDoc(target)
+      },
       set: (r, d, o) => { const cur = ensure(r.__path)[r.__id]; ensure(r.__path)[r.__id] = o && o.merge && cur ? { ...cur, ...d } : { ...d }; notify() },
       update: (r, d) => { const cur = ensure(r.__path)[r.__id]; if (cur === undefined) throw new Error('not-found:' + r.__path + '/' + r.__id); ensure(r.__path)[r.__id] = { ...cur, ...d }; notify() },
       delete: (r) => { delete ensure(r.__path)[r.__id]; notify() },

@@ -132,6 +132,25 @@ function sanitizeDoc(raw) {
 // Firestore stalls badly (real symptom: "delete all" spinning forever and
 // never reaching the steps after it, like clearing the IBKR connection).
 const DELETE_CHUNK = 400
+
+// Lotes abiertos de un símbolo, leídos PARA una transacción. El SDK cliente no
+// admite consultas dentro de `runTransaction`: `tx.get(query)` lanza "Cannot
+// read properties of undefined (reading 'path')" porque espera un
+// DocumentReference. Se ubican con una consulta normal y dentro de la
+// transacción se releen por referencia, así la decisión de cierre usa el estado
+// transaccional (y la transacción reintenta si otro cierre toca el mismo lote).
+async function readOpenLotsInTx(tx, fs, db, uid, symbol) {
+  const candidates = await fs.getDocs(fs.query(
+    fs.collection(db, `users/${uid}/lots`),
+    fs.where('symbol', '==', symbol),
+    fs.where('status', '==', 'open'),
+  ))
+  const fresh = await Promise.all(candidates.docs.map((d) => tx.get(d.ref)))
+  return fresh
+    .filter((s) => s.exists())
+    .map((s) => ({ ...s.data(), id: s.id }))
+    .filter((l) => l.status === 'open' && l.symbol === symbol && l.quantity > 0)
+}
 async function deleteAllDocsIn(db, fs, path) {
   const snap = await fs.getDocs(fs.collection(db, path))
   const refs = snap.docs.map((d) => d.ref)
@@ -734,14 +753,7 @@ export function useFirestoreItems() {
     const { db, fs } = await getFirebase()
 
     return fs.runTransaction(db, async (tx) => {
-      const lotsSnap = await tx.get(fs.query(
-        fs.collection(db, `users/${uid}/lots`),
-        fs.where('symbol', '==', symbol),
-        fs.where('status', '==', 'open')
-      ))
-      let openLots = lotsSnap.docs
-        .map(d => ({ ...d.data(), id: d.id }))
-        .filter(l => l.quantity > 0)
+      let openLots = (await readOpenLotsInTx(tx, fs, db, uid, symbol))
         .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
       if (institution) {
         const instLots = openLots.filter(l => l.institution === institution)
@@ -883,14 +895,7 @@ export function useFirestoreItems() {
       // --- READS FIRST (Firestore requires all reads before any writes) ---
       let closes = []
       if (lotClose && lotClose.symbol && lotClose.qty > 0) {
-        const lotsSnap = await tx.get(fs.query(
-          fs.collection(db, `users/${uid}/lots`),
-          fs.where('symbol', '==', lotClose.symbol),
-          fs.where('status', '==', 'open'),
-        ))
-        let openLots = lotsSnap.docs
-          .map((d) => ({ ...d.data(), id: d.id }))
-          .filter((l) => l.quantity > 0)
+        let openLots = (await readOpenLotsInTx(tx, fs, db, uid, lotClose.symbol))
           .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
         if (lotClose.institution) {
           const instLots = openLots.filter((l) => l.institution === lotClose.institution)
@@ -986,14 +991,7 @@ export function useFirestoreItems() {
       // --- READS (only needed for withdraw / FIFO close) ---
       let closes = []
       if (lotClose && lotClose.symbol && lotClose.qty > 0) {
-        const lotsSnap = await tx.get(fs.query(
-          fs.collection(db, `users/${uid}/lots`),
-          fs.where('symbol', '==', lotClose.symbol),
-          fs.where('status', '==', 'open'),
-        ))
-        let openLots = lotsSnap.docs
-          .map((d) => ({ ...d.data(), id: d.id }))
-          .filter((l) => l.quantity > 0)
+        let openLots = (await readOpenLotsInTx(tx, fs, db, uid, lotClose.symbol))
           .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
         if (lotClose.institution) {
           const instLots = openLots.filter((l) => l.institution === lotClose.institution)
