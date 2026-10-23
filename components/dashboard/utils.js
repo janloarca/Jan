@@ -851,6 +851,12 @@ export function getIncomeReceivedByItem(transactions, items, convert, baseTo = '
     if (tx._reinvested === true || (linked && linked.dividendAction === 'reinvest')) continue
     const dest = tx._destinationItemId ? byId.get(tx._destinationItemId) : resolve(linked?.incomeDestination)
     if (!dest || !dest.id) continue
+    // FASE QN. Un destino de MERCADO (AAPL, BTC) guarda en purchasePrice el
+    // precio POR UNIDAD, no un saldo: el efectivo que le llega no vive en su
+    // costo, así que restarlo de su base lo desinflaba (el costo de AAPL
+    // bajaba de $580 a ~$402 y su % saltaba de +528% a +762% al agregar otro
+    // activo cuyo ingreso resolvía a él por símbolo o nombre).
+    if (isMarketPriced(dest)) continue
     const amount = convert ? convert(amtRaw, tx.currency || 'USD', baseTo) : amtRaw
     out.set(dest.id, (out.get(dest.id) || 0) + amount)
   }

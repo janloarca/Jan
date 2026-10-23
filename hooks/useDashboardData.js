@@ -429,6 +429,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       backfillAttemptRef.current = { dayKey: null, ts: 0, tries: 0 }
     }
   }, [deletionEpoch])
+  // FASE QN. Agregar o editar un activo a mitad de día re-arma el backfill: la
+  // pasada del día ya archivó el ancla del 1 de enero (y todos los 'backfill')
+  // SIN ese activo, y el YTD mide contra esa foto vieja, así que lo agregado
+  // después (BTC de 2021, un inmueble antiguo) entraba entero como ganancia del
+  // año (YTD pegado al tope). La firma lleva solo lo que cambia el PASADO
+  // (id, cantidad, fecha de compra, fuente, deuda) y jamás precios: items viene
+  // crudo de Firestore, así que un tick de precios no la mueve.
+  const itemsPastSig = useMemo(
+    () => (items || [])
+      .map((it) => `${it.id}|${it.quantity ?? ''}|${it.acquisitionDate ?? ''}|${it._source ?? ''}|${it.isDebt ? 1 : 0}`)
+      .sort()
+      .join(';'),
+    [items]
+  )
+  const itemsPastSigRef = useRef(null)
+  useEffect(() => {
+    if (dataLoading) return
+    if (itemsPastSigRef.current === null) { itemsPastSigRef.current = itemsPastSig; return }
+    if (itemsPastSigRef.current !== itemsPastSig) {
+      itemsPastSigRef.current = itemsPastSig
+      backfillDayRef.current = null
+      backfillAttemptRef.current = { dayKey: null, ts: 0, tries: 0 }
+    }
+  }, [itemsPastSig, dataLoading])
   // ⛔ FASE JZ. Liberar el slot plano de una fecha ocupado por un NAV de broker
   // (FASE GD). Se expone además de usarse acá porque "Reparar ahora"
   // (PortfolioGrowthChart) escribe los MISMOS docs y NO corría esta migración:
