@@ -51,7 +51,11 @@ function roundDisplay(v, maxDecimals = 6) {
   if (v == null || v === '') return ''
   const n = Number(v)
   if (!isFinite(n)) return ''
-  return parseFloat(n.toFixed(maxDecimals)).toString()
+  const out = parseFloat(n.toFixed(maxDecimals)).toString()
+  // Exactamente tres decimales ("182.345") es ambiguo para parseAmount: lo
+  // lee como separador de miles (182,345) y el campo se re-interpreta mil
+  // veces mayor al guardar o al previsualizar. Un cero final lo desambigua.
+  return /^-?\d+\.\d{3}$/.test(out) ? out + '0' : out
 }
 
 // Transaction history dates render as DD/MM/YYYY (user request). Pure string
@@ -2394,8 +2398,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                 // lo almacenado se lee distinto, hay que DECIRLO: que estas dos
                 // superficies se contradijeran en silencio es lo que hizo
                 // indiagnosticable este caso durante cuatro rondas.
-                const stored = getItemValue(item)
-                const drift = Math.abs(stored - total) > 0.005
+                // `item` llega convertido a moneda base; el formulario y `total`
+                // están en la moneda ORIGINAL, así que se compara contra eso.
+                const stored = getItemValue({
+                  ...item,
+                  currentPrice: item._originalPrice ?? item.currentPrice,
+                  purchasePrice: item._originalPurchasePrice ?? item.purchasePrice,
+                })
+                const drift = Math.abs(Math.abs(stored) - total) > 0.005
                 if (total > 0) return (
                   <span className="flex flex-col gap-0.5">
                     <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: 'var(--accent-green)', backgroundColor: 'color-mix(in srgb, var(--accent-green) 10%, transparent)' }}>
@@ -2404,8 +2414,8 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     {drift && (
                       <span className="text-[11px]" style={{ color: 'var(--alert-warn-icon)' }}>
                         {t(
-                          `Hoy la app lo lee como ${form.currency} ${fmt(stored)}. Guardá para corregirlo.`,
-                          `The app currently reads it as ${form.currency} ${fmt(stored)}. Save to fix it.`
+                          `Hoy la app lo lee como ${form.currency} ${fmt(Math.abs(stored))}. Guardá para corregirlo.`,
+                          `The app currently reads it as ${form.currency} ${fmt(Math.abs(stored))}. Save to fix it.`
                         )}
                       </span>
                     )}
