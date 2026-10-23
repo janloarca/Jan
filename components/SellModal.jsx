@@ -13,6 +13,8 @@ import { buildSaleTransactions } from '@/lib/saleTx'
 import { closesWholeLot, exceedsHolding, formatQtyPlain } from '@/lib/lotClose'
 import { todayLocalISO } from '@/lib/localDate'
 
+import { isBankLike } from '@/components/dashboard/utils'
+
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
 // Sale figures must be in the item's ORIGINAL currency (the one its lots' costBasis
@@ -56,7 +58,12 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   // magnitud (se guardan en positivo), o sea el camino equivocado — la misma
   // regla que TransferModal ya aplica a su lista de destinos. Pagar un préstamo
   // es Movimiento → Pago de deuda, no una venta.
-  const otherItems = existingItems.filter((it) => it.id !== item.id && !it.isDebt)
+  // El dinero de una venta queda en una CUENTA de efectivo (banco, ahorro,
+  // fondo líquido: `isBankLike`, la regla con la que la app clasifica "Caja &
+  // Bancos"). Ofrecer una acción, cripto, bono o inmueble como "cuenta donde
+  // queda el dinero" no tiene sentido y acreditarle efectivo a un activo de
+  // mercado mueve su cantidad con un precio inventado.
+  const otherItems = existingItems.filter((it) => it.id !== item.id && !it.isDebt && isBankLike(it))
   // La opción dice moneda y saldo con `accountValue`, la MISMA función con la
   // que el tablero suma esa cuenta (patrón de TransferModal): elegir el destino
   // de una venta a ciegas es cómo un producto en USD aterriza en la cuenta

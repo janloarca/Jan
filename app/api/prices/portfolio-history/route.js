@@ -192,10 +192,10 @@ export async function POST(request) {
   try {
     const { items, lots, period, income, breakdown } = await request.json()
     if (!items || !Array.isArray(items) || items.length > 100) {
-      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
+      return NextResponse.json({ error: `Invalid request: items (${Array.isArray(items) ? items.length : typeof items}, max 100)`, errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
     if (income && (!Array.isArray(income) || income.length > 2000)) {
-      return NextResponse.json({ error: 'Invalid request', errorCode: 'BAD_REQUEST' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request: income (max 2000)', errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     // Reinvested income events raise the value of their linked asset as a
@@ -235,7 +235,7 @@ export async function POST(request) {
 
     const per = period || 'YTD'
     if (!VALID_PERIODS.includes(per)) {
-      return NextResponse.json({ error: 'Invalid period', errorCode: 'BAD_REQUEST' }, { status: 400 })
+      return NextResponse.json({ error: `Invalid period: ${String(per)}`, errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
 
     // FASE OA: solo se valida la forma del simbolo de lo que SI se va a pedir
@@ -247,7 +247,7 @@ export async function POST(request) {
     for (const it of items) {
       const sym = (it.symbol || '').trim()
       if (sym && isMarketPriced(it) && !SYMBOL_RE.test(sym)) {
-        return NextResponse.json({ error: 'Invalid symbol', errorCode: 'BAD_REQUEST' }, { status: 400 })
+        return NextResponse.json({ error: `Invalid symbol: ${sym.slice(0, 24)}`, errorCode: 'BAD_REQUEST' }, { status: 400 })
       }
     }
 
