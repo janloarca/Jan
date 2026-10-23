@@ -938,13 +938,20 @@ export function getInvestedCapital(item, incomeReceived, ownReinvestedYield) {
 // @param entryFeesInScope   entry fees paid for positions acquired DURING the
 //                            window (never one that predates it — that fee is
 //                            already inside firstVal, not newCapital)
-export function computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope = 0 }) {
+// FASE QR (Dietz único): `weightedNewCapital` es el capital nuevo de la ventana
+// PONDERADO por el tiempo que estuvo invertido (la misma ponderación de
+// computeModifiedDietz). Con él la gráfica divide entre el MISMO denominador
+// que la tarjeta del encabezado. Solo aplica si la ventana abre con valor
+// (> 0): con arranque en cero se conserva el denominador completo (3.94% de
+// VITALI, congelado).
+export function computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope = 0, weightedNewCapital = null }) {
   const start = Number(firstVal) || 0
   const end = Number(lastVal) || 0
   const growthAbs = end - start
   const newCapital = investedBase != null ? Math.max(0, investedBase - start) : 0
   const newCapitalPrincipal = Math.max(0, newCapital - (Number(entryFeesInScope) || 0))
-  const growthDenom = start + newCapital
+  const useWeighted = weightedNewCapital != null && Number.isFinite(weightedNewCapital) && start > 0
+  const growthDenom = start + (useWeighted ? Math.max(0, weightedNewCapital) : newCapital)
   const growthPct = growthDenom > 0 ? ((growthAbs - newCapitalPrincipal) / growthDenom) * 100 : null
   const displayAbs = growthAbs - newCapitalPrincipal
   return { growthAbs, newCapital, newCapitalPrincipal, growthDenom, growthPct, displayAbs }

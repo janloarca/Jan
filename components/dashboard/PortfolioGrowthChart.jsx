@@ -1359,7 +1359,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       return !Number.isFinite(acqTs) || acqTs < windowStartTs
     })
     const startVal = anyPredatesWindow ? chartData[0].value : 0
-    return chartData.map(dp => {
+    const line = chartData.map(dp => {
       let cum = startVal
       for (const ev of events) {
         if (ev.ts <= windowStartTs) continue
@@ -1368,6 +1368,15 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       }
       return cum
     })
+    // FASE QR: capital nuevo ponderado por tiempo (denominador Dietz).
+    const endTs = chartData[chartData.length - 1].ts
+    const span = endTs - windowStartTs
+    line.weightedNewCapital = span > 0
+      ? events.reduce((sum, ev) => (
+        ev.ts > windowStartTs && ev.ts <= endTs ? sum + ev.amt * ((endTs - ev.ts) / span) : sum
+      ), 0)
+      : null
+    return line
   }, [chartData, scopedTransactions, scopedItems, shownMode, convert, baseCurrency, lots])
 
   // FASE HP. La MISMA reparación que corre sola en useDashboardData, pero
@@ -1836,7 +1845,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // The actual math lives in computeWindowGrowth (utils.js), pinned by a test
   // that recalculates the XOCHI+VITALI regression case above with the real
   // function.
-  const { growthPct, displayAbs, newCapitalPrincipal } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope })
+  const { growthPct, displayAbs, newCapitalPrincipal } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope, weightedNewCapital: contributionLine ? contributionLine.weightedNewCapital : null })
   const lastReturn = activeReturnData.length > 0 ? activeReturnData[activeReturnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.
