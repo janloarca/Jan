@@ -7,7 +7,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { buildTransferTransaction } from '@/lib/transferTx'
 import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFields'
 import { parseAmount, parseQuantity } from '@/lib/numberParse'
-import { liquiditySortScore, isMarketPriced } from '@/components/dashboard/utils'
+import { liquiditySortScore, isMarketPriced, getTypeCategory } from '@/components/dashboard/utils'
 import { roundQty } from '@/lib/lotClose'
 import BusyLabel from '@/components/ui/BusyLabel'
 import DiscardHint from '@/components/ui/DiscardHint'
@@ -82,7 +82,10 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // herramienta correcta para eso: cierra lotes por FIFO con cantidad y
   // precio reales, así que acá se excluye y se apunta ahí en vez de construir
   // una tercera copia de ese formulario.
-  const fromOptions = assets.filter((i) => !isMarketPriced(i))
+  // El origen es dinero que se puede mover: efectivo y fondos líquidos no
+  // marcados como ilíquidos. Inmuebles, bonos, alternativos (SAFE, oro) y
+  // cobrables no son una cuenta de la que se transfiera.
+  const fromOptions = assets.filter((i) => !isMarketPriced(i) && !i.isIlliquid && ['banks', 'funds'].includes(getTypeCategory(i)))
   const hasMarketSources = existingItems.some((i) => !i.isDebt && isMarketPriced(i))
   const fromItem = assets.find((i) => i.id === fromId)
   const toItem = assets.find((i) => i.id === toId)
