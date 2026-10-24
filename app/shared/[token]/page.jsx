@@ -36,6 +36,7 @@ import { regionLabel } from '@/lib/reportData'
 import { niceScale } from '@/lib/niceAxis'
 import Logo from '@/components/ui/Logo'
 import { Sun, Moon, Download, Lock, Phone, Mail, ChevronDown, ExternalLink } from 'lucide-react'
+import { todayLocalISO } from '@/lib/localDate'
 
 const LANG_KEY = 'chispudo-shared-lang'
 
@@ -194,7 +195,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
     const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `${t('portafolio', 'portfolio')}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `${t('portafolio', 'portfolio')}-${todayLocalISO()}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
   }, [holdings, showAmounts, showPerf, t])

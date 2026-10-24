@@ -129,6 +129,7 @@ import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
 import { scopeTagFor } from '@/lib/scopeTag'
+import { todayLocalISO } from '@/lib/localDate'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
 // wears the same card: same shell, same header shape, same segmented control.
@@ -1014,7 +1015,7 @@ export default function DashboardPage() {
       })))
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
     }
-    XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(wb, `chispudo-portfolio-${todayLocalISO()}.xlsx`)
     showToast(lang === 'es' ? 'Excel exportado ✓' : 'Excel exported ✓')
   }, [enrichedItems, snapshots, transactions, baseCurrency, showToast, lang])
 
@@ -1047,7 +1048,7 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `chispudo-transactions-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `chispudo-transactions-${todayLocalISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }, [transactions, lots])
@@ -2143,7 +2144,7 @@ export default function DashboardPage() {
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `chispudo-backup-${new Date().toISOString().split('T')[0]}.json`
+            a.download = `chispudo-backup-${todayLocalISO()}.json`
             a.click()
             URL.revokeObjectURL(url)
           }}
