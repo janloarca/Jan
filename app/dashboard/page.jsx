@@ -7,6 +7,7 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
+import { readDismissed, countPending, DISMISS_EVENT } from '@/lib/suggestionDismissals'
 import { showsRateTable } from '@/lib/currencyRates'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
@@ -914,6 +915,25 @@ export default function DashboardPage() {
     [items, transactions, lots, convert, baseCurrency, marketPrices, resolvedPrices, pricesLoading, pricesError, incomeVerification]
   )
 
+  // El contador "· N pendientes" del header respeta lo que el usuario descartó
+  // en la card de sugerencias (misma fuente: lib/suggestionDismissals.js). Se
+  // lee en un efecto, no al renderizar: localStorage no existe en el servidor.
+  const [dismissedIds, setDismissedIds] = useState(() => new Set())
+  useEffect(() => {
+    const sync = () => setDismissedIds(readDismissed())
+    sync()
+    window.addEventListener(DISMISS_EVENT, sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener(DISMISS_EVENT, sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+  const pendingFindings = useMemo(
+    () => countPending(dataCompleteness.findings, dismissedIds),
+    [dataCompleteness.findings, dismissedIds]
+  )
+
   // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
   // lista de sugerencias que todo lo demás, en vez de estrenar una superficie
   // propia: es una pregunta sobre los datos, igual que las otras. Se arma acá y
@@ -1479,15 +1499,15 @@ export default function DashboardPage() {
               ChispuSuggestions). Sin urgencia visual salvo score bajo, y
               nunca obligatoria: lleva a la card de sugerencias (SUGG-01) sin
               interrumpir nada. Se oculta entera con score 100. */}
-          {dataCompleteness.globalScore < 100 && (
+          {dataCompleteness.globalScore < 100 && pendingFindings > 0 && (
             <button
               onClick={() => document.querySelector('[data-card-id="SUGG-01"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               className="text-xs transition-colors hover:opacity-80"
               style={{ color: dataCompleteness.globalScore < 60 ? 'var(--accent-orange)' : 'var(--text-muted)' }}
             >
               {lang === 'es'
-                ? `· ${dataCompleteness.findings.length} pendiente${dataCompleteness.findings.length === 1 ? '' : 's'}`
-                : `· ${dataCompleteness.findings.length} pending`}
+                ? `· ${pendingFindings} pendiente${pendingFindings === 1 ? '' : 's'}`
+                : `· ${pendingFindings} pending`}
             </button>
           )}
           </>}
