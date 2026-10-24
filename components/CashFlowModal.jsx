@@ -681,9 +681,9 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                         'Only the movement will be recorded (balance unchanged).')}
                 </p>
               ) : (
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                  {t('Vincúlalo para que el saldo y el historial de esa cuenta lo reflejen.',
-                     'Link it so that account\'s balance and history reflect it.')}
+                <p className="text-xs mt-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {t('Sin cuenta vinculada NO cambia ningún saldo: solo queda el movimiento en el historial. Elige la cuenta para que el saldo lo refleje.',
+                     'With no linked account NO balance changes: only the movement is logged. Pick the account so its balance reflects it.')}
                 </p>
               )}
             </div>
