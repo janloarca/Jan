@@ -221,6 +221,8 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   const [searchLoading, setSearchLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [fetchingQuote, setFetchingQuote] = useState(false)
+  // true mientras el precio de entrada lo puso la cotizacion; teclearlo a mano lo apaga.
+  const autoPriceRef = useRef(false)
   // El proveedor no devolvió precio para el símbolo elegido. Se muestra en vez
   // de callarse porque el usuario tiene que teclearlo: guardar con costo 0
   // produce un retorno inventado de miles por ciento.
@@ -245,7 +247,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   // campos de un activo nuevo no pueden perderse por un dedo que cayo fuera
   // del panel. La x y Esc siguen cerrando al instante (gestos explicitos).
   const { markDirty, onBackdropClick, backdropArmed } = useDirtyClose(onClose)
-  const set = (k, v) => { markDirty(); setForm(prev => ({ ...prev, [k]: v })) }
+  const set = (k, v) => { markDirty(); if (k === 'purchasePrice') autoPriceRef.current = false; setForm(prev => ({ ...prev, [k]: v })) }
   const [creatingDest, setCreatingDest] = useState(null) // 'income' | 'capital' | null
   const [extraItems, setExtraItems] = useState([])
   // El error vive arriba del formulario: en el paso 2 (largo) quedaba fuera de
@@ -405,6 +407,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       const res = await authFetch(`/api/prices/search?symbol=${encodeURIComponent(result.symbol)}&type=${encodeURIComponent(newType)}`, { signal: searchAbortRef.current.signal })
       const data = res.ok ? (await safeJson(res) || {}) : {}
       if (data.quote?.price) {
+        autoPriceRef.current = true
         if (data.quote.currency) setDetectedCurrency(data.quote.currency)
         setForm(prev => ({
           ...prev,
@@ -437,6 +440,31 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     }
     setFetchingQuote(false)
   }, [])
+
+  // El precio sugerido sigue a la fecha de compra: si la fecha es anterior a hoy,
+  // se busca el cierre de ese dia (o el ultimo dia habil anterior). Nunca pisa
+  // un precio que el usuario tecleo a mano.
+  useEffect(() => {
+    const sym = (form.symbol || '').trim()
+    const date = form.acquisitionDate
+    if (!isMarketAsset || !sym || !date || fetchingQuote || !autoPriceRef.current) return
+    const today = new Date().toISOString().split('T')[0]
+    if (date >= today) return
+    const ctrl = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await authFetch(`/api/prices/chart?symbol=${encodeURIComponent(sym)}&range=max&interval=1d${type === 'Crypto' ? '&type=crypto' : ''}`, { signal: ctrl.signal })
+        if (!res.ok) return
+        const data = await safeJson(res)
+        const prices = (data?.prices || []).filter(p => p?.date && isFinite(p.close) && p.date <= date)
+        const hit = prices.length ? prices[prices.length - 1] : null
+        if (hit && autoPriceRef.current) {
+          setForm(prev => prev.symbol === form.symbol ? { ...prev, purchasePrice: quotePriceText(hit.close) } : prev)
+        }
+      } catch (err) { /* sin historial: se queda el precio actual */ }
+    }, 400)
+    return () => { clearTimeout(timer); ctrl.abort() }
+  }, [form.acquisitionDate, form.symbol, isMarketAsset, type, fetchingQuote])
 
   // Dividend fetch
   useEffect(() => {
