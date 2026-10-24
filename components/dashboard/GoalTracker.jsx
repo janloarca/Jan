@@ -50,6 +50,9 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
   const incomePct = incomeGoal > 0 ? Math.max(0, Math.min(100, (effectiveIncome / incomeGoal) * 100)) : 0
   const portfolioPct = portfolioGoal > 0 ? Math.max(0, Math.min(100, (portfolioNow / portfolioGoal) * 100)) : 0
 
+  // Meta muy superada: el 100% tope no dice cuánto. Se muestra el múltiplo.
+  const portfolioMultiple = portfolioGoal > 0 ? portfolioNow / portfolioGoal : 0
+  const fmtMultiple = (m) => m >= 1e6 ? `${(m / 1e6).toFixed(1)}M` : m >= 1e3 ? `${(m / 1e3).toFixed(1)}K` : m.toFixed(1)
   const scenarios = useMemo(() => {
     const rates = [
       // Eran hexes del tema oscuro: 1.67:1 y 1.81:1 sobre la card blanca. La
@@ -209,7 +212,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
                 <span className="text-xs text-white font-medium">{t('Tamaño de portfolio', 'Portfolio size')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
-              <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioPct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioMultiple >= 2 ? `${t('superada', 'exceeded')} ×${fmtMultiple(portfolioMultiple)}` : `${portfolioPct.toFixed(0)}%`}</span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full bar-fill"

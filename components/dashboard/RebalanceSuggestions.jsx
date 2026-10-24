@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue } from './utils'
+import { formatCurrency, getTypeCategory, TYPE_COLORS, getItemValue, categoryLabel } from './utils'
 import ConfirmTap from '@/components/ui/ConfirmTap'
 
 const DEFAULT_TARGETS = {
@@ -55,6 +55,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
 
   const maxDrift = Math.max(...allocation.categories.map((c) => Math.abs(c.diff)), 0)
   const isBalanced = maxDrift < 5
+  const isExtreme = maxDrift >= 40
 
   // FASE NB: el guardado se ESPERA y el editor solo se cierra si terminó bien.
   // Antes era disparar-y-cerrar: un fallo de red dejaba el editor cerrado con
@@ -126,7 +127,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
         <div className="space-y-2">
           {allocation.categories.map((c) => (
             <div key={c.cat} className="flex items-center gap-2">
-              <span className="text-xs text-slate-300 w-24 capitalize">{c.cat}</span>
+              <span className="text-xs text-slate-300 w-24 capitalize">{categoryLabel(c.cat, lang)}</span>
               <input type="number" inputMode="numeric" min="0" max="100" step="5"
                 value={form[c.cat] || 0}
                 onChange={(e) => setForm({ ...form, [c.cat]: parseInt(e.target.value) || 0 })}
@@ -166,7 +167,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-slate-300 capitalize flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                    {c.cat}
+                    {categoryLabel(c.cat, lang)}
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500">{c.currentPct.toFixed(1)}%</span>
@@ -193,6 +194,11 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
 
           {!isBalanced && (
             <div className="pt-2 border-t border-glass-border/30 space-y-1">
+              {isExtreme && (
+                <p className="text-xs" style={{ color: 'var(--alert-warn-icon)' }}>
+                  {t('Tu portafolio está muy lejos de estas metas. Revisa los datos antes de actuar sobre estas sugerencias.', 'Your portfolio is very far from these targets. Check your data before acting on these suggestions.')}
+                </p>
+              )}
               {allocation.categories
                 .filter((c) => Math.abs(c.diff) > 2 && c.targetPct > 0)
                 .slice(0, 3)
@@ -201,8 +207,8 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
                     style={{ backgroundColor: c.diff > 0 ? 'var(--alert-error-bg)' : 'var(--alert-success-bg)' }}>
                     <span className="font-medium" style={{ color: c.diff > 0 ? 'var(--text-negative)' : 'var(--accent-green)' }}>
                       {c.diff > 0
-                        ? `↓ ${t('Reducir', 'Reduce')} ${c.cat}`
-                        : `↑ ${t('Aumentar', 'Increase')} ${c.cat}`}
+                        ? `↓ ${t('Reducir', 'Reduce')} ${categoryLabel(c.cat, lang)}`
+                        : `↑ ${t('Aumentar', 'Increase')} ${categoryLabel(c.cat, lang)}`}
                     </span>
                     <span className="font-semibold font-mono tabular-nums" style={{ color: c.diff > 0 ? 'var(--text-negative)' : 'var(--accent-green)' }}>
                       {c.diff > 0 ? '-' : '+'}{formatCurrency(Math.abs(c.diffValue))}

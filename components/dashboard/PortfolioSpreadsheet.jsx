@@ -1665,7 +1665,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           wraps onto a second line on narrow screens instead of forcing a
           horizontal scroll or squishing every control down to unreadable. */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 border-b border-[var(--border-color)] bg-theme-surface">
-        <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t('Portfolio Spreadsheet', 'Portfolio Spreadsheet')}</h2>
+        <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t('Hoja de cartera', 'Portfolio Spreadsheet')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 pr-2 border-r border-[var(--border-color)] last:border-r-0 last:pr-0">
             {/* Active state gets a light-blue tint (not just white/shadow) so

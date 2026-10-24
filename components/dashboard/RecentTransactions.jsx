@@ -96,6 +96,12 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
     return neutral
   }
 
+  const txTypeLabel = (type) => {
+    const k = (type || '').toUpperCase()
+    const m = { BUY: ['Compra', 'Buy'], SELL: ['Venta', 'Sell'], DIVIDEND: ['Dividendo', 'Dividend'], DEPOSIT: ['Depósito', 'Deposit'], WITHDRAWAL: ['Retiro', 'Withdrawal'], TRANSFER: ['Transferencia', 'Transfer'], INTEREST: ['Interés', 'Interest'], FEE: ['Comisión', 'Fee'], TAX: ['Impuesto', 'Tax'] }[k]
+    return m ? (lang === 'es' ? m[0] : m[1]) : (type || 'TX')
+  }
+
   const typeIcon = (type) => {
     const t = (type || '').toUpperCase()
     if (t === 'BUY') return '↗'
@@ -257,7 +263,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm text-white font-medium truncate">{tx.symbol || tx.description || '-'}</span>
                       <span className="px-1.5 py-0.5 rounded text-xs font-bold uppercase shrink-0" style={typeBadgeStyle(tx.type)}>
-                        {tx.type || 'TX'}
+                        {txTypeLabel(tx.type)}
                       </span>
                     </div>
                     <span className="text-xs text-slate-500">
