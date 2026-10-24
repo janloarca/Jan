@@ -569,6 +569,32 @@ export function findYearStartAnchor(snapshots, year) {
   return null
 }
 
+// FASE QR2. ¿El ancla del año quedó VIEJA frente a lo que hoy hay en la cuenta?
+// Un snapshot derivado ('daily' o 'backfill') es la suma de los activos que la
+// app conocía al momento de escribirlo (`createdAt` del doc). Si después se
+// agrega un activo con fecha de compra anterior al ancla (BTC de 2021, un
+// inmueble viejo), esa foto no lo contiene aunque el activo ya existiera, y el
+// YTD que mide contra ella lo cuenta ENTERO como ganancia del año. Solo se
+// juzgan anclas derivadas: un NAV de broker, un snapshot manual o una
+// calibración son observaciones y nunca se descartan. Sin fecha de escritura
+// del doc o del activo no hay evidencia, y no se afirma nada. Un activo de
+// broker se ignora: su fecha de compra es el sello del sync, no una compra.
+export function anchorMissesLateItems(anchor, items) {
+  if (!anchor || !anchor.date || !Array.isArray(items)) return false
+  if (anchor._calibrated || ['ibkr', 'ibkr_quarterly', 'manual'].includes(anchor._source)) return false
+  const wroteAt = Date.parse(anchor.createdAt)
+  const anchorTs = Date.parse(anchor.date)
+  if (!isFinite(wroteAt) || !isFinite(anchorTs)) return false
+  return items.some((it) => {
+    if (!it || it.isDebt || isExcludedFromNetWorth(it) || hasUnreliableAcqDate(it)) return false
+    if (!(Number(it.quantity) > 0)) return false
+    if (!it.acquisitionDate) return false
+    const acq = Date.parse(it.acquisitionDate)
+    const added = Date.parse(it.createdAt)
+    return isFinite(acq) && isFinite(added) && acq <= anchorTs && added > wroteAt
+  })
+}
+
 // Month-start anchor for a month-to-date (MTD) return: the snapshot closest to
 // the 1st of the month (either just before — last day of prior month — or just
 // after), within a ~5-day window. `month` is 0-indexed (0 = January).
