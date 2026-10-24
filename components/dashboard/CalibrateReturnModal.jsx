@@ -10,6 +10,7 @@ import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, format
 import { hasRealObservationAt } from '@/lib/snapshotSelect'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
 import DiscardHint from '@/components/ui/DiscardHint'
+import { todayLocalISO } from '@/lib/localDate'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
 // single % for the whole portfolio cannot represent accounts with different
@@ -43,7 +44,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
   const trapRef = useFocusTrap()
   const t = (es, en) => lang === 'es' ? es : en
   const year = new Date().getUTCFullYear()
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = todayLocalISO()
 
   // The eight windows, mirroring the chart's period tabs exactly (DAY, 1W,
   // MTD, 1M, 3M, YTD, 1Y, ALL). Each one becomes its own anchor: the % is

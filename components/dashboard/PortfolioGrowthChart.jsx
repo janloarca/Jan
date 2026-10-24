@@ -22,6 +22,7 @@ import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
+import { todayLocalISO } from '@/lib/localDate'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -1872,7 +1873,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
 
   const handleSaveSnapshots = useCallback(async () => {
     if (!onSaveSnapshot) return
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = todayLocalISO()
     // Sanity gates: a fat-fingered extra zero or a future date silently corrupts
     // the chart's scale/history. Zero/negative rows also used to "save" and then
     // vanish (the chart filters value>0) with no explanation.
@@ -2693,12 +2694,12 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
           <label className="text-xs text-slate-400">{t('Desde', 'From')}:</label>
           <input type="date" value={customRange.from}
             onChange={e => setCustomRange(prev => ({ ...prev, from: e.target.value }))}
-            max={customRange.to || new Date().toISOString().split('T')[0]}
+            max={customRange.to || todayLocalISO()}
             className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
           <label className="text-xs text-slate-400">{t('Hasta', 'To')}:</label>
           <input type="date" value={customRange.to}
             onChange={e => setCustomRange(prev => ({ ...prev, to: e.target.value }))}
-            max={new Date().toISOString().split('T')[0]}
+            max={todayLocalISO()}
             className="px-2 py-1 bg-theme-base border border-glass-border rounded text-xs text-white focus:outline-none focus:border-[var(--accent-blue)]" />
         </div>
       )}
