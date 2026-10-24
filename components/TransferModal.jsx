@@ -86,6 +86,10 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // marcados como ilíquidos. Inmuebles, bonos, alternativos (SAFE, oro) y
   // cobrables no son una cuenta de la que se transfiera.
   const fromOptions = assets.filter((i) => !isMarketPriced(i) && !i.isIlliquid && ['banks', 'funds'].includes(getTypeCategory(i)))
+  // Destino: cuentas de efectivo/fondos, o posiciones de mercado (ahí se
+  // compra con cantidad y precio exactos). Un inmueble, un bono o un alternativo
+  // no reciben una transferencia: su valor no se mueve acreditándoles efectivo.
+  const toOptions = assets.filter((i) => i.id !== fromId && (isMarketPriced(i) || ['banks', 'funds'].includes(getTypeCategory(i))))
   const hasMarketSources = existingItems.some((i) => !i.isDebt && isMarketPriced(i))
   const fromItem = assets.find((i) => i.id === fromId)
   const toItem = assets.find((i) => i.id === toId)
@@ -151,7 +155,12 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
   // Cuánto sale del origen, en SU moneda. Comprando acciones, Monto sigue
   // pudiéndose corregir a mano (ej. una comisión que se sumó al retiro) sin que
   // eso mueva la cantidad ni el precio ya tecleados.
-  const fromValue = (toIsMarket || crossCurrency)
+  // Entre monedas, si el usuario YA tecleó Monto, ese número es un hecho (lo que
+  // salió del origen) y corregir "¿cuánto llegó?" no puede reescribirlo con la
+  // tasa de la app: eso descontaba 997.72 tras teclear 1,000. Solo se deriva
+  // cuando Monto está vacío.
+  const fromTyped = crossCurrency && !toIsMarket && literalFromOk
+  const fromValue = fromTyped ? literalFrom : (toIsMarket || crossCurrency)
     ? (lastEdited === 'from'
         ? (literalFromOk ? literalFrom : null)
         : (toValue != null ? fx(toValue, toCurrency, fromCurrency) : null))
@@ -289,11 +298,6 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
                 </p>
               </div>
             ))}
-            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              {t('Si el tablero no muestra estos mismos números, tomá una captura de esta pantalla: dice exactamente qué se guardó.',
-                 'If the dashboard does not show these same numbers, screenshot this: it says exactly what was saved.')}
-              {receipt.build ? ` (${String(receipt.build).slice(0, 8)})` : ''}
-            </p>
             <button type="button" onClick={onClose}
               className="w-full py-2.5 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
               {t('Cerrar', 'Close')}
@@ -323,7 +327,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
             <label className={labelCls}>{t('Destino', 'To')}</label>
             <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputCls}>
               <option value="">{t('Seleccionar...', 'Select...')}</option>
-              {assets.filter((i) => i.id !== fromId).map((item) => (
+              {toOptions.map((item) => (
                 <option key={item.id} value={item.id}>{formatOption(item)}</option>
               ))}
             </select>
@@ -367,10 +371,10 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
                 sugerencia de FX viva), el valor mostrado es la sugerencia en
                 vivo: tocar el campo lo vuelve el ancla al instante. */}
             <input
-              value={(toIsMarket || crossCurrency) ? (lastEdited === 'from' ? amount : (fromValue != null ? fromValue.toFixed(2) : '')) : amount}
+              value={(toIsMarket || crossCurrency) ? ((lastEdited === 'from' || fromTyped) ? amount : (fromValue != null ? fromValue.toFixed(2) : '')) : amount}
               onChange={(e) => { setLastEdited('from'); setAmount(e.target.value) }}
               type="text" inputMode="decimal" placeholder="0.00" className={inputCls} />
-            {(toIsMarket || crossCurrency) && lastEdited !== 'from' && (fromValue != null) && (
+            {(toIsMarket || crossCurrency) && lastEdited !== 'from' && !fromTyped && (fromValue != null) && (
               <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
                 {t('sugerido según el precio ingresado', 'suggested from the amount entered')}
               </p>

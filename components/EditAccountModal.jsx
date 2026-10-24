@@ -15,6 +15,7 @@ import CountrySelect from '@/components/ui/CountrySelect'
 import { classificationSourceFor, industrySourceOf, showAutoDetected } from '@/lib/classificationSource'
 import { getItemValue, industryOptions, INVESTMENT_STYLE_LABELS, investmentStyleLabel, TAX_JURISDICTION_OPTIONS, ASSET_COUNTRY_OPTIONS, isMarketPriced } from '@/components/dashboard/utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
+import { transferCredit } from '@/lib/transferTx'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
 import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
 import InlineCreateAccount from './InlineCreateAccount'
@@ -396,6 +397,15 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         if (tx._paidFromItemId === item.id) {
           const on = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
           outgoing.push({ ...tx, _outgoingTo: on ? (on.name || on.symbol) : null, _outgoingIsExpense: true })
+        }
+        return
+      }
+      // La venta que acreditó el efectivo a ESTA cuenta (`_destinationItemId`):
+      // el saldo subía y la fila vivía solo en el activo vendido.
+      if (tx.type === 'SELL') {
+        if (tx._destinationItemId && tx._destinationItemId === item.id && !isMarketPriced(item)) {
+          const src = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
+          incoming.push({ ...tx, _incomingFrom: src ? (src.name || src.symbol) : null })
         }
         return
       }
@@ -1309,6 +1319,11 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         ? incoming
                         : (tx.type === 'DEPOSIT' || tx.type === 'DIVIDEND' || tx.type === 'INTEREST')
                       const confirming = confirmDeleteTxId === tx.id
+                      // Una transferencia entre monedas: el lado que RECIBE se lee
+                      // con lo que de verdad llegó (`_toAmount`), no con lo que salió.
+                      const credit = (tx.type === 'TRANSFER' && incoming) ? transferCredit(tx) : null
+                      const shownAmount = credit ? credit.amount : (tx.totalAmount || 0)
+                      const shownCurrency = (credit && credit.currency) || tx.currency || form.currency
                       // Same story the other way: a transfer OUT touches the
                       // destination account's balance too, so it isn't editable
                       // from a single-account form either.
@@ -1366,7 +1381,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                                 reversa) imprimía "-Q-488.07": el doble negativo que
                                 lib/financeAmount.js:9 nombra literalmente. */}
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                              {isPositive ? '+' : '-'}{tx.currency || form.currency} {Math.abs(tx.totalAmount || 0).toLocaleString()}
+                              {isPositive ? '+' : '-'}{shownCurrency} {Math.abs(shownAmount).toLocaleString()}
                             </span>
                             {incoming && (
                               <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
