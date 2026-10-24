@@ -123,7 +123,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
     <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">
-          {t('Chispu te sugiere', 'Chispu suggests')}
+          {t('Chispudo te sugiere', 'Chispudo suggests')}
         </h3>
         <span className="text-xs px-2 py-1 rounded-full font-medium"
           style={{ color: scoreColor, backgroundColor: 'color-mix(in srgb, currentColor 12%, transparent)' }}

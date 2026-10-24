@@ -1720,7 +1720,11 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // símbolo de moneda en las cinco marcas es tinta que no informa: la unidad se
   // dice UNA vez arriba del eje (la convención de cualquier factsheet) y las
   // marcas quedan siendo solo el número.
-  const pad = { top: 26, right: 16, bottom: 40, left: 52 }
+  // El margen izquierdo crece con la etiqueta más larga del eje (cifras de miles
+  // de millones se cortaban contra el borde a 52px fijos). ~6px por carácter a 10px.
+  const maxAbsVal = chartData.reduce((m, d) => Math.max(m, Math.abs(Number(d.value) || 0)), 0)
+  const axisChars = isPerf ? 7 : Math.max(5, formatAxisTick(maxAbsVal, maxAbsVal / 4 || 1, baseCurrency, { symbol: false }).length)
+  const pad = { top: 26, right: 16, bottom: 40, left: Math.max(52, axisChars * 6 + 14) }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
   const xLabels = useMemo(() => {
