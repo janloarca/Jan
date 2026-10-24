@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react'
 // per finding id (stable code:itemId) in localStorage; a fixed finding simply
 // stops being generated, so the list heals itself.
 
-const DISMISS_KEY = 'chispudo-dismissed-suggestions'
+import { readDismissed, writeDismissed } from '@/lib/suggestionDismissals'
 
 const SEV_STYLE = {
   high: { color: 'var(--alert-error-icon)', backgroundColor: 'var(--alert-error-bg)', borderColor: 'var(--alert-error-border)' },
@@ -25,10 +25,7 @@ const SEV_LABEL = {
 
 export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onCompleteAll, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === 'undefined') return new Set()
-    try { return new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]')) } catch { return new Set() }
-  })
+  const [dismissed, setDismissed] = useState(() => readDismissed())
   const [expanded, setExpanded] = useState(false)
   const [applied, setApplied] = useState(() => new Set())
   const [applyFailed, setApplyFailed] = useState(() => new Set())
@@ -75,12 +72,12 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
     const next = new Set(dismissed)
     next.add(id)
     setDismissed(next)
-    try { localStorage.setItem(DISMISS_KEY, JSON.stringify([...next])) } catch {}
+    writeDismissed(next)
   }
 
   const restoreDismissed = () => {
     setDismissed(new Set())
-    try { localStorage.removeItem(DISMISS_KEY) } catch {}
+    writeDismissed(new Set())
   }
 
   // Everything dismissed: keep a slim way back instead of hiding real gaps forever.
