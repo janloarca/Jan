@@ -1096,7 +1096,11 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       // was truncating to whatever real Firestore snapshots happened to exist
       // (the last ~30 days) instead of starting from the account's actual
       // first recorded movement (FASE EJ).
-      if (period !== 'ALL' || reconstructionIsExact) {
+      // FASE LU2: la cautela de ALL era por posiciones de BROKER (su inicio real
+      // no es conocible). Sin ninguna posicion sincronizada la reconstruccion por
+      // lotes y precios es tan valida como la de 1Y, asi que ALL ya no se trunca
+      // al primer snapshot guardado.
+      if (period !== 'ALL' || reconstructionIsExact || !hasBrokerItems) {
         const olderApi = apiPts.filter(p => p.ts < firstSnapTs - 3600000)
         if (olderApi.length > 0) {
           // The API segment is an ESTIMATE (Σ qty×historical price) and can sit at
