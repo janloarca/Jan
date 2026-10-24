@@ -1340,3 +1340,25 @@ describe('FASE QN: el ingreso que llega a un activo de MERCADO no baja su costo'
     expect(m.get('f')).toBe(178)
   })
 })
+
+describe('anchorMissesLateItems (FASE QR2)', () => {
+  const { anchorMissesLateItems } = require('../utils')
+  const anchor = { date: '2026-01-01', _source: 'backfill', createdAt: '2026-10-01T10:00:00Z' }
+  const late = { id: 'btc', quantity: 1, acquisitionDate: '2021-05-01', createdAt: '2026-10-20T10:00:00Z' }
+  it('detecta un activo agregado después con fecha de compra anterior al ancla', () => {
+    expect(anchorMissesLateItems(anchor, [late])).toBe(true)
+  })
+  it('no juzga activos ya existentes al escribir el ancla', () => {
+    expect(anchorMissesLateItems(anchor, [{ ...late, createdAt: '2026-09-01T10:00:00Z' }])).toBe(false)
+  })
+  it('no descarta observaciones reales ni calibraciones', () => {
+    expect(anchorMissesLateItems({ ...anchor, _source: 'ibkr' }, [late])).toBe(false)
+    expect(anchorMissesLateItems({ ...anchor, _source: 'manual' }, [late])).toBe(false)
+    expect(anchorMissesLateItems({ ...anchor, _calibrated: true }, [late])).toBe(false)
+  })
+  it('ignora compras posteriores al ancla, deuda y sin fechas', () => {
+    expect(anchorMissesLateItems(anchor, [{ ...late, acquisitionDate: '2026-03-01' }])).toBe(false)
+    expect(anchorMissesLateItems(anchor, [{ ...late, isDebt: true }])).toBe(false)
+    expect(anchorMissesLateItems({ ...anchor, createdAt: undefined }, [late])).toBe(false)
+  })
+})

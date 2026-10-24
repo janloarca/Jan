@@ -6,7 +6,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, anchorMissesLateItems, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { scopeTagFor, tagForScope } from '@/lib/scopeTag'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
@@ -2085,7 +2085,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (augmentedSnapshots.length >= 2) {
       // Shared anchor (also used by the chart's YTD starting point) so the
       // Dietz badge and the chart never start the year from different values.
-      const bestSnap = findYearStartAnchor(augmentedSnapshots, year)
+      let bestSnap = findYearStartAnchor(augmentedSnapshots, year)
+      // FASE QR2: un ancla derivada escrita ANTES de agregar un activo con fecha
+      // pasada no lo contiene; mientras el backfill la re-deriva se mide contra
+      // la reconstrucción en vivo (jan1Value), que sí lo incluye. Sin
+      // reconstrucción disponible se conserva el ancla: mejor eso que ocultar.
+      if (bestSnap && jan1Value != null && jan1Value > 0 && anchorMissesLateItems(bestSnap, portfolioItems)) bestSnap = null
       if (bestSnap) {
         // FASE LU: el ancla del año en SOLO-ACTIVOS. El campo lleva ahí
         // desde siempre (el escritor diario y el backfill guardan
