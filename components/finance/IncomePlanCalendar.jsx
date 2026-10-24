@@ -76,6 +76,11 @@ export default function IncomePlanCalendar({
   // mismo, dos montos distintos se dibujarían del mismo alto.
   const maxBar = Math.max(...totals, ...real.slice(0, fromMonth), 1)
   const plannedTotal = totals.reduce((a, b) => a + b, 0)
+  // El total del año suma lo que YA entró (meses cerrados, dato real) más lo
+  // planeado de aquí a diciembre. Mostrar solo lo planeado daba Q 0.00 con
+  // Q8,000 reales en septiembre y se leía como un total roto.
+  const realSoFar = real.slice(0, fromMonth).reduce((a, b) => a + (Number(b) || 0), 0)
+  const yearTotal = realSoFar + plannedTotal
 
   const [editing, setEditing] = useState(null)
   const [drag, setDrag] = useState(null)
@@ -153,12 +158,12 @@ export default function IncomePlanCalendar({
           )} />
         </h3>
         <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
-          {fmt(plannedTotal, currency, lang)}
+          {fmt(yearTotal, currency, lang)}
         </span>
       </div>
       <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-        {t('Planeado de aquí a diciembre. Arrastrá un ingreso variable a otro mes para jugar con el calendario.',
-           'Planned from here to December. Drag a one-off income to another month to play with the calendar.')}
+        {t(`Total del año: ${fmt(realSoFar, currency, lang)} ya entró + ${fmt(plannedTotal, currency, lang)} planeado de aquí a diciembre. Arrastrá un ingreso variable a otro mes para jugar con el calendario.`,
+           `Year total: ${fmt(realSoFar, currency, lang)} already received + ${fmt(plannedTotal, currency, lang)} planned through December. Drag a one-off income to another month to play with the calendar.`)}
       </p>
 
       {/* Las doce barras del año: lo real de los meses cerrados y lo planeado
