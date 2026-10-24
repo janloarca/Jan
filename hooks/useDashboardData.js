@@ -2519,6 +2519,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // solo se netean traspasos entre dos cuentas de ACTIVOS.
         fromKey = tx._originItemId ? accountOf.get(tx._originItemId) : null
         toKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null
+      } else if (type === 'SELL') {
+        // Venta con "queda en el portafolio": el efectivo sale de la posicion
+        // vendida y aterriza en OTRA cuenta (`_destinationItemId`). Es dinero
+        // entre dos cuentas propias, igual que un TRANSFER: sin netearlo, la
+        // cuenta que recibe lo lee como ganancia (la venta de BTC que sumaba
+        // +$390 a Banrural) y la que vendio como perdida. A nivel portafolio
+        // el Dietz no lo ve y esta bien: suma cero. Una venta que sale de la
+        // app lleva su WITHDRAWAL companera y no pasa por aqui.
+        fromKey = tx._linkedItemId ? accountOf.get(tx._linkedItemId) : null
+        toKey = tx._destinationItemId ? accountOf.get(tx._destinationItemId) : null
       } else if (type === 'DIVIDEND') {
         // The shared rule for "did this payment move another account's balance,
         // and whose?" -- the same one the delete/edit reversal path uses, so the
