@@ -1381,8 +1381,9 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                                 reversa) imprimía "-Q-488.07": el doble negativo que
                                 lib/financeAmount.js:9 nombra literalmente. */}
                             <span style={{ color: isPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                              {isPositive ? '+' : '-'}{shownCurrency} {Math.abs(shownAmount).toLocaleString()}
+                              {isPositive ? '+' : '-'}{shownCurrency} {Math.abs(shownAmount).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                             </span>
+                            {(incoming || outgoing) && ' '}
                             {incoming && (
                               <span className="ml-1 px-1 py-0.5 rounded text-[9px] align-middle"
                                 style={{ color: 'var(--accent-cyan)', backgroundColor: 'color-mix(in srgb, var(--accent-cyan) 15%, transparent)' }}
