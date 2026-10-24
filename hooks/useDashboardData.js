@@ -1849,7 +1849,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // y "no se puede medir", y toda pantalla que imprima esos dos casos igual
   // (Amigos imprimía "-" para ambos) miente en uno de los dos.
   const [ytdResolved, setYtdResolved] = useState(false)
+  // La identidad de `enrichedItems`/`portfolioItems` cambia con CADA tick de
+  // precios, y como eran deps crudas este efecto repetía el POST completo a
+  // portfolio-history en cada tick (y cada escritura): ~6 llamadas por recarga y
+  // la causa probable de los 429. La serie histórica no cambia cuando el precio
+  // vivo se mueve, así que se lee por ref y se depende de una firma SIN precios
+  // que solo cambia con una edición real (id/cantidad/símbolo/fecha/deuda).
+  const jan1ItemsRef = useRef({ enrichedItems, portfolioItems })
+  jan1ItemsRef.current = { enrichedItems, portfolioItems }
+  const jan1ItemsSig = useMemo(
+    () => (portfolioItems || [])
+      .map((i) => `${i.id}:${i.quantity}:${i.symbol || ''}:${i.acquisitionDate || ''}:${i.isDebt ? 1 : 0}:${i.countInNetWorth === false ? 0 : 1}`)
+      .sort()
+      .join('|') + `#${(enrichedItems || []).length}`,
+    [portfolioItems, enrichedItems]
+  )
   useEffect(() => {
+    const { enrichedItems, portfolioItems } = jan1ItemsRef.current
     // Sin activos no hay nada que reconstruir, y esa ausencia YA es la
     // respuesta: se marca resuelto en vez de dejar el latch colgado para
     // siempre en una cartera vacía.
@@ -1975,7 +1991,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, portfolioItems, viewTransactions, lots, convert, baseCurrency])
+  }, [jan1ItemsSig, viewTransactions, lots, convert, baseCurrency]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the Dietz math
   // depends on the SOURCE of the start anchor:
