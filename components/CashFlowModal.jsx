@@ -26,7 +26,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
   // una copia ANGOSTA que dejaba a una "Cuenta Monetaria" del lado no-banco.
   const getValue = accountValue
   const formatOption = (item) =>
-    `${item.name || item.symbol} (${item.institution || '-'}) - ${item.currency || 'USD'} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    `${item.name || item.symbol}${item.institution ? ` (${item.institution})` : ''} - ${item.currency || 'USD'} ${getValue(item).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   const [flowType, setFlowType] = useState(prefill?.flowType || 'DEPOSIT')
   // Where the money comes from (DEPOSIT) / goes to (WITHDRAWAL):
