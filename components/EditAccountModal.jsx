@@ -503,7 +503,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       setContribAmount('')
       setContribDesc('')
       setShowContribution(false)
-      setContribSuccess(isAdd ? t('Aporte registrado', 'Contribution recorded') : t('Retiro registrado', 'Withdrawal recorded'))
+      setContribSuccess(isAdd ? t('Aporte registrado y saldo actualizado. No hace falta Guardar.', 'Contribution recorded and balance updated. No need to Save.') : t('Retiro registrado y saldo actualizado. No hace falta Guardar.', 'Withdrawal recorded and balance updated. No need to Save.'))
       setTimeout(() => setContribSuccess(''), 3000)
     } catch (err) {
       setError(err.message)
