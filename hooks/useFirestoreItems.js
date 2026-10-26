@@ -368,7 +368,14 @@ export function useFirestoreItems() {
     // 12,000 line over a portfolio worth 6,240 (FASE DX). Portfolio-wide
     // snapshots ('daily' and friends) are never touched: they also measure what
     // survives.
-    const orphanSnapIds = orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
+    // Si no sobrevive NINGÚN ítem, los snapshots de portafolio completo tampoco
+    // describen nada: el backfill se salta con cero activos, así que quedaban
+    // para siempre y el YTD se medía contra un ancla de un portafolio que ya no
+    // existe (-100%). Se borran con la cuenta; si se vuelve a importar, el
+    // backfill los reconstruye.
+    const orphanSnapIds = survivingItems.length === 0
+      ? snapshots.map((s) => s.id).filter(Boolean)
+      : orphanedAccountSnapshotIds(snapshots, groupItems, survivingItems)
     // FASE GL. Account-LEVEL transactions (a broker's deposits/withdrawals,
     // fees and taxes carry symbol 'CASH' and no _linkedItemId, and accepted
     // inferred flows share that shape) never matched the per-item filters
