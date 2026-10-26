@@ -247,7 +247,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                         opciones de la tarjeta ACCIONES, y un teléfono bajo puede
                         no tener los 75vh que esto deja de margen. */}
                     <div role="menu"
-                      className="absolute right-0 mt-2 w-64 max-h-[75vh] overflow-y-auto rounded-xl border p-1.5 z-40"
+                      className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] max-h-[75vh] overflow-y-auto rounded-xl border p-1.5 z-40"
                       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', boxShadow: 'var(--shadow-modal)', backdropFilter: 'var(--glass-blur)' }}>
                       {actionGroups.record.length > 0 && (
                         <>
