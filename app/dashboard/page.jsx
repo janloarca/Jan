@@ -350,6 +350,7 @@ export default function DashboardPage() {
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
     bulkImport,
+    restoreBackup,
     saveGoals, saveSettings, saveProfile, incomePlan, saveIncomePlan,
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
     reversalItems,
@@ -2134,6 +2135,8 @@ export default function DashboardPage() {
           onUpdateEntity={updateEntityData}
           onDeleteEntity={handleDeleteEntity}
           onOpenConnections={brokersOn ? handleOpenConnections : null}
+          onRestoreBackup={restoreBackup}
+          restoreExisting={{ items, lots, transactions }}
           onExportBackup={() => {
             const data = {
               exportDate: new Date().toISOString(), version: '1.0',

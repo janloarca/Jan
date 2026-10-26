@@ -18,6 +18,7 @@ import { useEdgeFade } from '@/hooks/useEdgeFade'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import BusyLabel from '@/components/ui/BusyLabel'
 import FinanceWipePanel from '@/components/settings/FinanceWipePanel'
+import RestoreBackupCard from '@/components/settings/RestoreBackupCard'
 import ShareTab from '@/components/settings/ShareTab'
 import CountrySelect from '@/components/ui/CountrySelect'
 import { TAX_JURISDICTION_OPTIONS } from '@/components/dashboard/utils'
@@ -82,7 +83,7 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
   )
 }
 
-export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '', profile = null, onSaveProfile, userDisplayName = '', portfolios = [], activePortfolio = '__all__' }) {
+export default function SettingsModal({ onClose, settings, onSaveSettings, onDeleteAllItems, onDeleteAllSnapshots, onDeleteAllTransactions, onDeleteAllFinanceTransactions, onDeleteFinanceTransactionsByIds, financeTransactions = [], onDeleteItemGroup, onExportBackup, onRestoreBackup, restoreExisting, onOpenConnections, entities, onAddEntity, onUpdateEntity, onDeleteEntity, theme, onToggleTheme, beginnerMode = false, onToggleBeginner, lang = 'es', onSetLang, portfolioItems = [], userEmail = '', profile = null, onSaveProfile, userDisplayName = '', portfolios = [], activePortfolio = '__all__' }) {
   const trapRef = useFocusTrap()
   const [baseCurrency, setBaseCurrency] = useState(settings?.baseCurrency || 'USD')
   const [benchmarkSymbol, setBenchmarkSymbol] = useState(settings?.benchmarkSymbol || '%5EGSPC')
@@ -1052,6 +1053,8 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   </button>
                 </div>
               )}
+
+              {onRestoreBackup && <RestoreBackupCard onRestore={onRestoreBackup} lang={lang} existing={restoreExisting} />}
 
               {/* One prominent nuclear action; the granular deletes live collapsed
                   below — they're rarely needed and were drowning the tab. */}
