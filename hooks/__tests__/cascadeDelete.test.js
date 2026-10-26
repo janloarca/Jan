@@ -154,3 +154,15 @@ describe('FASE QA2: borrar una cuenta limpia sus observaciones de la Hoja', () =
     expect(store[P('settings')].sheetObservations.observations).toEqual([])
   })
 })
+
+describe('Borrar el último ítem del portafolio', () => {
+  it('se lleva también los snapshots de portafolio completo (si no, el YTD queda en -100%)', async () => {
+    const r = boot({
+      [P('items')]: { solo: { name: 'Solo', symbol: 'SOLO', type: 'Bank', quantity: 1, purchasePrice: 100, currentPrice: 100, currency: 'USD' } },
+      [P('snapshots')]: { '2026-01-01': { date: '2026-01-01', netWorthUSD: 5000, _source: 'daily' } },
+    })
+    await tick()
+    await act(async () => { await r.result.current.deleteItem('solo') })
+    expect(Object.keys(store[P('snapshots')] || {})).toEqual([])
+  })
+})
