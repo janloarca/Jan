@@ -86,7 +86,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
-    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution, bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
+    lots, addLot, closeLotsFIFO, transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution, bulkImport, restoreBackup, bulkWriting, bulkWritingRef, deletionEpoch,
     portfolios, addPortfolio, deletePortfolio,
     financeTransactions, addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -3944,6 +3944,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
     bulkImport,
+    restoreBackup,
     // FASE LH: la señal con la que el confirm de un import rehúsa escribir
     // encima de un sync en vuelo. `ibkrAutoSyncing` cubre descarga+escritura
     // de A/B; `bulkWriting` cubre además el colchón de 1500ms del eco del

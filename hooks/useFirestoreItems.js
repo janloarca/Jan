@@ -518,6 +518,35 @@ export function useFirestoreItems() {
     setDeletionEpoch((e) => e + 1)
   }, [uid])
 
+  // Restaurar respaldo: escribe items/lotes/transacciones con sus ids ORIGINALES
+  // (los ids de las transacciones llevan nonce: recomputarlos duplicaría) y solo
+  // los que no existen hoy. Ver lib/backupRestore.js.
+  const restoreBackup = useCallback(async (data, onProgress) => {
+    if (!uid) throw new Error('Not authenticated')
+    const { planRestore } = await import('@/lib/backupRestore')
+    const { plan, skipped, toWrite } = planRestore(data, { items, lots, transactions })
+    const { db, fs } = await getFirebase()
+    const ops = []
+    for (const key of ['items', 'lots', 'transactions']) {
+      for (const d of plan[key]) ops.push({ ref: fs.doc(db, `users/${uid}/${key}`, d.id), data: d.data })
+    }
+    setBulkWriting(true)
+    bulkWritingRef.current = true
+    try {
+      const CHUNK = 30
+      for (let i = 0; i < ops.length; i += CHUNK) {
+        const batch = fs.writeBatch(db)
+        for (const op of ops.slice(i, i + CHUNK)) batch.set(op.ref, op.data)
+        await batch.commit()
+        if (onProgress) onProgress(Math.min(i + CHUNK, ops.length), ops.length)
+      }
+    } finally {
+      setTimeout(() => { bulkWritingRef.current = false; setBulkWriting(false) }, 1500)
+    }
+    setDeletionEpoch((e) => e + 1)
+    return { written: toWrite, skipped }
+  }, [uid, items, lots, transactions])
+
   const saveSnapshot = useCallback(async (snapshot) => {
     if (!uid) return
     // Demo mode (onboarding sample data) must not leave real history behind —
@@ -1446,7 +1475,7 @@ export function useFirestoreItems() {
     addAlert, deleteAlert, updateAlert,
     addLot, updateLot, closeLotsFIFO,
     transferFunds, reverseTransfer, executeSaleAtomic, reverseSaleAtomic, executeContribution,
-    bulkImport, bulkWriting, bulkWritingRef, deletionEpoch,
+    bulkImport, restoreBackup, bulkWriting, bulkWritingRef, deletionEpoch,
     addPortfolio, deletePortfolio,
     saveGoals, saveSettings, saveProfile, saveIncomePlan, saveSheetObservations,
     saveItemSnapshots, loadItemSnapshots,
