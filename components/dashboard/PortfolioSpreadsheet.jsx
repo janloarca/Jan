@@ -232,7 +232,7 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-[var(--alert-info-bg)] hover:ring-1 hover:ring-[var(--accent-blue-soft)] text-right"
       onClick={startEdit}>
       <span className="font-mono tabular-nums text-sm" style={isNegative ? { color: 'var(--text-negative)' } : { color: 'var(--text-primary)' }}>{formatNum(displayValue)}</span>
-      {currency && <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>{currency}</span>}
+      {currency && displayValue != null && <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>{currency}</span>}
       {hint && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
     </div>
   )
