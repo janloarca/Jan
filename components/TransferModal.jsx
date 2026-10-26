@@ -172,7 +172,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
 
   const money = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const formatOption = (item) =>
-    `${item.name} (${item.institution || '-'}) - ${item.currency || 'USD'} ${money(getValue(item))}`
+    `${item.name}${item.institution ? ` (${item.institution})` : ''} - ${item.currency || 'USD'} ${money(getValue(item))}`
 
   const handleSubmit = async (e) => {
     e.preventDefault()

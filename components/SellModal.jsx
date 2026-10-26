@@ -70,7 +70,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
   // equivocada.
   const money = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const formatOption = (it) =>
-    `${it.name || it.symbol} (${it.institution || '-'}) - ${it.currency || 'USD'} ${money(accountValue(it))}`
+    `${it.name || it.symbol}${it.institution ? ` (${it.institution})` : ''} - ${it.currency || 'USD'} ${money(accountValue(it))}`
 
   const handleSubmit = async (e) => {
     e.preventDefault()
