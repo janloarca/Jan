@@ -2104,7 +2104,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     <div className="flex items-center gap-2">
                       <span className="text-xs w-3" style={{ color: 'var(--text-muted)' }}>{isCollapsed ? '>' : 'v'}</span>
                       <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{cat.label}</span>
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({cat.institutions.reduce((s, i) => s + i.items.length, 0)})</span>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({cat.institutions.reduce((s, i) => s + i.items.filter(it => it.isDebt || getItemValue(it) > 0).length, 0)})</span>
                       {cat.excludedFromTotal && <span className="text-xs ml-1" style={{ color: 'var(--accent-cyan)' }}>{t('(no incluido en total)', '(not in total)')}</span>}
                       {isDebtsRow && <InfoTip text={DEBT_CLARIFICATION[lang]} />}
                     </div>

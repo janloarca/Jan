@@ -2116,7 +2116,8 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             )}
           </p>
           <p className="text-sm mt-0.5" style={{ color: displayAbs >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-            <span className="font-mono tabular-nums">
+            <span className="font-mono tabular-nums"
+              title={t('Cambio del valor en este periodo, sin contar aportes. El YTD del encabezado pondera los aportes por tiempo, por eso el % puede diferir.', 'Change in value over this period, net of contributions. The header YTD weights contributions by time, so the % can differ.')}>
               {displayAbs >= 0 ? '+' : ''}{formatCurrency(displayAbs)}
               {growthPct != null && ` (${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(2)}%)`}
             </span>
