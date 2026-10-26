@@ -49,6 +49,11 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
   // producía un "-15%" con barra invisible.
   const incomePct = incomeGoal > 0 ? Math.max(0, Math.min(100, (effectiveIncome / incomeGoal) * 100)) : 0
   const portfolioPct = portfolioGoal > 0 ? Math.max(0, Math.min(100, (portfolioNow / portfolioGoal) * 100)) : 0
+  // La barra se topa en 100%, pero el rótulo dice cuánto se pasó la meta: un
+  // "100%" a secas se lee igual con la meta justa que con 10x de sobra.
+  const overLabel = (now, goal) => (goal > 0 && now > goal * 1.005 ? `${(now / goal).toFixed(1)}x` : null)
+  const incomeOver = overLabel(effectiveIncome, incomeGoal)
+  const portfolioOver = overLabel(portfolioNow, portfolioGoal)
 
   const scenarios = useMemo(() => {
     const rates = [
@@ -190,7 +195,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
                 <span className="text-xs text-white font-medium">{t('Ingreso pasivo', 'Passive income')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(incomeGoal)}/{t('año', 'yr')}</span>
               </div>
-              <span className="text-xs font-bold" style={{ color: incomePct >= 75 ? 'var(--accent-green)' : incomePct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{incomePct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: incomePct >= 75 ? 'var(--accent-green)' : incomePct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{incomeOver ? t(`Meta superada (${incomeOver})`, `Goal exceeded (${incomeOver})`) : `${incomePct.toFixed(0)}%`}</span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full bar-fill"
@@ -209,7 +214,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
                 <span className="text-xs text-white font-medium">{t('Tamaño de portfolio', 'Portfolio size')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
-              <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioPct.toFixed(0)}%</span>
+              <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioOver ? t(`Meta superada (${portfolioOver})`, `Goal exceeded (${portfolioOver})`) : `${portfolioPct.toFixed(0)}%`}</span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <div className="h-full rounded-full bar-fill"
