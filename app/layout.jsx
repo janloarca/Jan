@@ -29,6 +29,9 @@ export const metadata = {
     statusBarStyle: 'black-translucent',
     title: 'Chispudo',
   },
+  // Chrome deprecó apple-mobile-web-app-capable; Next sigue emitiendo ese, asi
+  // que se agrega el nombre estandar junto a el (iOS conserva el suyo).
+  other: { 'mobile-web-app-capable': 'yes' },
 }
 
 export const viewport = {
