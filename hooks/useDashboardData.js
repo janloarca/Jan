@@ -82,7 +82,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const firestoreData = useFirestoreItems()
   const {
     items, snapshots: rawSnapshots, transactions, goals, settings, profile,
-    loading: dataLoading, loadError, addItem, updateItem, deleteItem,
+    loading: dataLoading, loadError, financeReady, addItem, updateItem, deleteItem,
     deleteAllItems, deleteItemGroup, saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     alerts, addAlert, deleteAlert, updateAlert,
@@ -3930,7 +3930,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     entityTransactions, entityFinanceTransactions,
     // FASE OG: la vista escopada y sus movimientos (ver lib/portfolioScope.js).
     scopedView, viewTransactions,
-    dataLoading, loadError,
+    dataLoading, loadError, financeReady,
 
     // Firestore actions
     addItem, addItemInScope, updateItem, deleteItem, deleteAllItems, deleteItemGroup,

@@ -930,11 +930,6 @@ export default function DashboardPage() {
       window.removeEventListener('storage', sync)
     }
   }, [])
-  const pendingFindings = useMemo(
-    () => countPending(dataCompleteness.findings, dismissedIds),
-    [dataCompleteness.findings, dismissedIds]
-  )
-
   // FASE HV. El rendimiento deducido de una cuenta líquida entra a la MISMA
   // lista de sugerencias que todo lo demás, en vez de estrenar una superficie
   // propia: es una pregunta sobre los datos, igual que las otras. Se arma acá y
@@ -963,6 +958,14 @@ export default function DashboardPage() {
     }))
     return extra.length > 0 ? [...extra, ...dataCompleteness.findings] : dataCompleteness.findings
   }, [liquidYieldCandidates, dataCompleteness])
+
+  // Cuenta la MISMA lista que dibuja la card (incluye los hallazgos de
+  // rendimiento líquido): con dataCompleteness.findings a secas el header decía
+  // 28 y la card 31.
+  const pendingFindings = useMemo(
+    () => countPending(suggestionFindings, dismissedIds),
+    [suggestionFindings, dismissedIds]
+  )
 
   // Export XLSX
   const handleExport = useCallback(async () => {

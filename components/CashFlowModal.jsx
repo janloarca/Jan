@@ -728,7 +728,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                   entiende las dos convenciones: `parseFloat('12.500')` daba
                   12.5, mil veces menos, en silencio. */}
               <input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
-                placeholder="10000" autoFocus
+                placeholder="0.00" autoFocus
                 className={`${inputCls} flex-1 text-lg font-bold`} />
               {!isTransfer && (balanceTarget ? (
                 <span className="px-3 py-2.5 bg-theme-base border border-glass-border rounded-lg text-sm text-slate-300 w-20 text-center">

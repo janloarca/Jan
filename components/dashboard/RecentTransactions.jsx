@@ -255,9 +255,9 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                   </span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm text-white font-medium truncate">{tx.symbol || tx.description || '-'}</span>
+                      <span className="text-sm text-white font-medium truncate">{(tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL') && tx.description ? tx.description : (tx.symbol || tx.description || '-')}</span>
                       <span className="px-1.5 py-0.5 rounded text-xs font-bold uppercase shrink-0" style={typeBadgeStyle(tx.type)}>
-                        {tx.type || 'TX'}
+                        {lang === 'es' && tx.type === 'WITHDRAWAL' ? 'Retiro' : lang === 'es' && tx.type === 'DEPOSIT' ? 'Depósito' : (tx.type || 'TX')}
                       </span>
                     </div>
                     <span className="text-xs text-slate-500">
