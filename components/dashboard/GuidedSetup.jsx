@@ -73,7 +73,7 @@ export default function GuidedSetup({
   const current = queue[index]
   const currentCat = categoryFor(current)
 
-  // ---------- Pantalla 1: qué tenés ----------
+  // ---------- Pantalla 1: qué tienes ----------
   if (phase === 'checklist') {
     return (
       <Shell onClose={onClose}>

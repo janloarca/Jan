@@ -174,7 +174,7 @@ export default function WeekdayRhythmCard({
             {sel.topLabel ? ` · ${sel.topLabel}` : ''}
             {sel.hasAnnual ? t(' · incluye un pago anual', ' · includes an annual payment') : ''}
           </>
-        ) : t('Tocá un día para ver su monto.', 'Tap a day to see its amount.')}
+        ) : t('Toca un día para ver su monto.', 'Tap a day to see its amount.')}
       </p>
 
       {/* ── GASTO POR DÍA ── */}
@@ -267,7 +267,7 @@ export default function WeekdayRhythmCard({
 
           {claim.status === 'zero' && (
             <p>{t(
-              'Con la mediana, un día típico de la semana sale en Q0: casi siempre se gasta en pocos días y el resto queda vacío. Cambiá a Promedio para ver el peso de los días con gasto.',
+              'Con la mediana, un día típico de la semana sale en Q0: casi siempre se gasta en pocos días y el resto queda vacío. Cambia a Promedio para ver el peso de los días con gasto.',
               'By median, a typical day of the week comes out at Q0: spending usually lands on a few days and the rest stay empty. Switch to Average to see the weight of the days you do spend.'
             )}</p>
           )}

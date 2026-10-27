@@ -102,7 +102,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   const iconBtn = 'w-9 h-9 flex items-center justify-center rounded-lg border transition-colors'
   const iconBtnStyle = { color: 'var(--text-muted)', borderColor: 'var(--card-border)' }
 
-  // UNA sola definición de "qué podés hacer acá" (lib/dashboardActions.js),
+  // UNA sola definición de "qué puedes hacer acá" (lib/dashboardActions.js),
   // compartida con la tarjeta ACCIONES del tablero: antes cada superficie
   // tenía su propia lista y ya habían divergido (la tarjeta ofrecía 8 cosas
   // que este menú no tenía). El tour y el agrupado por secciones sí son de
@@ -126,7 +126,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
       style={{ borderColor: 'var(--card-border)', paddingTop: 'env(safe-area-inset-top, 0px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 min-w-0">
             <Logo size={19} as="h1" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'} />
 
             {/* Navigation — segmented control */}
@@ -148,7 +148,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             </nav>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <span className="text-caption hidden lg:block" style={{ color: 'var(--text-muted)' }}>{today}</span>
 
             {onCommandPalette && (

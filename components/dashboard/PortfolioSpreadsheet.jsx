@@ -1219,7 +1219,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     } catch (e) {
       console.error('[spreadsheet] no se pudo guardar', e)
       setBlockMsg(lang === 'es'
-        ? `${label}: no se pudo guardar. Revisá tu conexión e intentá de nuevo.`
+        ? `${label}: no se pudo guardar. Revisa tu conexión e intentá de nuevo.`
         : `${label}: could not save. Check your connection and try again.`)
       setTimeout(() => setBlockMsg(null), 6000)
     }
@@ -1405,7 +1405,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   const handleValueReject = useCallback((item) => {
     const label = item.symbol || item.name
     setBlockMsg(lang === 'es'
-      ? `${label}: ese valor no se pudo leer. Usá solo números, sin signo negativo.`
+      ? `${label}: ese valor no se pudo leer. Usa solo números, sin signo negativo.`
       : `${label}: could not read that value. Use numbers only, no minus sign.`)
     setTimeout(() => setBlockMsg(null), 5000)
   }, [lang])

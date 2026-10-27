@@ -2,7 +2,7 @@
 
 import { useEdgeFade } from '@/hooks/useEdgeFade'
 
-// "Elegí uno de N", UNA sola vez.
+// "Elige uno de N", UNA sola vez.
 //
 // El Patrimonio tenía CUATRO lenguajes visuales para esto en la misma pantalla:
 // las pestañas de Análisis (pastillas sobre un riel, con difuminado de borde),

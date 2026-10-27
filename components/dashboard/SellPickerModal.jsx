@@ -5,7 +5,7 @@ import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { formatCurrency, getItemValue } from './utils'
 
-// "¿Qué querés vender?": el paso que faltaba para que vender fuera alcanzable
+// "¿Qué quieres vender?": el paso que faltaba para que vender fuera alcanzable
 // desde el dashboard. SellModal necesita un ítem concreto, y hasta ahora el
 // ÚNICO camino para dárselo era el botón por fila dentro de la tabla de
 // activos, así que quien no la abría no tenía forma de saber que la app
@@ -38,12 +38,12 @@ export default function SellPickerModal({ items = [], onPick, onClose, lang = 'e
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {t('¿Qué querés vender?', 'What do you want to sell?')}
+            {t('¿Qué quieres vender?', 'What do you want to sell?')}
           </h2>
           <button type="button" onClick={onClose} className="text-xl leading-none px-1" style={{ color: 'var(--text-muted)' }} aria-label={t('Cerrar', 'Close')}>×</button>
         </div>
         <p className="text-caption mb-4" style={{ color: 'var(--text-muted)' }}>
-          {t('Elegí la posición y en el siguiente paso escribís cantidad, precio y a dónde va el dinero.',
+          {t('Elige la posición y en el siguiente paso escribes cantidad, precio y a dónde va el dinero.',
              'Pick the position; the next step asks for quantity, price and where the money goes.')}
         </p>
 
@@ -57,7 +57,7 @@ export default function SellPickerModal({ items = [], onPick, onClose, lang = 'e
         {sellable.length === 0 ? (
           <p className="text-body py-6 text-center" style={{ color: 'var(--text-muted)' }}>
             {total === 0
-              ? t('No tenés posiciones con cantidad para vender.', 'You have no positions with a quantity to sell.')
+              ? t('No tienes posiciones con cantidad para vender.', 'You have no positions with a quantity to sell.')
               : t('Ninguna posición coincide con tu búsqueda.', 'No position matches your search.')}
           </p>
         ) : (

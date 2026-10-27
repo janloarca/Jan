@@ -1002,7 +1002,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
               </SectionCard>
 
               <button onClick={handleSave} disabled={saving} className="btn-primary w-full">
-                {<BusyLabel busy={saving} lang={lang}>{t('Guardar configuracion', 'Save settings')}</BusyLabel>}
+                {<BusyLabel busy={saving} lang={lang}>{t('Guardar configuración', 'Save settings')}</BusyLabel>}
               </button>
             </div>
           )}

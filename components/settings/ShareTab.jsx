@@ -14,7 +14,7 @@
 // - `scopeChip` no tenía rama para `portfolio` (bug de FASE KK): un link
 //   escopado a portafolio se etiquetaba "Todo el portafolio".
 // - Las dos filas de chips (alcance, números) pasan a SegmentedTabs, la regla
-//   del repo para "elegí uno de N" desde FASE JT.
+//   del repo para "elige uno de N" desde FASE JT.
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link2, FileText } from 'lucide-react'

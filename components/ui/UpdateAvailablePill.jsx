@@ -81,7 +81,7 @@ export default function UpdateAvailablePill({ buildId }) {
       }}
     >
       <button onClick={reload} className="flex items-center gap-2">
-        <span>{lang === 'es' ? 'Hay una versión nueva. Tocá para actualizar' : 'A new version is ready. Tap to update'}</span>
+        <span>{lang === 'es' ? 'Hay una versión nueva. Toca para actualizar' : 'A new version is ready. Tap to update'}</span>
         <span style={{ opacity: 0.7 }}>
           {String(buildId).slice(0, 6)}→{String(serverBuild).slice(0, 6)}
         </span>

@@ -103,7 +103,7 @@ export default function QuickActionsCard({
           {t('ACCIONES', 'ACTIONS')}
         </h3>
         <InfoTip text={t(
-          'Todo lo que podés hacer con tu portafolio. Primero, lo que ya pasó y querés dejar registrado (un depósito, una compra, una venta, dinero movido entre tus cuentas); después, traer datos de tu broker o revisar lo que falte.',
+          'Todo lo que puedes hacer con tu portafolio. Primero, lo que ya pasó y quieres dejar registrado (un depósito, una compra, una venta, dinero movido entre tus cuentas); después, traer datos de tu broker o revisar lo que falte.',
           'Everything you can do with your portfolio. First, what already happened and you want on record (a deposit, a purchase, a sale, money moved between your accounts); then, bringing in broker data or reviewing what is missing.'
         )} />
       </div>

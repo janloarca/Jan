@@ -200,8 +200,8 @@ function FriendsPageInner() {
       case 'group_gone': return t('Ese grupo ya no existe.', 'That group no longer exists.')
       case 'owner_only': return t('Solo quien creó el grupo puede hacer eso.', 'Only the group owner can do that.')
       case 'name_required': return t('Escribí un nombre para el grupo.', 'Enter a name for the group.')
-      case 'code_required': return t('Pegá el código del grupo.', 'Paste the group code.')
-      case 'max_groups': return t('Llegaste al máximo de grupos que podés crear.', 'You reached the maximum number of groups you can create.')
+      case 'code_required': return t('Pega el código del grupo.', 'Paste the group code.')
+      case 'max_groups': return t('Llegaste al máximo de grupos que puedes crear.', 'You reached the maximum number of groups you can create.')
       case 'missing_stats': return t('Todavía no hay números que publicar.', 'There are no numbers to publish yet.')
       case 'rate_limited': return t('Demasiados intentos seguidos. Esperá un momento.', 'Too many attempts in a row. Wait a moment.')
       default: return fallback || t('Algo salió mal. Intentá de nuevo.', 'Something went wrong. Try again.')
@@ -274,7 +274,7 @@ function FriendsPageInner() {
     // (ese reintenta solo, porque el efecto se re-ejecuta cuando las compuertas
     // se abren).
     if (publishBlocked) {
-      if (!silent) flash(t('Estamos calculando tus números. Probá en un momento.',
+      if (!silent) flash(t('Estamos calculando tus números. Prueba en un momento.',
         'Still crunching your numbers. Try again in a moment.'), 'warn')
       return false
     }

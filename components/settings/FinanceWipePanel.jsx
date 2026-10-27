@@ -137,7 +137,7 @@ export default function FinanceWipePanel({
             {t('Eliminar finanzas', 'Delete finance data')}
           </div>
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {t('Ingresos y gastos personales. Podés acotar por mes y por cómo entraron.',
+            {t('Ingresos y gastos personales. Puedes acotar por mes y por cómo entraron.',
                'Personal income and expenses. You can narrow it by month and by how they came in.')}
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function FinanceWipePanel({
           borrar nada. */}
       {method === 'statement' && plan.count > 0 && (
         <p className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
-          {t('¿Solo está mal la categoría? Usá Reclasificar en Flujo, no hace falta borrar.',
+          {t('¿Solo está mal la categoría? Usa Reclasificar en Flujo, no hace falta borrar.',
              'Only the category is wrong? Use Reclassify in Flujo, no need to delete.')}
         </p>
       )}

@@ -669,7 +669,7 @@ export default function PrintSummary({
           ".fixed" a secas. Con ".fixed", CUALQUIER hijo fijo de body (el
           UpdateAvailablePill del layout, un toast) sobrevivía al ocultado,
           se volvía estático con fondo blanco y se IMPRIMÍA dentro del
-          reporte del cliente ("Hay una versión nueva. Tocá para actualizar"
+          reporte del cliente ("Hay una versión nueva. Toca para actualizar"
           en un documento financiero). */}
       <style jsx global>{`
         @media print {

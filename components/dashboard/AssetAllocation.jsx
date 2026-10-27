@@ -155,7 +155,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
   // ancho que dice cada cosa una sola vez: grupo, posiciones, peso (barra + %),
   // valor, ganancia en dinero y retorno. Ninguna fórmula se movió: gain y
   // returnPct salen del mismo memo de arriba.
-  const COLS = 'sm:grid-cols-[minmax(0,1.5fr)_3.5rem_minmax(0,2fr)_7.5rem_7rem_6rem]'
+  const COLS = 'sm:grid-cols-[minmax(0,1.5fr)_3.5rem_minmax(0,2fr)_minmax(7.5rem,max-content)_minmax(7rem,max-content)_minmax(6rem,max-content)]'
   const signed = (n) => `${n >= 0 ? '+' : '-'}${formatCurrency(Math.abs(n))}`
   const tone = (n) => (n == null ? 'var(--text-muted)' : n >= 0 ? 'var(--accent-green)' : 'var(--text-negative)')
 
@@ -167,7 +167,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
           {!embedded && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />}
           {!embedded && t('ASIGNACIÓN DE ACTIVOS', 'ASSET ALLOCATION')}
           <InfoTip text={t(
-            'El % de retorno es propio de cada grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambiá la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte. Tus deudas no entran acá: se restan en el patrimonio de arriba.',
+            'El % de retorno es propio de cada grupo: ganancia ÷ lo que invertiste en él (incluye costos de entrada, excluye el capital nuevo). Cambia la vista para agrupar los mismos activos por tipo, institución, vencimiento y más: el total no cambia, solo cómo se reparte. Tus deudas no entran acá: se restan en el patrimonio de arriba.',
             'The return % is each group\'s own: gain ÷ what you invested in it (includes entry costs, excludes new capital). Switch the view to group the same holdings by type, institution, maturity and more: the total never changes, only how it is split. Your debts are not in here: they subtract in the net worth above.'
           )} />
         </h3>
