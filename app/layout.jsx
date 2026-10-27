@@ -8,16 +8,26 @@ export const metadata = {
   description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for Latin America.',
   keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
   openGraph: {
-    title: 'Chispudo: Track Your Entire Portfolio',
-    description: 'Stocks, crypto, bonds, real estate, DeFi yield, SAFE notes: all in one place. Built for Latin America.',
+    title: 'Chispu: Your real net worth, in one place',
+    description: 'Track stocks, crypto, real estate, debt, private companies and startup rounds in any currency.',
     url: 'https://chispu.xyz',
-    siteName: 'Chispudo',
+    siteName: 'Chispu',
     type: 'website',
+    images: [
+      {
+        url: 'https://chispu.xyz/og.png',
+        width: 1200,
+        height: 630,
+        alt: 'Chispu: your real net worth, not just stocks',
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chispudo: Portfolio Tracker for Latin America',
-    description: 'Track every asset type. Built for Latin America.',
+    title: 'Chispu: Your real net worth, in one place',
+    description: 'Track stocks, crypto, real estate, debt, private companies and startup rounds in any currency.',
+    images: ['https://chispu.xyz/og.png'],
   },
   metadataBase: new URL('https://chispu.xyz'),
   // El manifest SE ACTIVA otra vez: lo que causaba el cache viejo era el
