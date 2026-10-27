@@ -134,7 +134,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
               card se contradecía a sí misma en dos centímetros. El conteo va al
               lado porque es lo que la lista de abajo de verdad muestra; el
               porcentaje conserva su significado y deja de ser la única cifra. */}
-          {t('Datos', 'Data')} {globalScore}% · {visible.length} {t(visible.length === 1 ? 'pendiente' : 'pendientes', visible.length === 1 ? 'gap' : 'gaps')}
+          {t('Campos completos', 'Fields complete')} {globalScore}% · {visible.length} {t(visible.length === 1 ? 'pendiente' : 'pendientes', visible.length === 1 ? 'gap' : 'gaps')}
         </span>
       </div>
 

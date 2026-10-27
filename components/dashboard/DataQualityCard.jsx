@@ -75,7 +75,7 @@ export default function DataQualityCard({
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-h1" style={{ color: ringColor }}>{score}%</span>
             <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              {t('datos reales', 'real data')}
+              {t('historial real', 'real history')}
             </span>
           </div>
         </div>
