@@ -19,7 +19,7 @@ import { getItemValue, formatCurrency } from './utils'
 export default function EnrichModal({
   items = [], findings = [], lang = 'es', onClose,
   onPickAccount, onPickInstitution, onGuided, contributionWarning = false,
-  onBrokerChecklist, hasBroker = false,
+  onBrokerChecklist, hasBroker = false, pendingCount = null,
 }) {
   useEscClose(onClose)
   const t = (es, en) => (lang === 'es' ? es : en)
@@ -63,7 +63,10 @@ export default function EnrichModal({
   const [openGroup, setOpenGroup] = useState(null)
 
   const withGaps = useMemo(() => items.filter((it) => gapsByItem.get(it.id)).length, [items, gapsByItem])
-  const guidedCount = withGaps + (contributionWarning ? 1 : 0)
+  // Si el tablero pasa su conteo de pendientes, es el MISMO que dice el header y
+  // la card de sugerencias (menos los descartados). Antes esto contaba cuentas
+  // con huecos (28) mientras el header contaba hallazgos (31).
+  const guidedCount = pendingCount != null ? pendingCount : withGaps + (contributionWarning ? 1 : 0)
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>

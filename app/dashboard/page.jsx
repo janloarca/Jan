@@ -2362,6 +2362,7 @@ export default function DashboardPage() {
         <EnrichModal
           items={portfolioItems}
           findings={dataCompleteness.findings}
+          pendingCount={pendingFindings}
           contributionWarning={contributionWarning}
           lang={lang}
           onClose={handleCloseEnrich}
