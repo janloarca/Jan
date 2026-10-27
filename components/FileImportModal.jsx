@@ -1125,7 +1125,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     ? t(`Importar archivo: ${brokerInfo.name}`, `Import file: ${brokerInfo.name}`)
     : context === 'finance'
       ? t('Importar movimientos', 'Import transactions')
-      : t('Importar Portfolio', 'Import Portfolio')
+      : t('Importar portafolio', 'Import Portfolio')
   // Dentro del viaje, las instrucciones que YA son pasos propios del viaje se
   // omiten (ver journeyStep en lib/brokerHowTo.js).
   const brokerSteps = (brokerInfo?.csv?.steps || []).filter((s) => !(journeyActive && s.journeyStep))
@@ -1176,7 +1176,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                   : t('Todavía no reconocemos este banco', "We don't recognize this bank yet")}
               </p>
               <p className="mb-2">{t(
-                'Lo vamos a leer con IA, que funciona pero no reconcilia contra los totales que el estado imprime. Si querés lectura exacta, mandá esta línea (no lleva montos ni comercios):',
+                'Lo vamos a leer con IA, que funciona pero no reconcilia contra los totales que el estado imprime. Si quieres lectura exacta, mandá esta línea (no lleva montos ni comercios):',
                 'We will read it with AI, which works but does not reconcile against the totals the statement prints. For exact reading, send this line (it carries no amounts or merchants):'
               )}</p>
               <div className="flex items-center gap-2">
@@ -1218,7 +1218,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
                     {t('Opcional: ya conectaste por API', 'Optional: you already connected via API')}
                   </p>
                   <p>
-                    {t('El sync trae esto solo (posiciones, movimientos y el valor diario de tu cuenta). Subí el archivo solo si no querés esperar a que IBKR responda, o si el sync llegó sin historial.',
+                    {t('El sync trae esto solo (posiciones, movimientos y el valor diario de tu cuenta). Sube el archivo solo si no quieres esperar a que IBKR responda, o si el sync llegó sin historial.',
                        'The sync brings this on its own (positions, movements and your account\'s daily value). Upload the file only if you would rather not wait for IBKR to answer, or if the sync arrived with no history.')}
                   </p>
                 </div>

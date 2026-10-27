@@ -335,12 +335,12 @@ export default function QuarterlyHistoryModal({
   // pasos 1 y 2 del viaje de IBKR, vía el BrokerSteps compartido).
   const STEPS = [
     { es: 'Andá a "Performance & Reports" → "Portfolio Analyst"', en: 'Go to "Performance & Reports" → "Portfolio Analyst"' },
-    { es: 'Abrí el reporte "Holdings"', en: 'Open the "Holdings" report' },
-    { es: 'Poné el período en "Since Inception" y la frecuencia en "Quarterly"', en: 'Set the period to "Since Inception" and the frequency to "Quarterly"' },
+    { es: 'Abre el reporte "Holdings"', en: 'Open the "Holdings" report' },
+    { es: 'Pon el período en "Since Inception" y la frecuencia en "Quarterly"', en: 'Set the period to "Since Inception" and the frequency to "Quarterly"' },
     { es: 'Quitá los benchmarks', en: 'Remove the benchmarks',
       detail: { es: 'Solo debe quedar la línea de tu cuenta en la gráfica.', en: 'Only your account\'s line should remain in the chart.' } },
     { es: 'Capturá la gráfica y transcribí cada barra abajo', en: 'Screenshot the chart and transcribe each bar below',
-      detail: { es: 'Es la gráfica de Net Asset Value. Podés pegar el valor a mano o subir la captura para que Chispu la lea con IA.', en: 'It is the Net Asset Value chart. You can type each value by hand or upload the screenshot for Chispu to read it with AI.' } },
+      detail: { es: 'Es la gráfica de Net Asset Value. Puedes pegar el valor a mano o subir la captura para que Chispu la lea con IA.', en: 'It is the Net Asset Value chart. You can type each value by hand or upload the screenshot for Chispu to read it with AI.' } },
   ]
 
   return (

@@ -357,7 +357,7 @@ export default function DashboardPage() {
     marketPrices,
     pricesLoading, pricesError, pricesUpdate,
     rates, convert,
-    ratesLoading, ratesError, ratesUpdate, ratesStale,
+    ratesLoading, ratesError, ratesUpdate, ratesStale, ytdResolved,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
@@ -689,7 +689,7 @@ export default function DashboardPage() {
     } catch (e) {
       console.error('[ibkr] vault clear on disconnect failed:', e?.message)
       showToast(lang === 'es'
-        ? 'IBKR desconectado aquí, pero no pudimos borrar la copia del servidor. Volvé a intentarlo.'
+        ? 'IBKR desconectado aquí, pero no pudimos borrar la copia del servidor. Vuelve a intentarlo.'
         : 'IBKR disconnected here, but we could not clear the server copy. Please try again.', 'warn')
     }
   }, [saveSettings, showToast, lang])
@@ -1548,7 +1548,7 @@ export default function DashboardPage() {
             </p>
             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
               {lang === 'es'
-                ? 'Tus cuentas siguen guardadas: esto es un problema de conexión, no una cuenta vacía. Revisá tu internet y volvé a intentar.'
+                ? 'Tus cuentas siguen guardadas: esto es un problema de conexión, no una cuenta vacía. Revisa tu internet y volvé a intentar.'
                 : 'Your accounts are still saved: this is a connection problem, not an empty account. Check your internet and try again.'}
             </p>
             <button onClick={() => window.location.reload()} className="btn-primary px-4 py-2 text-sm">
@@ -1596,6 +1596,16 @@ export default function DashboardPage() {
             cálculo: las mismas props, los mismos componentes. */}
         <div className="stagger-1 grid grid-cols-1 gap-4 sm:gap-6">
           <CardBoundary id="OL-01">
+            {/* Mientras llegan precios, tasas o el ancla del año, las cifras son
+                parciales (patrimonio y YTD absurdos por unos segundos): se
+                muestra el esqueleto en vez de un número que no es el final. */}
+            {(pricesLoading || ratesLoading || !ytdResolved) ? (
+              <div className="card p-4 sm:p-5" aria-busy="true">
+                <Shimmer className="h-4 w-28 mb-3" />
+                <Shimmer className="h-10 w-56 mb-3" />
+                <Shimmer className="h-4 w-40" />
+              </div>
+            ) : (
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
               returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
@@ -1608,6 +1618,7 @@ export default function DashboardPage() {
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
             />
+            )}
           </CardBoundary>
 
           {/* ⛔ FASE OZ. El desglose del YTD es HERMANO de la card del patrimonio

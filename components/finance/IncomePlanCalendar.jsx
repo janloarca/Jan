@@ -14,7 +14,7 @@ import {
 } from '@/lib/incomePlan'
 
 // El tablero de ingresos del año: cuánto esperás que entre cada mes, y con qué
-// podés jugar a moverlo.
+// puedes jugar a moverlo.
 //
 // El plan NO es tu historial. Vive en su propio doc y ningún motor de Flujo lo
 // lee, así que planear diciembre nunca puede inflar tu ahorro ni tu resumen
@@ -162,7 +162,7 @@ export default function IncomePlanCalendar({
         </span>
       </div>
       <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-        {t(`Total del año: ${fmt(realSoFar, currency, lang)} ya entró + ${fmt(plannedTotal, currency, lang)} planeado de aquí a diciembre. Arrastrá un ingreso variable a otro mes para jugar con el calendario.`,
+        {t(`Total del año: ${fmt(realSoFar, currency, lang)} ya entró + ${fmt(plannedTotal, currency, lang)} planeado de aquí a diciembre. Arrastra un ingreso variable a otro mes para jugar con el calendario.`,
            `Year total: ${fmt(realSoFar, currency, lang)} already received + ${fmt(plannedTotal, currency, lang)} planned through December. Drag a one-off income to another month to play with the calendar.`)}
       </p>
 
@@ -244,8 +244,8 @@ export default function IncomePlanCalendar({
                               opacity: drag?.id === chip.id ? 0.35 : 1,
                             }}
                             title={chip.repeat === REPEAT_MONTHLY
-                              ? t('Se repite todos los meses. Tocá para editarlo en todos.', 'Repeats every month. Tap to edit it everywhere.')
-                              : t('Tocá para editar, arrastrá para mover de mes.', 'Tap to edit, drag to move months.')}
+                              ? t('Se repite todos los meses. Toca para editarlo en todos.', 'Repeats every month. Tap to edit it everywhere.')
+                              : t('Toca para editar, arrastra para mover de mes.', 'Tap to edit, drag to move months.')}
                           >
                             <span className="flex items-center gap-1 font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                               {chip.repeat === REPEAT_MONTHLY && <Repeat size={9} style={{ color: 'var(--accent-blue)' }} aria-hidden="true" />}

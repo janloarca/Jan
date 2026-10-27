@@ -271,8 +271,8 @@ export default function SpreadsheetPage() {
       {/* View switcher. The global Header above owns navigation now; this bar only
           carries the view tabs and view-specific actions, in theme tokens. */}
       <div id="main-content" className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-h1" style={{ color: 'var(--text-primary)' }}>{t('Hoja de Cálculo', 'Spreadsheet')}</h1>
-        <div className="flex items-center gap-2">
+        <h1 className="text-h1 whitespace-nowrap shrink-0" style={{ color: 'var(--text-primary)' }}>{t('Hoja de Cálculo', 'Spreadsheet')}</h1>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           {/* Otro SegmentedTabs escrito a mano, y este DIVERGÍA: su estado activo
               era un relleno sólido `var(--accent-blue)` mientras el primitivo usa
               una pastilla elevada `var(--bg-card)`. O sea la app decía "esta
@@ -342,7 +342,7 @@ export default function SpreadsheetPage() {
           `useState` puro, se resetea a "Todos" en cada recarga: no hay nada
           concreto que "heredar"), así que decirlo es la corrección real.
           Gateado a que exista más de un portafolio: sin eso, "todos" y "el
-          único que tenés" son la misma cosa y el aviso sería ruido. */}
+          único que tienes" son la misma cosa y el aviso sería ruido. */}
       {portfolios && portfolios.length > 0 && (
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-3">
           <PageBanner tone="info" icon="info">

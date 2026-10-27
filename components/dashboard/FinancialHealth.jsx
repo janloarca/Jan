@@ -67,7 +67,7 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     { label: lang === 'es' ? 'Liquidez' : 'Liquidity', score: scores.liquidScore, max: 25,
       info: lang === 'es' ? '% de tus activos en cuentas líquidas o fondos.' : '% of your assets in liquid accounts or funds.' },
     { label: lang === 'es' ? 'Diversificación' : 'Diversification', score: scores.diverseScore, max: 25,
-      info: lang === 'es' ? 'Cuántos tipos de activo distintos tenés, hasta 5.' : 'How many distinct asset types you hold, up to 5.' },
+      info: lang === 'es' ? 'Cuántos tipos de activo distintos tienes, hasta 5.' : 'How many distinct asset types you hold, up to 5.' },
     { label: lang === 'es' ? 'Crecimiento' : 'Growth', score: scores.growthScore, max: 25,
       info: lang === 'es' ? 'Cambio de tu patrimonio entre tu primer y último registro.' : 'Change in your net worth between your first and last record.' },
   ]

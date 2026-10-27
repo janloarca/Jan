@@ -160,7 +160,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
       // handleValueReject en PortfolioSpreadsheet).
       const label = item.name || item.symbol
       setRejectMsg(lang === 'es'
-        ? `${label}: ese valor no se pudo leer. Usá solo números positivos, hasta 10,000,000.`
+        ? `${label}: ese valor no se pudo leer. Usa solo números positivos, hasta 10,000,000.`
         : `${label}: could not read that value. Use positive numbers only, up to 10,000,000.`)
     }
     setEditingValue(null)

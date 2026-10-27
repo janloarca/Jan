@@ -198,7 +198,7 @@ export default function WorldScene({ world, lang, baseCurrency }) {
       <ul className="sr-only">
         {world.buildings.map((b) => (
           <li key={b.key}>
-            {b.name || t('Sin institución', 'No institution')}: {formatCompact(b.value, baseCurrency)}, {b.variant ? industryLabel(b.variant, lang) : archetypeLabel(b.archetype, lang)}, {b.departments.length} {t('pisos', 'floors')}
+            {b.name || t('Sin institución', 'No institution')}: {formatCompact(b.value, baseCurrency)}, {b.variant ? industryLabel(b.variant, lang) : archetypeLabel(b.archetype, lang)}, {b.departments.length} {b.departments.length === 1 ? t('piso', 'floor') : t('pisos', 'floors')}
           </li>
         ))}
       </ul>

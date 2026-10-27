@@ -401,7 +401,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
         return
       }
       // La venta que acreditó el efectivo a ESTA cuenta (`_destinationItemId`):
-      // el saldo subía y la fila vivía solo en el activo vendido.
+      // el saldo subea y la fila vivía solo en el activo vendido.
       if (tx.type === 'SELL') {
         if (tx._destinationItemId && tx._destinationItemId === item.id && !isMarketPriced(item)) {
           const src = tx._linkedItemId ? byId.get(tx._linkedItemId) : null
@@ -2092,7 +2092,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <label className={labelCls}>
                     {t('Estilo de inversión', 'Investment style')}
                     {' '}
-                    <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
+                    <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo eliges tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
                   </label>
                   <select id="edit-investment-style" value={form.investmentStyle} onChange={e => set('investmentStyle', e.target.value)} className={inputCls}>
                     <option value="">{t('-- Opcional --', '-- Optional --')}</option>
@@ -2433,7 +2433,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     {drift && (
                       <span className="text-[11px]" style={{ color: 'var(--alert-warn-icon)' }}>
                         {t(
-                          `Hoy la app lo lee como ${form.currency} ${fmt(Math.abs(stored))}. Guardá para corregirlo.`,
+                          `Hoy la app lo lee como ${form.currency} ${fmt(Math.abs(stored))}. Guarda para corregirlo.`,
                           `The app currently reads it as ${form.currency} ${fmt(Math.abs(stored))}. Save to fix it.`
                         )}
                       </span>

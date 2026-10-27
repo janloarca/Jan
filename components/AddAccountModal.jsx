@@ -553,7 +553,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       const conflict = mergeCurrencyConflict(duplicateWarning, form.currency)
       if (conflict) {
         setError(t(
-          `${duplicateWarning.name} está guardado en ${conflict.existing} y esto está en ${conflict.typed}: no se pueden sumar. Elegí ${conflict.existing} para agregar a esa posición, o volvé y creá el activo aparte.`,
+          `${duplicateWarning.name} está guardado en ${conflict.existing} y esto está en ${conflict.typed}: no se pueden sumar. Elige ${conflict.existing} para agregar a esa posición, o volvé y creá el activo aparte.`,
           `${duplicateWarning.name} is saved in ${conflict.existing} and this is in ${conflict.typed}: they cannot be added together. Pick ${conflict.existing} to add to that position, or go back and create it separately.`
         ))
         return
@@ -1272,7 +1272,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {t('Cancelar', 'Cancel')}
               </button>
               {/* Con el aviso de duplicado abierto, "Siguiente" desaparece: el
-                  segundo toque en ese botón elegía "Crear separado" en
+                  segundo toque en ese botón eligea "Crear separado" en
                   SILENCIO (goToStep2 limpiaba el aviso y avanzaba). La
                   decisión la toman sus dos botones, que dicen qué hacen. */}
               {!duplicateWarning && (
@@ -2325,7 +2325,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         <label className={labelCls}>
                           {t('Estilo de inversión', 'Investment style')}
                           {' '}
-                          <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo elegís tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
+                          <InfoTip text={t('¿Este activo busca pagar ingresos constantes (renta fija), crecer en valor (crecimiento), o las dos cosas? Nunca se asume: lo eliges tú.', 'Does this asset aim to pay steady income (fixed income), grow in value (growth), or both? Never assumed: you pick it.')} />
                         </label>
                         <select value={form.investmentStyle} onChange={e => set('investmentStyle', e.target.value)} className={inputCls}>
                           <option value="">{t('-- Opcional --', '-- Optional --')}</option>

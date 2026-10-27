@@ -121,7 +121,7 @@ export default function CategoryEditor({ tx, onApply, onCancel, onToggleAnnual =
 
       <div>
         <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>
-          {suggestion ? t('o elegí otra', 'or pick another') : t('Elegí la categoría', 'Pick the category')}
+          {suggestion ? t('o elige otra', 'or pick another') : t('Elige la categoría', 'Pick the category')}
         </p>
         <div className="flex flex-wrap gap-1">
           {categories.map((cat) => (
