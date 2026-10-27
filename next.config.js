@@ -15,6 +15,10 @@ const nextConfig = {
   // authDomain pasa a ser el host de la app (lib/firebase.js) y estas rutas
   // hacen proxy de /__/auth y /__/firebase hacia firebaseapp.com, así el
   // iframe/popup es same-origin y Safari no tiene nada que bloquear.
+  async redirects() {
+    return [{ source: '/goals', destination: '/dashboard#goals', permanent: false }]
+  },
+
   async rewrites() {
     // The helper host is whatever NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN names, which
     // is the authoritative value; `<projectId>.firebaseapp.com` only happens to

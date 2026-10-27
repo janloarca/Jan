@@ -978,7 +978,13 @@ export function computeWindowGrowth({ firstVal, lastVal, investedBase, entryFees
   const newCapitalPrincipal = Math.max(0, newCapital - (Number(entryFeesInScope) || 0))
   const useWeighted = weightedNewCapital != null && Number.isFinite(weightedNewCapital) && start > 0
   const growthDenom = start + (useWeighted ? Math.max(0, weightedNewCapital) : newCapital)
-  const growthPct = growthDenom > 0 ? ((growthAbs - newCapitalPrincipal) / growthDenom) * 100 : null
+  const rawPct = growthDenom > 0 ? ((growthAbs - newCapitalPrincipal) / growthDenom) * 100 : null
+  // FASE QT. Un portafolio sin apalancamiento no puede perder mas del 100% de
+  // lo que tuvo en riesgo. Por debajo de -100% el denominador (arranque mas
+  // aportes ponderados) quedo minusculo frente a los aportes netos restados, o
+  // sea el aporte no se refleja en la serie: el numero no mide rendimiento.
+  // Se oculta (el monto en dinero sigue a la vista), nunca se imprime -320%.
+  const growthPct = rawPct != null && rawPct < -100 ? null : rawPct
   const displayAbs = growthAbs - newCapitalPrincipal
   return { growthAbs, newCapital, newCapitalPrincipal, growthDenom, growthPct, displayAbs }
 }
