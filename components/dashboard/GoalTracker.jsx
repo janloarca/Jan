@@ -51,7 +51,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
   const portfolioPct = portfolioGoal > 0 ? Math.max(0, Math.min(100, (portfolioNow / portfolioGoal) * 100)) : 0
   // La barra se topa en 100%, pero el rótulo dice cuánto se pasó la meta: un
   // "100%" a secas se lee igual con la meta justa que con 10x de sobra.
-  const overLabel = (now, goal) => (goal > 0 && now > goal * 1.005 ? `${(now / goal).toFixed(1)}x` : null)
+  const overLabel = (now, goal) => (goal > 0 && now > goal * 1.005 ? (now / goal >= 100 ? '>100x' : `${(now / goal).toFixed(1)}x`) : null)
   const incomeOver = overLabel(effectiveIncome, incomeGoal)
   const portfolioOver = overLabel(portfolioNow, portfolioGoal)
 

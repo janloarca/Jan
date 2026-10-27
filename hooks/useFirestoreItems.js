@@ -182,6 +182,9 @@ export function useFirestoreItems() {
   // cuenta (capa sobre la reconstrucción de la Hoja; lib/sheetObservations.js).
   const [sheetObservations, setSheetObservations] = useState(initCache?.sheetObservations || [])
   const [loading, setLoading] = useState(!initCache)
+  // true cuando la colección de Flujo ya contestó al menos una vez (o hay caché):
+  // sin esto la pantalla de Flujo parpadea "Sin transacciones aún" antes de los datos.
+  const [financeReady, setFinanceReady] = useState(!!initCache)
   // El código de error de la última lectura que falló, o null. Existe para
   // que la pantalla pueda distinguir "no tenés nada" de "no pude leer lo que
   // tenés", que hasta ahora se veían idénticas.
@@ -287,8 +290,8 @@ export function useFirestoreItems() {
       )
       unsubFinanceTx = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
-        (snap) => { if (!cancelled) setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
-        onErr('financeTransactions')
+        (snap) => { if (!cancelled) { setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); setFinanceReady(true) } },
+        (e) => { setFinanceReady(true); onErr('financeTransactions')(e) }
       )
     }
 
@@ -1466,7 +1469,7 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations, loading, loadError,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations, loading, loadError, financeReady,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
