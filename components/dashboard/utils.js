@@ -68,6 +68,13 @@ export function formatAxisTick(value, step, currency, opts) {
   if (abs >= 1e9) {
     return sym + (value / 1e9).toFixed(decimalsFor((step || 0) / 1e9, minDec)) + 'B'
   }
+  // Mil millones o más: sin estos sufijos el eje imprimía "600000M" y se cortaba.
+  if (abs >= 1e12) {
+    return sym + (value / 1e12).toFixed(decimalsFor((step || 0) / 1e12, minDec)) + 'T'
+  }
+  if (abs >= 1e9) {
+    return sym + (value / 1e9).toFixed(decimalsFor((step || 0) / 1e9, minDec)) + 'B'
+  }
   if (abs >= 1000000) {
     return sym + (value / 1e6).toFixed(decimalsFor((step || 0) / 1e6, minDec)) + 'M'
   }
