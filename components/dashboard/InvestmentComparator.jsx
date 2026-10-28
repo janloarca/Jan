@@ -155,7 +155,7 @@ export default function InvestmentComparator({
         )}
       </div>
       <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-        {t('Tu patrimonio de hoy no entra acá: son montos que vos ponés para decidir.',
+        {t('Tu patrimonio de hoy no entra aquí: son montos que tú pones para decidir.',
            'Your current net worth is not used here: these are amounts you enter to decide.')}
       </p>
 

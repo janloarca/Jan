@@ -324,7 +324,7 @@ export default function WealthProjectionCard({
               ) : (
                 plan.returnRate == null && (
                   <span className="text-[10px] block mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {t('poné la que esperás', 'set what you expect')}
+                    {t('pon la que esperas', 'set what you expect')}
                   </span>
                 )
               )}
