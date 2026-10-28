@@ -275,7 +275,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
                 <p className="text-sm font-semibold text-white">
                   {itemValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} {q.item.currency || 'USD'}
                 </p>
-                {!isBankItem && <p className="text-xs text-slate-500">{q.item.quantity || 0} {t('unidades', 'units')}</p>}
+                {!isBankItem && <p className="text-xs text-slate-500">{q.item.quantity || 0} {Number(q.item.quantity) === 1 ? t('unidad', 'unit') : t('unidades', 'units')}</p>}
                 {q.item.acquisitionDate && <p className="text-xs text-slate-600">{formatDate(q.item.acquisitionDate)}</p>}
               </div>
             </div>

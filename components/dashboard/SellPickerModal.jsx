@@ -79,7 +79,7 @@ export default function SellPickerModal({ items = [], onPick, onClose, lang = 'e
                     {formatCurrency(it._value, baseCurrency)}
                   </span>
                   <span className="block text-micro font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                    {Number(it.quantity).toLocaleString(undefined, { maximumFractionDigits: 6 })} {t('unidades', 'units')}
+                    {Number(it.quantity).toLocaleString(undefined, { maximumFractionDigits: 6 })} {Number(it.quantity) === 1 ? t('unidad', 'unit') : t('unidades', 'units')}
                   </span>
                 </span>
               </button>
