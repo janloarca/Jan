@@ -61,6 +61,13 @@ export function formatAxisTick(value, step, currency, opts) {
     if (!isFinite(scaledStep) || scaledStep <= 0) return min
     return Math.min(3, Math.max(min, Math.ceil(-Math.log10(scaledStep))))
   }
+  // Sin estos escalones, 5e11 se imprimía "500000M" en el eje.
+  if (abs >= 1e12) {
+    return sym + (value / 1e12).toFixed(decimalsFor((step || 0) / 1e12, minDec)) + 'T'
+  }
+  if (abs >= 1e9) {
+    return sym + (value / 1e9).toFixed(decimalsFor((step || 0) / 1e9, minDec)) + 'B'
+  }
   if (abs >= 1000000) {
     return sym + (value / 1e6).toFixed(decimalsFor((step || 0) / 1e6, minDec)) + 'M'
   }

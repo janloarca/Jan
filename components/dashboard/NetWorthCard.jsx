@@ -181,7 +181,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
     if (pricesUpdate) {
       const d = new Date(pricesUpdate)
       if (!isNaN(d)) {
-        const hhmm = d.toLocaleTimeString(lang === 'es' ? 'es' : 'en', { hour: '2-digit', minute: '2-digit' })
+        const hhmm = d.toLocaleTimeString(lang === 'es' ? 'es' : 'en', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
         notes.push(t(`Precios de las ${hhmm}, no en tiempo real.`, `Prices as of ${hhmm}, not real time.`))
       }
     }
