@@ -38,7 +38,14 @@ const DRAG_START_PX = 6
 function fmt(v, currency, lang) {
   const n = Math.round((Number(v) || 0) * 100) / 100
   try {
-    return new Intl.NumberFormat(lang === 'es' ? 'es-GT' : 'en-US', {
+    const loc = lang === 'es' ? 'es-GT' : 'en-US'
+    // es-GT formatea el quetzal como "Q 0.00" (con espacio) y el resto de Flujo
+    // imprime "Q0.00": se arma la cifra y el símbolo aparte para que coincidan.
+    if (currency === 'GTQ') {
+      const abs = Math.abs(n).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      return `${n < 0 ? '-' : ''}Q${abs}`
+    }
+    return new Intl.NumberFormat(loc, {
       style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
     }).format(n)
   } catch {
