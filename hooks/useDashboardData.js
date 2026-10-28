@@ -364,7 +364,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // receivables the user excluded from net worth (otherwise daily change / returns
       // would compare against a baseline that counts assets the headline does not).
       if (isExcludedFromNetWorth(it)) return
-      const origPrice = it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
+      // Un activo iliquido revaluado a mano vale su ultima valuacion en TODA la
+      // app (getItemPrice -> patrimonio, Hoja). Sin esto el snapshot archivaba
+      // su precio de compra y quedaba muy por debajo del patrimonio vivo: un
+      // punto "falso" en la gráfica que se reescribía igual en cada recarga.
+      const manualVal = it.isIlliquid && Number(it.lastManualValuation) > 0 ? Number(it.lastManualValuation) : null
+      const origPrice = manualVal ?? it._originalPrice ?? it.currentPrice ?? it.purchasePrice ?? 0
       const origCurrency = it._originalCurrency ?? baseCurrency ?? 'USD'
       let value = (it.quantity || 0) * origPrice
       value = convert ? convert(value, origCurrency, 'USD') : value
