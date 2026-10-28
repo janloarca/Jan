@@ -339,6 +339,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // before the next poll corrects it — the value-chart "bumps" a sync in
     // progress can leave behind.
     if (!user || dataLoading || pricesLoading || pricesFetching || ratesLoading || bulkWriting || ibkrAutoSyncing) return
+    // Un fallo de cotizaciones deja posiciones sin precio vivo: el total sale
+    // parcial y un doc archivado no se corrige solo (punto falso de $18.4B
+    // sobre ~$873.9B reales). Un hueco es mejor que un dato incompleto.
+    if (pricesError) return
     if (enrichedItems.length === 0) return
     const alreadyExists = snapshots.some((s) => s.date === todayStr || s.id === todayStr)
     // FASE EI. A 'daily' doc for TODAY, once written, used to be final for the
@@ -368,6 +372,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       else totalAssetsUSD += value
     })
     const netWorthUSD = totalAssetsUSD - totalDebtUSD
+    // Cinturón: si el total cae por debajo del 30% del último doc de
+    // portafolio completo, casi seguro hay datos a medio cargar (una venta real
+    // del 70% en un día es rarísima y deja transacciones). No se archiva.
+    const lastFull = snapshots
+      .filter((s) => (s._source === 'daily' || s._source === 'backfill') && s.date !== todayStr && Number(s.totalActivosUSD) > 0)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
+    if (lastFull && totalAssetsUSD < Number(lastFull.totalActivosUSD) * 0.3) {
+      console.warn('[snapshot] total diario sospechosamente bajo, no se archiva:', totalAssetsUSD, 'vs', lastFull.totalActivosUSD)
+      return
+    }
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
       // `totalContributedUSD` se archivaba en CADA snapshot diario y no lo leía
       // ninguna superficie: ni la gráfica, ni el ancla del YTD, ni los correos,
@@ -384,7 +398,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
+  }, [user, dataLoading, pricesLoading, pricesFetching, pricesError, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
 
   // Backfill missing snapshots for the last 30 days.
   // A 'backfill' doc is a RECONSTRUCTION from whatever items existed the
