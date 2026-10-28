@@ -13,7 +13,7 @@ import {
   REPEAT_MONTHLY, REPEAT_ONCE, PLAN_CURRENCY,
 } from '@/lib/incomePlan'
 
-// El tablero de ingresos del año: cuánto esperás que entre cada mes, y con qué
+// El tablero de ingresos del año: cuánto esperas que entre cada mes, y con qué
 // puedes jugar a moverlo.
 //
 // El plan NO es tu historial. Vive en su propio doc y ningún motor de Flujo lo
@@ -160,7 +160,7 @@ export default function IncomePlanCalendar({
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent-purple)' }} />
           {t(`PLAN DE INGRESOS ${year}`, `${year} INCOME PLAN`)}
           <InfoTip text={t(
-            'Lo que esperás que entre cada mes. Es un plan, no tu historial: no suma a los totales del mes, ni a tu ahorro, ni a los correos. Los meses ya cerrados muestran lo que de verdad entró.',
+            'Lo que esperas que entre cada mes. Es un plan, no tu historial: no suma a los totales del mes, ni a tu ahorro, ni a los correos. Los meses ya cerrados muestran lo que de verdad entró.',
             'What you expect to come in each month. It is a plan, not your record: it never adds to your monthly totals, savings, or emails. Closed months show what actually came in.'
           )} />
         </h3>
