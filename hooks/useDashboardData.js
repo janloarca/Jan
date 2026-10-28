@@ -41,7 +41,7 @@ import { zeroQuantityBalanceFixes, resurrectedBalanceFixes } from '@/lib/zeroQua
 import { isBankLikeItem, balanceQuantityPatch } from '@/lib/contributions'
 import { isDailyAccrual } from '@/lib/dailyAccrual'
 import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdAttribution'
-import { snapshotAssetsUSD, assetOnlyFlows } from '@/lib/assetReturns'
+import { snapshotAssetsUSD, assetOnlyFlows, dropManualBrokerFlows, ibkrItemIds } from '@/lib/assetReturns'
 import { buildPublishPayload, publishDayKey, shouldPublishToday, publishBlockedBy } from '@/lib/friendsPublish'
 import { isScopedView, transactionsForItems } from '@/lib/portfolioScope'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
@@ -2056,8 +2056,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // FASE OG: los flujos del universo que se está mostrando (viewTransactions),
   // no los del usuario entero: un depósito a un portafolio que no está en
   // pantalla no es un flujo de lo que sí está.
-  const assetTransactions = useMemo(() => assetOnlyFlows(viewTransactions, debtIds), [viewTransactions, debtIds])
-  const assetDietzTransactions = useMemo(() => assetOnlyFlows(dietzTransactions, debtIds), [dietzTransactions, debtIds])
+  const ibkrIdsSig = useMemo(() => [...ibkrItemIds(portfolioItems)].sort().join('|'), [portfolioItems])
+  const ibkrIds = useMemo(() => new Set(ibkrIdsSig ? ibkrIdsSig.split('|') : []), [ibkrIdsSig])
+  // FASE LU2: con el ledger real del Flex presente, los DEPOSIT/WITHDRAWAL
+  // manuales vinculados a ítems de IBKR no se netean otra vez.
+  const assetTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(viewTransactions, debtIds), ibkrIds), [viewTransactions, debtIds, ibkrIds])
+  const assetDietzTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(dietzTransactions, debtIds), ibkrIds), [dietzTransactions, debtIds, ibkrIds])
 
   const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
     const year = new Date().getUTCFullYear()
