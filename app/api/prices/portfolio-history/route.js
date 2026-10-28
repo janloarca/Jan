@@ -183,7 +183,7 @@ function reconstructionFor(it, sym, lotsForSymbol) {
 }
 
 export async function POST(request) {
-  const { limited } = await rateLimit(request, { maxRequests: 30 })
+  const { limited } = await rateLimit(request, { maxRequests: 90 })
   if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
 
   const auth = await verifyAuth(request)
