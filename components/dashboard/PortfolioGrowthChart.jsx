@@ -1727,7 +1727,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         label: period === 'DAY'
           ? `${d.date.getHours().toString().padStart(2, '0')}:${d.date.getMinutes().toString().padStart(2, '0')}`
           : useDay
-            ? d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+            ? d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', day: 'numeric', ...(d.ts % 86400000 === 0 ? { timeZone: 'UTC' } : {}) })
             : d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
         idx: i,
       }))
