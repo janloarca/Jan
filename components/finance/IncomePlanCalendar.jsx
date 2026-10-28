@@ -82,11 +82,15 @@ export default function IncomePlanCalendar({
   // Una sola escala para las doce barras: si cada mes se midiera contra sí
   // mismo, dos montos distintos se dibujarían del mismo alto.
   const maxBar = Math.max(...totals, ...real.slice(0, fromMonth), 1)
-  const plannedTotal = totals.reduce((a, b) => a + b, 0)
+  // El mes en curso mezcla las dos cosas: lo que ya entró es real y lo que
+  // falta de su plan sigue siendo plan. Sin contar ese real, Q350 cobrados
+  // este mes se leían como Q0.00 en el total del año.
+  const curReal = fromMonth < 12 ? (Number(real[fromMonth]) || 0) : 0
+  const plannedTotal = totals.reduce((a, b, i) => a + (i === fromMonth ? Math.max(0, b - curReal) : b), 0)
   // El total del año suma lo que YA entró (meses cerrados, dato real) más lo
   // planeado de aquí a diciembre. Mostrar solo lo planeado daba Q 0.00 con
   // Q8,000 reales en septiembre y se leía como un total roto.
-  const realSoFar = real.slice(0, fromMonth).reduce((a, b) => a + (Number(b) || 0), 0)
+  const realSoFar = real.slice(0, fromMonth).reduce((a, b) => a + (Number(b) || 0), 0) + curReal
   const yearTotal = realSoFar + plannedTotal
 
   const [editing, setEditing] = useState(null)
@@ -178,7 +182,7 @@ export default function IncomePlanCalendar({
       <div className="flex items-end gap-1 h-16 mb-4" aria-hidden="true">
         {months.map((m, i) => {
           const past = i < fromMonth
-          const value = past ? real[i] : totals[i]
+          const value = past ? real[i] : (i === fromMonth ? Math.max(real[i] || 0, totals[i]) : totals[i])
           const h = value > 0 ? (value / maxBar) * 100 : 0
           return (
             <div key={m} className="flex-1 flex flex-col items-center justify-end h-full">
@@ -223,7 +227,7 @@ export default function IncomePlanCalendar({
                     {past && <span className="text-[9px] shrink-0">{t('real', 'actual')}</span>}
                   </span>
                   <span className="text-[11px] font-mono tabular-nums shrink-0" style={{ color: past ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                    {fmt(past ? real[i] : totals[i], currency, lang)}
+                    {fmt(past ? real[i] : (i === fromMonth ? Math.max(real[i] || 0, totals[i]) : totals[i]), currency, lang)}
                   </span>
                 </div>
 
