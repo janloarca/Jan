@@ -56,6 +56,11 @@ export default function MonthStatusBar({
         >
           {meta.icon} {t(meta.es, meta.en)}
         </span>
+        {status === 'partial' && (
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {t(meta.titleEs, meta.titleEn)}
+          </span>
+        )}
 
         {/* Cuánto del mes va, y con eso la razón de que las variaciones de las
             cards de abajo estén calladas. Se dice UNA vez, acá: repetir el
