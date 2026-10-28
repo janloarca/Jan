@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useEscClose } from '@/hooks/useEscClose'
 import AddAccountModal from '../AddAccountModal'
 import { orderPicked, categoryFor } from '@/lib/firstRunPlan'
 import AssetTypePicker from './AssetTypePicker'
@@ -219,6 +220,7 @@ function Progress({ items, index }) {
 }
 
 function Shell({ children, onClose, behind = false }) {
+  useEscClose(onClose)
   return (
     <div className={`modal-backdrop fixed inset-0 ${behind ? 'z-40' : 'z-50'} flex items-center justify-center p-4`} onClick={onClose} role="dialog" aria-modal="true">
       <div className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>

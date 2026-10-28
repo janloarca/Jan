@@ -237,9 +237,9 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
             <DetailRow label={t('Precio actual', 'Current price')} value={item.currentPrice ? formatCurrency(item.currentPrice) : '-'} />
             <DetailRow label={t('Fecha compra', 'Buy date')} value={item.acquisitionDate ? formatDate(item.acquisitionDate) : '-'} />
             {item.maturityDate && <DetailRow label={t('Vencimiento', 'Maturity')} value={formatDate(item.maturityDate)} />}
-            {item.incomeRate && <DetailRow label={t('Tasa de interés', 'Interest rate')} value={`${item.incomeRate}%`} />}
-            {item.managementFee && <DetailRow label={t('Comisión gestión', 'Mgmt fee')} value={`${item.managementFee}%`} />}
-            {item.entryFee && <DetailRow label={t('Costo entrada', 'Entry fee')} value={formatCurrency(item.entryFee, item.currency)} />}
+            {Number(item.incomeRate) > 0 && <DetailRow label={t('Tasa de interés', 'Interest rate')} value={`${item.incomeRate}%`} />}
+            {Number(item.managementFee) > 0 && <DetailRow label={t('Comisión gestión', 'Mgmt fee')} value={`${item.managementFee}%`} />}
+            {Number(item.entryFee) > 0 && <DetailRow label={t('Costo entrada', 'Entry fee')} value={formatCurrency(item.entryFee, item.currency)} />}
           </div>
 
           {/* P&L
