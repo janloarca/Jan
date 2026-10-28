@@ -1160,7 +1160,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     )}
                   </div>
                   {showDropdown && searchResults.length > 0 && (
-                    <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#475569)] rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                    <div ref={dropdownRef} className="absolute z-50 w-full mt-1 bg-[var(--bg-primary)] border border-[var(--card-border)] rounded-lg shadow-xl max-h-56 overflow-y-auto">
                       {searchResults.map((r, i) => (
                         <button key={`${r.symbol}-${i}`} type="button" onClick={() => handleSelectSymbol(r)}
                           className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[var(--input-bg,#2C2C2E)] transition-colors text-left border-b border-[var(--card-border,#38383A)]/50 last:border-0">
@@ -1234,7 +1234,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   placeholder={isProperty ? t('Propio, Inmobiliaria...', 'Self, Agency...') : 'IBKR, Fidelity, Binance...'}
                   className={inputCls} />
                 {showInstSuggestions && filteredInstitutions.length > 0 && form.institution !== filteredInstitutions[0] && (
-                  <div className="absolute z-40 w-full mt-1 bg-[var(--card-bg,#1C1C1E)] border border-[var(--card-border,#475569)] rounded-lg shadow-xl max-h-32 overflow-y-auto">
+                  <div className="w-full mt-1 bg-[var(--bg-primary)] border border-[var(--card-border)] rounded-lg shadow-lg max-h-40 overflow-y-auto">
                     {filteredInstitutions.map(inst => (
                       <button key={inst} type="button" onClick={() => { set('institution', inst); setShowInstSuggestions(false) }}
                         className="w-full px-3 py-2 text-left text-sm text-[var(--text-secondary,#cbd5e1)] hover:bg-[var(--input-bg,#2C2C2E)] transition-colors">
