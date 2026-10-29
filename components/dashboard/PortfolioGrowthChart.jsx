@@ -1168,6 +1168,18 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       return []
     }
 
+    // DAY must measure "hoy" from yesterday's close. When the series came
+    // from intraday API points only (first point = the open), add the latest
+    // snapshot at/before the open as the baseline, just left of the open.
+    if (period === 'DAY' && pts.length > 0) {
+      const { open } = currentOrLastSession(Date.now())
+      if (pts[0].ts >= open - 60000) {
+        let anchor = null
+        for (const sp of snapshotData) { if (sp.ts <= open && sp.value > 0) anchor = sp }
+        if (anchor) pts = [{ ts: open - 60000, date: new Date(open - 60000), value: anchor.value }, ...pts]
+      }
+    }
+
     const keepLeadingZeros = ['YTD', 'MTD'].includes(period)
     if (!keepLeadingZeros) {
       while (pts.length > 2 && pts[0].value === 0) {
