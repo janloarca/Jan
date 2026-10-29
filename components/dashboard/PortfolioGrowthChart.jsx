@@ -866,9 +866,17 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // performance-view rebase, the flow gating, and the short-history banner.
   const firstRealTs = useMemo(() => {
     if (reconstructionIsExact) return null
-    const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(s?.src))
+    // Sin ninguna posición de broker en el scope, un doc 'backfill' transaccional
+    // (compuesto con los precios históricos y movimientos del propio usuario, no
+    // un hold-flat de un NAV ajeno) es dato medido: si solo se aceptaran los
+    // 'daily', tras una reparación (que reescribe todo como 'backfill') la
+    // ventana medida arrancaba en el único 'daily' de hoy y "desde inicio"
+    // salía +$0.00 en el último punto.
+    const hasBroker = (scopedItems || []).some((it) => it?._source === 'ibkr')
+    const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(s?.src)
+      || (!hasBroker && s?.src === 'backfill' && s?.transactional))
     return p ? p.ts : null
-  }, [snapshotData, reconstructionIsExact])
+  }, [snapshotData, reconstructionIsExact, scopedItems])
 
   // Which broker the hold-flat estimate belongs to, so the short-history notice
   // points at the RIGHT place to fix it (only IBKR has a Flex Query "period" to
