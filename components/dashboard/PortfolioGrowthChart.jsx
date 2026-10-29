@@ -874,7 +874,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // salía +$0.00 en el último punto.
     const hasBroker = (scopedItems || []).some((it) => it?._source === 'ibkr')
     const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(s?.src)
-      || (!hasBroker && s?.src === 'backfill' && s?.transactional))
+      || (!hasBroker && s?.src === 'backfill'))
     return p ? p.ts : null
   }, [snapshotData, reconstructionIsExact, scopedItems])
 
@@ -1212,7 +1212,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     if (currentTotal > 0) {
       const now = Date.now()
       const last = pts[pts.length - 1]
-      if (last && Math.abs(last.ts - now) > 60000) {
+      // Same UTC day as the last point (today's daily doc sits at 00:00 UTC):
+      // replace it with the live value instead of drawing a second point.
+      const sameDay = last && pts.length > 1 && Math.floor(last.ts / 86400000) === Math.floor(now / 86400000)
+      if (last && !sameDay && Math.abs(last.ts - now) > 60000) {
         pts.push({ ts: now, date: new Date(), value: currentTotal })
       } else if (last) {
         pts[pts.length - 1] = { ts: now, date: new Date(), value: currentTotal }
