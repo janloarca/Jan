@@ -1176,6 +1176,20 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       if (pts[0].ts >= open - 60000) {
         let anchor = null
         for (const sp of snapshotData) { if (sp.ts <= open && sp.value > 0) anchor = sp }
+        if (!anchor) {
+          // snapshotData may not carry it: read the raw docs directly.
+          const bc = baseCurrency || 'USD'
+          const src = shownInst === 'ALL'
+            ? preferFullPortfolioPerDay(snapshots || [])
+            : (snapshots || []).filter((x) => BROKER_NAV_SOURCES.includes(x._source))
+          for (const d of [...src].sort((a, b) => new Date(a.date) - new Date(b.date))) {
+            const ts = new Date(d.date).getTime()
+            if (!d._calibrated && ts <= open && ts >= open - 5 * 86400000) {
+              const v = convert ? convert(snapshotAssetsUSD(d), 'USD', bc) : snapshotAssetsUSD(d)
+              if (v > 0) anchor = { ts, value: v }
+            }
+          }
+        }
         if (anchor) pts = [{ ts: open - 60000, date: new Date(open - 60000), value: anchor.value }, ...pts]
       }
     }
@@ -1829,7 +1843,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // was actually up ~10%). Measure from the first REAL point instead, and say since when.
   // A gap under 2 days is just the window edge (e.g. 1M cutoff mid-day), not
   // an estimated region: don't rebase, so the first drawn point is the base.
-  const valueRebasedFrom = !apiTransactional && firstRealTs != null && chartData.length > 1
+  const valueRebasedFrom = period !== 'DAY' && !apiTransactional && firstRealTs != null && chartData.length > 1
     && chartData[0].ts < firstRealTs - 2 * 86400000
     ? firstRealTs : null
 
