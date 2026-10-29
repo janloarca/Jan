@@ -1214,6 +1214,16 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       const last = pts[pts.length - 1]
       // Same UTC day as the last point (today's daily doc sits at 00:00 UTC):
       // replace it with the live value instead of drawing a second point.
+      // Drop EVERY earlier point of today too (daily doc + scaled API point),
+      // not just the last one, or two same-day points survive. DAY keeps its
+      // intraday series.
+      if (period !== 'DAY') {
+        const today = Math.floor(now / 86400000)
+        while (pts.length > 2 && Math.floor(pts[pts.length - 2].ts / 86400000) === today
+          && Math.floor(pts[pts.length - 1].ts / 86400000) === today) {
+          pts.splice(pts.length - 2, 1)
+        }
+      }
       const sameDay = last && pts.length > 1 && Math.floor(last.ts / 86400000) === Math.floor(now / 86400000)
       if (last && !sameDay && Math.abs(last.ts - now) > 60000) {
         pts.push({ ts: now, date: new Date(), value: currentTotal })
@@ -1799,8 +1809,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // to January prices, and comparing today against that invented January produced a
   // confident, wrong number (a real case showed "-4.86% este año" for an account that
   // was actually up ~10%). Measure from the first REAL point instead, and say since when.
+  // A gap under 2 days is just the window edge (e.g. 1M cutoff mid-day), not
+  // an estimated region: don't rebase, so the first drawn point is the base.
   const valueRebasedFrom = !apiTransactional && firstRealTs != null && chartData.length > 1
-    && chartData[0].ts < firstRealTs - 3600000
+    && chartData[0].ts < firstRealTs - 2 * 86400000
     ? firstRealTs : null
 
   // Pixel split between the estimated (hold-flat) prefix and real broker data, shared
