@@ -1820,9 +1820,21 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // predates the window (its own header comment), so investedBase - firstVal
   // IS the new piece cleanly either way — no branch needed. No contribution
   // history at all → null hides the percentage rather than lying with a 0%.
-  const investedBase = contributionLine && contributionLine.length > 0
-    ? contributionLine[contributionLine.length - 1]
-    : null
+  // El capital nuevo se mide desde donde ABRE la ventana medida (measuredData),
+  // no desde chartData[0]: cuando la serie se rebasea a un primer dato real
+  // posterior, la semilla de contributionLine (valor de chartData[0]) ya no
+  // coincide con firstVal y `investedBase - firstVal` fabricaba "aportes" por
+  // la diferencia entre los dos arranques (p.ej. $88.9B = la caída del YTD).
+  // Solo cuentan los aportes DESPUÉS del arranque medido.
+  const investedBase = (() => {
+    if (!contributionLine || contributionLine.length === 0) return null
+    const lastInv = contributionLine[contributionLine.length - 1]
+    const startIdx = Math.max(0, chartData.length - measuredData.length)
+    if (startIdx === 0) return lastInv
+    const startInv = contributionLine[startIdx]
+    if (!Number.isFinite(lastInv) || !Number.isFinite(startInv)) return null
+    return firstVal + (lastInv - startInv)
+  })()
   // Entry fees are a cost of ENTERING, not a performance loss — the convention
   // the whole app measures by (see the VITALI reference case in CLAUDE.md):
   // gain measures against the principal, the % divides by the all-in cost.
