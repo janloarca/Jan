@@ -723,7 +723,13 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         // as market gain (the +1.98% vs +10.99% TWR bug this file documents).
         recentSnaps.push({ ts: Date.now(), date: new Date(), value: currentTotal, src: 'daily' })
       }
-      return recentSnaps.filter(p => p.ts <= close)
+      // Keep only the LATEST snapshot at/before the session open as the anchor
+      // (yesterday's close). The wider lookback exists to find it across
+      // weekends; older docs must not become the "start of today".
+      let anchorIdx = -1
+      recentSnaps.forEach((p, i) => { if (p.ts <= open) anchorIdx = i })
+      const trimmed = anchorIdx > 0 ? recentSnaps.slice(anchorIdx) : recentSnaps
+      return trimmed.filter(p => p.ts <= close)
     }
 
     const periodDays = { '1W': 7, MTD: null, '1M': 30, '3M': 90, '6M': 180, YTD: null, '1Y': 365, ALL: null, CUSTOM: null }
