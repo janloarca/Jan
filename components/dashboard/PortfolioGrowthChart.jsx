@@ -726,8 +726,11 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       // Keep only the LATEST snapshot at/before the session open as the anchor
       // (yesterday's close). The wider lookback exists to find it across
       // weekends; older docs must not become the "start of today".
+      // Today's own doc (00:00 UTC of the session day) already holds live data: the
+      // baseline must come from a strictly EARLIER day.
+      const sessionDayStart = Math.floor(open / 86400000) * 86400000
       let anchorIdx = -1
-      recentSnaps.forEach((p, i) => { if (p.ts <= open) anchorIdx = i })
+      recentSnaps.forEach((p, i) => { if (p.ts < sessionDayStart) anchorIdx = i })
       const trimmed = anchorIdx > 0 ? recentSnaps.slice(anchorIdx) : recentSnaps
       return trimmed.filter(p => p.ts <= close)
     }
@@ -1175,7 +1178,8 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       const { open } = currentOrLastSession(Date.now())
       if (pts[0].ts >= open - 60000) {
         let anchor = null
-        for (const sp of snapshotData) { if (sp.ts <= open && sp.value > 0) anchor = sp }
+        const dayStart = Math.floor(open / 86400000) * 86400000
+        for (const sp of snapshotData) { if (sp.ts < dayStart && sp.value > 0) anchor = sp }
         if (!anchor) {
           // snapshotData may not carry it: read the raw docs directly.
           const bc = baseCurrency || 'USD'
@@ -1184,7 +1188,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             : (snapshots || []).filter((x) => BROKER_NAV_SOURCES.includes(x._source))
           for (const d of [...src].sort((a, b) => new Date(a.date) - new Date(b.date))) {
             const ts = new Date(d.date).getTime()
-            if (!d._calibrated && ts <= open && ts >= open - 5 * 86400000) {
+            if (!d._calibrated && ts < dayStart && ts >= dayStart - 5 * 86400000) {
               const v = convert ? convert(snapshotAssetsUSD(d), 'USD', bc) : snapshotAssetsUSD(d)
               if (v > 0) anchor = { ts, value: v }
             }
