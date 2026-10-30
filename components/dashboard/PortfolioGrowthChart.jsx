@@ -1677,6 +1677,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
 
   const drawdown = useMemo(() => {
     if (chartData.length < 3) return null
+    // Punto 6 de la auditoria del 30 oct: en DAY el primer punto es el cierre de
+    // ayer, asi que la "mayor caida" es el cambio del dia mismo y la banda
+    // sombreada cubre toda la grafica. Ya lo dice el encabezado; no se repite.
+    if (period === 'DAY') return null
     // A drawdown measured across the RECONSTRUCTED prefix is fiction: holding today's
     // positions flat backwards replays this year's market swings on shares the user may
     // not have owned, which produced a scary "-20.1%" that never happened to them.
@@ -1697,7 +1701,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     if (maxDd < 0.01) return null
     // Indices are consumed against chartData (banner labels + the SVG shading rect).
     return { start: ddStart + realStart, end: ddEnd + realStart, pct: maxDd * 100 }
-  }, [chartData, apiTransactional, firstRealTs])
+  }, [chartData, apiTransactional, firstRealTs, period])
 
   const txMarkers = useMemo(() => {
     if (!scopedTransactions || chartData.length < 2) return []
