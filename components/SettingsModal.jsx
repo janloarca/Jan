@@ -24,20 +24,20 @@ import CountrySelect from '@/components/ui/CountrySelect'
 import { TAX_JURISDICTION_OPTIONS } from '@/components/dashboard/utils'
 
 const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', symbol: '£' },
-  { code: 'MXN', name: 'Peso Mexicano', symbol: '$' },
-  { code: 'GTQ', name: 'Quetzal', symbol: 'Q' },
-  { code: 'COP', name: 'Peso Colombiano', symbol: '$' },
-  { code: 'CLP', name: 'Peso Chileno', symbol: '$' },
-  { code: 'ARS', name: 'Peso Argentino', symbol: '$' },
-  { code: 'BRL', name: 'Real Brasileño', symbol: 'R$' },
-  { code: 'PEN', name: 'Sol Peruano', symbol: 'S/' },
-  { code: 'CAD', name: 'Canadian Dollar', symbol: '$' },
-  { code: 'CHF', name: 'Swiss Franc', symbol: 'CHF' },
-  { code: 'JPY', name: 'Japanese Yen', symbol: '¥' },
-  { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
+  { code: 'USD', name: 'US Dollar', nameEs: 'Dólar estadounidense', symbol: '$' },
+  { code: 'EUR', name: 'Euro', nameEs: 'Euro', symbol: '€' },
+  { code: 'GBP', name: 'British Pound', nameEs: 'Libra esterlina', symbol: '£' },
+  { code: 'MXN', name: 'Mexican Peso', nameEs: 'Peso Mexicano', symbol: '$' },
+  { code: 'GTQ', name: 'Guatemalan Quetzal', nameEs: 'Quetzal', symbol: 'Q' },
+  { code: 'COP', name: 'Colombian Peso', nameEs: 'Peso Colombiano', symbol: '$' },
+  { code: 'CLP', name: 'Chilean Peso', nameEs: 'Peso Chileno', symbol: '$' },
+  { code: 'ARS', name: 'Argentine Peso', nameEs: 'Peso Argentino', symbol: '$' },
+  { code: 'BRL', name: 'Brazilian Real', nameEs: 'Real Brasileño', symbol: 'R$' },
+  { code: 'PEN', name: 'Peruvian Sol', nameEs: 'Sol Peruano', symbol: 'S/' },
+  { code: 'CAD', name: 'Canadian Dollar', nameEs: 'Dólar canadiense', symbol: '$' },
+  { code: 'CHF', name: 'Swiss Franc', nameEs: 'Franco suizo', symbol: 'CHF' },
+  { code: 'JPY', name: 'Japanese Yen', nameEs: 'Yen japonés', symbol: '¥' },
+  { code: 'CNY', name: 'Chinese Yuan', nameEs: 'Yuan chino', symbol: '¥' },
 ]
 
 // Framed group used throughout the General tab — a hairline-bordered card with
@@ -799,7 +799,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
                       className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                       {CURRENCIES.map((c) => (
-                        <option key={c.code} value={c.code}>{c.symbol} {c.code} · {c.name}</option>
+                        <option key={c.code} value={c.code}>{c.symbol} {c.code} · {t(c.nameEs || c.name, c.name)}</option>
                       ))}
                     </select>
                     <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
@@ -809,7 +809,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <select id="settings-benchmark" value={benchmarkSymbol} onChange={(e) => setBenchmarkSymbol(e.target.value)}
                       className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                       {Object.entries(BENCHMARKS).map(([key, bm]) => (
-                        <option key={key} value={key}>{bm.short} · {bm.name}</option>
+                        <option key={key} value={key}>{bm.short} · {t(bm.nameEs || bm.name, bm.name)}</option>
                       ))}
                     </select>
                     <p className="text-xs text-slate-600 mt-1">{t('Índice contra el que se compara tu portafolio.', 'Index your portfolio is compared against.')}</p>

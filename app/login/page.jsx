@@ -66,6 +66,15 @@ function LoginForm() {
   const router = useRouter()
   const firebaseAuthRef = useRef(null)
 
+  // Idioma: espanol por defecto; la preferencia guardada ('chispudo-lang') se
+  // lee en un efecto y nunca durante el render, porque localStorage no existe
+  // en el servidor y leerlo ahi desajustaria la hidratacion.
+  const [lang, setLang] = useState('es')
+  useEffect(() => {
+    try { if (localStorage.getItem('chispudo-lang') === 'en') setLang('en') } catch {}
+  }, [])
+  const t = (es, en) => (lang === 'en' ? en : es)
+
   // Only allow same-origin internal paths to prevent open-redirect (e.g. ?redirect=//evil.com)
   const rawRedirect = searchParams.get('redirect') || '/dashboard'
   const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\') ? rawRedirect : '/dashboard'
@@ -99,7 +108,7 @@ function LoginForm() {
         // estado del round-trip y no a un permiso mal puesto. Sin este caso, un
         // viaje que no produce nada se ve idéntico a no haber intentado.
         if (!res && cameBackFromGoogle) {
-          setError('You came back from Google but the session never arrived. Please try again.')
+          setError(t('Volviste de Google pero la sesión no llegó. Intenta de nuevo.', 'You came back from Google but the session never arrived. Please try again.'))
           setCheckingAuth(false)
         }
       }).catch((err) => {
@@ -109,7 +118,7 @@ function LoginForm() {
         // credencial contra Identity Toolkit, así que un rechazo de aquí SÍ es
         // una respuesta de servidor y suele traer su razón adentro.
         console.error('[google-redirect]', err.code, err.message)
-        setError('We could not finish signing you in with Google. Please try again.')
+        setError(t('No pudimos terminar de iniciar tu sesión con Google. Intenta de nuevo.', 'We could not finish signing you in with Google. Please try again.'))
         setCheckingAuth(false)
       })
       unsub = onAuthStateChanged(auth, async (u) => {
@@ -150,15 +159,15 @@ function LoginForm() {
       setCheckingAuth(true)
       setTimeout(() => { window.location.href = redirectTo }, 1500)
     } catch (err) {
-      const msg = err.code === 'auth/wrong-password' ? 'Wrong password'
-        : err.code === 'auth/user-not-found' ? 'There is no account with that email'
-        : err.code === 'auth/email-already-in-use' ? 'That email is already registered'
-        : err.code === 'auth/weak-password' ? 'Your password needs at least 6 characters'
-        : err.code === 'auth/invalid-email' ? 'Invalid email'
-        : err.code === 'auth/invalid-credential' ? 'Wrong email or password'
-        : err.code === 'auth/network-request-failed' ? 'Network error. Check your connection.'
-        : err.code === 'auth/too-many-requests' ? 'Too many attempts. Wait a moment.'
-        : err.code === 'auth/internal-error' ? 'Something went wrong. Please try again.'
+      const msg = err.code === 'auth/wrong-password' ? t('Contraseña incorrecta', 'Wrong password')
+        : err.code === 'auth/user-not-found' ? t('No existe una cuenta con ese correo', 'There is no account with that email')
+        : err.code === 'auth/email-already-in-use' ? t('Ese correo ya está registrado', 'That email is already registered')
+        : err.code === 'auth/weak-password' ? t('Tu contraseña necesita al menos 6 caracteres', 'Your password needs at least 6 characters')
+        : err.code === 'auth/invalid-email' ? t('Correo inválido', 'Invalid email')
+        : err.code === 'auth/invalid-credential' ? t('Correo o contraseña incorrectos', 'Wrong email or password')
+        : err.code === 'auth/network-request-failed' ? t('Error de red. Revisa tu conexión.', 'Network error. Check your connection.')
+        : err.code === 'auth/too-many-requests' ? t('Demasiados intentos. Espera un momento.', 'Too many attempts. Wait a moment.')
+        : err.code === 'auth/internal-error' ? t('Algo salió mal. Intenta de nuevo.', 'Something went wrong. Please try again.')
         : err.message
       setError(msg)
     } finally {
@@ -226,8 +235,8 @@ function LoginForm() {
       // con un test que la fija, así que mostrar códigos crudos en la pantalla
       // de login solo asusta a quien se topa con un bache de red.
       setError(err.code === 'auth/network-request-failed'
-        ? 'Network error. Check your connection.'
-        : 'We could not connect to Google. Please try again.')
+        ? t('Error de red. Revisa tu conexión.', 'Network error. Check your connection.')
+        : t('No pudimos conectar con Google. Intenta de nuevo.', 'We could not connect to Google. Please try again.'))
       // Etiquetada como IDA: si el fallback por redirect hubiera arrancado, esta
       // pestaña ya se habría ido a Google y este banner no existiría.
     } finally {
@@ -236,7 +245,7 @@ function LoginForm() {
   }
 
   const handleResetPassword = async () => {
-    if (!email) { setError('Enter your email first'); return }
+    if (!email) { setError(t('Primero escribe tu correo', 'Enter your email first')); return }
     setError('')
     setLoading(true)
     try {
@@ -245,8 +254,8 @@ function LoginForm() {
       await sendPasswordResetEmail(auth, email)
       setResetSent(true)
     } catch (err) {
-      const msg = err.code === 'auth/user-not-found' ? 'There is no account with that email'
-        : err.code === 'auth/invalid-email' ? 'Invalid email'
+      const msg = err.code === 'auth/user-not-found' ? t('No existe una cuenta con ese correo', 'There is no account with that email')
+        : err.code === 'auth/invalid-email' ? t('Correo inválido', 'Invalid email')
         : err.message
       setError(msg)
     } finally {
@@ -257,7 +266,7 @@ function LoginForm() {
   if (checkingAuth) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme-base" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(37,99,235,0.06) 0%, transparent 50%), var(--bg-primary)' }}>
-        <ChispudoLoader mode="inline" size="medium" state="initial-loading" message="Checking your session..." showLabel />
+        <ChispudoLoader mode="inline" size="medium" state="initial-loading" message={t('Revisando tu sesión...', 'Checking your session...')} showLabel />
       </div>
     )
   }
@@ -269,7 +278,7 @@ function LoginForm() {
           <div className="inline-flex mb-2">
             <Logo size={32} as="h1" />
           </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Your whole portfolio, in one place</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('Todo tu portafolio, en un solo lugar', 'Your whole portfolio, in one place')}</p>
         </div>
 
         {/* Era `rounded-xl` (12px) contra los 16px de toda card de la app, más un
@@ -281,7 +290,7 @@ function LoginForm() {
             que `.card-hero`. */}
         <div className="card p-6" style={{ boxShadow: 'var(--shadow-elevated)' }}>
           <h2 className="text-h2 text-center mb-5" style={{ color: 'var(--text-primary)' }}>
-            {isSignUp ? 'Create account' : 'Log in'}
+            {isSignUp ? t('Crear cuenta', 'Create account') : t('Iniciar sesión', 'Log in')}
           </h2>
 
           {inAppBrowser && (
@@ -289,11 +298,11 @@ function LoginForm() {
                aviso ya existen y su valor OSCURO es exactamente el que estaba
                escrito acá a mano, así que en tema oscuro no cambia nada. */
             <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--alert-warn-bg)', border: '1px solid var(--alert-warn-border)', color: 'var(--alert-warn-icon)' }}>
-              For the best experience, open this in your browser:
+              {t('Para una mejor experiencia, abre esto en tu navegador:', 'For the best experience, open this in your browser:')}
               <a href={typeof window !== 'undefined' ? window.location.href : '#'}
                 target="_blank" rel="noopener noreferrer"
                 className="block mt-1 underline font-medium" style={{ color: 'var(--accent-blue)' }}>
-                Open in Safari / Chrome
+                {t('Abrir en Safari / Chrome', 'Open in Safari / Chrome')}
               </a>
             </div>
           )}
@@ -306,13 +315,13 @@ function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="login-email" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>Email</label>
+              <label htmlFor="login-email" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Correo', 'Email')}</label>
               <input
                 id="login-email"
                 type="email"
                 inputMode="email"
                 autoComplete="email"
-                placeholder="you@email.com"
+                placeholder={t('tu@correo.com', 'you@email.com')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg text-white placeholder-slate-600 focus:outline-none text-base"
@@ -321,7 +330,7 @@ function LoginForm() {
               />
             </div>
             <div>
-              <label htmlFor="login-password" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>Password</label>
+              <label htmlFor="login-password" className="text-xs mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>{t('Contraseña', 'Password')}</label>
               <input
                 id="login-password"
                 type="password"
@@ -339,14 +348,14 @@ function LoginForm() {
               disabled={loading}
               className="btn-primary w-full py-3 rounded-lg disabled:opacity-50 transition-colors font-medium text-base"
             >
-              {loading ? 'Loading...' : (isSignUp ? 'Create account' : 'Log in')}
+              {loading ? t('Cargando...', 'Loading...') : (isSignUp ? t('Crear cuenta', 'Create account') : t('Iniciar sesión', 'Log in'))}
             </button>
           </form>
 
           {!isSignUp && !showReset && (
             <button onClick={() => setShowReset(true)}
               className="w-full mt-2 text-xs transition-colors text-center" style={{ color: 'var(--text-secondary)' }}>
-              Forgot your password?
+              {t('¿Olvidaste tu contraseña?', 'Forgot your password?')}
             </button>
           )}
 
@@ -354,15 +363,15 @@ function LoginForm() {
             <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: 'var(--glass-border)' }}>
               {resetSent ? (
                 <p className="text-sm text-center" style={{ color: 'var(--accent-green)' }}>
-                  Check your email to reset your password.
+                  {t('Revisa tu correo para restablecer tu contraseña.', 'Check your email to reset your password.')}
                 </p>
               ) : (
                 <>
-                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Enter your email above and press:</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>{t('Escribe tu correo arriba y presiona:', 'Enter your email above and press:')}</p>
                   <button onClick={handleResetPassword} disabled={loading}
                     className="w-full py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
                     style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: 'var(--glass-border)' }}>
-                    {loading ? 'Sending...' : 'Send reset link'}
+                    {loading ? t('Enviando...', 'Sending...') : t('Enviar enlace', 'Send reset link')}
                   </button>
                 </>
               )}
@@ -373,7 +382,7 @@ function LoginForm() {
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-glass-border" /></div>
             <div className="relative flex justify-center">
-              <span className="bg-theme-card px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>or</span>
+              <span className="bg-theme-card px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{t('o', 'or')}</span>
             </div>
           </div>
 
@@ -385,17 +394,17 @@ function LoginForm() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            {googleLoading ? 'Connecting...' : 'Continue with Google'}
+            {googleLoading ? t('Conectando...', 'Connecting...') : t('Continuar con Google', 'Continue with Google')}
           </button>
           </>)}
 
           <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+            {isSignUp ? t('¿Ya tienes cuenta?', 'Already have an account?') : t('¿No tienes cuenta?', "Don't have an account?")}{' '}
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError(''); setShowReset(false); setResetSent(false) }}
               className="font-medium" style={{ color: 'var(--accent-blue)' }}
             >
-              {isSignUp ? 'Log in' : 'Sign up'}
+              {isSignUp ? t('Iniciar sesión', 'Log in') : t('Regístrate', 'Sign up')}
             </button>
           </p>
         </div>
@@ -407,7 +416,7 @@ function LoginForm() {
             ("al continuar aceptas..."), que es lo que un aviso legal tiene que
             hacer, y porque también cubre la Política de Privacidad. */}
         <p className="text-center text-xs mt-5" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          By continuing you accept the <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>Terms</a> and the <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>Privacy Policy</a>
+          {t('Al continuar aceptas los', 'By continuing you accept the')} <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Términos', 'Terms')}</a> {t('y la', 'and the')} <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Política de Privacidad', 'Privacy Policy')}</a>
         </p>
         <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Powered by Chispudo
