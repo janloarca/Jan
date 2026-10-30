@@ -93,7 +93,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     // (matches the page's own h1 and the NetWorth card).
     { href: '/dashboard', label: lang === 'es' ? 'Patrimonio' : 'Net Worth' },
     { href: '/finances', label: lang === 'es' ? 'Flujo' : 'Flow' },
-    { href: '/spreadsheet', label: lang === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' },
+    { href: '/spreadsheet', label: lang === 'es' ? 'Hoja' : 'Spreadsheet' },
     ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
     { href: '/world', label: lang === 'es' ? 'Mundo' : 'World' },
   ]
@@ -137,7 +137,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 const active = pathname === item.href
                 return (
                   <Link key={item.href} href={item.href}
-                    className="px-4 py-1.5 text-body font-medium rounded-lg transition-all"
+                    className="px-3 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap"
                     style={active
                       ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
                       : { color: 'var(--text-muted)' }}>
@@ -154,7 +154,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             {onCommandPalette && (
               <button onClick={onCommandPalette}
                 aria-label={lang === 'es' ? 'Buscar' : 'Search'}
-                className="hidden sm:flex items-center gap-1.5 px-3 h-9 text-caption rounded-lg border transition-colors hover:bg-theme-elevated"
+                className="hidden lg:flex items-center gap-1.5 px-3 h-9 text-caption rounded-lg border transition-colors hover:bg-theme-elevated"
                 style={{ color: 'var(--text-muted)', borderColor: 'var(--card-border)' }}>
                 <Search size={12} />
                 <kbd className="text-micro" style={{ color: 'var(--text-muted)' }}>{typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>

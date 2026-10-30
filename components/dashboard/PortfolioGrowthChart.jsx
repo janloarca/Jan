@@ -137,7 +137,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
 // sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
 // dato real se lean como cubiertas. Sin estos props el comportamiento es el de
 // antes.
-export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null }) {
+export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null }) {
   // ⛔ FASE LU (extensión de la superficie congelada D, decisión del usuario,
   // 28 ago 2026): la gráfica mide tus ACTIVOS. La deuda no es una inversión,
   // así que sale del universo entero de esta card: de la línea, de los chips
@@ -1916,7 +1916,17 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // The actual math lives in computeWindowGrowth (utils.js), pinned by a test
   // that recalculates the XOCHI+VITALI regression case above with the real
   // function.
-  const { growthPct, displayAbs, newCapitalPrincipal } = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope, weightedNewCapital: contributionLine ? contributionLine.weightedNewCapital : null })
+  const windowGrowth = computeWindowGrowth({ firstVal, lastVal, investedBase, entryFeesInScope, weightedNewCapital: contributionLine ? contributionLine.weightedNewCapital : null })
+  // Punto 1 de la auditoria del 30 oct: en DAY de la vista "Todas" la tarjeta
+  // HOY (computeDayChange) y este encabezado median dos cosas distintas
+  // (cambio de cotizacion por posicion contra la diferencia entre dos puntos
+  // de la serie). Hay UNA sola definicion de "hoy": la de la tarjeta. Con
+  // una institucion seleccionada la tarjeta no aplica (es del portafolio
+  // entero), asi que ahi queda el calculo de la serie.
+  const useCardDay = period === 'DAY' && shownInst === 'ALL' && dayChange && Number.isFinite(dayChange.abs)
+  const growthPct = useCardDay ? dayChange.pct : windowGrowth.growthPct
+  const displayAbs = useCardDay ? dayChange.abs : windowGrowth.displayAbs
+  const { newCapitalPrincipal } = windowGrowth
   const lastReturn = activeReturnData.length > 0 ? activeReturnData[activeReturnData.length - 1] : 0
   // Annualized (CAGR) companion for multi-year spans — "+180% ALL" over 6 years is
   // easy to misread as a yearly figure.

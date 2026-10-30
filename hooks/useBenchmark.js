@@ -7,10 +7,10 @@ export const BENCHMARKS = {
   '%5EGSPC': { name: 'S&P 500', short: 'SPX' },
   '%5EIXIC': { name: 'NASDAQ Composite', short: 'NDX' },
   '%5EDJI': { name: 'Dow Jones', short: 'DJI' },
-  '%5EGSPTSE': { name: 'S&P/TSX (Canada)', short: 'TSX' },
-  'EWZ': { name: 'iShares MSCI Brazil', short: 'EWZ' },
-  'EWW': { name: 'iShares MSCI Mexico', short: 'EWW' },
-  'VT': { name: 'Vanguard Total World', short: 'VT' },
+  '%5EGSPTSE': { name: 'S&P/TSX (Canada)', nameEs: 'S&P/TSX (Canadá)', short: 'TSX' },
+  'EWZ': { name: 'iShares MSCI Brazil', nameEs: 'iShares MSCI Brasil', short: 'EWZ' },
+  'EWW': { name: 'iShares MSCI Mexico', nameEs: 'iShares MSCI México', short: 'EWW' },
+  'VT': { name: 'Vanguard Total World', nameEs: 'Vanguard Mundo Total', short: 'VT' },
   'QQQ': { name: 'Invesco QQQ (Nasdaq-100)', short: 'QQQ' },
 }
 
