@@ -279,7 +279,7 @@ export default function SpreadsheetPage() {
               pestaña está activa" de dos formas distintas según la pantalla. */}
           <SegmentedTabs
             tabs={[
-              { key: 'portfolio', label: 'Portfolio' },
+              { key: 'portfolio', label: t('Cartera', 'Portfolio') },
               { key: 'debts', label: t('Deudas', 'Debts') },
               // "Bienes", not "Patrimonio" — this tab sums only estate assets
               // (real estate/vehicles/alternatives), while the dashboard's
