@@ -95,7 +95,17 @@ export default function QuickAddRow({
     setError('')
     // parseAmount('') devuelve 0, no NaN, así que el guard de campo vacío tiene
     // que ser explícito o un blanco y un cero se verían iguales.
-    if (!amount || parseAmount(amount) <= 0) {
+    // "Venta freelance 150": si el monto está vacío pero la descripción termina
+    // en un número, ese número es el monto y el resto la descripción. Solo se
+    // toma el ÚLTIMO token y solo si es un número limpio; "Plan 5G" o "Uber 2
+    // personas" no se tocan porque su cola no es un número.
+    let amt = amount
+    let descFinal = desc.trim()
+    if (!amt) {
+      const m = descFinal.match(/^(.*?)\s+(\d[\d.,]*)$/)
+      if (m && parseAmount(m[2]) > 0) { amt = m[2]; descFinal = m[1].trim() }
+    }
+    if (!amt || parseAmount(amt) <= 0) {
       setError(t('Falta el monto', 'Amount missing'))
       return
     }
@@ -106,9 +116,9 @@ export default function QuickAddRow({
     setSaving(true)
     const ok = await onAdd({
       type,
-      amount: parseAmount(amount),
+      amount: parseAmount(amt),
       category,
-      description: desc.trim(),
+      description: descFinal,
       date,
       currency: 'GTQ',
       source: 'manual',
@@ -228,7 +238,7 @@ export default function QuickAddRow({
         <span className="text-[10px]" style={{ color: error ? 'var(--text-negative)' : 'var(--text-muted)' }}>
           {error || (usingSuggestion
             ? t('Categoría sugerida por la descripción', 'Category suggested from the description')
-            : t('Enter para anotar', 'Press Enter to log'))}
+            : t('Enter para anotar · no mueve el saldo de tus cuentas (Caja); para eso usa Registrar movimiento en el tablero', 'Press Enter to log · does not change your account balances (Cash); use Log movement on the dashboard for that'))}
         </span>
         {onOpenFull && (
           <button type="button" onClick={onOpenFull}

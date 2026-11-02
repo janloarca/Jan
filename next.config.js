@@ -16,7 +16,11 @@ const nextConfig = {
   // hacen proxy de /__/auth y /__/firebase hacia firebaseapp.com, así el
   // iframe/popup es same-origin y Safari no tiene nada que bloquear.
   async redirects() {
-    return [{ source: '/goals', destination: '/dashboard#goals', permanent: false }]
+    return [
+      { source: '/goals', destination: '/dashboard#goals', permanent: false },
+      { source: '/flujo', destination: '/finances', permanent: false },
+      { source: '/flujo/:path*', destination: '/finances', permanent: false },
+    ]
   },
 
   async rewrites() {

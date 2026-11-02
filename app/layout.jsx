@@ -75,6 +75,7 @@ export default function RootLayout({ children }) {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.setAttribute('data-theme', theme);
+        try { var lg = localStorage.getItem('chispudo-lang'); if (lg === 'es' || lg === 'en') document.documentElement.setAttribute('lang', lg); } catch (e) {}
         var tc = theme === 'light' ? '#F8F9FB' : '#0A0A12';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
         metas.forEach(function(m) { m.setAttribute('content', tc); });

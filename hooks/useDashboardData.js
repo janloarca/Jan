@@ -3060,7 +3060,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (!publishFriends) return
     if (!user || settings?.friendsEnabled === false) return
     if (friendsPublishRunningRef.current) return
-    if (!shouldPublishToday({ lastDay: settings?._lastFriendsPublish })) return
+    if (!shouldPublishToday({ lastDay: settings?._lastFriendsPublish, lastAt: settings?._lastFriendsPublishAt })) return
     // Techo de intentos por día: las deps de este efecto se re-evalúan con cada
     // tick de precios (~5 min), así que sin esto un endpoint caído se
     // martillaría toda la sesión.
@@ -3095,7 +3095,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // sin leer el status, un fallo del servidor estampaba el día y la fila
         // quedaba sin publicar hasta mañana.
         if (!res.ok) return
-        await saveSettings({ _lastFriendsPublish: dayKey })
+        await saveSettings({ _lastFriendsPublish: dayKey, _lastFriendsPublishAt: new Date().toISOString() })
       } catch {
         // Silencio a propósito: ver arriba.
       } finally {
@@ -3103,7 +3103,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     })()
   }, [
-    publishFriends, user, settings?.friendsEnabled, settings?._lastFriendsPublish,
+    publishFriends, user, settings?.friendsEnabled, settings?._lastFriendsPublish, settings?._lastFriendsPublishAt,
     dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved,
     bulkWriting, ibkrAutoSyncing,
     // Los CRUDOS, que son los que el cuerpo lee. Con los saturados, un retorno
