@@ -12,6 +12,7 @@ import ConfirmTap from '@/components/ui/ConfirmTap'
 // separador solitario es decimal), el dinero por parseAmount (convencion LatAm
 // de miles) y la TASA por parseRate (decimal, y conserva el signo).
 import { parseAmount, parseQuantity, parseRate } from '@/lib/numberParse'
+import { closeLabel } from '@/lib/closeLabel'
 
 const TYPE_ICONS = { Stock: '📈', Crypto: '₿', Fund: '💼', Inmueble: '🏠', Bank: '🏦', Inversion: '🏛' }
 
@@ -249,7 +250,7 @@ export default function OptimizeModal({ items, onClose, onSave, onDelete, lang =
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500">{step + 1} / {questions.length}</span>
-            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label={closeLabel()}>&times;</button>
           </div>
         </div>
 

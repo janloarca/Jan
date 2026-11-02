@@ -1701,7 +1701,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 pr-2 border-r border-[var(--border-color)] last:border-r-0 last:pr-0">
+          <div className="flex flex-wrap items-center gap-2 max-w-full pr-2 border-r border-[var(--border-color)] last:border-r-0 last:pr-0">
             {/* Mensual/Año a año picks WHICH axis months means (see the
                 `months` useMemo above); the year picker only makes sense in
                 Mensual (Año a año already shows every year at once), so it
@@ -1713,16 +1713,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 {t('Mensual', 'Monthly')}
               </button>
               <button onClick={() => setViewMode('yoy')}
-                className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-[var(--text-secondary)]"
+                className="px-2.5 py-1 text-xs rounded font-semibold whitespace-nowrap transition-colors hover:text-[var(--text-secondary)]"
                 style={viewMode === 'yoy' ? pillActiveStyle : pillInactiveStyle}>
                 {t('Año a año', 'Year over year')}
               </button>
             </div>
             {viewMode === 'monthly' && (
-              <div className="flex bg-theme-tertiary rounded-md border border-[var(--border-color)] p-0.5">
+              <div className="flex flex-wrap bg-theme-tertiary rounded-md border border-[var(--border-color)] p-0.5 max-w-full">
                 {availableYears.map(y => (
                   <button key={y} onClick={() => setSelectedYear(y)}
-                    className="px-2.5 py-1 text-xs rounded font-semibold transition-colors hover:text-[var(--text-secondary)]"
+                    className="px-2.5 py-1 text-xs rounded font-semibold whitespace-nowrap transition-colors hover:text-[var(--text-secondary)]"
                     style={selectedYear === y ? pillActiveStyle : pillInactiveStyle}>
                     {y}
                   </button>

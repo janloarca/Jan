@@ -65,7 +65,7 @@ describe('Transferir: el telón respeta lo tecleado', () => {
     const onClose = jest.fn()
     mount(onClose)
     fireEvent.change(screen.getAllByPlaceholderText('0.00')[0], { target: { value: '250' } })
-    fireEvent.click(screen.getByLabelText('Close'))
+    fireEvent.click(screen.getByLabelText(/Cerrar|Close/))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

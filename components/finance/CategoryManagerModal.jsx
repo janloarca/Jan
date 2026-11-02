@@ -5,6 +5,7 @@ import { Plus, Eye, EyeOff, Trash2, ChevronLeft } from 'lucide-react'
 import { useEscClose } from '@/hooks/useEscClose'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { closeLabel } from '@/lib/closeLabel'
 import {
   resolveCategoryModel, groupsFor, categoryNameProblem, normalizeCategoryKey,
   withCustomCategory, withCategoryOverride, withoutCustomCategory,
@@ -112,7 +113,7 @@ export default function CategoryManagerModal({
               {entry ? (lang === 'es' ? entry.label : entry.labelEn) : t('Categorías', 'Categories')}
             </h2>
           </div>
-          <button onClick={onClose} className="text-xl shrink-0" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-xl shrink-0" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
 
         <div className="px-5 py-4 overflow-y-auto flex-1">

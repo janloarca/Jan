@@ -132,7 +132,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
             {/* Navigation — segmented control */}
             <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"
               style={{ backgroundColor: 'var(--bg-tertiary)' }}
-              aria-label="Main navigation" data-tour="nav">
+              aria-label={lang === 'es' ? 'Navegación principal' : 'Main navigation'} data-tour="nav">
               {navItems.map(item => {
                 const active = pathname === item.href
                 return (

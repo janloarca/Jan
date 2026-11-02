@@ -29,6 +29,7 @@ import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Default institution stamped on imported items when the import was opened for a
 // specific broker (brokerHint) and the file itself has no institution column —
@@ -1136,7 +1137,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="import-modal-title" className="text-lg font-bold text-white">{brokerInfo ? `${brokerInfo.icon} ` : ''}{modalTitle}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label={closeLabel()}>&times;</button>
         </div>
 
         {/* Mode tabs */}

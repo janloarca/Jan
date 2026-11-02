@@ -22,6 +22,7 @@ import RestoreBackupCard from '@/components/settings/RestoreBackupCard'
 import ShareTab from '@/components/settings/ShareTab'
 import CountrySelect from '@/components/ui/CountrySelect'
 import { TAX_JURISDICTION_OPTIONS } from '@/components/dashboard/utils'
+import { closeLabel } from '@/lib/closeLabel'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', nameEs: 'Dólar estadounidense', symbol: '$' },
@@ -550,7 +551,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             </span>
             {t('Configuración', 'Settings')}
           </h2>
-          <button onClick={onClose} className="rounded-full transition-colors hover:bg-theme-base" style={{ color: 'var(--text-secondary)' }} aria-label="Close">
+          <button onClick={onClose} className="rounded-full transition-colors hover:bg-theme-base" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>
             <X size={18} />
           </button>
         </div>

@@ -67,7 +67,7 @@ export default function Logo({
       focusable="false"
       style={{ flexShrink: 0 }}
     >
-      {variant === 'icon' && <title>Chispudo</title>}
+      {variant === 'icon' && <title>Chispu</title>}
       <path
         d={BOLT_PATH}
         fill={boltColor}
@@ -132,7 +132,7 @@ export default function Logo({
           margin: 0,
         }}
       >
-        Chispudo
+        Chispu
       </WordmarkTag>
     </span>
   )

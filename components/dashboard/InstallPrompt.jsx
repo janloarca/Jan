@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Share } from 'lucide-react'
 import Logo from '@/components/ui/Logo'
+import { closeLabel } from '@/lib/closeLabel'
 
 export default function InstallPrompt({ lang }) {
   const t = (es, en) => lang === 'es' ? es : en
@@ -78,7 +79,7 @@ export default function InstallPrompt({ lang }) {
           </button>
         )}
         <button onClick={handleDismiss}
-          className="text-slate-500 hover:text-slate-300 text-lg leading-none" aria-label="Close">&times;</button>
+          className="text-slate-500 hover:text-slate-300 text-lg leading-none" aria-label={closeLabel()}>&times;</button>
       </div>
     </div>
   )

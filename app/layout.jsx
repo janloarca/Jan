@@ -4,7 +4,7 @@ import UpdateAvailablePill from '@/components/ui/UpdateAvailablePill'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
-  title: 'Chispudo: Portfolio Tracker for Latin America',
+  title: 'Chispu: Portfolio Tracker for Latin America',
   description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for Latin America.',
   keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
   openGraph: {
@@ -37,7 +37,7 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Chispudo',
+    title: 'Chispu',
   },
   // Chrome deprecó apple-mobile-web-app-capable; Next sigue emitiendo ese, asi
   // que se agrega el nombre estandar junto a el (iOS conserva el suyo).

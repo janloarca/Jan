@@ -16,6 +16,7 @@ import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { normalizeIbkrCredentials, ibkrCredentialMessage } from '@/lib/ibkrCredentials'
 import { retryCannotFix, ibkrFixActionLabel, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -904,7 +905,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg transition-colors" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-white text-lg transition-colors" aria-label={closeLabel()}>&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">

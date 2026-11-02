@@ -14,6 +14,7 @@ import { closesWholeLot, exceedsHolding, formatQtyPlain } from '@/lib/lotClose'
 import { todayLocalISO } from '@/lib/localDate'
 
 import { isBankLike } from '@/components/dashboard/utils'
+import { closeLabel } from '@/lib/closeLabel'
 
 const BANK_RE = /bank|banco|cash|saving|checking|cuenta|ahorro|efectivo/i
 
@@ -198,7 +199,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="sell-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Vender', 'Sell')} {item.symbol}</h2>
-          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label={closeLabel()}>&times;</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

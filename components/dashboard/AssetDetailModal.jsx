@@ -10,6 +10,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { computeVentureMetrics } from '@/lib/ventureMetrics'
 import { computePropertyEquity, linkedDebtOf, isProperty } from '@/lib/propertyEquity'
 import DocumentVault from './DocumentVault'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Unified with the app-wide market whitelist (isMarketPriced) — the old local
 // blacklist disagreed with the movers/quotes filter, so the same asset could
@@ -249,7 +250,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             <h2 id="asset-detail-title" className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
           </div>
-          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
 
         <div className="p-6 space-y-5">

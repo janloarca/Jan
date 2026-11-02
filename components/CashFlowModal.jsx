@@ -15,6 +15,7 @@ import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
 import DiscardHint from '@/components/ui/DiscardHint'
+import { closeLabel } from '@/lib/closeLabel'
 
 
 export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, onExecuteContribution, onConfirmNewMoney, existingItems = [], transactions = [], convert, lang = 'es', baseCurrency = 'USD', prefill = null }) {
@@ -218,6 +219,18 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
       // pagos válidos y dejaría pasar otros que sí exceden.
       const appliedCheck = debtCrossCurrency ? debtReceived : num
       if (appliedCheck > debtBalanceOf(debtItem) + 0.005) { setError(t('El pago es mayor a lo que debes en ese préstamo.', 'The payment is larger than what you owe on that loan.')); return false }
+    }
+    // Un retiro (o un gasto pagado) que baja el saldo de una cuenta no puede
+    // dejarla en negativo: antes se aceptaba un retiro de GTQ 10 sobre una
+    // cuenta con GTQ 0.00 sin ningún aviso. `num` ya está en la moneda de la
+    // cuenta (effectiveCurrency sale de balanceTarget), así que se compara directo.
+    // Solo cuando el movimiento de verdad toca el saldo: con "el saldo ya está
+    // contado" el retiro ocurrió antes y el saldo de hoy ya lo refleja.
+    if (flowType === 'WITHDRAWAL' && (isExternal || isExpense) && willTouchBalance
+        && num > getValue(balanceTarget) + DUST) {
+      setError(t('El retiro es mayor al saldo de esa cuenta. Revisa el monto o la cuenta.',
+                 'The withdrawal is larger than that account\'s balance. Check the amount or the account.'))
+      return false
     }
     if (isYield && !yieldSource) { setError(t('Selecciona el activo que generó el ingreso.', 'Select the asset that generated the income.')); return false }
     setSaving(true)
@@ -446,7 +459,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 </span>
               )}
             </h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label={closeLabel()}>&times;</button>
           </div>
           {/* Oriented differently depending on how the user got here: a
               "Capturar historia" prefill already knows the amount (it's the

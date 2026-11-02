@@ -20,6 +20,7 @@ import useModalExit from '@/hooks/useModalExit'
 import BrokerProgressPanel from '@/components/dashboard/BrokerProgressPanel'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { normalizeIbkrCredentials, ibkrCredentialMessage } from '@/lib/ibkrCredentials'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Not a lib/brokerRegistry.js entry: IBKR's /api/brokers/ibkr endpoint takes
 // {token, queryId}, not the generic {fields: [...]} shape every registry
@@ -428,7 +429,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
               </span>
             )}
           </h2>
-          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
 
         {saveStatus && (
