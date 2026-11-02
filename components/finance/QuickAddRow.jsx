@@ -177,6 +177,18 @@ export default function QuickAddRow({
           className={`${FIELD} w-24 font-mono tabular-nums`}
           style={FIELD_STYLE}
         />
+        {(() => {
+          // Muestra el número INTERPRETADO ("1,5 mil" -> Q1,500.00) cuando lo
+          // tecleado no es ya un número llano, para confirmar antes de registrar.
+          const raw = String(amount || '').trim()
+          const v = raw ? parseAmount(raw) : 0
+          if (!raw || !(v > 0) || /^\d+(\.\d+)?$/.test(raw)) return null
+          return (
+            <span className="text-xs font-mono tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }} aria-live="polite">
+              = Q{v.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )
+        })()}
 
         <input
           type="text"

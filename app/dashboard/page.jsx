@@ -355,7 +355,7 @@ export default function DashboardPage() {
     enrichedItems, portfolioItems: rawPortfolioItems, entityTransactions, entityFinanceTransactions,
     reversalItems,
     marketPrices,
-    pricesLoading, pricesError, pricesUpdate,
+    pricesLoading, pricesFetching, pricesError, pricesUpdate,
     rates, convert,
     ratesLoading, ratesError, ratesUpdate, ratesStale, ytdResolved,
     handleRefresh,
@@ -1264,6 +1264,18 @@ export default function DashboardPage() {
     return null
   }, [ibkrSyncErrorCode, ibkrNeedsAttention, everIbkrSynced, settings?._ibkrConnectedAt, pricesError, ratesError, portfolioItems.length])
 
+  // Primera carga ASENTADA: latch de una sola vía. Hasta que precios (incluido
+  // el fetch en vuelo, no solo el primero), tasas y el ancla del año terminan,
+  // las cifras del hero son parciales (patrimonio y YTD absurdos por unos
+  // segundos). Es latch para que los refrescos de fondo posteriores no
+  // vuelvan a tapar el hero con un esqueleto cada pocos minutos.
+  const [firstLoadSettled, setFirstLoadSettled] = useState(false)
+  useEffect(() => {
+    if (!firstLoadSettled && !dataLoading && !pricesLoading && !pricesFetching && !ratesLoading && ytdResolved) {
+      setFirstLoadSettled(true)
+    }
+  }, [firstLoadSettled, dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved])
+
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.
   if (authLoading || (user && dataLoading)) {
@@ -1599,7 +1611,7 @@ export default function DashboardPage() {
             {/* Mientras llegan precios, tasas o el ancla del año, las cifras son
                 parciales (patrimonio y YTD absurdos por unos segundos): se
                 muestra el esqueleto en vez de un número que no es el final. */}
-            {(pricesLoading || ratesLoading || !ytdResolved) ? (
+            {(!firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved) ? (
               <div className="card p-4 sm:p-5" aria-busy="true">
                 <Shimmer className="h-4 w-28 mb-3" />
                 <Shimmer className="h-10 w-56 mb-3" />
