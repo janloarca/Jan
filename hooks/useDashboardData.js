@@ -2226,7 +2226,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             transactions: firstFlowAware ? assetTransactions : assetDietzTransactions,
             convert, baseCurrency,
           })
-          returnSinceStart = Math.max(-200, Math.min(200, pct))
+          returnSinceStart = isFinite(pct) ? pct : null
           sinceStartDate = first.date
           if (startVal == null || startVal <= 0) {
             startVal = firstVal
@@ -2319,7 +2319,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     } else {
       effPct = pct
     }
-    const clampedPct = Math.max(-200, Math.min(200, effPct))
+    // El tablero MUESTRA el % real (un +314% medido no se dibuja como +200.00%).
+    // El tope de +-200 vive solo en lo que se PUBLICA a Amigos (boundedPct).
+    const clampedPct = isFinite(effPct) ? effPct : null
     // FASE GR, purely additive: the three terms this memo measured with, handed
     // out unchanged so the "where your YTD comes from" panel can partition the
     // SAME quantities instead of rebuilding its own version of them (which is
@@ -3018,7 +3020,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
   // Lo que se MUESTRA: el mismo MTD acotado a la banda representable.
   const returnMTD = useMemo(
-    () => (returnMTDRaw == null ? null : Math.max(-200, Math.min(200, returnMTDRaw))),
+    () => (returnMTDRaw == null || !isFinite(returnMTDRaw) ? null : returnMTDRaw),
     [returnMTDRaw]
   )
 
