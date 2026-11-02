@@ -326,9 +326,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             </span>
           </span>
         )}
-        {dailyChange && hasReturn && <span aria-hidden="true" className="hidden sm:inline" style={{ color: 'var(--glass-border)' }}>│</span>}
+        {/* El separador es el borde izquierdo del bloque YTD y no un span suelto:
+            si la línea envuelve, un "│" independiente quedaba colgando al final
+            de HOY sin nada después. Así viaja siempre pegado a lo que separa. */}
         {hasReturn && (
-          <span className="whitespace-nowrap">
+          <span className={`whitespace-nowrap${dailyChange && isFinite(dailyChange.pct) ? ' sm:border-l sm:pl-2' : ''}`}
+            style={dailyChange && isFinite(dailyChange.pct) ? { borderColor: 'var(--glass-border)' } : undefined}>
             <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>
               {hasYTD ? 'YTD' : ((lang === 'es' ? 'DESDE ' : 'SINCE ') + (sinceStartDate ? formatShortDate(sinceStartDate) : ''))}
             </span>

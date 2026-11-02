@@ -75,7 +75,14 @@ export default function RootLayout({ children }) {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.setAttribute('data-theme', theme);
-        try { var lg = localStorage.getItem('chispudo-lang'); if (lg === 'es' || lg === 'en') document.documentElement.setAttribute('lang', lg); } catch (e) {}
+        try { var lg = localStorage.getItem('chispudo-lang'); if (lg === 'es' || lg === 'en') document.documentElement.setAttribute('lang', lg);
+          // Título y descripción siguen el idioma de la app (el metadata de Next
+          // es estático y está en inglés).
+          if (lg === 'es') {
+            document.title = 'Chispu: Patrimonio y portafolio en un solo lugar';
+            var md = document.querySelector('meta[name="description"]');
+            if (md) md.setAttribute('content', 'Acciones, cripto, bonos, bienes raíces y deudas en una sola vista, en cualquier moneda.');
+          } } catch (e) {}
         var tc = theme === 'light' ? '#F8F9FB' : '#0A0A12';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
         metas.forEach(function(m) { m.setAttribute('content', tc); });
