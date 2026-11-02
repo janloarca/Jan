@@ -1,6 +1,6 @@
 import Logo from '@/components/ui/Logo'
 
-export const metadata = { title: 'Terms of Service · Chispudo' }
+export const metadata = { title: 'Terms of Service · Chispu' }
 
 function Section({ title, children }) {
   return (
@@ -30,22 +30,22 @@ export default function TermsPage() {
           </p>
         </div>
 
-        <Section title="1. What Chispudo is">
+        <Section title="1. What Chispu is">
           <p>
-            Chispudo is a net worth and investment tracking tool. It lets you record, import and
+            Chispu is a net worth and investment tracking tool. It lets you record, import and
             visualize the composition and performance of your assets (investment accounts, crypto, real
             estate, bank accounts, debts, and so on), including read-only connections to brokers and
             exchanges.
           </p>
           <p className="font-medium text-white">
-            Chispudo never places trades, never moves money, and never has write access to your broker
+            Chispu never places trades, never moves money, and never has write access to your broker
             accounts. Every third-party connection (API or imported file) is strictly read-only.
           </p>
         </Section>
 
         <Section title="2. Not financial advice">
           <p>
-            Chispudo shows calculations (returns, projections, benchmark comparisons, rebalancing
+            Chispu shows calculations (returns, projections, benchmark comparisons, rebalancing
             suggestions) built from the data you enter or import. These calculations are informational
             tools. They are not investment recommendations, they are not financial, legal or tax advice,
             and they do not replace a professional. Decisions you make with your money are your
@@ -56,7 +56,7 @@ export default function TermsPage() {
         <Section title="3. Data accuracy">
           <p>
             When no real history is available (for example, a broker that only provides monthly
-            statements, or a position imported without a purchase date), Chispudo reconstructs or
+            statements, or a position imported without a purchase date), Chispu reconstructs or
             estimates past values and marks them as such in the interface. Market prices come from
             external data sources and may be delayed or interrupted. Always verify important figures
             against your broker&apos;s official statement before making a decision based on them.
@@ -80,7 +80,7 @@ export default function TermsPage() {
 
         <Section title="6. AI-assisted import">
           <p>
-            If you upload a PDF statement, Chispudo uses an AI model (Claude, by Anthropic) to convert it
+            If you upload a PDF statement, Chispu uses an AI model (Claude, by Anthropic) to convert it
             into a format the platform can read. You review and confirm every row before anything is
             saved: no AI-extracted data is imported automatically without your confirmation.
           </p>
@@ -104,20 +104,20 @@ export default function TermsPage() {
 
         <Section title="9. Ownership">
           <p>
-            The financial data you enter or import is yours. Chispudo owns the software, the brand and
+            The financial data you enter or import is yours. Chispu owns the software, the brand and
             the design of the platform.
           </p>
         </Section>
 
         <Section title="10. Service provided as is">
           <p>
-            Chispudo is provided as is, without warranties of any kind, express or implied. We do not
+            Chispu is provided as is, without warranties of any kind, express or implied. We do not
             guarantee that the service will be uninterrupted, error-free, or that the figures it displays
             are complete or accurate, particularly where they depend on external data sources or on
             reconstructed history.
           </p>
           <p>
-            To the maximum extent permitted by law, Chispudo is not liable for investment losses, lost
+            To the maximum extent permitted by law, Chispu is not liable for investment losses, lost
             profits, or any indirect or consequential damages arising from your use of the service or
             from reliance on the figures it displays. This is why section 3 asks you to verify important
             figures against your broker&apos;s official statement.
@@ -126,7 +126,7 @@ export default function TermsPage() {
 
         <Section title="11. Suspension and termination">
           <p>
-            You may stop using Chispudo and delete your account at any time. We may suspend or terminate
+            You may stop using Chispu and delete your account at any time. We may suspend or terminate
             an account that abuses the service, attempts to access another user&apos;s data, or violates
             these terms. Where possible we will give notice first so you can export your data.
           </p>

@@ -1,4 +1,4 @@
-# Chispudo (chispu.xyz)
+# Chispu (chispu.xyz)
 
 Portfolio tracker y finanzas personales para LatAm. Next.js 14 + Firebase + Vercel.
 

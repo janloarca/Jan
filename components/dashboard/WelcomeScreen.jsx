@@ -52,8 +52,8 @@ export default function WelcomeScreen({
             : t('Empecemos', 'Let us start')}
         </h2>
         <p className="text-body max-w-md mx-auto" style={{ color: 'var(--text-secondary)' }}>
-          {t('Chispudo junta todo lo que tienes en un solo lugar. Contanos qué es lo tuyo y lo armamos juntos.',
-             'Chispudo brings everything you own into one place. Tell us what you have and we build it together.')}
+          {t('Chispu junta todo lo que tienes en un solo lugar. Contanos qué es lo tuyo y lo armamos juntos.',
+             'Chispu brings everything you own into one place. Tell us what you have and we build it together.')}
         </p>
       </div>
 

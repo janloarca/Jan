@@ -20,7 +20,7 @@ export default function GlobalError({ error, reset }) {
   // es lo último que queremos.
   useEffect(() => {
     console.error('[GlobalError]', error)
-    setReport(buildErrorReport(error, { context: clientErrorContext(), title: 'Chispudo · error crítico' }))
+    setReport(buildErrorReport(error, { context: clientErrorContext(), title: 'Chispu · error crítico' }))
   }, [error])
 
   const copy = async () => {

@@ -10,7 +10,7 @@ const ICON_MAP = { Zap, Plus, Wallet, Calendar, Globe, BarChart3 }
 // Classic informational steps (modal route — no demo data on screen).
 const STEPS_ES = [
   {
-    title: 'Bienvenido a Chispudo',
+    title: 'Bienvenido a Chispu',
     body: 'Tu plataforma de control financiero personal. Aquí puedes trackear tu portafolio completo: stocks, crypto, bonos, fondos, inmuebles y más.',
     icon: 'Zap',
     tip: 'Tip: Funciona offline como app instalable.',
@@ -30,7 +30,7 @@ const STEPS_ES = [
   },
   {
     title: 'Ingresos pasivos',
-    body: 'Configura dividendos, intereses y rentas. Chispudo proyecta tu ingreso anual y muestra un calendario de pagos mes a mes.',
+    body: 'Configura dividendos, intereses y rentas. Chispu proyecta tu ingreso anual y muestra un calendario de pagos mes a mes.',
     icon: 'Calendar',
     tip: 'Soportamos tasa fija, variable y rendimiento continuo (DeFi).',
   },
@@ -51,7 +51,7 @@ const STEPS_ES = [
 
 const STEPS_EN = [
   {
-    title: 'Welcome to Chispudo',
+    title: 'Welcome to Chispu',
     body: 'Your personal financial control platform. Track your complete portfolio: stocks, crypto, bonds, funds, real estate and more.',
     icon: 'Zap',
     tip: 'Tip: Works offline as an installable app.',
@@ -71,7 +71,7 @@ const STEPS_EN = [
   },
   {
     title: 'Passive income',
-    body: 'Configure dividends, interest, and rental income. Chispudo projects your annual income and shows a month-by-month payment calendar.',
+    body: 'Configure dividends, interest, and rental income. Chispu projects your annual income and shows a month-by-month payment calendar.',
     icon: 'Calendar',
     tip: 'We support fixed, variable, and continuous yield (DeFi).',
   },

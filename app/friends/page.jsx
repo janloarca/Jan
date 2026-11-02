@@ -443,12 +443,12 @@ function FriendsPageInner() {
     const url = `${origin}/friends?code=${encodeURIComponent(code)}`
     const named = groupName ? `"${groupName}"` : t('mi grupo', 'my group')
     const text = t(
-      `Te invito a ${named} en Chispudo. Entra aquí: ${url}`,
-      `I'm inviting you to ${named} on Chispudo. Join here: ${url}`
+      `Te invito a ${named} en Chispu. Entra aquí: ${url}`,
+      `I'm inviting you to ${named} on Chispu. Join here: ${url}`
     )
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Chispudo', text })
+        await navigator.share({ title: 'Chispu', text })
         return
       } catch (e) {
         // Cancelar el menú nativo no es un fallo, no hay nada que avisar.
@@ -712,7 +712,7 @@ function FriendsPageInner() {
         metric={metric}
         api={api} flash={flash} onChanged={reloadGlobal} onRetry={reloadGlobal} />
 
-      <div className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>Chispudo · chispu.xyz</div>
+      <div className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>Chispu · chispu.xyz</div>
 
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium shadow-xl border"

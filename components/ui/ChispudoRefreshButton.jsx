@@ -1,6 +1,6 @@
 'use client'
 
-// Chispudo's own refresh control: a circular progress ring instead of a
+// Chispu's own refresh control: a circular progress ring instead of a
 // generic browser-style spinner button. The ring is a real, own-brand
 // instrument, not a decoration — see below for exactly what drives it.
 //

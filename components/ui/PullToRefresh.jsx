@@ -1,6 +1,6 @@
 'use client'
 
-// Jalar hacia abajo para refrescar, con la marca de Chispudo. Solo en el
+// Jalar hacia abajo para refrescar, con la marca de Chispu. Solo en el
 // tablero, y solo por toque.
 //
 // TODO lo que dibuja sale de piezas que ya existen: la geometría del anillo de

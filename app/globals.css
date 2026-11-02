@@ -646,7 +646,7 @@ html[data-ptr="on"] body {
 
 /* ─── EL BARRIDO DE LA MARCA ───────────────────────────────────────────────
    Una sola definición del arco que gira, compartida por los tres lugares que
-   dicen "Chispudo está trabajando": el anillo del header
+   dicen "Chispu está trabajando": el anillo del header
    (ChispudoRefreshButton), el splash (ChispudoLoader) y el anillo de botón
    (BusyLabel). Antes eran tres @keyframes idénticos en tres <style jsx>
    distintos, que es como uno se queda atrás.

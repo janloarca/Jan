@@ -462,15 +462,15 @@ export default function FinancesPage() {
         {
           tab: t('Flujo', 'Flow'),
           title: t('Registra o importa movimientos', 'Log or import movements'),
-          body: t('Puedes anotar cada gasto a mano con el botón de agregar, o importar el estado de cuenta de tu banco (PDF o Excel). Chispudo detecta duplicados para que re-importar el mismo mes no duplique nada, y te deja categorizar cada movimiento.',
-                  'You can log each expense by hand with the add button, or import your bank statement (PDF or Excel). Chispudo detects duplicates so re-importing the same month never double-counts, and lets you categorize every movement.'),
+          body: t('Puedes anotar cada gasto a mano con el botón de agregar, o importar el estado de cuenta de tu banco (PDF o Excel). Chispu detecta duplicados para que re-importar el mismo mes no duplique nada, y te deja categorizar cada movimiento.',
+                  'You can log each expense by hand with the add button, or import your bank statement (PDF or Excel). Chispu detects duplicates so re-importing the same month never double-counts, and lets you categorize every movement.'),
           tip: t('Los movimientos se agrupan en 6 categorías principales para que los reportes sean claros.', 'Movements group into 6 main categories so reports stay clear.'),
         },
         {
           tab: t('Flujo', 'Flow'),
           title: t('Insights de tu gasto', 'Spending insights'),
-          body: t('Chispudo analiza tu mes: detecta gastos hormiga (esos pequeños que suman), calcula tu tasa de ahorro y te muestra cómo cambió cada categoría contra el mes pasado y contra el mismo mes del año anterior.',
-                  'Chispudo analyzes your month: it flags small recurring spends that add up, computes your savings rate, and shows how each category moved versus last month and the same month last year.'),
+          body: t('Chispu analiza tu mes: detecta gastos hormiga (esos pequeños que suman), calcula tu tasa de ahorro y te muestra cómo cambió cada categoría contra el mes pasado y contra el mismo mes del año anterior.',
+                  'Chispu analyzes your month: it flags small recurring spends that add up, computes your savings rate, and shows how each category moved versus last month and the same month last year.'),
         },
         {
           tab: t('Flujo', 'Flow'),

@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { BOLT_PATH, BOLT_VIEWBOX, boltStrokeWidth } from '@/lib/brandBolt'
 
-// The one place the Chispudo mark is drawn. Every screen that shows the
+// The one place the Chispu mark is drawn. Every screen that shows the
 // brand — header, landing page, login/terms/privacy, install prompt,
 // onboarding — renders THIS component instead of its own copy of a bolt +
-// "Chispudo" text, so the mark can only ever look like one thing.
+// "Chispu" text, so the mark can only ever look like one thing.
 //
 // variant="full": bolt + wordmark, for headers and anywhere there's room.
 // variant="icon": bolt alone, for tight spaces (small buttons, standalone

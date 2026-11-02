@@ -1,4 +1,4 @@
-# Chispudo: World + clasificación de posiciones + menú nuevo + capa de datos inteligente
+# Chispu: World + clasificación de posiciones + menú nuevo + capa de datos inteligente
 
 Especificación de producto y UX. Responde al "Master Product & UX Prompt" en el orden pedido (8 partes). Está escrita **contra lo que ya existe en el repo**, no sobre una hoja en blanco: donde algo ya está construido se nombra el archivo y se extiende en vez de reemplazarlo.
 

@@ -1,7 +1,7 @@
 {
   "id": "/dashboard",
-  "name": "Chispudo: Portfolio Tracker",
-  "short_name": "Chispudo",
+  "name": "Chispu: Portfolio Tracker",
+  "short_name": "Chispu",
   "description": "Track your entire portfolio. Built for Latin America.",
   "start_url": "/dashboard",
   "scope": "/",

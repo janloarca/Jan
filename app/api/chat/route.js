@@ -384,7 +384,7 @@ function sanitizeCtxString(val) {
 
 function buildSystemPrompt(ctx) {
   const lines = [
-    'You are a financial advisor AI embedded in Chispudo, a personal portfolio tracking app.',
+    'You are a financial advisor AI embedded in Chispu, a personal portfolio tracking app.',
     'You have access to the user\'s real portfolio data below. Answer questions about their finances, suggest optimizations, estimate values, and provide actionable advice.',
     'Be concise and direct. Use numbers and percentages. Respond in the same language the user writes in (Spanish or English).',
     'You have tools available to estimate reward values, analyze debt payoff strategies, and update portfolio items when the user asks.',
