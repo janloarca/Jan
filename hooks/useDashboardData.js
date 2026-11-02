@@ -72,7 +72,10 @@ export function ibkrSyncChanges(prev, next) {
 //    todo doc que ese boton escribio dejo pegada a su valor de hoy cualquier
 //    cuenta que compone su rendimiento. Se sube para que la pasada correcta
 //    corra en la MISMA sesion en vez de esperar al dia siguiente.
-const BACKFILL_LOGIC_VERSION = 4
+// 5: un activo que aun no cotizaba (SPCX antes de su listado) se valoraba al
+//    primer cierre real meses atras; ahora se valora al precio de compra, igual
+//    que la Hoja, asi que los docs viejos inflan el pasado y hay que reescribirlos.
+const BACKFILL_LOGIC_VERSION = 5
 
 // `publishFriends` lo prende SOLO el tablero. No es un default porque /friends
 // publica por su cuenta al montar (y ahí eso es lo correcto: es el momento en

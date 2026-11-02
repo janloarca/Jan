@@ -288,3 +288,43 @@ describe('byKey es una particion exacta del total (FASE IO)', () => {
     }
   })
 })
+
+describe('activo que aun no cotizaba: se valora al costo, no al primer cierre (FASE KZ)', () => {
+  const { fetchWithRetry } = require('../../../../../lib/fetchWithRetry')
+  const YEAR = new Date().getUTCFullYear()
+  const day = (m, d) => Date.UTC(YEAR, m, d) / 1000
+  const series = (stamps, closes) => ({
+    ok: true,
+    json: async () => ({ chart: { result: [{ timestamp: stamps, indicators: { quote: [{ close: closes }] } }] } }),
+  })
+  // TSLA cotiza todo el ano a 100; SPCX solo desde junio, a 108 (el caso real:
+  // se compro a 0.02 y el primer cierre existe meses despues).
+  beforeEach(() => {
+    fetchWithRetry.mockImplementation(async (url) => String(url).includes('SPCX')
+      ? series([day(5, 5), day(6, 5)], [108, 108])
+      : series([day(0, 2), day(2, 5), day(5, 5), day(6, 5)], [100, 100, 100, 100]))
+  })
+  afterEach(() => { fetchWithRetry.mockImplementation(async () => { throw new Error('network down') }) })
+
+  const items = [
+    { id: 't', symbol: 'TSLA', type: 'Stock', quantity: 10, currentPrice: 100, purchasePrice: 100, acquisitionDate: '2020-01-01' },
+    { id: 's', symbol: 'SPCX', type: 'Stock', quantity: 1000, currentPrice: 108, purchasePrice: 0.02, acquisitionDate: '2020-01-01' },
+  ]
+
+  test('antes del listado vale cantidad x precio de compra, no x el primer cierre', async () => {
+    const res = await POST(mockRequest({ items, period: 'YTD' }))
+    const data = await res.json()
+    const early = data.dataPoints.filter((p) => p.ts < Date.UTC(YEAR, 4, 1))
+    expect(early.length).toBeGreaterThan(0)
+    // 10 x 100 (TSLA) + 1000 x 0.02 (SPCX al costo) = 1020, nunca 1000 + 108000.
+    for (const p of early) expect(p.total).toBeCloseTo(1020, 2)
+  })
+
+  test('ya cotizando usa el precio de mercado', async () => {
+    const res = await POST(mockRequest({ items, period: 'YTD' }))
+    const data = await res.json()
+    const late = data.dataPoints.filter((p) => p.ts >= Date.UTC(YEAR, 5, 5))
+    expect(late.length).toBeGreaterThan(0)
+    for (const p of late) expect(p.total).toBeCloseTo(1000 + 108000, 2)
+  })
+})
