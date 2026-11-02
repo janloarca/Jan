@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
 //   CRON_SECRET — Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`
 //   SMTP_HOST / SMTP_USER / SMTP_PASS — mailbox credentials (app password)
 //   SMTP_PORT — optional, defaults to 465 (implicit TLS)
-//   SMTP_FROM — optional, defaults to 'Chispudo <SMTP_USER>'. Para mandar
+//   SMTP_FROM — optional, defaults to 'Chispu <SMTP_USER>'. Para mandar
 //     desde un no-reply, apuntarla a una dirección que EXISTA en el buzón
 //     (alias del mismo usuario): casi todo host SMTP rechaza o reescribe un
 //     From que la cuenta autenticada no posee.
@@ -61,7 +61,7 @@ export async function GET(request) {
   }
 
   const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-  const from = process.env.SMTP_FROM || `Chispudo <${SMTP_USER}>`
+  const from = process.env.SMTP_FROM || `Chispu <${SMTP_USER}>`
   const replyTo = process.env.SMTP_REPLY_TO || null
   const port = Number(process.env.SMTP_PORT) || 465
   const transport = nodemailer.createTransport({

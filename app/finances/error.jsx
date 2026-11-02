@@ -26,7 +26,7 @@ export default function FinancesError({ error, reset }) {
     setClient(clientErrorContext())
   }, [error])
 
-  const report = buildErrorReport(error, { context: client, title: 'Chispudo · error en Flujo' })
+  const report = buildErrorReport(error, { context: client, title: 'Chispu · error en Flujo' })
 
   const copy = async () => {
     try {

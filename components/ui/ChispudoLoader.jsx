@@ -1,10 +1,10 @@
 'use client'
 
-// Chispudo's own loading indicator — the bolt, ringed by real progress (or a
+// Chispu's own loading indicator — the bolt, ringed by real progress (or a
 // genuine indeterminate sweep), instead of a native browser spinner. Safari's
 // own pull-to-refresh/tab-loading chrome is controlled by the browser and
 // can't be (and isn't, here) touched from the page — this is a SEPARATE,
-// in-page signal that lives entirely inside Chispudo's own UI, for moments
+// in-page signal that lives entirely inside Chispu's own UI, for moments
 // the browser's own indicator doesn't cover: the app fetching its data,
 // switching sections, refreshing prices.
 //
@@ -17,7 +17,7 @@
 //
 // Same ring mechanics as ChispudoRefreshButton (SVG stroke-dashoffset for
 // determinate progress, a short rotating arc for indeterminate) — one visual
-// language for "Chispudo is working," whether it's the header button or a
+// language for "Chispu is working," whether it's the header button or a
 // full-page splash. `progress` stays null until the caller has a REAL
 // percentage; an indeterminate sweep is drawn instead of ever inventing one.
 //

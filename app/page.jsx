@@ -575,7 +575,7 @@ export default function Home() {
       {/* --- Footer --- */}
       <footer style={{ borderTop: '1px solid ' + C.line, backgroundColor: C.page }} className="py-8">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-          <span style={{ color: C.muted }}>Chispudo · chispu.xyz</span>
+          <span style={{ color: C.muted }}>Chispu · chispu.xyz</span>
           <div className="flex items-center gap-5">
             <a href="/terms" className="transition-opacity hover:opacity-70" style={{ color: C.muted }}>Terms</a>
             <a href="/privacy" className="transition-opacity hover:opacity-70" style={{ color: C.muted }}>Privacy</a>

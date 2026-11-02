@@ -1334,8 +1334,8 @@ Rules: do not invent any data; if something is missing from my documents leave i
                       {aiCopied ? t('✓ Prompt copiado, pégalo en tu IA', '✓ Prompt copied, paste it into your AI') : t('Copiar prompt para ChatGPT / Claude / Gemini', 'Copy prompt for ChatGPT / Claude / Gemini')}
                     </button>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      {t('El prompt le pide: posiciones con fechas reales de compra por lote, compras y ventas con comisiones, dividendos, depósitos y retiros, y valores históricos. Todo en el formato exacto que Chispudo importa.',
-                         'The prompt asks for: positions with real per-lot purchase dates, buys and sells with commissions, dividends, deposits and withdrawals, and historical values. All in the exact format Chispudo imports.')}
+                      {t('El prompt le pide: posiciones con fechas reales de compra por lote, compras y ventas con comisiones, dividendos, depósitos y retiros, y valores históricos. Todo en el formato exacto que Chispu importa.',
+                         'The prompt asks for: positions with real per-lot purchase dates, buys and sells with commissions, dividends, deposits and withdrawals, and historical values. All in the exact format Chispu imports.')}
                     </p>
 
                     {/* Second, narrower prompt. The big one above is shaped around

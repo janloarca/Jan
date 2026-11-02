@@ -353,7 +353,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {hasYTD && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartTs != null && (
         <div className="mt-0.5 text-[11px] tabular-nums" style={{ color: 'var(--text-muted)' }}>
-          {lang === 'es' ? 'Arranque del año' : 'Year start'}: {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}
+          {lang === 'es' ? 'Arranque del año (solo activos)' : 'Year start (assets only)'}: {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}
         </div>
       )}
 

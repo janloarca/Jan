@@ -464,7 +464,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
         )}
 
         <p className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>
-          {t('Compartido vía', 'Shared via')} <span style={{ color: 'var(--accent-blue)' }}>Chispudo</span> · chispu.xyz
+          {t('Compartido vía', 'Shared via')} <span style={{ color: 'var(--accent-blue)' }}>Chispu</span> · chispu.xyz
         </p>
       </main>
     </div>
@@ -730,7 +730,7 @@ function Disclosures({ t, asOfLabel, owner, advisor }) {
             <p>{t('Cifras al', 'Figures as of')} {asOfLabel}.</p>
           )}
           {(owner || advisor?.firm) && (
-            <p>{t('Preparado por', 'Prepared by')} {[owner, advisor?.firm].filter(Boolean).join(' · ')} {t('con Chispudo.', 'with Chispudo.')}</p>
+            <p>{t('Preparado por', 'Prepared by')} {[owner, advisor?.firm].filter(Boolean).join(' · ')} {t('con Chispu.', 'with Chispu.')}</p>
           )}
         </div>
       )}

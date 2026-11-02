@@ -22,7 +22,7 @@ export default function RestoreBackupCard({ onRestore, lang = 'es', existing }) 
     const parsed = parseBackup(await file.text())
     if (parsed.error) {
       setPending(null)
-      setMsg({ tone: 'error', text: t('Ese archivo no es un respaldo de Chispudo.', 'That file is not a Chispudo backup.') })
+      setMsg({ tone: 'error', text: t('Ese archivo no es un respaldo de Chispu.', 'That file is not a Chispu backup.') })
       return
     }
     const r = planRestore(parsed.data, existing)

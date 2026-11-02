@@ -1,6 +1,6 @@
 import Logo from '@/components/ui/Logo'
 
-export const metadata = { title: 'Privacy Policy · Chispudo' }
+export const metadata = { title: 'Privacy Policy · Chispu' }
 
 function Section({ title, children }) {
   return (
@@ -82,7 +82,7 @@ export default function PrivacyPage() {
 
         <Section title="5. Cookies and local storage">
           <p>
-            We do not use advertising or tracking cookies of our own. Chispudo stores data in your
+            We do not use advertising or tracking cookies of our own. Chispu stores data in your
             browser (local storage and a session cookie) to keep you signed in and to remember your
             preferences, such as theme, language and base currency. The AdSense unit in the footer is
             served by Google and may set its own cookies, subject to Google&apos;s policies.
@@ -106,7 +106,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="8. Minors">
-          <p>Chispudo is not directed at people under 18 and we do not knowingly collect their data.</p>
+          <p>Chispu is not directed at people under 18 and we do not knowingly collect their data.</p>
         </Section>
 
         <Section title="9. Changes to this policy">

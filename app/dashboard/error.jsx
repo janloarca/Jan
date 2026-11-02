@@ -29,7 +29,7 @@ export default function DashboardError({ error, reset }) {
   // el boundary raíz, que es el que atrapa lo que este no, no decía ni el
   // mensaje ni el build, así que la captura de un usuario no permitía
   // distinguir un bug del deploy de un teléfono pegado al bundle viejo.
-  const report = buildErrorReport(error, { context: client, title: 'Chispudo · error en el dashboard' })
+  const report = buildErrorReport(error, { context: client, title: 'Chispu · error en el dashboard' })
 
   const copy = async () => {
     try {

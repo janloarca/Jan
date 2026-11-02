@@ -78,7 +78,7 @@ export default function AuthGate({ children }) {
   }, [pathname, router])
 
   if (phase === 'checking') {
-    // Chispudo's own splash, not a raw spinner — a warm-cache session
+    // Chispu's own splash, not a raw spinner — a warm-cache session
     // resolves near-instantly, so the default show-delay is what keeps this
     // from flashing on screen at all for most returning users.
     return (

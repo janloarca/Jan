@@ -38,7 +38,7 @@ export default class RootErrorBoundary extends Component {
       report: buildErrorReport(error, {
         context: clientErrorContext(),
         componentStack: info?.componentStack,
-        title: 'Chispudo · error',
+        title: 'Chispu · error',
       }),
     })
   }

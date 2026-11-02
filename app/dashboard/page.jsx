@@ -1131,7 +1131,7 @@ export default function DashboardPage() {
       .map((it) => `  ${it.name}: ${formatCurrency(it.value)}`)
       .join('\n')
     const text = [
-      `⚡ ${t('Mi Portafolio', 'My Portfolio')}: Chispudo`,
+      `⚡ ${t('Mi Portafolio', 'My Portfolio')}: Chispu`,
       '',
       `${t('Patrimonio Neto', 'Net Worth')}: ${formatCurrency(netWorth)}`,
       `${t('Activos', 'Assets')}: ${formatCurrency(totalAssets)}`,
@@ -1149,7 +1149,7 @@ export default function DashboardPage() {
       `chispu.xyz`,
     ].filter(Boolean).join('\n')
     if (navigator.share) {
-      try { await navigator.share({ title: 'Chispudo Portfolio', text }) } catch {}
+      try { await navigator.share({ title: 'Chispu Portfolio', text }) } catch {}
     } else {
       try {
         await navigator.clipboard.writeText(text)
@@ -1537,7 +1537,7 @@ export default function DashboardPage() {
             solo, y nadie puede quedarse sin puerta de vuelta. */}
         {/* Una lectura que FALLÓ no es una cuenta vacía. Sin este guard, un
             usuario con 40 cuentas y la red caída (o una regla de Firestore
-            denegando) veía "Bienvenido a Chispudo" con los botones de alta,
+            denegando) veía "Bienvenido a Chispu" con los botones de alta,
             porque el listener dejaba `items` en [] y `loading` pasaba a false
             igual. Es la afirmación falsa que el invariante de la casa prohíbe,
             y encima invita a volver a crear cuentas que ya existen. */}

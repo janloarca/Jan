@@ -57,7 +57,7 @@ export default function InstallPrompt({ lang }) {
         </span>
         <div className="min-w-0">
           <p className="text-sm font-medium text-white">
-            {t('Instala Chispudo', 'Install Chispudo')}
+            {t('Instala Chispu', 'Install Chispu')}
           </p>
           <p className="text-xs text-slate-400">
             {isIOS ? (
