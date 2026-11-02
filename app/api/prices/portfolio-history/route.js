@@ -17,6 +17,8 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const VALID_PERIODS = ['DAY', '1W', 'MTD', '1M', '3M', '6M', 'YTD', '1Y', 'ALL']
+// Brecha maxima (10 dias) en la que extender el primer cierre hacia atras.
+const PRE_LISTING_GAP_MS = 10 * 86400000
 const SYMBOL_RE = /^[A-Z0-9._\-^=]{1,20}$/i
 
 // Ticker -> CoinGecko id comes from lib/cryptoMap.js (shared with /api/prices
@@ -561,7 +563,18 @@ export async function POST(request) {
         for (let i = data.history.length - 1; i >= 0; i--) {
           if (data.history[i].ts <= ts) { price = data.history[i].close; break }
         }
-        if (price == null && data.history.length > 0) price = data.history[0].close
+        if (price == null && data.history.length > 0) {
+          // Antes del primer precio disponible. Con una brecha chica (fin de
+          // semana, el dia previo a la ventana) se extiende el primer cierre
+          // hacia atras: es solo el borde de la serie. Con una brecha grande el
+          // activo todavia NO cotizaba (ej. SPCX antes de su listado): valorarlo
+          // al primer cierre infla el pasado meses enteros con un precio que no
+          // existia. Se valora al precio de compra, igual que la Hoja
+          // (lib/historicalValues.js); sin precio de compra cae al primer cierre.
+          const gap = data.history[0].ts - ts
+          const unitCost = Number(data.it?.purchasePrice) || 0
+          price = (gap > PRE_LISTING_GAP_MS && unitCost > 0) ? unitCost : data.history[0].close
+        }
 
         let contribution = 0
         if (data.txEvents) {
