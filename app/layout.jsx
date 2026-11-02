@@ -4,8 +4,8 @@ import UpdateAvailablePill from '@/components/ui/UpdateAvailablePill'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
-  title: 'Chispu: Seguimiento de portafolio y patrimonio',
-  description: 'Sigue tus acciones, cripto, bonos, inmuebles, deudas y más en una sola vista, en cualquier moneda.',
+  title: 'Chispu: Net worth & portfolio tracker',
+  description: 'Track stocks, crypto, bonds, real estate and debt in one view, in any currency.',
   keywords: ['portafolio', 'inversiones', 'patrimonio', 'acciones', 'cripto', 'bonos', 'portfolio tracker', 'net worth'],
   openGraph: {
     title: 'Chispu: Your real net worth, in one place',
