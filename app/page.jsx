@@ -431,7 +431,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-6"
               style={{ backgroundColor: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.20)' }}>
               <Logo variant="icon" size={13} />
-              <span className="text-xs font-semibold" style={{ color: C.blueDark }}>Built for Latin America</span>
+              <span className="text-xs font-semibold" style={{ color: C.blueDark }}>Built for every currency</span>
             </div>
 
             <h1 className="font-black tracking-tight mb-5"
@@ -580,7 +580,7 @@ export default function Home() {
             <a href="/terms" className="transition-opacity hover:opacity-70" style={{ color: C.muted }}>Terms</a>
             <a href="/privacy" className="transition-opacity hover:opacity-70" style={{ color: C.muted }}>Privacy</a>
           </div>
-          <span style={{ color: C.muted }}>The portfolio tracker built for Latin America.</span>
+          <span style={{ color: C.muted }}>The net worth and portfolio tracker for every currency.</span>
         </div>
       </footer>
     </div>
