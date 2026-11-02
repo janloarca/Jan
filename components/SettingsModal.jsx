@@ -942,8 +942,15 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <div className="pt-1 space-y-1">
                       <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                         {autoStatus?.lastRun?.at
-                          ? t(`Última corrida automática: ${new Date(autoStatus.lastRun.at).toLocaleString()} (${autoStatus.lastRun.result || 'sin detalle'}).`,
-                              `Last scheduled run: ${new Date(autoStatus.lastRun.at).toLocaleString()} (${autoStatus.lastRun.result || 'no detail'}).`)
+                          ? (() => {
+                              const res = autoStatus.lastRun.result
+                              const label = {
+                                'nothing-due': t('nada que enviar hoy', 'nothing due today'),
+                                ran: t('envió correos', 'sent emails'),
+                              }[res] || res || t('sin detalle', 'no detail')
+                              const when = new Date(autoStatus.lastRun.at).toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+                              return t(`Última corrida automática: ${when} (${label}).`, `Last scheduled run: ${when} (${label}).`)
+                            })()
                           : autoStatus
                             ? t('El envío automático NUNCA ha corrido todavía.', 'The scheduled send has NEVER run yet.')
                             : t('Consultando el estado del envío automático...', 'Checking the scheduled send...')}

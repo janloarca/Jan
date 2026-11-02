@@ -1351,7 +1351,7 @@ export default function DashboardPage() {
         // entrada del menu PARA SIEMPRE en cuanto habia un activo. Quien ya
         // tiene cuentas tambien quiere agregar la siguiente paso a paso.
         onGuided={handleOpenGuided}
-        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
+        enrichGapCount={pendingFindings}
         friendsEnabled={settings?.friendsEnabled !== false}
         onCashFlow={handleOpenCashflow}
         onSell={handleOpenSellPicker}
@@ -2504,7 +2504,7 @@ export default function DashboardPage() {
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
-        enrichGapCount={dataCompleteness.findings.filter((f) => f.itemId).length}
+        enrichGapCount={pendingFindings}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
@@ -2553,7 +2553,7 @@ export default function DashboardPage() {
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           onConnectBroker={brokersOn ? handleOpenConnections : null}
           brokersEnabled={brokersOn}
-          pendingCount={dataCompleteness.findings.length}
+          pendingCount={pendingFindings}
           onCompleteData={handleGuidedComplete}
           lang={lang}
         />

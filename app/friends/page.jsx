@@ -293,7 +293,7 @@ function FriendsPageInner() {
       // mismo. Es best-effort a propósito (un fallo del guardado no puede hacer
       // fallar una publicación que YA salió bien): en el peor caso hay una
       // escritura de más.
-      saveSettings({ _lastFriendsPublish: publishDayKey() }).catch(() => {})
+      saveSettings({ _lastFriendsPublish: publishDayKey(), _lastFriendsPublishAt: new Date().toISOString() }).catch(() => {})
       await refresh()
       return true
     } catch (e) {

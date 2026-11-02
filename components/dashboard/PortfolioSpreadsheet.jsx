@@ -2338,7 +2338,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                   )
                                 }
                                 return (
-                                  <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                                  <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm whitespace-nowrap" style={{ color: histVal != null ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
                                     {histVal != null ? (
                                       <>
                                         {isEst && (
@@ -2453,7 +2453,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               }
                               const v = closedSumAt(mk)
                               return (
-                                <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
+                                <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                                   {v != null ? formatNum(v) : '-'}
                                 </td>
                               )
@@ -2510,7 +2510,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             const histVal = cell?.value ?? null
                             const isEst = histVal != null && cell?.estimated
                             return (
-                              <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm" style={{ color: histVal != null ? 'var(--text-muted)' : 'var(--text-muted)' }}>
+                              <td key={mk} className="text-right py-2.5 px-2 tabular-nums font-mono text-sm whitespace-nowrap" style={{ color: histVal != null ? 'var(--text-muted)' : 'var(--text-muted)' }}>
                                 {histVal != null ? (
                                   <>
                                     {isEst && (

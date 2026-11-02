@@ -20,6 +20,17 @@ const CATEGORY_ICONS = {
   other: '📦',
 }
 
+// Rótulo legible del subtipo: la llave interna ('property', 'vehicle') no se
+// imprime tal cual, y menos en inglés dentro de una app en español.
+function subtypeLabel(sub, t) {
+  const map = {
+    property: [t('Propiedad', 'Property')], vehicle: [t('Vehículo', 'Vehicle')],
+    collectible: [t('Coleccionable', 'Collectible')], other: [t('Otro', 'Other')],
+    land: [t('Terreno', 'Land')],
+  }
+  return sub ? (map[String(sub).toLowerCase()]?.[0] || sub) : ''
+}
+
 function fmt(val) {
   return Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
@@ -292,7 +303,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                           )}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="text-xs text-slate-500">{item.subtype || item.type}</span>
+                          <span className="text-xs text-slate-500">{subtypeLabel(item.subtype, t) || item.type}</span>
                         </td>
                         <td className="px-3 py-2.5">
                           <span className="text-xs text-slate-500 max-w-[200px] truncate block">{location || '-'}</span>

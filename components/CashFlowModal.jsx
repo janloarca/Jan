@@ -10,7 +10,7 @@ import { accountValue, debitFields, creditFields, DUST } from '@/lib/transferFie
 import { currencyOptions } from '@/lib/currencies'
 import { parseAmount } from '@/lib/numberParse'
 import { debtOptions, debtBalance as debtBalanceOf } from '@/lib/propertyEquity'
-import { isMarketPriced } from '@/components/dashboard/utils'
+import { isMarketPriced, getTypeCategory } from '@/components/dashboard/utils'
 import BusyLabel from '@/components/ui/BusyLabel'
 import { todayLocalISO } from '@/lib/localDate'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
@@ -670,6 +670,12 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 className={inputCls}>
                 <option value="">{t('- Sin vincular -', '- Not linked -')}</option>
                 {balanceAssets
+                  // Depósito, retiro y gasto pagado van contra una cuenta de DINERO:
+                  // un inmueble, una startup o un alternativo no son donde cae el
+                  // efectivo (la lista mezclaba The Boring Company con las cuentas
+                  // de caja). Lo que el usuario ya eligió se conserva en la lista.
+                  .filter((i) => !(isExternal || isExpense) || i.id === linkedId
+                    || !['realestate', 'alternatives', 'crypto', 'stocks', 'receivables'].includes(getTypeCategory(i)))
                   .filter((i) => !isYield || i.id !== yieldSourceId)
                   // Un gasto no puede "pagarse desde" el mismo activo que lo
                   // generó: el gasto no revalúa al activo (FASE KW), así que
