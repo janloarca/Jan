@@ -4,9 +4,9 @@ import UpdateAvailablePill from '@/components/ui/UpdateAvailablePill'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
-  title: 'Chispu: Portfolio Tracker for Latin America',
-  description: 'Track stocks, crypto, bonds, real estate, DeFi, SAFE notes and more. Built for Latin America.',
-  keywords: ['portfolio tracker', 'investment', 'LatAm', 'Guatemala', 'Mexico', 'Colombia', 'stocks', 'crypto', 'bonds', 'DeFi'],
+  title: 'Chispu: Seguimiento de portafolio y patrimonio',
+  description: 'Sigue tus acciones, cripto, bonos, inmuebles, deudas y más en una sola vista, en cualquier moneda.',
+  keywords: ['portafolio', 'inversiones', 'patrimonio', 'acciones', 'cripto', 'bonos', 'portfolio tracker', 'net worth'],
   openGraph: {
     title: 'Chispu: Your real net worth, in one place',
     description: 'Track stocks, crypto, real estate, debt, private companies and startup rounds in any currency.',
@@ -139,7 +139,7 @@ export default function RootLayout({ children }) {
   `
 
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="es" data-theme="dark" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

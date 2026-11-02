@@ -1,8 +1,8 @@
 {
   "id": "/dashboard",
-  "name": "Chispu: Portfolio Tracker",
+  "name": "Chispu: Seguimiento de portafolio",
   "short_name": "Chispu",
-  "description": "Track your entire portfolio. Built for Latin America.",
+  "description": "Sigue todo tu portafolio y tu patrimonio en un solo lugar.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
