@@ -794,8 +794,8 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
                 : flowType === 'DEPOSIT'
                   ? t('Dinero nuevo que entra al portafolio: se descuenta del retorno para no confundirlo con ganancia.',
                       'New money entering the portfolio: excluded from returns so it isn\'t confused with gains.')
-                  : t('Dinero que sale del portafolio: ajusta el cálculo de retornos.',
-                      'Money leaving the portfolio: adjusts return calculations.')}
+                  : t('Dinero que sale del portafolio: ajusta el cálculo de retornos. No aparece en Flujo: Flujo y Patrimonio son secciones separadas.',
+                      'Money leaving the portfolio: adjusts return calculations. It does not show up in Cash flow: Cash flow and Net worth are separate sections.')}
           </p>
 
           <div className="flex flex-col gap-1 pt-1">

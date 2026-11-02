@@ -419,7 +419,7 @@ function LoginForm() {
           {t('Al continuar aceptas los', 'By continuing you accept the')} <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Términos', 'Terms')}</a> {t('y la', 'and the')} <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Política de Privacidad', 'Privacy Policy')}</a>
         </p>
         <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          Powered by Chispudo
+          Powered by Chispu
         </p>
       </div>
     </div>
