@@ -1529,7 +1529,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio: Dashboard' : 'Net Worth: Dashboard'}</h1>
+        <h1 className="sr-only">{lang === 'es' ? 'Patrimonio' : 'Net worth'}</h1>
 
 
         {/* La compuerta es el conteo REAL de activos, nunca una bandera de

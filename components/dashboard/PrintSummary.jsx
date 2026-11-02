@@ -7,6 +7,7 @@ import { formatCurrency, categoryLabel } from './utils'
 import { buildReportData, regionLabel } from '@/lib/reportData'
 import { attributionRefusalText } from '@/lib/ytdAttribution'
 import { useModalExiting } from '@/components/ui/ModalMount'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Este modal es SIEMPRE un documento blanco (un reporte impreso no tiene modo
 // oscuro), pero el CSS global del tema reinterpreta clases: en tema claro
@@ -193,7 +194,7 @@ export default function PrintSummary({
               className="px-4 py-2 text-sm font-medium rounded-lg border" style={BTN_LIGHT}>
               🖨 {t('Imprimir', 'Print')}
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-black text-xl" aria-label="Close">&times;</button>
+            <button onClick={onClose} className="text-gray-400 hover:text-black text-xl" aria-label={closeLabel()}>&times;</button>
           </div>
           {downloadError && (
             <p role="alert" className="w-full text-xs" style={{ color: '#B45309' }}>

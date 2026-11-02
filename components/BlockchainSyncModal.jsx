@@ -5,6 +5,7 @@ import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch } from '@/lib/authFetch'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { closeLabel } from '@/lib/closeLabel'
 
 export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCredentials, lang = 'es', uid }) {
   const trapRef = useFocusTrap()
@@ -83,7 +84,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">₿</span> Blockchain.com Sync
           </h2>
-          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
 
         {step === 'config' && (

@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { getItemValue, getTypeCategory, formatCurrency, formatDate, getItemPrincipalCost, getItemCostBasis, getDividendIncomeByItem } from './utils'
+import { closeLabel } from '@/lib/closeLabel'
 
 const CATEGORY_LABELS = {
   banks: { es: 'Banco', en: 'Bank' },
@@ -182,7 +183,7 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
             <span className="text-xs text-slate-400 font-medium">
               {index + 1} / {totalCount} · {reviewedCount} {t('revisados', 'reviewed')}
             </span>
-            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label={closeLabel()}>&times;</button>
           </div>
           <div className="w-full h-1.5 bg-theme-tertiary rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all duration-300"

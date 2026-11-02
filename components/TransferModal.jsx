@@ -12,6 +12,7 @@ import { roundQty } from '@/lib/lotClose'
 import BusyLabel from '@/components/ui/BusyLabel'
 import DiscardHint from '@/components/ui/DiscardHint'
 import { todayLocalISO } from '@/lib/localDate'
+import { closeLabel } from '@/lib/closeLabel'
 
 export default function TransferModal({ onClose, onTransfer, onAddTransaction, existingItems = [], convert, lang = 'es' }) {
   const trapRef = useFocusTrap()
@@ -283,7 +284,7 @@ export default function TransferModal({ onClose, onTransfer, onAddTransaction, e
       <div ref={trapRef} className="modal-glass max-w-md w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border,#38383A)]">
           <h2 id="transfer-modal-title" className="text-lg font-bold text-[var(--text-primary,white)]">{t('Transferencia', 'Transfer')}</h2>
-          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-[var(--text-secondary,#94a3b8)] hover:text-[var(--text-primary,white)] text-xl leading-none" aria-label={closeLabel()}>&times;</button>
         </div>
         {receipt ? (
           <div className="p-6 space-y-3">

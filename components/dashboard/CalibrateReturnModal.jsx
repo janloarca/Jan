@@ -10,6 +10,7 @@ import { solveDietzStartValue, accountKeyOfItem, heldFlatAccountValueUSD, format
 import { hasRealObservationAt } from '@/lib/snapshotSelect'
 import { useDirtyClose } from '@/hooks/useDirtyClose'
 import DiscardHint from '@/components/ui/DiscardHint'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Return calibration, PER ACCOUNT: every broker app shows its own return, so a
 // single % for the whole portfolio cannot represent accounts with different
@@ -342,7 +343,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 className="text-lg font-bold text-white">{t('Calibrar rendimiento', 'Calibrate return')}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label={closeLabel()}>&times;</button>
         </div>
 
         <div className="p-6 space-y-4">

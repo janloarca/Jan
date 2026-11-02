@@ -8,6 +8,7 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import LearnedRulesList from '@/components/finance/LearnedRulesList'
 import { ANDROID_BODY_TEMPLATE } from '@/lib/androidCapture'
+import { closeLabel } from '@/lib/closeLabel'
 
 // Standalone entry point for auto-captured expenses (iPhone Shortcut + forwarded
 // bank alerts), scoped to Flujo. Lives here instead of the shared Settings modal
@@ -243,7 +244,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
             <Zap size={20} style={{ color: 'var(--accent-blue)' }} />
             {t('Gastos automáticos', 'Automatic expenses')}
           </h2>
-          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
 
         {flashMsg && (

@@ -6,6 +6,7 @@ import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED } from '@/lib/financeCategori
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
 import { todayLocalISO } from '@/lib/localDate'
+import { closeLabel } from '@/lib/closeLabel'
 
 // `month`/`year` (opcionales): el mes que la pantalla de Flujo está MOSTRANDO.
 // Flujo organiza todo por mes, así que agregar un gasto mirando julio con la
@@ -85,7 +86,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
       <div className="modal-glass max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="add-finance-tx-title" className="text-lg font-bold text-white">{t('Agregar Transacción', 'Add Transaction')}</h2>
-          <button onClick={onClose} className="hover:text-white text-xl" style={{ color: 'var(--text-secondary)' }} aria-label="Close">&times;</button>
+          <button onClick={onClose} className="hover:text-white text-xl" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
 
         <div className="p-6 space-y-4">

@@ -6,6 +6,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { normalizeWalletName, buildWalletOptions, addSavedWallet } from '@/lib/customWallets'
 import BusyLabel from '@/components/ui/BusyLabel'
+import { closeLabel } from '@/lib/closeLabel'
 
 const CHAINS = [
   { key: 'BTC', label: 'Bitcoin', placeholder: 'bc1q... or 1... or 3...' },
@@ -273,7 +274,7 @@ export default function LedgerSyncModal({ onClose, onSyncComplete, lang = 'es' }
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span className="text-xl">🔒</span> {t('Cripto por dirección', 'Crypto by address')}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none" aria-label={closeLabel()}>&times;</button>
         </div>
 
         {step === 'input' && (
