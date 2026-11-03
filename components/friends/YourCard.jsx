@@ -52,14 +52,14 @@ export default function YourCard({
   const dayStale = dayInfo.stale
 
   const metrics = [
-    { k: 'ytd', label: t('AÑO', 'YEAR'), v: stats?.ytd ?? null },
-    { k: 'mtd', label: t('MES', 'MONTH'), v: stats?.mtd ?? null },
+    { k: 'ytd', label: t('AÑO', 'YEAR'), v: stats?.ytd ?? null, oob: stats?.ytdOob },
+    { k: 'mtd', label: t('MES', 'MONTH'), v: stats?.mtd ?? null, oob: stats?.mtdOob },
     // FASE KO: el rótulo dice de qué sesión es. Con la bolsa cerrada esta cifra
     // es la del último cierre, no la de hoy, y es la MISMA que se publica al
     // grupo: la etiqueta tiene que coincidir con la que ven tus amigos.
     { k: 'day', label: dayStale ? t('CIERRE', 'CLOSE') : t('HOY', 'TODAY'), v: stats?.day ?? null },
   ]
-  const allNull = metrics.every((m) => m.v == null)
+  const allNull = metrics.every((m) => m.v == null && !m.oob)
 
   return (
     <div
@@ -159,7 +159,7 @@ export default function YourCard({
               {/* Esqueleto con el alto de la cifra que va a reemplazar, para que
                   al llegar el número no salte el layout. Usa el `Shimmer`
                   compartido, el único átomo de carga de la app. */}
-              {m.v == null && !ready ? <Shimmer className="w-12 h-4 rounded" /> : fmtPct(m.v)}
+              {m.v == null && !ready ? <Shimmer className="w-12 h-4 rounded" /> : fmtPct(m.v, 2, m.oob)}
             </div>
             <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
           </div>

@@ -33,8 +33,8 @@ export function pctColor(v) {
   return v >= 0 ? 'var(--accent-green)' : 'var(--text-negative)'
 }
 
-export function fmtPct(v, decimals = 2) {
-  if (v == null || !isFinite(v)) return '-'
+export function fmtPct(v, decimals = 2, oob = null) {
+  if (v == null || !isFinite(v)) return oob === 'gt' ? '>200%' : oob === 'lt' ? '<\u2212200%' : '-'
   return `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`
 }
 

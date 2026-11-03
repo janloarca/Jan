@@ -234,11 +234,11 @@ export default function GroupCard({
                     </div>
                   ) : (
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-bold font-mono tabular-nums" style={{ color: pctColor(r[metric]) }}>{fmtPct(r[metric])}</div>
+                    <div className="text-sm font-bold font-mono tabular-nums" style={{ color: pctColor(r[metric]) }}>{fmtPct(r[metric], 2, r[metric + 'Oob'])}</div>
                     <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                       {metric === 'mtd'
-                        ? <>YTD <span style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd, 1)}</span></>
-                        : <>{t('mes', 'month')} <span style={{ color: pctColor(r.mtd) }}>{fmtPct(r.mtd, 1)}</span></>}
+                        ? <>YTD <span style={{ color: pctColor(r.ytd) }}>{fmtPct(r.ytd, 1, r.ytdOob)}</span></>
+                        : <>{t('mes', 'month')} <span style={{ color: pctColor(r.mtd) }}>{fmtPct(r.mtd, 1, r.mtdOob)}</span></>}
                       {/* FASE KO: "hoy" solo cuando de verdad es hoy. Con la
                           bolsa cerrada esta cifra es la de la última sesión, y
                           decirle "hoy" comparaba a quien tiene acciones
