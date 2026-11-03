@@ -27,6 +27,15 @@ const MAX_MEMBERS = 30
 const MAX_MOVERS = 5
 const GLOBAL_SCAN_CAP = 500
 const GLOBAL_TOP = 20
+// Cachés en memoria por instancia (la cuota de Firestore ya se agotó en
+// producción). El ranking global escanea hasta GLOBAL_SCAN_CAP documentos: se
+// guarda 8 min POR MÉTRICA y cada usuario solo recibe su propia posición. Los
+// grupos se guardan 90 s por usuario y se invalidan con cualquier escritura
+// propia.
+const GLOBAL_TTL_MS = 8 * 60 * 1000
+const GROUPS_TTL_MS = 90 * 1000
+const globalCache = new Map()
+const groupsCache = new Map()
 // La insignia "sincronizado" ya NO sale de nada que mande el cliente: se deriva
 // de los vaults de broker, cuyo `lastSync` lo estampa la ruta del propio broker
 // al terminar un sync exitoso. Ver lib/friendsVerified.js.
@@ -112,6 +121,10 @@ export async function POST(request) {
   let body
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
   const { action } = body || {}
+  if (action !== 'list' && action !== 'global') {
+    groupsCache.delete(uid)
+    if (action === 'sync' || action === 'global-optin' || action === 'disable') globalCache.clear()
+  }
 
   try {
     const profileRef = db.collection('friendProfiles').doc(uid)
@@ -181,6 +194,8 @@ export async function POST(request) {
 
     // ---- list: my groups + each group's leaderboard --------------------------
     if (action === 'list') {
+      const cachedGroups = groupsCache.get(uid)
+      if (cachedGroups && Date.now() - cachedGroups.at < GROUPS_TTL_MS) return NextResponse.json({ groups: cachedGroups.groups })
       const snap = await db.collection('friendGroups').where('memberUids', 'array-contains', uid).get()
       const groups = []
       for (const gd of snap.docs) {
@@ -210,6 +225,7 @@ export async function POST(request) {
         })
       }
       groups.sort((a, b) => a.name.localeCompare(b.name))
+      groupsCache.set(uid, { at: Date.now(), groups })
       return NextResponse.json({ groups })
     }
 
@@ -315,11 +331,17 @@ export async function POST(request) {
       // métrica por respuesta, nunca las dos: menos de lo que ya se publicaba.
       const metric = body.metric === 'mtd' ? 'mtd' : 'ytd'
       // Anonymity: return ONLY pseudonym + the ranked % — never uid, movers, or symbols.
-      const snap = await db.collection('friendProfiles').where('globalOptIn', '==', true).limit(GLOBAL_SCAN_CAP).get()
-      const all = snap.docs.map((d) => {
-        const p = d.data()
-        return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, value: statsForScope(p, 'all')?.[metric] ?? null }
-      }).filter((r) => r.value != null).sort((a, b) => b.value - a.value)
+      let cached = globalCache.get(metric)
+      if (!cached || Date.now() - cached.at >= GLOBAL_TTL_MS) {
+        const snap = await db.collection('friendProfiles').where('globalOptIn', '==', true).limit(GLOBAL_SCAN_CAP).get()
+        const rows = snap.docs.map((d) => {
+          const p = d.data()
+          return { uid: d.id, pseudonym: p.pseudonym || 'Anónimo', verified: !!p.verified, value: statsForScope(p, 'all')?.[metric] ?? null }
+        }).filter((r) => r.value != null).sort((a, b) => b.value - a.value)
+        cached = { at: Date.now(), all: rows }
+        globalCache.set(metric, cached)
+      }
+      const all = cached.all
       const yourRank = all.findIndex((r) => r.uid === uid)
       const top = all.slice(0, GLOBAL_TOP).map((r, i) => ({ rank: i + 1, pseudonym: r.pseudonym, verified: r.verified, value: r.value, isYou: r.uid === uid }))
       // `optedIn` sale del PROPIO documento, no se deduce del ranking. El

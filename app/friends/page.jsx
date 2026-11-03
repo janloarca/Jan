@@ -208,7 +208,7 @@ function FriendsPageInner() {
     }
   }, [t])
 
-  const api = useCallback(async (payload) => {
+  const apiRaw = useCallback(async (payload) => {
     const res = await authFetch('/api/friends', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     })
@@ -222,6 +222,21 @@ function FriendsPageInner() {
     }
     return data
   }, [errorText, t])
+
+  // Llamadas de LECTURA idénticas que coinciden en el tiempo comparten una sola
+  // petición (el efecto de montaje, el de ranking y los reintentos disparaban
+  // varias por visita). Las escrituras nunca se comparten.
+  const lastSyncTryRef = useRef(0)
+  const inflightRef = useRef(new Map())
+  const api = useCallback((payload) => {
+    if (payload.action !== 'list' && payload.action !== 'global') return apiRaw(payload)
+    const key = JSON.stringify(payload)
+    const hit = inflightRef.current.get(key)
+    if (hit) return hit
+    const p = apiRaw(payload).finally(() => inflightRef.current.delete(key))
+    inflightRef.current.set(key, p)
+    return p
+  }, [apiRaw])
 
   const refresh = useCallback(async () => {
     try {
@@ -334,6 +349,11 @@ function FriendsPageInner() {
     // calculando" al entrar a la pantalla sería ruido sobre algo que se resuelve
     // solo en segundos. El ref no se marca si no publicó, así que reintenta en
     // cuanto las compuertas se abren.
+    // Tras un fallo no se reintenta antes de 60 s: este efecto se re-ejecuta con
+    // cada cambio de precios y, con el servidor caído por cuota, cada reintento
+    // gastaba más cuota.
+    if (Date.now() - lastSyncTryRef.current < 60000) return
+    lastSyncTryRef.current = Date.now()
     doSync({ silent: true }).then((ok) => { if (ok) syncedRef.current = true })
   }, [user, dataLoading, publishBlocked, friendsDisabled, myStats, enrichedItems, doSync, refresh])
 
