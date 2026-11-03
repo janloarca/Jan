@@ -279,7 +279,10 @@ function FriendsPageInner() {
   // Antes no: "Actualizar" publicaba + releía, mientras el header y el gesto
   // solo releían, así que jalar en Amigos actualizaba los números de todos los
   // demás menos el tuyo. Un solo significado para una sola palabra.
-  const doSync = useCallback(async ({ silent = false } = {}) => {
+  // Una sola publicación a la vez: el efecto de montaje, el botón y el gesto
+  // pueden coincidir y cada 'sync' extra es una escritura más.
+  const syncInflightRef = useRef(null)
+  const doSyncRaw = useCallback(async ({ silent = false } = {}) => {
     // Con Amigos apagado no se publica NADA por ninguna puerta: la pantalla
     // entera está detrás del aviso de reactivar, pero el gesto de jalar y el
     // botón del header siguen cableados a esta función.
@@ -318,6 +321,13 @@ function FriendsPageInner() {
       return false
     }
   }, [api, myStats, enrichedItems, friendsDisabled, publishBlocked, displayName, avatar, refresh, flash, saveSettings, t])
+
+  const doSync = useCallback((opts) => {
+    if (syncInflightRef.current) return syncInflightRef.current
+    const p = doSyncRaw(opts).finally(() => { syncInflightRef.current = null })
+    syncInflightRef.current = p
+    return p
+  }, [doSyncRaw])
 
   const [refreshing, setRefreshing] = useState(false)
   const handleManualRefresh = useCallback(async () => {
