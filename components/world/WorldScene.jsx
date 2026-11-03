@@ -11,9 +11,12 @@ import { industryLabel } from '@/lib/classification'
 import { accentOf } from '@/lib/worldPalette'
 import { poly } from './isoDraw'
 import { IsoBox, Tree } from './WorldPieces'
-import WorldBuilding from './WorldBuilding'
+import WorldBuilding, { TONE_COLOR } from './WorldBuilding'
+import { perfTone } from '@/lib/worldModel'
 import InstitutionPanel from './InstitutionPanel'
 
+const SMALL_SHARE = 0.05
+const fmtRet = (v) => `${v >= 0.05 ? '▲' : v <= -0.05 ? '▼' : '■'} ${v > 0 ? '+' : ''}${v.toFixed(2)}%`
 const PANEL_W = 360
 const WIDE = 900
 
@@ -25,6 +28,7 @@ export default function WorldScene({ world, lang, baseCurrency }) {
   const [paused, setPaused] = useState(false)
   const [selected, setSelected] = useState(null)
   const [hoveredFloor, setHoveredFloor] = useState(null)
+  const [hoverKey, setHoverKey] = useState(null)
 
   useEffect(() => {
     const el = wrapRef.current
@@ -86,6 +90,7 @@ export default function WorldScene({ world, lang, baseCurrency }) {
   for (let r = 1; r < rows; r++) roads.push({ k: `r${r}`, pts: [[-pad, r * CELL - 0.25], [W + pad, r * CELL - 0.25], [W + pad, r * CELL + 0.25], [-pad, r * CELL + 0.25]], line: [[-pad, r * CELL], [W + pad, r * CELL]] })
 
   const focused = !!selectedBuilding
+  const smallCount = world.buildings.filter((b) => b.share < SMALL_SHARE).length
   const scene = (
     <div
       ref={sceneRef}
@@ -120,15 +125,17 @@ export default function WorldScene({ world, lang, baseCurrency }) {
               if (d.kind === 't') return <Tree key={d.key} gx={d.tr.gx} gy={d.tr.gy} big={d.tr.big} />
               const b = world.buildings[d.i]
               return (
+                <g key={b.key} onMouseEnter={() => setHoverKey(b.key)} onMouseLeave={() => setHoverKey(null)} onFocus={() => setHoverKey(b.key)} onBlur={() => setHoverKey(null)}>
                 <WorldBuilding
-                  key={b.key}
                   building={b}
                   placement={d.p}
                   selected={selected === b.key}
+                  dimmed={!!hoverKey && !selected && hoverKey !== b.key}
                   highlightFloor={selected === b.key ? hoveredFloor : null}
                   onSelect={onSelect}
-                  ariaLabel={`${b.name || t('Sin institución', 'No institution')}, ${formatCompact(b.value, baseCurrency)}`}
+                  ariaLabel={`${b.name || t('Sin institución', 'No institution')}, ${formatCompact(b.value, baseCurrency)}${b.returnPct != null ? `, ${fmtRet(b.returnPct)}` : ''}`}
                 />
+                </g>
               )
             })}
           </g>
@@ -138,6 +145,7 @@ export default function WorldScene({ world, lang, baseCurrency }) {
             viewBox. Se esconden al enfocar: ahí manda el panel. */}
         {!focused && floatLabels && layout.placements.map((p, i) => {
           const b = world.buildings[i]
+          if (b.share < SMALL_SHARE && hoverKey !== b.key) return null
           const left = ((p.labelAnchor[0] - vb.x) / vb.w) * 100
           const top = ((p.labelAnchor[1] - vb.y) / vb.h) * 100
           return (
@@ -150,10 +158,19 @@ export default function WorldScene({ world, lang, baseCurrency }) {
               style={{ left: `${left}%`, top: `${top}%`, transform: 'translate(-50%, -100%)', background: 'var(--w-label-bg)', boxShadow: '0 1px 4px var(--w-shadow)', maxWidth: 180 }}
             >
               <span className="block text-micro font-semibold truncate" style={{ color: 'var(--w-label-text)' }}>{b.name || t('Sin institución', 'No institution')}</span>
-              <span className="block text-micro tabular-nums" style={{ color: 'var(--w-label-sub)' }}>{formatCompact(b.value, baseCurrency)} · {(b.share * 100).toFixed(0)}%</span>
+              <span className="block text-micro tabular-nums" style={{ color: 'var(--w-label-sub)' }}>
+                {formatCompact(b.value, baseCurrency)} · {(b.share * 100).toFixed(0)}%
+                {b.returnPct != null && <span style={{ color: TONE_COLOR[perfTone(b.returnPct)] || 'var(--w-label-sub)' }}> · {fmtRet(b.returnPct)}</span>}
+              </span>
             </button>
           )
         })}
+
+        {!focused && floatLabels && smallCount > 0 && (
+          <div className="absolute right-3 bottom-3 px-2 py-1 rounded-lg text-micro" style={{ background: 'var(--w-label-bg)', color: 'var(--w-label-sub)', boxShadow: '0 1px 4px var(--w-shadow)' }}>
+            {t(`+${smallCount} más pequeños: pasa el cursor o tócalos`, `+${smallCount} smaller: hover or tap`)}
+          </div>
+        )}
 
         {focused && (
           <button onClick={close}
@@ -176,6 +193,10 @@ export default function WorldScene({ world, lang, baseCurrency }) {
   return (
     <div ref={wrapRef} className="flex flex-col gap-4">
       {scene}
+      <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
+        {t('Altura = capital (proporcional al más grande). Pisos y bandera: verde ▲ si ganó, rojo ▼ si perdió, gris si no hay base para medirlo.',
+           'Height = capital (proportional to the largest). Floors and flag: green ▲ gaining, red ▼ losing, gray when there is no base to measure.')}
+      </p>
       {!floatLabels && !selectedBuilding && (
         <div className="grid grid-cols-2 gap-2">
           {world.buildings.map((b) => (
@@ -184,7 +205,7 @@ export default function WorldScene({ world, lang, baseCurrency }) {
               <span className="w-2 h-2 mt-1.5 rounded-full shrink-0" style={{ background: accentOf(b.archetype) }} aria-hidden="true" />
               <span className="min-w-0">
                 <span className="block text-caption font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{b.name || t('Sin institución', 'No institution')}</span>
-                <span className="block text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{formatCompact(b.value, baseCurrency)} · {(b.share * 100).toFixed(0)}%</span>
+                <span className="block text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{formatCompact(b.value, baseCurrency)} · {(b.share * 100).toFixed(0)}%{b.returnPct != null ? ` · ${fmtRet(b.returnPct)}` : ''}</span>
               </span>
             </button>
           ))}

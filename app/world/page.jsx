@@ -50,11 +50,11 @@ export default function WorldPage() {
 
   // ratesLoading gatea igual que en Costos: sin tasas, convert es 1:1 y el
   // tamaño de cada edificio saldría de montos sin convertir.
-  const { portfolioItems, baseCurrency, settings, dataLoading, ratesLoading } =
+  const { portfolioItems, baseCurrency, settings, dataLoading, ratesLoading, transactions, convert } =
     useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
-  const world = useMemo(() => buildWorld(portfolioItems || [], { lang }), [portfolioItems, lang])
+  const world = useMemo(() => buildWorld(portfolioItems || [], { lang, perf: { transactions: transactions || [], convert, baseCurrency } }), [portfolioItems, lang, transactions, convert, baseCurrency])
 
   if (authLoading || (user && (dataLoading || ratesLoading))) {
     return (
@@ -91,8 +91,8 @@ export default function WorldPage() {
           <WorldSummary world={world} lang={lang} baseCurrency={baseCurrency} />
           <WorldScene world={world} lang={lang} baseCurrency={baseCurrency} />
           <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
-            {t('El tamaño de cada edificio sigue al capital invertido; la gente y las animaciones son una forma de dibujarlo, no un dato.',
-               'Each building grows with the capital invested; the people and animations are a way of drawing it, not data.')}
+            {t('La altura de cada edificio sigue al capital invertido y el color al rendimiento (misma fórmula que la Hoja). La gente y las animaciones son decoración.',
+               'Each building\'s height follows capital and its color follows return (same formula as the Sheet). People and animations are decoration.')}
           </p>
         </>
       )}

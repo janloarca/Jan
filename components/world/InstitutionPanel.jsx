@@ -4,11 +4,16 @@
 // modelo (valor en la moneda base, % del portafolio, % de la institución):
 // el dibujo puede ser una metáfora, este panel no.
 import { useState } from 'react'
+import Link from 'next/link'
 import { X, ChevronDown } from 'lucide-react'
 import { archetypeLabel } from '@/lib/worldModel'
 import { industryLabel } from '@/lib/classification'
 import { accentOf } from '@/lib/worldPalette'
 import { formatCurrency } from '@/components/dashboard/utils'
+import { perfTone } from '@/lib/worldModel'
+
+const TONE = { up: 'var(--accent-green)', down: 'var(--text-negative)' }
+const retText = (v) => `${v >= 0.05 ? '▲' : v <= -0.05 ? '▼' : '■'} ${v > 0 ? '+' : ''}${v.toFixed(2)}%`
 import { useEscClose } from '@/hooks/useEscClose'
 
 const SOURCE_LABELS = {
@@ -69,12 +74,13 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
         </div>
       </div>
 
-      <p className="text-caption" style={{ color: 'var(--text-muted)' }}>
-        {t(
-          `${building.workerCount} ${building.workerCount === 1 ? 'persona trabaja' : 'personas trabajan'} aquí: es una forma de dibujar el tamaño, no un dato.`,
-          `${building.workerCount} ${building.workerCount === 1 ? 'person works' : 'people work'} here: a way of drawing size, not a number.`
-        )}
-      </p>
+      {building.returnPct != null && (
+        <div className="flex items-baseline gap-2">
+          <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento', 'Return')}</span>
+          <span className="font-semibold tabular-nums" style={{ color: TONE[perfTone(building.returnPct)] || 'var(--text-primary)' }}>{retText(building.returnPct)}</span>
+          <span className="text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{building.gain > 0 ? '+' : ''}{formatCurrency(building.gain, baseCurrency)}</span>
+        </div>
+      )}
 
       <div>
         <h3 className="card-title mb-1.5">{t('Pisos', 'Floors')}</h3>
@@ -100,7 +106,9 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-body tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(d.value, baseCurrency)}</div>
-                    <div className="text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{pct(d.share)}</div>
+                    <div className="text-micro tabular-nums" style={{ color: TONE[perfTone(d.returnPct)] || 'var(--text-muted)' }}>
+                      {pct(d.share)}{d.returnPct != null ? ` · ${retText(d.returnPct)}` : ''}
+                    </div>
                   </div>
                   {isOther && (
                     <button onClick={() => setOpenOther((v) => !v)} aria-expanded={openOther}
@@ -126,6 +134,9 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
         </ul>
       </div>
 
+      <Link href="/dashboard" className="btn-secondary text-center text-caption py-2 rounded-lg">
+        {t('Ver en mi cartera', 'See in my portfolio')}
+      </Link>
       <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
         {t('El tipo de cada piso sale de tus notas, el nombre o el sector. Puedes cambiarlo en Editar cuenta.',
           'Each floor type comes from your notes, the name or the sector. You can change it in Edit account.')}
