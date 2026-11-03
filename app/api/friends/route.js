@@ -5,6 +5,7 @@ import { getAdminDb } from '@/lib/firebase-admin'
 import { FieldValue } from 'firebase-admin/firestore'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
+import { firestoreErrorCode, isTransientFirestoreError, isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import { sanitizeDayAsOf, boundedPct, publicMovers, sanitizeOob } from '@/lib/friendsStats'
 import { statsForScope, groupStandings } from '@/lib/friendsGroups'
 import { purgeUserFromGroupHistory, deleteGroupHistory } from '@/lib/friendsHistoryStore'
@@ -384,7 +385,11 @@ export async function POST(request) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {
-    console.error('[api/friends] error:', err.message)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // El codigo de gRPC ES el diagnostico (cuota, indice faltante, permisos): se
+    // imprime con el stack y viaja en el cuerpo, para que una captura baste.
+    const code = firestoreErrorCode(err)
+    console.error('[api/friends] error:', code, err.message, err.stack)
+    const retryable = isFirestoreQuotaError(err?.message || err) || code === 8 || isTransientFirestoreError(err)
+    return NextResponse.json({ error: 'Internal server error', code: code ?? null, retryable }, { status: retryable ? 503 : 500 })
   }
 }
