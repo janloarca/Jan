@@ -15,7 +15,7 @@ import { markFor } from '@/lib/worldMarks'
 import { perfTone } from '@/lib/worldModel'
 
 // Rendimiento -> color (siempre acompanado de flecha en rotulos y panel).
-export const TONE_COLOR = { up: 'var(--accent-green)', down: 'var(--text-negative)' }
+export const TONE_COLOR = { up: 'var(--accent-green)', down: 'var(--text-negative)', flat: 'var(--text-muted)' }
 
 const SL = 3 // grosor de cada losa
 const HAT_TYPES = new Set(['CONSTRUCTION', 'INFRASTRUCTURE', 'ENERGY'])
@@ -105,8 +105,8 @@ function floorScene({ floor, dept, ox, oy, fw, fd, highlighted }) {
       <polygon points={glassR} style={glassStyle} />
       {TONE_COLOR[tone] && (
         <>
-          <polygon points={glassL} style={{ fill: TONE_COLOR[tone], fillOpacity: 0.2 }} />
-          <polygon points={glassR} style={{ fill: TONE_COLOR[tone], fillOpacity: 0.14 }} />
+          <polygon points={glassL} style={{ fill: TONE_COLOR[tone], fillOpacity: tone === 'flat' ? 0.3 : 0.38 }} />
+          <polygon points={glassR} style={{ fill: TONE_COLOR[tone], fillOpacity: tone === 'flat' ? 0.22 : 0.28 }} />
         </>
       )}
       {mullions.map((m, i) => <polyline key={i} points={m} style={{ fill: 'none', stroke: 'var(--w-glass-edge)', strokeWidth: 0.35 }} />)}
@@ -169,12 +169,16 @@ function WorldBuildingImpl({ building, placement, selected, dimmed, highlightFlo
       <Rooftop archetype={building.archetype} ox={ox} oy={oy} fw={fw} fd={fd} z={top + ROOF} />
       <RoofMark mark={markFor(building.archetype, building.variant)} archetype={building.archetype} ox={ox} oy={oy} fw={fw} fd={fd} z={top + ROOF} />
 
-      {TONE_COLOR[perfTone(building.returnPct)] && (
-        <g aria-hidden="true">
-          <polyline points={poly([[ox + 0.25, oy + 0.25, top + ROOF], [ox + 0.25, oy + 0.25, top + ROOF + 16]])} style={{ fill: 'none', stroke: 'var(--w-post)', strokeWidth: 0.8 }} />
-          <polygon points={poly([[ox + 0.25, oy + 0.25, top + ROOF + 16], [ox + 0.25, oy + 0.25, top + ROOF + 10], [ox + 0.25 + 0.55, oy + 0.25 + 0.55, top + ROOF + 13]])} style={{ fill: TONE_COLOR[perfTone(building.returnPct)] }} />
-        </g>
-      )}
+      {TONE_COLOR[perfTone(building.returnPct)] && (() => {
+        // Esquina derecha de la azotea: queda en la silueta, lejos de las antenas.
+        const fx = ox + fw - 0.3, fy = oy + 0.3, z = top + ROOF
+        return (
+          <g aria-hidden="true">
+            <polyline points={poly([[fx, fy, z], [fx, fy, z + 34]])} style={{ fill: 'none', stroke: 'var(--w-post)', strokeWidth: 1 }} />
+            <polygon points={poly([[fx, fy, z + 34], [fx, fy, z + 22], [fx - 1.1, fy + 1.1, z + 28]])} style={{ fill: TONE_COLOR[perfTone(building.returnPct)], stroke: 'var(--w-post)', strokeWidth: 0.3 }} />
+          </g>
+        )
+      })()}
       <Lamp gx={ox + fw + M * 0.6} gy={oy + fd + M * 0.6} />
     </g>
   )

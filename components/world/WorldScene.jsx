@@ -12,11 +12,11 @@ import { accentOf } from '@/lib/worldPalette'
 import { poly } from './isoDraw'
 import { IsoBox, Tree } from './WorldPieces'
 import WorldBuilding, { TONE_COLOR } from './WorldBuilding'
-import { perfTone } from '@/lib/worldModel'
+import { perfTone, formatReturn } from '@/lib/worldModel'
 import InstitutionPanel from './InstitutionPanel'
 
 const SMALL_SHARE = 0.05
-const fmtRet = (v) => `${v >= 0.05 ? '▲' : v <= -0.05 ? '▼' : '■'} ${v > 0 ? '+' : ''}${v.toFixed(2)}%`
+const fmtRet = formatReturn
 const PANEL_W = 360
 const WIDE = 900
 
@@ -194,8 +194,8 @@ export default function WorldScene({ world, lang, baseCurrency }) {
     <div ref={wrapRef} className="flex flex-col gap-4">
       {scene}
       <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
-        {t('Altura = capital (proporcional al más grande). Pisos y bandera: verde ▲ si ganó, rojo ▼ si perdió, gris si no hay base para medirlo.',
-           'Height = capital (proportional to the largest). Floors and flag: green ▲ gaining, red ▼ losing, gray when there is no base to measure.')}
+        {t('Altura = capital. Color y bandera = rendimiento (▲ verde, ▼ rojo, ■ gris).',
+           'Height = capital. Color and flag = return (▲ green, ▼ red, ■ gray).')}
       </p>
       {!floatLabels && !selectedBuilding && (
         <div className="grid grid-cols-2 gap-2">
