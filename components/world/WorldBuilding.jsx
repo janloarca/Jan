@@ -12,11 +12,16 @@ import { accentOf } from '@/lib/worldPalette'
 import { poly, planeY, planeX } from './isoDraw'
 import { IsoBox, Worker, Desk, SlotProp, WallFeature, Rooftop, RoofMark, PlotProp, Lamp } from './WorldPieces'
 import { markFor } from '@/lib/worldMarks'
+import { perfTone } from '@/lib/worldModel'
+
+// Rendimiento -> color (siempre acompanado de flecha en rotulos y panel).
+export const TONE_COLOR = { up: 'var(--accent-green)', down: 'var(--text-negative)' }
 
 const SL = 3 // grosor de cada losa
 const HAT_TYPES = new Set(['CONSTRUCTION', 'INFRASTRUCTURE', 'ENERGY'])
 
 function floorScene({ floor, dept, ox, oy, fw, fd, highlighted }) {
+  const tone = perfTone(dept.returnPct)
   const D = GALLERY
   const z0 = floor.z0
   const zf = z0 + SL
@@ -98,6 +103,12 @@ function floorScene({ floor, dept, ox, oy, fw, fd, highlighted }) {
       {/* Vidrio, parteluces, baranda a la altura de la cintura. */}
       <polygon points={glassL} style={glassStyle} />
       <polygon points={glassR} style={glassStyle} />
+      {TONE_COLOR[tone] && (
+        <>
+          <polygon points={glassL} style={{ fill: TONE_COLOR[tone], fillOpacity: 0.2 }} />
+          <polygon points={glassR} style={{ fill: TONE_COLOR[tone], fillOpacity: 0.14 }} />
+        </>
+      )}
       {mullions.map((m, i) => <polyline key={i} points={m} style={{ fill: 'none', stroke: 'var(--w-glass-edge)', strokeWidth: 0.35 }} />)}
       <polyline points={poly([[ox, oy + fd, zf + 7], [ox + fw, oy + fd, zf + 7], [ox + fw, oy, zf + 7]])} style={{ fill: 'none', stroke: 'var(--w-post)', strokeWidth: 0.6 }} />
       <polyline points={poly([[ox + fw, oy + fd, zf], [ox + fw, oy + fd, zt]])} style={{ fill: 'none', stroke: 'var(--w-post)', strokeWidth: 1.1 }} />
@@ -105,7 +116,7 @@ function floorScene({ floor, dept, ox, oy, fw, fd, highlighted }) {
   )
 }
 
-function WorldBuildingImpl({ building, placement, selected, highlightFloor, onSelect, ariaLabel }) {
+function WorldBuildingImpl({ building, placement, selected, dimmed, highlightFloor, onSelect, ariaLabel }) {
   const { ox, oy, fw, fd, floors, top } = placement
   const accent = accentOf(building.archetype)
   const M = PLOT_MARGIN
@@ -122,6 +133,7 @@ function WorldBuildingImpl({ building, placement, selected, highlightFloor, onSe
     <g
       className="w-building"
       data-selected={selected ? 'true' : 'false'}
+      style={{ opacity: dimmed ? 0.5 : 1, transition: 'opacity var(--dur-fast) var(--ease-out)' }}
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}
@@ -157,6 +169,12 @@ function WorldBuildingImpl({ building, placement, selected, highlightFloor, onSe
       <Rooftop archetype={building.archetype} ox={ox} oy={oy} fw={fw} fd={fd} z={top + ROOF} />
       <RoofMark mark={markFor(building.archetype, building.variant)} archetype={building.archetype} ox={ox} oy={oy} fw={fw} fd={fd} z={top + ROOF} />
 
+      {TONE_COLOR[perfTone(building.returnPct)] && (
+        <g aria-hidden="true">
+          <polyline points={poly([[ox + 0.25, oy + 0.25, top + ROOF], [ox + 0.25, oy + 0.25, top + ROOF + 16]])} style={{ fill: 'none', stroke: 'var(--w-post)', strokeWidth: 0.8 }} />
+          <polygon points={poly([[ox + 0.25, oy + 0.25, top + ROOF + 16], [ox + 0.25, oy + 0.25, top + ROOF + 10], [ox + 0.25 + 0.55, oy + 0.25 + 0.55, top + ROOF + 13]])} style={{ fill: TONE_COLOR[perfTone(building.returnPct)] }} />
+        </g>
+      )}
       <Lamp gx={ox + fw + M * 0.6} gy={oy + fd + M * 0.6} />
     </g>
   )
