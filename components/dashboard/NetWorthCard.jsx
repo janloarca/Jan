@@ -301,7 +301,12 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       <AnimatedNumber
         value={displayValue}
         format={(v) => formatCurrency(v, displayCur)}
-        className="block min-w-0 text-[2.25rem] sm:text-[3rem] leading-none tracking-tight font-bold font-mono mb-1.5"
+        className={`block min-w-0 max-w-full overflow-hidden ${(() => {
+          // Una cifra de 15+ caracteres no cabe a 390px con la letra grande
+          // y se cortaba a la derecha: baja el tamaño según el largo real.
+          const len = formatCurrency(displayValue, displayCur).length
+          return len > 17 ? 'text-[1.35rem] sm:text-[2rem]' : len > 13 ? 'text-[1.75rem] sm:text-[2.5rem]' : 'text-[2.25rem] sm:text-[3rem]'
+        })()} leading-none tracking-tight font-bold font-mono mb-1.5`}
         style={{ color: 'var(--text-primary)' }} />
 
       {/* Today + YTD, one line. Direction lives ONLY in the small arrow —

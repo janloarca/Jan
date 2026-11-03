@@ -17,6 +17,32 @@ function createEmptyRows(count) {
   })
 }
 
+// La librería trae su barra "Add [n] rows" en inglés fijo; esta la reemplaza
+// y sigue el idioma de la app. A nivel de módulo (no dentro del render) para
+// que el input no se remonte con cada tecla.
+function AddRowsBar({ addRows, t }) {
+  const [n, setN] = useState('1')
+  const count = Math.max(1, Math.min(500, parseInt(n, 10) || 1))
+  return (
+    <div className="flex items-center gap-2 p-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+      <button type="button" onClick={() => addRows(count)} className="btn-secondary px-3 py-1 text-sm">
+        + {t('Agregar', 'Add')}
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={n}
+        onChange={(e) => setN(e.target.value.replace(/\D/g, ''))}
+        onKeyDown={(e) => { if (e.key === 'Enter') addRows(count) }}
+        aria-label={t('Número de filas', 'Number of rows')}
+        className="w-16 px-2 py-1 rounded-lg border text-sm"
+        style={{ borderColor: 'var(--card-border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+      />
+      <span>{t('filas', 'rows')}</span>
+    </div>
+  )
+}
+
 export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [data, setData] = useState(() => {
@@ -120,6 +146,7 @@ export default function SpreadsheetGrid({ initialRows, context, onSave, lang }) 
             height={600}
             rowHeight={32}
             headerRowHeight={28}
+            addRowsComponent={({ addRows }) => <AddRowsBar addRows={addRows} t={t} />}
             onActiveCellChange={({ cell }) => {
               if (cell) setActiveCell({ row: cell.row, col: cell.col })
             }}
