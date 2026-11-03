@@ -214,12 +214,14 @@ function FriendsPageInner() {
     })
     const data = await safeJson(res)
     if (!res.ok) {
-      const err = new Error(errorText(data?.code, data?.error))
+      const err = data?.retryable
+        ? new Error(t('Amigos no está disponible por un momento. Intenta de nuevo en unos minutos.', 'Friends is unavailable for a moment. Try again in a few minutes.'))
+        : new Error(errorText(data?.code, data?.error))
       err.code = data?.code || null
       throw err
     }
     return data
-  }, [errorText])
+  }, [errorText, t])
 
   const refresh = useCallback(async () => {
     try {
@@ -675,7 +677,7 @@ function FriendsPageInner() {
           "…" suelto o no decían nada. */}
       {loadError && !groups ? (
         <InlineNotice tone="warn" actionLabel={t('Reintentar', 'Retry')} onAction={handleManualRefresh} busy={refreshing}>
-          {t('No se pudieron cargar tus grupos.', 'Could not load your groups.')}
+          {loadError}
         </InlineNotice>
       ) : groups === null ? (
         <SkeletonCard />
@@ -708,7 +710,7 @@ function FriendsPageInner() {
         </InlineNotice>
       )}
 
-      <GlobalBoard global={global} loading={globalLoading} error={!!globalError && !global} lang={lang} t={t}
+      <GlobalBoard global={global} loading={globalLoading} error={(!global && globalError) || false} lang={lang} t={t}
         metric={metric}
         api={api} flash={flash} onChanged={reloadGlobal} onRetry={reloadGlobal} />
 

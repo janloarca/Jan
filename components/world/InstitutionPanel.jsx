@@ -62,7 +62,7 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         <div className="col-span-2">
           <div className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</div>
-          <div className="font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(building.value, baseCurrency)}</div>
+          <div className="font-semibold tabular-nums" title={formatCurrency(building.value, baseCurrency)} style={{ color: 'var(--text-primary)' }}>{formatCompact(building.value, baseCurrency)}</div>
         </div>
         <div>
           <div className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Del portafolio', 'Of portfolio')}</div>
@@ -99,7 +99,7 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
                   <span className="text-micro tabular-nums w-10 shrink-0" style={{ color: 'var(--text-muted)' }}>{t('Piso', 'Floor')} {d.floor}</span>
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accentOf(d.archetype) }} aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-body line-clamp-2 break-words" title={d.label} style={{ color: 'var(--text-primary)' }}>{d.label}</div>
+                    <div className="text-body line-clamp-3 break-words" title={d.label} style={{ color: 'var(--text-primary)' }}>{d.label}</div>
                     <div className="text-micro line-clamp-2" style={{ color: 'var(--text-muted)' }}>
                       {d.variant ? industryLabel(d.variant, lang) : archetypeLabel(d.archetype, lang)} · {(SOURCE_LABELS[d.source] || SOURCE_LABELS.default)[lang === 'es' ? 'es' : 'en']}
                     </div>
