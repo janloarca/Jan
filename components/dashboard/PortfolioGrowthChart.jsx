@@ -808,8 +808,19 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // sawtooth on the time-proportional axis. Bucket to one point per week
     // (last value wins), matching the weekly cadence of the ALL API series.
     if (period === 'ALL' && pts.length > 60) {
+      // "Last value wins" per week dropped the EARLIEST observation whenever
+      // the series began mid-week: ALL started Jan 7 while the YTD anchor
+      // (and the header's "Arranque del año") sat on Jan 2, so ALL began
+      // AFTER the year anchor. The first point and the current year's anchor
+      // snapshot are pinned so ALL can never start later than YTD does.
+      const pinned = new Set([pts[0].ts])
+      {
+        const aSrc = shownInst === 'ALL' ? preferFullPortfolioPerDay(snapshots) : (snapshots || []).filter((s) => BROKER_NAV_SOURCES.includes(s._source))
+        const aSnap = findYearStartAnchor(aSrc, new Date().getUTCFullYear())
+        if (aSnap && aSnap.date) pinned.add(new Date(aSnap.date).getTime())
+      }
       const byWeek = new Map()
-      for (const p of pts) byWeek.set(Math.floor(p.ts / (7 * 86400000)), p)
+      for (const p of pts) byWeek.set(pinned.has(p.ts) ? `pin-${p.ts}` : Math.floor(p.ts / (7 * 86400000)), p)
       pts = [...byWeek.values()].sort((a, b) => a.ts - b.ts)
     }
 
@@ -1235,7 +1246,13 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             ? anchorSnap._rawValue
             : (convert ? convert(snapshotAssetsUSD(anchorSnap), 'USD', bc) : snapshotAssetsUSD(anchorSnap)))
           : null
-        pts.unshift({ ts: yearStart, date: new Date(yearStart), value: anchorVal > 0 ? anchorVal : pts[0].value })
+        // ONE anchor date for header, chart and tooltip: when the anchor
+        // snapshot sits inside the year (Jan 2), the point carries ITS date,
+        // not Jan 1 (which read as 31 dic / 1 ene next to the header's
+        // "Arranque del año · 2 ene"). A December anchor keeps Jan 1.
+        const anchorTs = anchorSnap && anchorSnap.date ? new Date(anchorSnap.date).getTime() : null
+        const startTs = anchorVal > 0 && anchorTs != null && anchorTs >= yearStart && anchorTs <= pts[0].ts ? anchorTs : yearStart
+        pts.unshift({ ts: startTs, date: new Date(startTs), value: anchorVal > 0 ? anchorVal : pts[0].value })
       }
     }
     if (period === 'MTD' && pts.length > 0) {

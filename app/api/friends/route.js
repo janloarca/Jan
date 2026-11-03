@@ -5,7 +5,7 @@ import { getAdminDb } from '@/lib/firebase-admin'
 import { FieldValue } from 'firebase-admin/firestore'
 import { rateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
-import { sanitizeDayAsOf, boundedPct, publicMovers } from '@/lib/friendsStats'
+import { sanitizeDayAsOf, boundedPct, publicMovers, sanitizeOob } from '@/lib/friendsStats'
 import { statsForScope, groupStandings } from '@/lib/friendsGroups'
 import { purgeUserFromGroupHistory, deleteGroupHistory } from '@/lib/friendsHistoryStore'
 import { brokerVerification } from '@/lib/friendsVerified'
@@ -61,8 +61,13 @@ function sanitizeStatBlock(raw) {
   // decide el cliente y se conserva tal cual, así que quitar el campo no cuesta
   // el ranking. Ver lib/friendsStats.js.
   const movers = publicMovers(raw.movers)
+  const ytd = boundedPct(raw.ytd)
+  const mtd = boundedPct(raw.mtd)
   return {
-    ytd: boundedPct(raw.ytd), mtd: boundedPct(raw.mtd), day: boundedPct(raw.day), movers,
+    ytd, mtd, day: boundedPct(raw.day), movers,
+    // Solo la DIRECCIÓN del fuera-de-banda, y solo si el valor no se publicó.
+    ytdOob: ytd == null ? sanitizeOob(raw.ytdOob) : null,
+    mtdOob: mtd == null ? sanitizeOob(raw.mtdOob) : null,
     // FASE KO: de qué SESIÓN bursátil son `day` y `movers`. Un sábado, las
     // acciones traen el movimiento del viernes, así que sin esto el grupo
     // rankeaba "hoy" sobre datos de otra sesión. Es lo que manda el cliente y
