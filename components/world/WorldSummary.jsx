@@ -1,26 +1,34 @@
 'use client'
 
-// Resumen de la ciudad. Las tres primeras cifras salen tal cual del portafolio;
-// la cuarta es la metáfora y lo dice.
+// Resumen de la ciudad en una linea compacta. Capital, rendimiento (la receta de
+// la Hoja y Asignacion, via lib/assetSummary), instituciones e inversiones.
 import { formatCurrency } from '@/components/dashboard/utils'
+import { perfTone } from '@/lib/worldModel'
+
+const TONE = { up: 'var(--accent-green)', down: 'var(--text-negative)' }
 
 export default function WorldSummary({ world, lang, baseCurrency }) {
   const t = (es, en) => (lang === 'es' ? es : en)
-  const cells = [
-    { k: 'total', label: t('Invertido', 'Invested'), value: formatCurrency(world.total, baseCurrency) },
-    { k: 'inst', label: t('Instituciones', 'Institutions'), value: world.institutionCount },
-    { k: 'inv', label: t('Inversiones', 'Investments'), value: world.investmentCount },
-    { k: 'workers', label: t('Trabajadores', 'Workers'), value: world.workerCount, note: t('metáfora del tamaño', 'a metaphor for size') },
-  ]
+  const tone = perfTone(world.returnPct)
+  const arrow = tone === 'up' ? '▲' : tone === 'down' ? '▼' : '■'
   return (
-    <div className="card p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
-      {cells.map((c) => (
-        <div key={c.k} className="min-w-0">
-          <div className="text-caption" style={{ color: 'var(--text-muted)' }}>{c.label}</div>
-          <div className="text-h2 font-semibold tabular-nums truncate" style={{ color: 'var(--text-primary)' }}>{c.value}</div>
-          {c.note && <div className="text-micro" style={{ color: 'var(--text-muted)' }}>{c.note}</div>}
+    <div className="card p-3 sm:p-4 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+      <div className="min-w-0">
+        <span className="text-caption mr-2" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
+        <span className="text-h2 font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(world.total, baseCurrency)}</span>
+      </div>
+      {world.returnPct != null && (
+        <div className="min-w-0">
+          <span className="text-caption mr-2" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento', 'Return')}</span>
+          <span className="text-h2 font-semibold tabular-nums" style={{ color: TONE[tone] || 'var(--text-primary)' }}>
+            {arrow} {world.returnPct > 0 ? '+' : ''}{world.returnPct.toFixed(2)}%
+          </span>
+          <span className="text-micro ml-2 tabular-nums" style={{ color: 'var(--text-muted)' }}>{world.gain > 0 ? '+' : ''}{formatCurrency(world.gain, baseCurrency)}</span>
         </div>
-      ))}
+      )}
+      <div className="text-caption" style={{ color: 'var(--text-muted)' }}>
+        {world.institutionCount} {t('instituciones', 'institutions')} · {world.investmentCount} {t('inversiones', 'investments')}
+      </div>
     </div>
   )
 }
