@@ -62,7 +62,7 @@ export default function GlobalBoard({ global, loading, error, lang, t, metric = 
       {error ? (
         <div className="p-3">
           <InlineNotice tone="warn" actionLabel={t('Reintentar', 'Retry')} onAction={onRetry} busy={loading}>
-            {t('No se pudo cargar el ranking global.', 'Could not load the global ranking.')}
+            {typeof error === 'string' ? error : t('No se pudo cargar el ranking global.', 'Could not load the global ranking.')}
           </InlineNotice>
         </div>
       ) : loading && !global ? (
