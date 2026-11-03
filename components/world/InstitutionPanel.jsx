@@ -9,11 +9,11 @@ import { X, ChevronDown } from 'lucide-react'
 import { archetypeLabel } from '@/lib/worldModel'
 import { industryLabel } from '@/lib/classification'
 import { accentOf } from '@/lib/worldPalette'
-import { formatCurrency } from '@/components/dashboard/utils'
-import { perfTone } from '@/lib/worldModel'
+import { formatCurrency, formatCompact } from '@/components/dashboard/utils'
+import { perfTone, formatReturn } from '@/lib/worldModel'
 
 const TONE = { up: 'var(--accent-green)', down: 'var(--text-negative)' }
-const retText = (v) => `${v >= 0.05 ? '▲' : v <= -0.05 ? '▼' : '■'} ${v > 0 ? '+' : ''}${v.toFixed(2)}%`
+const retText = formatReturn
 import { useEscClose } from '@/hooks/useEscClose'
 
 const SOURCE_LABELS = {
@@ -59,8 +59,8 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="col-span-3 sm:col-span-1">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <div className="col-span-2">
           <div className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</div>
           <div className="font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(building.value, baseCurrency)}</div>
         </div>
@@ -75,10 +75,10 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
       </div>
 
       {building.returnPct != null && (
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
           <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento', 'Return')}</span>
           <span className="font-semibold tabular-nums" style={{ color: TONE[perfTone(building.returnPct)] || 'var(--text-primary)' }}>{retText(building.returnPct)}</span>
-          <span className="text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{building.gain > 0 ? '+' : ''}{formatCurrency(building.gain, baseCurrency)}</span>
+          <span className="text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{building.gain > 0 ? '+' : ''}{formatCompact(building.gain, baseCurrency)}</span>
         </div>
       )}
 
@@ -99,13 +99,13 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
                   <span className="text-micro tabular-nums w-10 shrink-0" style={{ color: 'var(--text-muted)' }}>{t('Piso', 'Floor')} {d.floor}</span>
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accentOf(d.archetype) }} aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-body truncate" style={{ color: 'var(--text-primary)' }}>{d.label}</div>
-                    <div className="text-micro truncate" style={{ color: 'var(--text-muted)' }}>
+                    <div className="text-body line-clamp-2 break-words" title={d.label} style={{ color: 'var(--text-primary)' }}>{d.label}</div>
+                    <div className="text-micro line-clamp-2" style={{ color: 'var(--text-muted)' }}>
                       {d.variant ? industryLabel(d.variant, lang) : archetypeLabel(d.archetype, lang)} · {(SOURCE_LABELS[d.source] || SOURCE_LABELS.default)[lang === 'es' ? 'es' : 'en']}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-body tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(d.value, baseCurrency)}</div>
+                    <div className="text-body tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCompact(d.value, baseCurrency)}</div>
                     <div className="text-micro tabular-nums" style={{ color: TONE[perfTone(d.returnPct)] || 'var(--text-muted)' }}>
                       {pct(d.share)}{d.returnPct != null ? ` · ${retText(d.returnPct)}` : ''}
                     </div>

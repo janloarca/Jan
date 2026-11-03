@@ -90,10 +90,6 @@ export default function WorldPage() {
         <>
           <WorldSummary world={world} lang={lang} baseCurrency={baseCurrency} />
           <WorldScene world={world} lang={lang} baseCurrency={baseCurrency} />
-          <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
-            {t('La altura de cada edificio sigue al capital invertido y el color al rendimiento (misma fórmula que la Hoja). La gente y las animaciones son decoración.',
-               'Each building\'s height follows capital and its color follows return (same formula as the Sheet). People and animations are decoration.')}
-          </p>
         </>
       )}
     </PageShell>
