@@ -2034,7 +2034,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // and fatten the card); desktop unaffected because everything fits.
     <SegmentedTabs
       variant="range"
-      tabs={periods.map((p) => ({ key: p, label: p === 'CUSTOM' ? (lang === 'es' ? 'Rango' : 'Range') : p }))}
+      tabs={periods.map((p) => ({ key: p, label: lang === 'es' ? ({ DAY: 'HOY', '1W': '1S', MTD: 'MES', YTD: 'AÑO', '1Y': '1A', ALL: 'TODO', CUSTOM: 'Rango' }[p] || p) : (p === 'CUSTOM' ? 'Range' : p) }))}
       value={period}
       onChange={(p) => {
         setPeriod(p)

@@ -335,8 +335,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             si la línea envuelve, un "│" independiente quedaba colgando al final
             de HOY sin nada después. Así viaja siempre pegado a lo que separa. */}
         {hasReturn && (
-          <span className={`whitespace-nowrap${dailyChange && isFinite(dailyChange.pct) ? ' sm:border-l sm:pl-2' : ''}`}
-            style={dailyChange && isFinite(dailyChange.pct) ? { borderColor: 'var(--glass-border)' } : undefined}>
+          <span className="whitespace-nowrap">
             <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>
               {hasYTD ? 'YTD' : ((lang === 'es' ? 'DESDE ' : 'SINCE ') + (sinceStartDate ? formatShortDate(sinceStartDate) : ''))}
             </span>
@@ -509,7 +508,10 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-cyan)', opacity: 0.6 }} />
             {lang === 'es' ? 'Disponible' : 'Cash available'}
           </span>
-          <AnimatedNumber value={cv(cashTotal)} format={(v) => formatCurrency(v, displayCur)} className="text-xs font-medium font-mono" style={{ color: 'var(--accent-cyan)' }} />
+          {/* Sin tween a propósito: Caja & Bancos (otra card) no anima, y con
+              tween esta cifra mostraba el valor viejo un instante mientras la
+              otra ya decía el nuevo. */}
+          <span className="text-xs font-medium font-mono" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(cv(cashTotal), displayCur)}</span>
         </div>
       )}
       </div>
