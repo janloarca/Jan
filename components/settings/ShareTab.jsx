@@ -243,7 +243,7 @@ export default function ShareTab({
 
       {/* Existing links */}
       {shareLinks === null || (shareLoading && !shareLinks?.length && !shareCreating) ? (
-        <p className="text-xs text-slate-500">…</p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }} role="status">{t('Cargando tus links…', 'Loading your links…')}</p>
       ) : shareLinks.length === 0 && !shareCreating ? (
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Aún no has creado ningún link.', 'You haven\'t created any links yet.')}</p>
       ) : (
