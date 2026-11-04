@@ -38,7 +38,7 @@ export default function RecurringChargesCard({ transactions = [], convert = null
     const [y, m] = mk.split('-').map(Number)
     return new Date(y, m - 1, 1)
       .toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', { month: 'short' })
-      .replace('.', '')
+      .replace('.', '').replace(/\bsept\b/i, 'sep')
   }
 
   const rows = showAll ? monthly : monthly.slice(0, VISIBLE_ROWS)

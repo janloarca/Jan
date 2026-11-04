@@ -337,9 +337,9 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
     if (!ibkrLastAttempt) { setAttemptLabel(''); return }
     const d = new Date(ibkrLastAttempt)
     if (isNaN(d.getTime())) { setAttemptLabel(''); return }
-    setAttemptLabel(d.toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', {
+    setAttemptLabel(d.toLocaleString(lang === 'es' ? 'es' : 'en-US', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-    }))
+    }).replace(/\bsept\b/i, 'sep'))
   }, [ibkrLastAttempt, lang])
 
   const ibkrLinked = ibkrConfigured || !!ibkrProgress?.steps?.find((s) => s.id === 'connect')?.done

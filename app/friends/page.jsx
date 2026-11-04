@@ -85,7 +85,9 @@ function FriendsPageInner() {
   // DESPUÉS de que `dataLoading` se apaga: los precios del día y la
   // reconstrucción del ancla del año. Sin esta señal, ese hueco se pintaba con
   // el mismo "-" que significa "no hay nada que medir".
-  const statsReady = !!ytdResolved && !pricesLoading
+  // Misma vara que la publicación: sin tasas ni precios en vuelo, un número
+  // intermedio (−90% que luego corrige) no se pinta, se queda el esqueleto.
+  const statsReady = !!ytdResolved && !publishBlocked
   const hasPortfolio = (enrichedItems || []).length > 0
   // Amigos APAGADO en Ajustes: apagar borra el perfil público y saca de todos
   // los grupos, así que esta pantalla no puede seguir operando como si nada

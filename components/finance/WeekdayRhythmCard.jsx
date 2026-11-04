@@ -13,6 +13,15 @@ import {
 } from '@/lib/spendingByWeekday'
 import { nowDateKey, weekdayRhythmHasContent } from '@/lib/financeSections'
 
+// "1 miércoles observado" / "2 domingos observados": el sustantivo concuerda
+// en número (lunes a viernes no cambian en plural, sábado y domingo sí).
+function esWeekdayCount(name, n) {
+  const plural = n !== 1
+  const noun = plural && !/s$/i.test(name) ? `${name}s` : name
+  return `${noun} ${plural ? 'observados' : 'observado'}`
+}
+
+
 // El ritmo: semana a semana cuánto salió cada día, y qué días de la semana
 // pesan más (y en qué).
 //
@@ -241,7 +250,7 @@ export default function WeekdayRhythmCard({
                   {fmt(p.value)}
                 </span>
                 <span className="sr-only">
-                  {t(`${p.occurrences} ${dayNames[p.weekday]} observados`, `${p.occurrences} ${dayNames[p.weekday]}s observed`)}
+                  {t(`${p.occurrences} ${esWeekdayCount(dayNames[p.weekday], p.occurrences)}`, `${p.occurrences} ${dayNames[p.weekday]}${p.occurrences === 1 ? '' : 's'} observed`)}
                   {isTop ? t(', el más caro', ', the priciest') : ''}
                   {isBottom ? t(', el más barato', ', the cheapest') : ''}
                 </span>

@@ -223,7 +223,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
               <span className="text-xs font-semibold font-mono tabular-nums truncate" style={{ color: m.net >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {m.net >= 0 ? '+' : ''}{formatCurrency(m.net)}
               </span>
-              <span className="text-xs text-slate-600 shrink-0 hidden sm:inline">{m.count} txs</span>
+              <span className="text-xs text-slate-600 shrink-0 hidden sm:inline">{m.count} {m.count === 1 ? 'tx' : 'txs'}</span>
             </div>
           ))}
         </div>

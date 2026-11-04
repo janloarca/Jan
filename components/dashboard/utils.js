@@ -102,7 +102,7 @@ export function formatDate(dateStr) {
     // the local timezone shifts the shown day back one for any user behind UTC
     // (all of LatAm). Format calendar dates in UTC so Jun 26 stays Jun 26.
     const isUtcMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0
-    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric', ...(isUtcMidnight ? { timeZone: 'UTC' } : {}) })
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric', ...(isUtcMidnight ? { timeZone: 'UTC' } : {}) }).replace(/\bsept\b/i, 'sep')
   } catch { return typeof dateStr === 'string' ? dateStr : '-' }
 }
 

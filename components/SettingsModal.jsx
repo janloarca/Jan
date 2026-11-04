@@ -28,13 +28,13 @@ const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', nameEs: 'Dólar estadounidense', symbol: '$' },
   { code: 'EUR', name: 'Euro', nameEs: 'Euro', symbol: '€' },
   { code: 'GBP', name: 'British Pound', nameEs: 'Libra esterlina', symbol: '£' },
-  { code: 'MXN', name: 'Mexican Peso', nameEs: 'Peso Mexicano', symbol: '$' },
+  { code: 'MXN', name: 'Mexican Peso', nameEs: 'Peso mexicano', symbol: '$' },
   { code: 'GTQ', name: 'Guatemalan Quetzal', nameEs: 'Quetzal', symbol: 'Q' },
-  { code: 'COP', name: 'Colombian Peso', nameEs: 'Peso Colombiano', symbol: '$' },
-  { code: 'CLP', name: 'Chilean Peso', nameEs: 'Peso Chileno', symbol: '$' },
-  { code: 'ARS', name: 'Argentine Peso', nameEs: 'Peso Argentino', symbol: '$' },
-  { code: 'BRL', name: 'Brazilian Real', nameEs: 'Real Brasileño', symbol: 'R$' },
-  { code: 'PEN', name: 'Peruvian Sol', nameEs: 'Sol Peruano', symbol: 'S/' },
+  { code: 'COP', name: 'Colombian Peso', nameEs: 'Peso colombiano', symbol: '$' },
+  { code: 'CLP', name: 'Chilean Peso', nameEs: 'Peso chileno', symbol: '$' },
+  { code: 'ARS', name: 'Argentine Peso', nameEs: 'Peso argentino', symbol: '$' },
+  { code: 'BRL', name: 'Brazilian Real', nameEs: 'Real brasileño', symbol: 'R$' },
+  { code: 'PEN', name: 'Peruvian Sol', nameEs: 'Sol peruano', symbol: 'S/' },
   { code: 'CAD', name: 'Canadian Dollar', nameEs: 'Dólar canadiense', symbol: '$' },
   { code: 'CHF', name: 'Swiss Franc', nameEs: 'Franco suizo', symbol: 'CHF' },
   { code: 'JPY', name: 'Japanese Yen', nameEs: 'Yen japonés', symbol: '¥' },
@@ -800,7 +800,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     <select id="settings-currency" value={baseCurrency} onChange={(e) => setBaseCurrency(e.target.value)}
                       className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50">
                       {CURRENCIES.map((c) => (
-                        <option key={c.code} value={c.code}>{c.symbol} {c.code} · {t(c.nameEs || c.name, c.name)}</option>
+                        <option key={c.code} value={c.code}>{c.symbol === c.code ? '' : `${c.symbol} `}{c.code} · {t(c.nameEs || c.name, c.name)}</option>
                       ))}
                     </select>
                     <p className="text-xs text-slate-600 mt-1">{t('Todos los valores se muestran en esta moneda.', 'All values are displayed in this currency.')}</p>
@@ -948,7 +948,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                                 'nothing-due': t('nada que enviar hoy', 'nothing due today'),
                                 ran: t('envió correos', 'sent emails'),
                               }[res] || res || t('sin detalle', 'no detail')
-                              const when = new Date(autoStatus.lastRun.at).toLocaleString(lang === 'es' ? 'es-GT' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+                              const when = new Date(autoStatus.lastRun.at).toLocaleString(lang === 'es' ? 'es' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).replace(/\bsept\b/i, 'sep')
                               return t(`Última corrida automática: ${when} (${label}).`, `Last scheduled run: ${when} (${label}).`)
                             })()
                           : autoStatus

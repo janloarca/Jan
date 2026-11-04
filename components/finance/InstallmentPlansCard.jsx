@@ -38,7 +38,7 @@ export default function InstallmentPlansCard({
     const [y, m] = mk.split('-').map(Number)
     return new Date(y, m - 1, 1)
       .toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', { month: 'short', year: 'numeric' })
-      .replace('.', '')
+      .replace('.', '').replace(/\bsept\b/i, 'sep')
   }
 
   const committed = plans.reduce((s, p) => s + p.remainingAmount, 0)
