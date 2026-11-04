@@ -948,7 +948,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                                 'nothing-due': t('nada que enviar hoy', 'nothing due today'),
                                 ran: t('envió correos', 'sent emails'),
                               }[res] || res || t('sin detalle', 'no detail')
-                              const when = new Date(autoStatus.lastRun.at).toLocaleString(lang === 'es' ? 'es' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).replace(/\bsept\b/i, 'sep')
+                              const when = new Date(autoStatus.lastRun.at).toLocaleString(lang === 'es' ? 'es' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\bsept\b/i, 'sep')
                               return t(`Última corrida automática: ${when} (${label}).`, `Last scheduled run: ${when} (${label}).`)
                             })()
                           : autoStatus

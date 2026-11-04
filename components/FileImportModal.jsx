@@ -13,7 +13,7 @@ import { isIBKRSectionedFormat, parseIBKRFile, formatIBKRFileResult, detectIBKRF
 import { parseIBKRXmlFile } from '@/lib/parsers/ibkrXmlFileAdapter'
 import { parseAmount, parseImportDate } from '@/lib/numberParse'
 import { FIELD_MAP, BROKER_PRESETS, guessMapping } from '@/lib/importMapping'
-import { FINANCE_CATEGORIES, CATEGORY_COLORS } from '@/lib/financeCategories'
+import { FINANCE_CATEGORIES, CATEGORY_COLORS, categoryLabel } from '@/lib/financeCategories'
 import { matchStatement } from '@/lib/statementMatcher'
 import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
 import { planCardPaymentNetting, planStatementPaymentNetting, acceptNettingSuggestions } from '@/lib/cardPaymentNetting'
@@ -1903,7 +1903,7 @@ When done, give me the .xlsx file ready to download.`
                                     }}
                                     className="bg-theme-base border border-glass-border rounded text-xs text-slate-300 px-1 py-0.5 focus:outline-none">
                                     {(tx.type === 'INCOME' ? FINANCE_CATEGORIES.INCOME : FINANCE_CATEGORIES.EXPENSE).map(c => (
-                                      <option key={c} value={c}>{c}</option>
+                                      <option key={c} value={c}>{categoryLabel(c, 'es')}</option>
                                     ))}
                                   </select>
                                 </td>

@@ -117,7 +117,7 @@ function effAcqTs(it) {
 function getMonthLabel(key, lang) {
   const [y, m] = key.split('-')
   const d = new Date(parseInt(y), parseInt(m) - 1, 1)
-  const label = d.toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' })
+  const label = d.toLocaleDateString(lang === 'es' ? 'es' : 'en', { month: 'short' }).replace(/^sept\.?$/i, 'sep')
   return label.charAt(0).toUpperCase() + label.slice(1) + ' ' + y.slice(2)
 }
 
@@ -2374,7 +2374,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               )
                             })}
                           </tr>
-                          {(item.isDebt || item.isReceivable) && (item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (() => {
+                          {(item.isDebt || item.isReceivable) && !!(item.debtTerm || item.interestRate || item.monthlyPayment || item.installmentsRemaining) && (() => {
                             // El desglose que faltaba (FASE LT): la fila decía
                             // "1.5% int." y el saldo NETO, sin decir nunca
                             // cuánto interés genera el mes ni cuánto se debe
@@ -2568,6 +2568,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           )}
 
           <tfoot>
+            <tr className="border-t border-[var(--border-subtle)] bg-theme-surface">
+              <td colSpan={2 + (showOriginal ? 1 : 0) + months.length} className="py-1.5 pl-4 pr-2 text-[11px] font-semibold uppercase tracking-wide sticky left-0 bg-theme-surface" style={{ color: 'var(--text-muted)' }}>
+                {t('Patrimonio neto por moneda (activos menos deudas)', 'Net worth by currency (assets minus debts)')}
+              </td>
+            </tr>
             {Object.entries(currencyBreakdown)
               .sort((a, b) => Math.abs(b[1].usd) - Math.abs(a[1].usd))
               .map(([cur, data]) => {

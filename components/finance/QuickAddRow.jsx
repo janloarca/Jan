@@ -188,6 +188,11 @@ export default function QuickAddRow({
           className={`${FIELD} w-24 font-mono tabular-nums`}
           style={FIELD_STYLE}
         />
+        {amountInvalid && (
+          <span className="text-xs whitespace-nowrap" role="alert" style={{ color: 'var(--text-negative)' }}>
+            {t('Monto no válido: solo números, sin signo', 'Invalid amount: numbers only, no sign')}
+          </span>
+        )}
         {(() => {
           // Muestra el número INTERPRETADO ("1,5 mil" -> Q1,500.00) cuando lo
           // tecleado no es ya un número llano, para confirmar antes de registrar.
