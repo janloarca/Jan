@@ -91,6 +91,13 @@ export default function QuickAddRow({
     if (typeof document !== 'undefined') document.getElementById(amountId)?.focus()
   }, [amountId])
 
+  // Texto tecleado que no se puede leer como monto positivo ("abc", "-5"):
+  // "Anotar" se deshabilita en vez de dejar que el error aparezca después.
+  const amountInvalid = (() => {
+    const raw = String(amount || '').trim()
+    return !!raw && (/^-/.test(raw) || !(parseAmount(raw) > 0))
+  })()
+
   const submit = useCallback(async () => {
     setError('')
     // parseAmount('') devuelve 0, no NaN, así que el guard de campo vacío tiene
@@ -105,8 +112,12 @@ export default function QuickAddRow({
       const m = descFinal.match(/^(.*?)\s+(\d[\d.,]*)$/)
       if (m && parseAmount(m[2]) > 0) { amt = m[2]; descFinal = m[1].trim() }
     }
-    if (!amt || parseAmount(amt) <= 0) {
+    if (!amt) {
       setError(t('Falta el monto', 'Amount missing'))
+      return
+    }
+    if (/^\s*-/.test(amt) || !(parseAmount(amt) > 0)) {
+      setError(t('El monto no es válido: usa solo números, sin signo (ej. 1,250.50)', 'Invalid amount: use numbers only, no sign (e.g. 1,250.50)'))
       return
     }
     if (!date) {
@@ -236,7 +247,7 @@ export default function QuickAddRow({
         <button
           type="button"
           onClick={submit}
-          disabled={saving}
+          disabled={saving || amountInvalid}
           className="inline-flex items-center gap-1 px-3 min-h-[38px] rounded-lg text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
         >

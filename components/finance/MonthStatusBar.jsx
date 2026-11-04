@@ -25,7 +25,7 @@ const STATUS_META = {
     titleEn: 'No movements logged for this month.',
   },
   partial: {
-    es: 'Falta un lado', en: 'One side missing', icon: '⚠',
+    es: 'Aún sin ingresos o gastos', en: 'Income or expenses not logged yet', icon: '⚠',
     color: 'var(--alert-warn-icon)', bg: 'var(--alert-warn-bg)', border: 'var(--alert-warn-border)',
     titleEs: 'Hay movimientos de un solo tipo: o ingresos o gastos, no los dos.',
     titleEn: 'Only one kind of movement is logged: income or expenses, not both.',

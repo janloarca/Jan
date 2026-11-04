@@ -51,11 +51,11 @@ const isClosedKey = (k) => typeof k === 'string' && k.startsWith(IBKR_CLOSED_KEY
 const CATEGORY_LABELS = {
   banks: { es: 'Caja & Bancos', en: 'Cash & Banks' },
   funds: { es: 'Fondos Liquidos', en: 'Liquid Funds' },
-  stocks: { es: 'Bolsa de Valores', en: 'Stock Market' },
+  stocks: { es: 'Acciones', en: 'Stocks' },
   crypto: { es: 'Criptoactivos', en: 'Crypto Assets' },
-  alternatives: { es: 'Deuda Privada & Alt.', en: 'Private Debt & Alt.' },
-  bonds: { es: 'Bonos Corporativo', en: 'Corporate Bonds' },
-  realestate: { es: 'Bienes Raices', en: 'Real Estate' },
+  alternatives: { es: 'Alternativos', en: 'Alternatives' },
+  bonds: { es: 'Bonos', en: 'Bonds' },
+  realestate: { es: 'Bienes Raíces', en: 'Real Estate' },
   receivables: { es: 'Cuentas por Cobrar', en: 'Receivables' },
   debts: { es: 'Pasivos', en: 'Liabilities' },
   other: { es: 'Otros', en: 'Other' },
@@ -1776,7 +1776,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 className="text-xs font-medium text-[var(--accent-blue)]" />
             </span>
           )}
-          <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Click para editar', 'Click to edit')}</span>
+          <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Toca una celda del mes actual para editarla', 'Tap a current-month cell to edit it')}</span>
         </div>
       </div>
 
