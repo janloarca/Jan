@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useEscClose } from '@/hooks/useEscClose'
-import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED } from '@/lib/financeCategories'
+import { FINANCE_CATEGORIES, MANUAL_INCOME_BLOCKED, categoryLabel } from '@/lib/financeCategories'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
 import { todayLocalISO } from '@/lib/localDate'
@@ -40,6 +40,8 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
   // 'Inversiones' never appears here: investment income flows in READ-ONLY
   // from the portfolio's dividend/interest transactions — entering it manually
   // would double-count it.
+  const amountRaw = String(form.amount || '').trim()
+  const amountInvalid = !!amountRaw && (/^-/.test(amountRaw) || !(parseAmount(amountRaw) > 0))
   const categories = form.type === 'INCOME'
     ? FINANCE_CATEGORIES.INCOME.filter((c) => !MANUAL_INCOME_BLOCKED.includes(c))
     : FINANCE_CATEGORIES.EXPENSE
@@ -55,7 +57,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
     setError('')
     // El guard de `!form.amount` se queda: parseAmount('') devuelve 0 (y no
     // NaN), asi que sin el un campo en blanco y un cero se verian iguales.
-    if (!form.amount || parseAmount(form.amount) <= 0) {
+    if (!form.amount || amountInvalid || parseAmount(form.amount) <= 0) {
       setError(t('Ingresa un monto válido.', 'Enter a valid amount.'))
       return
     }
@@ -120,7 +122,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>{t('Categoría', 'Category')}</label>
             <select value={categories.includes(form.category) ? form.category : categories[categories.length - 1]} onChange={e => setForm({ ...form, category: e.target.value })}
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none input-focus">
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {categories.map(c => <option key={c} value={c}>{categoryLabel(c, lang)}</option>)}
             </select>
           </div>
 
@@ -155,7 +157,7 @@ export default function AddFinanceTransactionModal({ onClose, onAdd, lang = 'es'
             </div>
           </div>
 
-          <button onClick={handleSubmit} disabled={saving || !form.amount}
+          <button onClick={handleSubmit} disabled={saving || !form.amount || amountInvalid}
             className="w-full py-2.5 text-white rounded-lg disabled:opacity-50 transition-colors text-sm font-medium" style={{ backgroundColor: 'var(--accent-blue)' }}>
             {saving ? t('Guardando...', 'Saving...') : t('Agregar', 'Add')}
           </button>

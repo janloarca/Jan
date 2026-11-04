@@ -87,7 +87,7 @@ function FriendsPageInner() {
   // el mismo "-" que significa "no hay nada que medir".
   // Misma vara que la publicación: sin tasas ni precios en vuelo, un número
   // intermedio (−90% que luego corrige) no se pinta, se queda el esqueleto.
-  const statsReady = !!ytdResolved && !publishBlocked
+  const gatesOpen = !!ytdResolved && !publishBlocked
   const hasPortfolio = (enrichedItems || []).length > 0
   // Amigos APAGADO en Ajustes: apagar borra el perfil público y saca de todos
   // los grupos, así que esta pantalla no puede seguir operando como si nada
@@ -129,6 +129,18 @@ function FriendsPageInner() {
     enrichedItems, returnYTD: returnYTDRaw, returnMTD: returnMTDRaw, dailyChange, totalAssets,
     ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange,
   }), [enrichedItems, returnYTDRaw, returnMTDRaw, ibkrReturnYTD, ibkrReturnMTD, ibkrDayChange, dailyChange, totalAssets])
+
+  // Aun con las compuertas abiertas el YTD puede corregirse una vez más cuando
+  // termina de asentar el ancla (se vio −90% que pasaba a >200%). El número
+  // solo se pinta tras 1.2 s sin cambiar; mientras tanto, esqueleto.
+  const statsKey = `${myStats?.all?.ytd}|${myStats?.all?.mtd}`
+  const [statsReady, setStatsReady] = useState(false)
+  useEffect(() => {
+    if (!gatesOpen) { setStatsReady(false); return }
+    setStatsReady(false)
+    const id = setTimeout(() => setStatsReady(true), 1200)
+    return () => clearTimeout(id)
+  }, [gatesOpen, statsKey])
 
   const [groups, setGroups] = useState(null)
   const [global, setGlobal] = useState(null)
