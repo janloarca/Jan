@@ -724,7 +724,7 @@ function FriendsPageInner() {
           {loadError}
         </InlineNotice>
       ) : groups === null ? (
-        <SkeletonCard />
+        <div className="min-h-[220px]"><SkeletonCard /></div>
       ) : groups.length === 0 ? (
         <div className="card p-6 text-center"
           style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 6%, var(--bg-card)) 0%, var(--bg-card) 70%)' }}>

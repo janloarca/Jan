@@ -586,7 +586,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-5 min-h-[55vh]">
           {tab === 'general' && (
             <div className="space-y-4">
               {/* Tu nombre va PRIMERO: es quién sos, y precede a cualquier
