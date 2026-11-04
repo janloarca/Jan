@@ -168,7 +168,7 @@ export default function WorldScene({ world, lang, baseCurrency }) {
 
         {!focused && floatLabels && smallCount > 0 && (
           <div className="absolute right-3 bottom-3 px-2 py-1 rounded-lg text-micro" style={{ background: 'var(--w-label-bg)', color: 'var(--w-label-sub)', boxShadow: '0 1px 4px var(--w-shadow)' }}>
-            {t(`+${smallCount} más pequeños: pasa el cursor o tócalos`, `+${smallCount} smaller: hover or tap`)}
+            {t(`+${smallCount} más pequeños: toca o usa Tab para explorar los edificios`, `+${smallCount} smaller: tap or press Tab to explore the buildings`)}
           </div>
         )}
 
