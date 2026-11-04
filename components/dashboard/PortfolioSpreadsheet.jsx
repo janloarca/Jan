@@ -2285,6 +2285,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 {qtyLabel && (
                                   <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{qtyLabel}</span>
                                 )}
+                                {(() => {
+                                  // Filas con el mismo nombre en la misma institución: sin
+                                  // algo que las distinga se leen como una fila repetida.
+                                  const nm = item.name || item.symbol
+                                  const same = inst.items.filter((i) => (i.name || i.symbol) === nm)
+                                  if (same.length < 2) return null
+                                  const when = item.acquisitionDate ? ` · ${formatDate(item.acquisitionDate)}` : ''
+                                  return <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>#{same.indexOf(item) + 1}{when}</span>
+                                })()}
                                 <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
                                   <span className="text-xs px-1 rounded shrink-0" style={{ backgroundColor: 'var(--alert-info-bg)', color: 'var(--accent-cyan)' }} title={item.rewardType}>
