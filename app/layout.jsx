@@ -79,7 +79,15 @@ export default function RootLayout({ children }) {
           // Título y descripción siguen el idioma de la app (el metadata de Next
           // es estático y está en inglés).
           if (lg === 'es') {
-            document.title = 'Chispu: Patrimonio y portafolio en un solo lugar';
+            var esTitle = 'Chispu: Patrimonio y portafolio en un solo lugar';
+            document.title = esTitle;
+            // Next vuelve a escribir el título (inglés) al hidratar y al navegar:
+            // se re-aplica cada vez que cambie.
+            var tEl = document.querySelector('title');
+            if (tEl && window.MutationObserver) {
+              new MutationObserver(function() { if (document.title !== esTitle) document.title = esTitle; })
+                .observe(tEl, { childList: true, characterData: true, subtree: true });
+            }
             var md = document.querySelector('meta[name="description"]');
             if (md) md.setAttribute('content', 'Acciones, cripto, bonos, bienes raíces y deudas en una sola vista, en cualquier moneda.');
           } } catch (e) {}

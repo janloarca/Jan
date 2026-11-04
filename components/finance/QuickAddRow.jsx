@@ -250,7 +250,7 @@ export default function QuickAddRow({
         <span className="text-[10px]" style={{ color: error ? 'var(--text-negative)' : 'var(--text-muted)' }}>
           {error || (usingSuggestion
             ? t('Categoría sugerida por la descripción', 'Category suggested from the description')
-            : t('Enter para anotar · no mueve el saldo de tus cuentas (Caja); para eso usa Registrar movimiento en el tablero', 'Press Enter to log · does not change your account balances (Cash); use Log movement on the dashboard for that'))}
+            : t('Enter para anotar', 'Press Enter to log'))}
         </span>
         {onOpenFull && (
           <button type="button" onClick={onOpenFull}
@@ -259,6 +259,12 @@ export default function QuickAddRow({
           </button>
         )}
       </div>
+      {/* Siempre visible (antes se perdía cuando salía la categoría sugerida):
+          anotar acá es solo el registro de Flujo, no mueve ninguna cuenta. */}
+      <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+        {t('Solo queda en Flujo: no cambia el saldo de tus cuentas. Para mover una cuenta usa «Registrar movimiento» en el tablero.',
+           'Stays in Flow only: it does not change your account balances. To move an account use “Log movement” on the dashboard.')}
+      </p>
     </div>
   )
 }
