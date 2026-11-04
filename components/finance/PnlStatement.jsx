@@ -135,6 +135,10 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
   // denominador que sostenga un porcentaje (ver lib/financePnl.js).
   const showPct = hasIncome
   const cols = showPct ? COLS : COLS_NO_PCT
+  // El rótulo de la ventana solo se dice si alguna flecha se dibuja: explicar
+  // una comparación que no aparece en ninguna parte es ruido.
+  const anyDelta = [pnl.income, pnl.fixed, pnl.variable].some((sec) =>
+    sec && ((sec.comparable && sec.momPct != null) || (sec.rows || []).some((r) => r.comparable && r.momPct != null)))
 
   return (
     <div className="card p-4 sm:p-5">
@@ -147,7 +151,7 @@ export default function PnlStatement({ pnl, lang = 'es', momTitle = null, silent
           </span>
         )}
       </div>
-      {silentReason && (
+      {silentReason && anyDelta && (
         <p className="text-[10px] mb-2" style={{ color: 'var(--text-muted)' }}>{silentReason}</p>
       )}
 
