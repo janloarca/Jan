@@ -137,7 +137,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
 // sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
 // dato real se lean como cubiertas. Sin estos props el comportamiento es el de
 // antes.
-export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null }) {
+export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null, ytdStartTs = null }) {
   // ⛔ FASE LU (extensión de la superficie congelada D, decisión del usuario,
   // 28 ago 2026): la gráfica mide tus ACTIVOS. La deuda no es una inversión,
   // así que sale del universo entero de esta card: de la línea, de los chips
@@ -1254,6 +1254,13 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         const startTs = anchorVal > 0 && anchorTs != null && anchorTs >= yearStart && anchorTs <= pts[0].ts ? anchorTs : yearStart
         pts.unshift({ ts: startTs, date: new Date(startTs), value: anchorVal > 0 ? anchorVal : pts[0].value })
       }
+      // Una sola fecha de arranque para tarjeta y gráfica: si la tarjeta ancla
+      // el año en otro día (2 ene) y el primer punto cae unos días después
+      // (4 ene), el tooltip no puede decir otra cosa que el encabezado. Solo
+      // se mueve la ETIQUETA de fecha del primer punto, nunca su valor.
+      if (shownInst === 'ALL' && ytdStartTs && pts[0].ts > ytdStartTs && pts[0].ts - ytdStartTs <= 7 * 86400000 && ytdStartTs >= yearStart) {
+        pts[0] = { ...pts[0], ts: ytdStartTs, date: new Date(ytdStartTs) }
+      }
     }
     if (period === 'MTD' && pts.length > 0) {
       const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
@@ -1297,7 +1304,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact, ytdStartTs])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's

@@ -1719,7 +1719,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               </button>
             </div>
             {viewMode === 'monthly' && (
-              <div className="flex flex-wrap bg-theme-tertiary rounded-md border border-[var(--border-color)] p-0.5 max-w-full">
+              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
+                aria-label={t('Año', 'Year')}
+                className="sm:hidden px-2 py-1 text-xs rounded-md font-semibold bg-theme-tertiary border border-[var(--border-color)]"
+                style={{ color: 'var(--text-primary)' }}>
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+            {viewMode === 'monthly' && (
+              <div className="hidden sm:flex flex-wrap bg-theme-tertiary rounded-md border border-[var(--border-color)] p-0.5 max-w-full">
                 {availableYears.map(y => (
                   <button key={y} onClick={() => setSelectedYear(y)}
                     className="px-2.5 py-1 text-xs rounded font-semibold whitespace-nowrap transition-colors hover:text-[var(--text-secondary)]"
