@@ -2687,7 +2687,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
 
             {months.length >= 2 && (
               <tr className="bg-theme-surface border-t border-[var(--border-subtle)]">
-                <td className="py-2 pl-8 pr-2 sticky left-0 bg-theme-surface z-10 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <td className="py-2 pl-8 pr-2 sticky left-0 bg-theme-surface z-10 text-xs" style={{ color: 'var(--text-muted)' }} title={t('Cambio del total contra el período anterior. Es bruto: incluye depósitos, retiros y posiciones nuevas, no solo rendimiento. Un salto grande suele ser dinero que entró o una cuenta agregada.', 'Change in the total versus the previous period. Gross: includes deposits, withdrawals and new positions, not just performance. A big jump is usually money that came in or an account that was added.')}>
                   {viewMode === 'yoy' ? t('Retorno Anual (bruto)', 'Annual Return (gross)') : t('Retorno Mensual (bruto)', 'Monthly Return (gross)')}
                 </td>
                 <td />
