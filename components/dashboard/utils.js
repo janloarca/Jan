@@ -36,7 +36,9 @@ export function formatCompact(value, currency) {
   if (Math.abs(value) >= 1000000000) return sym + (value / 1000000000).toFixed(1) + 'B'
   if (Math.abs(value) >= 1000000) return sym + (value / 1000000).toFixed(1) + 'M'
   if (Math.abs(value) >= 1000) return sym + (value / 1000).toFixed(1) + 'K'
-  return sym + value.toFixed(0)
+  // Bajo mil un monto con centavos se muestra con ellos: "$129" para $129.30
+  // se leía como otra cifra que la del resto de la app.
+  return sym + (Math.abs(value - Math.round(value)) >= 0.005 ? value.toFixed(2) : value.toFixed(0))
 }
 
 // Compact axis-tick label whose decimal precision adapts to the gap between
