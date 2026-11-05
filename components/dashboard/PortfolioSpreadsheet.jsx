@@ -1744,7 +1744,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               on to tell apart. The tint reuses the app's info/success alert
               tokens (already theme-aware) instead of fixed blue-50/emerald-50,
               which stayed a pale white-mode chip no matter the theme. */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={handleExportCsv}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--alert-info-border)] bg-[var(--alert-info-bg)] hover:brightness-110 transition-[filter]"
               style={{ color: 'var(--accent-blue-strong)' }}
