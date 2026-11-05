@@ -2737,8 +2737,9 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 instead of repeating a January that isn't even on screen. */}
             {viewMode === 'monthly' && janTotal && grandTotal > 0 && (
               <tr className="bg-theme-surface border-t border-[var(--border-subtle)]">
-                <td className="py-2 pl-8 pr-2 sticky left-0 bg-theme-surface z-10 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {t('Crecimiento Portafolio', 'Portfolio Growth')}
+                <td className="py-2 pl-8 pr-2 sticky left-0 bg-theme-surface z-10 text-xs" style={{ color: 'var(--text-muted)' }}
+                  title={t('Cambio del total de esta hoja contra enero. Incluye aportes y retiros; el YTD del tablero mide solo el rendimiento de los activos.', 'Change of this sheet\'s total against January. Includes deposits and withdrawals; the dashboard YTD measures asset performance only.')}>
+                  {t('Variación del patrimonio desde enero', 'Net worth change since January')}
                 </td>
                 <td />
                 {showOriginal && <td />}

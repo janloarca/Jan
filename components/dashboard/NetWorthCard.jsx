@@ -316,8 +316,8 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
           separador quedaba colgando al final de la línea de HOY (FASE PD). */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-x-2 gap-y-1 text-sm">
         {dailyChange && isFinite(dailyChange.pct) && (
-          <span className="whitespace-nowrap">
-            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'HOY' : 'TODAY'}</span>
+          <span className="whitespace-nowrap" title={lang === 'es' ? 'Cambio de todo tu portafolio hoy. El % de cada posición abajo es su impacto sobre este total.' : 'Change of your whole portfolio today. Each position\'s % below is its impact on this total.'}>
+            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'HOY (TOTAL)' : 'TODAY (TOTAL)'}</span>
             <span style={{ color: isDayPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>{isDayPositive ? '▲' : '▼'}</span>
             {' '}
             <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
