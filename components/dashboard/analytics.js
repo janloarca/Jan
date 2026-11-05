@@ -200,7 +200,7 @@ export function runMonteCarloSimulation({
   }
 }
 
-export function computeNetContributions(transactions, convert, baseCurrency) {
+export function computeNetContributions(transactions, convert, baseCurrency, currencyOfTx = null) {
   if (!transactions || transactions.length === 0) {
     return { totalContributed: 0, totalWithdrawn: 0, netContributions: 0 }
   }
@@ -211,7 +211,7 @@ export function computeNetContributions(transactions, convert, baseCurrency) {
   transactions.forEach((tx) => {
     const type = (tx.type || '').toUpperCase()
     const amt = tx.totalAmount ?? 0
-    const converted = convert ? convert(amt, tx.currency || 'USD', baseCurrency || 'USD') : amt
+    const converted = convert ? convert(amt, tx.currency || (currencyOfTx && currencyOfTx(tx)) || 'USD', baseCurrency || 'USD') : amt
 
     if (type === 'DEPOSIT') {
       totalContributed += converted

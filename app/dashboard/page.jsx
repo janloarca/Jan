@@ -1784,7 +1784,7 @@ export default function DashboardPage() {
             {/* Gross money in vs out — one compact strip (three separate airy cards
                 wasted a whole row of vertical space on tablets) */}
             {(contributionsSummary.totalContributed > 0 || contributionsSummary.totalWithdrawn > 0) && (
-              <div className="card px-4 py-2.5 mb-3 grid grid-cols-3 gap-3">
+              <div className="card px-4 py-2.5 mb-3 grid grid-cols-3 gap-3" title={lang === 'es' ? `Cada movimiento se convierte a ${baseCurrency} con la tasa de hoy` : `Each movement is converted to ${baseCurrency} at today's rate`}>
                 <div className="flex items-baseline gap-2 min-w-0">
                   <span className="text-xs text-slate-500 shrink-0">{lang === 'es' ? 'Aportado' : 'Deposited'}</span>
                   <span className="text-sm font-bold font-mono tabular-nums truncate" style={{ color: 'var(--accent-green)' }}>{formatCurrency(contributionsSummary.totalContributed)}</span>

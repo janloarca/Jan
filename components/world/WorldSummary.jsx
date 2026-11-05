@@ -18,7 +18,7 @@ export default function WorldSummary({ world, lang, baseCurrency }) {
       </div>
       {world.returnPct != null && (
         <div className="min-w-0">
-          <span className="text-caption mr-2" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento', 'Return')}</span>
+          <span className="text-caption mr-2" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento desde el costo', 'Return since cost')}</span>
           <span className="text-h2 font-semibold tabular-nums" style={{ color: TONE[tone] || 'var(--text-primary)' }}>
             {formatReturn(world.returnPct)}
           </span>
