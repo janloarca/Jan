@@ -604,7 +604,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         id="settings-name" type="text" value={nameDraft} maxLength={60}
                         onChange={(e) => setNameDraft(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName() }}
-                        placeholder={t('Tu nombre', 'Your name')}
+                        placeholder={userEmail ? t(`Ahora se muestra como «${String(userEmail).split('@')[0]}»`, `Currently shown as “${String(userEmail).split('@')[0]}”`) : t('Tu nombre', 'Your name')}
                         className="w-full px-3 py-2.5 bg-theme-card border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
                       />
                       {/* `--text-muted` y no la clase `text-slate-600` que usan
