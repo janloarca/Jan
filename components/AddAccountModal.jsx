@@ -296,6 +296,14 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
   // como 5 unidades de 1,000 (el reporte real del usuario: "me aparecia
   // 50000 cuando debia ser 5000" al capturar cinco bonos de 1,000).
   const effectiveQuantity = () => (isMarketAsset ? parseQuantity(form.quantity) : 1)
+  // Problema con el monto tecleado, dicho a la vista (no solo en el envío).
+  const amountProblem = (() => {
+    const raw = String(form.purchasePrice ?? '').trim()
+    if (!raw) return ''
+    if (!/\d/.test(raw)) return t('Escribe un monto en números', 'Enter an amount in numbers')
+    if (/e\d/i.test(raw) || parseAmount(raw) > maxPriceFor(form.currency)) return t('El monto es demasiado grande: revisa los datos', 'The amount is too large: check your data')
+    return ''
+  })()
   const currentTypeInfo = TYPES.find(tp => tp.key === type)
 
   // If the schedule the user just configured (months + pay day) plus the
@@ -2706,12 +2714,16 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               return null
             })()}
 
+            {amountProblem && (
+              <div id="add-amount-problem" role="alert" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{amountProblem}</div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setStep(1)}
                 className="btn-secondary flex-1">
                 ← {t('Atrás', 'Back')}
               </button>
-              <button type="submit" disabled={saving || (!isBank && parseAmount(form.purchasePrice) <= 0 && !(isPrivateStock && parseAmount(form.currentPrice) > 0))}
+              <button type="submit" disabled={saving || !!amountProblem || (!isBank && parseAmount(form.purchasePrice) <= 0 && !(isPrivateStock && parseAmount(form.currentPrice) > 0))}
                 className="btn-primary flex-1">
                 {<BusyLabel busy={saving} lang={lang}>{t('Registrar', 'Register')}</BusyLabel>}
               </button>

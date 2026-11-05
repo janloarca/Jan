@@ -126,18 +126,18 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
       style={{ borderColor: 'var(--card-border)', paddingTop: 'env(safe-area-inset-top, 0px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0">
             <Logo size={19} as="h1" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'} />
 
             {/* Navigation — segmented control */}
-            <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px]"
-              style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px] min-w-0 overflow-x-auto"
+              style={{ backgroundColor: 'var(--bg-tertiary)', scrollbarWidth: 'none' }}
               aria-label={lang === 'es' ? 'Navegación principal' : 'Main navigation'} data-tour="nav">
               {navItems.map(item => {
                 const active = pathname === item.href
                 return (
                   <Link key={item.href} href={item.href}
-                    className="px-3 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap"
+                    className="px-2 md:px-3 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
                     style={active
                       ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
                       : { color: 'var(--text-muted)' }}>
