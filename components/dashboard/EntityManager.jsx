@@ -76,8 +76,12 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white font-medium truncate">{entity.name}</p>
                       <p className="text-xs text-slate-500">
-                        {ENTITY_TYPES.find(et => et.key === entity.type)?.[lang] || entity.type}
-                        {' · '}{count} {t(count === 1 ? 'cuenta' : 'cuentas', count === 1 ? 'account' : 'accounts')}
+                        {(() => {
+                          // "Personal · Personal · 14 cuentas": si el tipo repite el nombre, se omite.
+                          const typeLabel = ENTITY_TYPES.find(et => et.key === entity.type)?.[lang] || entity.type
+                          return String(typeLabel).trim().toLowerCase() === String(entity.name || '').trim().toLowerCase() ? '' : `${typeLabel} · `
+                        })()}
+                        {count} {t(count === 1 ? 'cuenta' : 'cuentas', count === 1 ? 'account' : 'accounts')}
                       </p>
                     </div>
                     <button onClick={() => { setEditId(entity.id); setEditName(entity.name) }} aria-label={t('Renombrar', 'Rename')} className="text-slate-500 hover:text-slate-300"><Edit2 size={13} /></button>
