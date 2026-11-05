@@ -3206,8 +3206,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // por eso nadie lo notaba: es el caso de "el total correcto con las partes
   // equivocadas" que este repo ya encontró varias veces.
   const contributionsSummary = useMemo(() => {
-    return computeNetContributions(assetTransactions, convert, baseCurrency)
-  }, [assetTransactions, convert, baseCurrency])
+    // Un movimiento sin moneda propia hereda la de su cuenta: leerlo como USD
+    // convertía un retiro en quetzales como si fueran dólares (Q500 -> $500).
+    const curById = new Map((items || []).map((it) => [it.id, it.currency]))
+    const currencyOfTx = (tx) => (tx._linkedItemId && curById.get(tx._linkedItemId)) || null
+    return computeNetContributions(assetTransactions, convert, baseCurrency, currencyOfTx)
+  }, [assetTransactions, convert, baseCurrency, items])
   const netContributions = contributionsSummary.netContributions
 
   const cashTotal = useMemo(() => {

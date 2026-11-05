@@ -76,7 +76,7 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
 
       {building.returnPct != null && (
         <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
-          <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento', 'Return')}</span>
+          <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Rendimiento desde el costo', 'Return since cost')}</span>
           <span className="font-semibold tabular-nums" style={{ color: TONE[perfTone(building.returnPct)] || 'var(--text-primary)' }}>{retText(building.returnPct)}</span>
           <span className="text-micro tabular-nums" style={{ color: 'var(--text-muted)' }}>{building.gain > 0 ? '+' : ''}{formatCompact(building.gain, baseCurrency)}</span>
         </div>
