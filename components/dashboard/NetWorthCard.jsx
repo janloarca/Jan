@@ -472,7 +472,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 const up = m.dollarChange >= 0
                 return (
                   <div key={m.key} className="flex items-center justify-between">
-                    <span className="text-sm truncate pr-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span className="text-sm pr-2 min-w-0 break-words" style={{ color: 'var(--text-secondary)' }}>
                       {m.label}
                       {/* Cuántas posiciones se fusionaron acá. Sin esto, alguien
                           con BTC en dos cuentas ve un monto que no cuadra con

@@ -2276,11 +2276,11 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 z-10`} style={stickyStyle}>
                               <div className="flex items-center gap-2 min-w-0">
                                 {(onShowItemInfo || onEditItem) ? (
-                                  <button className="text-sm truncate text-left hover:underline transition-colors" style={{ color: isEditing ? 'var(--accent-blue-strong)' : 'var(--text-primary)', fontWeight: isEditing ? 600 : undefined }} onClick={(e) => { e.stopPropagation(); (onShowItemInfo || onEditItem)(item) }}>
+                                  <button className="text-sm line-clamp-2 sm:truncate break-words text-left hover:underline transition-colors" style={{ color: isEditing ? 'var(--accent-blue-strong)' : 'var(--text-primary)', fontWeight: isEditing ? 600 : undefined }} onClick={(e) => { e.stopPropagation(); (onShowItemInfo || onEditItem)(item) }}>
                                     {item.name || item.symbol}
                                   </button>
                                 ) : (
-                                  <span className="text-sm truncate" style={{ color: isEditing ? 'var(--accent-blue-strong)' : 'var(--text-primary)', fontWeight: isEditing ? 600 : undefined }}>{item.name || item.symbol}</span>
+                                  <span className="text-sm line-clamp-2 sm:truncate break-words" style={{ color: isEditing ? 'var(--accent-blue-strong)' : 'var(--text-primary)', fontWeight: isEditing ? 600 : undefined }}>{item.name || item.symbol}</span>
                                 )}
                                 {qtyLabel && (
                                   <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{qtyLabel}</span>
