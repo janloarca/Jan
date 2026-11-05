@@ -1024,7 +1024,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                   onAdd={onAddEntity}
                   onUpdate={onUpdateEntity}
                   onDelete={onDeleteEntity}
-                  items={portfolioItems}
+                  items={restoreExisting?.items || portfolioItems}
                   lang={lang}
                 />
               ) : (
