@@ -204,11 +204,12 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           azules compitiendo por la misma esquina, y el que competia era el
           secundario. Ademas flota SOBRE el contenido, y en una app de dinero la
           esquina inferior derecha es donde viven los montos: cuanto menos grite
-          mientras nadie lo usa, mejor. 44px en movil (el minimo tactil de iOS),
+          mientras nadie lo usa, mejor. En movil es una pestana pegada al borde (28x44px:
+          la altura cumple el minimo tactil y casi no cubre los montos), y a partir de sm un disco,
           48 en desktop como siempre. */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
+        className="fixed bottom-20 sm:bottom-6 right-0 sm:right-6 z-40 w-7 h-11 sm:w-12 sm:h-12 rounded-l-full rounded-r-none sm:rounded-full flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
         style={open
           ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff', boxShadow: 'var(--shadow-elevated)' }
           // --bg-primary y NO --bg-card: bg-card es TRANSLUCIDO en tema oscuro
