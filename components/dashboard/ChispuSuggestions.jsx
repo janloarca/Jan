@@ -52,7 +52,20 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   }
 
   const visible = useMemo(() => findings.filter((f) => !dismissed.has(f.id)), [findings, dismissed])
-  const shown = expanded ? visible : visible.slice(0, 3)
+  // Hallazgos con el MISMO texto (varias cuentas homónimas con el mismo dato
+  // faltante) se muestran como una sola tarjeta con ×N; descartarla descarta
+  // todas. Las acciones apuntan a la primera cuenta del grupo.
+  const grouped = useMemo(() => {
+    const map = new Map()
+    for (const f of visible) {
+      const key = `${f.code}|${f.textEs}|${f.textEn}`
+      const g = map.get(key)
+      if (g) g._ids.push(f.id)
+      else map.set(key, { ...f, _ids: [f.id] })
+    }
+    return [...map.values()]
+  }, [visible])
+  const shown = expanded ? grouped : grouped.slice(0, 3)
   const dismissedCount = findings.length - visible.length
 
   // Data truly complete (no findings at all, and there IS data): confirm it in
@@ -68,9 +81,10 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
   }
   if (visible.length === 0 && dismissedCount === 0) return null
 
-  const dismiss = (id) => {
+  const dismiss = (id, extraIds = []) => {
     const next = new Set(dismissed)
     next.add(id)
+    extraIds.forEach((x) => next.add(x))
     setDismissed(next)
     writeDismissed(next)
   }
@@ -149,6 +163,9 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
               </span>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {lang === 'es' ? f.textEs : f.textEn}
+                {f._ids?.length > 1 && (
+                  <span className="ml-1.5 font-semibold" style={{ color: 'var(--text-muted)' }}>×{f._ids.length}</span>
+                )}
               </p>
               {/* Grounded in real data (a past transaction, the account's own
                   createdAt) — never invented. See lib/dataCompleteness.js. */}
@@ -200,7 +217,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
                   {t('No son iguales', 'Not the same')}
                 </button>
               )}
-              <button onClick={() => dismiss(f.id)} aria-label={t('Descartar sugerencia', 'Dismiss suggestion')}
+              <button onClick={() => dismiss(f.id, f._ids || [])} aria-label={t('Descartar sugerencia', 'Dismiss suggestion')}
                 className="text-xs w-6 h-6 rounded-lg" style={{ color: 'var(--text-muted)' }}>
                 ✕
               </button>
@@ -225,7 +242,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
             {t(`Completar cuenta por cuenta (${visible.length})`, `Complete account by account (${visible.length})`)}
           </button>
         )}
-        {visible.length > 3 && (
+        {grouped.length > 3 && (
           <button onClick={() => setExpanded(!expanded)}
             className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
             {expanded ? t('Ver menos', 'Show less') : `${t('Ver todas', 'Show all')} (${visible.length})`}
