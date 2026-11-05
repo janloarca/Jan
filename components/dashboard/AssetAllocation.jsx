@@ -240,7 +240,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
               <div className="flex flex-col min-w-0">
                 {/* `capitalize` solo donde el nombre llega en minúscula: las
                     etiquetas de vencimiento ya son frases. */}
-                <span className={`text-sm text-slate-300 truncate ${view === 'maturity' ? '' : 'capitalize'}`}>{displayName}</span>
+                <span className={`text-sm text-slate-300 line-clamp-2 sm:truncate break-words ${view === 'maturity' ? '' : 'capitalize'}`}>{displayName}</span>
                 {returnTypeDesc && <span className="text-xs text-slate-500 leading-tight">{returnTypeDesc}</span>}
               </div>
               {/* En teléfono no hay columna de posiciones: va junto al nombre */}
@@ -268,7 +268,7 @@ export default function AssetAllocation({ items, lang, transactions, convert, ba
                 <div className="flex items-center gap-2">
                   {bar}
                   <span className="text-xs text-slate-500 tabular-nums w-11 text-right">{seg.pct.toFixed(1)}%</span>
-                  <span className="text-xs tabular-nums w-16 text-right" style={{ color: tone(seg.returnPct) }}>{returnText}</span>
+                  <span className="text-xs tabular-nums w-16 pr-1 text-right" style={{ color: tone(seg.returnPct) }}>{returnText}</span>
                 </div>
               </div>
 
