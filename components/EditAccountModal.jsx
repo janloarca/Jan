@@ -1809,7 +1809,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     </select>
                   ) : (
                     <p className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>
-                      {t('No tienes préstamos cargados. Agregalo con "Nuevo → Deuda".',
+                      {t('No tienes préstamos cargados. Agrégalo con "Nuevo → Deuda".',
                          'No loans on file. Add one with "New → Debt".')}
                     </p>
                   )}

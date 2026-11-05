@@ -78,7 +78,7 @@ export default function RootLayout({ children }) {
         try { var lg = localStorage.getItem('chispudo-lang'); if (lg === 'es' || lg === 'en') document.documentElement.setAttribute('lang', lg);
           // Título y descripción siguen el idioma de la app (el metadata de Next
           // es estático y está en inglés).
-          if (lg === 'es') {
+          if (lg !== 'en') {
             var esTitle = 'Chispu: Patrimonio y portafolio en un solo lugar';
             document.title = esTitle;
             // Next vuelve a escribir el título (inglés) al hidratar y al navegar:

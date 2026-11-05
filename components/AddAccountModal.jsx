@@ -565,6 +565,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // Acción privada: un grant de fundador o unas opciones sin costo base valen 0
     // de costo y > 0 de valor. Basta con que haya costo o valor.
     const privateHasValue = isPrivateStock && price === 0 && parseAmount(form.currentPrice) > 0
+    // Texto que no es un número ("abc", "1e999") se dice como tal en vez de
+    // caer al genérico "mayor a 0", y un monto absurdo se rehúsa con su tope.
+    const rawAmount = String(form.purchasePrice ?? '').trim()
+    if (rawAmount && !/\d/.test(rawAmount)) { setError(t('Escribe un monto en números', 'Enter an amount in numbers')); return }
+    if (/e\d/i.test(rawAmount) || price > maxPriceFor(form.currency)) { setError(t('El monto es demasiado grande: revisa los datos', 'The amount is too large: check your data')); return }
     if (!isBank && price <= 0 && !privateHasValue) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
     if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
@@ -1350,7 +1355,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div>
                     <label htmlFor="add-linkedDebtId" className={labelCls}>
                       {t('Préstamo que la financia', 'Loan financing it')}
-                      <InfoTip text={t('Si la compraste con un préstamo, vinculalo y calculamos solos cuánto llevas pagado, cuánto falta y tu capital propio. No cambia tu patrimonio: la deuda ya resta por su cuenta.',
+                      <InfoTip text={t('Si la compraste con un préstamo, vincúlalo y calculamos solos cuánto llevas pagado, cuánto falta y tu capital propio. No cambia tu patrimonio: la deuda ya resta por su cuenta.',
                                        'If you bought it with a loan, link it and we work out how much you have paid, how much is left, and your equity. It does not change your net worth: the debt already subtracts on its own.')} />
                     </label>
                     {propertyDebtOptions.length > 0 ? (
@@ -1369,7 +1374,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                          no una deuda, así que ofrecerlo llevaría al lugar
                          equivocado. Se dice dónde está el camino real. */
                       <p className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>
-                        {t('Todavía no tienes ningún préstamo cargado. Agregalo con "Nuevo → Deuda" y después vinculalo desde aquí.',
+                        {t('Todavía no tienes ningún préstamo cargado. Agrégalo con "Nuevo → Deuda" y después vincúlalo desde aquí.',
                            'You have no loan on file yet. Add it with "New → Debt" and link it from here afterwards.')}
                       </p>
                     )}
@@ -2706,7 +2711,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 className="btn-secondary flex-1">
                 ← {t('Atrás', 'Back')}
               </button>
-              <button type="submit" disabled={saving}
+              <button type="submit" disabled={saving || (!isBank && parseAmount(form.purchasePrice) <= 0 && !(isPrivateStock && parseAmount(form.currentPrice) > 0))}
                 className="btn-primary flex-1">
                 {<BusyLabel busy={saving} lang={lang}>{t('Registrar', 'Register')}</BusyLabel>}
               </button>

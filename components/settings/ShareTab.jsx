@@ -120,7 +120,7 @@ export default function ShareTab({
       const copied = await copyShareLink(link.token)
       flash('ok', copied
         ? t('Link creado y copiado', 'Link created and copied')
-        : t('Link creado. Copialo desde la lista.', 'Link created. Copy it from the list.'))
+        : t('Link creado. Cópialo desde la lista.', 'Link created. Copy it from the list.'))
     } catch (e) { flash('err', e.message) }
     setShareLoading(false)
   }
@@ -292,7 +292,7 @@ export default function ShareTab({
                       </button>
                       <button onClick={async () => {
                         const ok = await copyShareLink(link.token)
-                        if (!ok) flash('err', t('No se pudo copiar. Copialo a mano: mantén presionado el link.', 'Could not copy. Copy it by hand: long-press the link.'))
+                        if (!ok) flash('err', t('No se pudo copiar. Cópialo a mano: mantén presionado el link.', 'Could not copy. Copy it by hand: long-press the link.'))
                       }}
                         className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-md transition-colors" style={{ color: '#ffffff', backgroundColor: 'var(--accent-blue)' }}>
                         {shareCopied === link.token ? t('¡Copiado!', 'Copied!') : t('Copiar', 'Copy')}

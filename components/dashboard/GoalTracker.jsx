@@ -211,7 +211,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
           <div>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white font-medium">{t('Tamaño de portfolio', 'Portfolio size')}</span>
+                <span className="text-xs text-white font-medium">{t('Tamaño de portafolio', 'Portfolio size')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
               <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioOver ? t(`Meta superada (${portfolioOver})`, `Goal exceeded (${portfolioOver})`) : `${portfolioPct.toFixed(0)}%`}</span>
