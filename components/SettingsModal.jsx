@@ -25,20 +25,20 @@ import { TAX_JURISDICTION_OPTIONS } from '@/components/dashboard/utils'
 import { closeLabel } from '@/lib/closeLabel'
 
 const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', nameEs: 'Dólar estadounidense', symbol: '$' },
-  { code: 'EUR', name: 'Euro', nameEs: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', nameEs: 'Libra esterlina', symbol: '£' },
-  { code: 'MXN', name: 'Mexican Peso', nameEs: 'Peso mexicano', symbol: '$' },
-  { code: 'GTQ', name: 'Guatemalan Quetzal', nameEs: 'Quetzal', symbol: 'Q' },
-  { code: 'COP', name: 'Colombian Peso', nameEs: 'Peso colombiano', symbol: '$' },
-  { code: 'CLP', name: 'Chilean Peso', nameEs: 'Peso chileno', symbol: '$' },
-  { code: 'ARS', name: 'Argentine Peso', nameEs: 'Peso argentino', symbol: '$' },
-  { code: 'BRL', name: 'Brazilian Real', nameEs: 'Real brasileño', symbol: 'R$' },
-  { code: 'PEN', name: 'Peruvian Sol', nameEs: 'Sol peruano', symbol: 'S/' },
-  { code: 'CAD', name: 'Canadian Dollar', nameEs: 'Dólar canadiense', symbol: '$' },
-  { code: 'CHF', name: 'Swiss Franc', nameEs: 'Franco suizo', symbol: 'CHF' },
-  { code: 'JPY', name: 'Japanese Yen', nameEs: 'Yen japonés', symbol: '¥' },
-  { code: 'CNY', name: 'Chinese Yuan', nameEs: 'Yuan chino', symbol: '¥' },
+  { code: 'USD', name: 'US Dollar', nameEs: 'dólar estadounidense', symbol: '$' },
+  { code: 'EUR', name: 'Euro', nameEs: 'euro', symbol: '€' },
+  { code: 'GBP', name: 'British Pound', nameEs: 'libra esterlina', symbol: '£' },
+  { code: 'MXN', name: 'Mexican Peso', nameEs: 'peso mexicano', symbol: '$' },
+  { code: 'GTQ', name: 'Guatemalan Quetzal', nameEs: 'quetzal', symbol: 'Q' },
+  { code: 'COP', name: 'Colombian Peso', nameEs: 'peso colombiano', symbol: '$' },
+  { code: 'CLP', name: 'Chilean Peso', nameEs: 'peso chileno', symbol: '$' },
+  { code: 'ARS', name: 'Argentine Peso', nameEs: 'peso argentino', symbol: '$' },
+  { code: 'BRL', name: 'Brazilian Real', nameEs: 'real brasileño', symbol: 'R$' },
+  { code: 'PEN', name: 'Peruvian Sol', nameEs: 'sol peruano', symbol: 'S/' },
+  { code: 'CAD', name: 'Canadian Dollar', nameEs: 'dólar canadiense', symbol: '$' },
+  { code: 'CHF', name: 'Swiss Franc', nameEs: 'franco suizo', symbol: 'CHF' },
+  { code: 'JPY', name: 'Japanese Yen', nameEs: 'yen japonés', symbol: '¥' },
+  { code: 'CNY', name: 'Chinese Yuan', nameEs: 'yuan chino', symbol: '¥' },
 ]
 
 // Framed group used throughout the General tab — a hairline-bordered card with

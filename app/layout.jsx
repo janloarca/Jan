@@ -4,8 +4,8 @@ import UpdateAvailablePill from '@/components/ui/UpdateAvailablePill'
 import { ADSENSE_CLIENT } from '@/lib/adsense'
 
 export const metadata = {
-  title: 'Chispu: Net worth & portfolio tracker',
-  description: 'Track stocks, crypto, bonds, real estate and debt in one view, in any currency.',
+  title: 'Chispu: Patrimonio y portafolio en un solo lugar',
+  description: 'Acciones, cripto, bonos, bienes raíces y deudas en una sola vista, en cualquier moneda.',
   keywords: ['portafolio', 'inversiones', 'patrimonio', 'acciones', 'cripto', 'bonos', 'portfolio tracker', 'net worth'],
   openGraph: {
     title: 'Chispu: Your real net worth, in one place',
@@ -76,20 +76,23 @@ export default function RootLayout({ children }) {
         }
         document.documentElement.setAttribute('data-theme', theme);
         try { var lg = localStorage.getItem('chispudo-lang'); if (lg === 'es' || lg === 'en') document.documentElement.setAttribute('lang', lg);
-          // Título y descripción siguen el idioma de la app (el metadata de Next
-          // es estático y está en inglés).
-          if (lg !== 'en') {
-            var esTitle = 'Chispu: Patrimonio y portafolio en un solo lugar';
-            document.title = esTitle;
-            // Next vuelve a escribir el título (inglés) al hidratar y al navegar:
-            // se re-aplica cada vez que cambie.
-            var tEl = document.querySelector('title');
-            if (tEl && window.MutationObserver) {
-              new MutationObserver(function() { if (document.title !== esTitle) document.title = esTitle; })
-                .observe(tEl, { childList: true, characterData: true, subtree: true });
-            }
+          // Título y descripción siguen el idioma de la app. El metadata estático
+          // de Next va en español (el default de la app); aquí se fija el idioma
+          // elegido y se re-aplica cada vez que Next reescriba el <title> o lo
+          // reemplace por otro nodo (al hidratar y al navegar), por eso se observa
+          // el <head> entero y no solo el nodo actual.
+          var isEn = lg === 'en';
+          var wantTitle = isEn ? 'Chispu: Net worth & portfolio tracker' : 'Chispu: Patrimonio y portafolio en un solo lugar';
+          var wantDesc = isEn ? 'Track stocks, crypto, bonds, real estate and debt in one view, in any currency.' : 'Acciones, cripto, bonos, bienes raíces y deudas en una sola vista, en cualquier moneda.';
+          var applyMeta = function() {
+            if (document.title !== wantTitle) document.title = wantTitle;
             var md = document.querySelector('meta[name="description"]');
-            if (md) md.setAttribute('content', 'Acciones, cripto, bonos, bienes raíces y deudas en una sola vista, en cualquier moneda.');
+            if (md && md.getAttribute('content') !== wantDesc) md.setAttribute('content', wantDesc);
+          };
+          applyMeta();
+          if (window.MutationObserver) {
+            new MutationObserver(applyMeta).observe(document.head, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['content'] });
+          }
           } } catch (e) {}
         var tc = theme === 'light' ? '#F8F9FB' : '#0A0A12';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
