@@ -2218,7 +2218,13 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
               cuando HAY deudas; sin ellas los dos universos son identicos y la
               aclaracion seria ruido. Mismo criterio que el rotulo de aportes de
               FASE IX2: cero contacto con el numero. */}
-          <p className="text-3xl font-bold text-white font-mono tabular-nums">
+          {/* Solo presentacion: una cifra de 15+ caracteres no cabe a ~370px con
+              text-3xl y se salia de la tarjeta; baja el tamano segun el largo,
+              igual que el hero de NetWorthCard. Cero contacto con el numero. */}
+          <p className={`${(() => {
+            const len = formatCurrency(hd ? hd.value : currentTotal).length
+            return len > 17 ? 'text-lg sm:text-2xl' : len > 13 ? 'text-2xl sm:text-3xl' : 'text-3xl'
+          })()} font-bold text-white font-mono tabular-nums max-w-full break-words`}>
             {formatCurrency(hd ? hd.value : currentTotal)}
             {debtIds.size > 0 && (
               <span className="text-xs text-slate-500 font-sans font-normal ml-2">{t('solo activos', 'assets only')}</span>

@@ -471,8 +471,11 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
                 // puede contradecir el signo del monto que tiene al lado.
                 const up = m.dollarChange >= 0
                 return (
-                  <div key={m.key} className="flex items-center justify-between">
-                    <span className="text-sm pr-2 min-w-0 break-words" style={{ color: 'var(--text-secondary)' }}>
+                  <div key={m.key} className="flex flex-wrap items-center justify-between gap-x-2">
+                    {/* flex-wrap: con cifras de 12+ dígitos el monto (shrink-0) se
+                        comía el ancho y el símbolo se apilaba letra por letra a
+                        ~340px; ahora el monto baja a su propia línea. */}
+                    <span className="text-sm min-w-0 max-w-full" style={{ color: 'var(--text-secondary)' }}>
                       {m.label}
                       {/* Cuántas posiciones se fusionaron acá. Sin esto, alguien
                           con BTC en dos cuentas ve un monto que no cuadra con
