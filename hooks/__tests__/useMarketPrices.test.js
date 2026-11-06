@@ -87,6 +87,26 @@ describe('loading vs isFetching: el semaforo de escritura', () => {
   })
 })
 
+// FASE QY. Una respuesta parcial no puede borrar lo que ya se sabia: esas
+// posiciones caian a su precio guardado y el patrimonio saltaba entre cargas.
+describe('una respuesta parcial conserva el ultimo precio conocido', () => {
+  it('el simbolo ausente sigue valorado, marcado stale', async () => {
+    mockApi({ prices: { AAPL: { price: 100 }, MSFT: { price: 400 } } })
+    const msft = { ...stock(), id: 's2', symbol: 'MSFT' }
+    const { result, unmount } = renderHook(({ items }) => useMarketPrices(items), { initialProps: { items: [stock(), msft] } })
+    await act(async () => {})
+    mockApi({ prices: { AAPL: { price: 101 } } })
+    await act(async () => { await result.current.refresh() })
+
+    const [aapl, m] = result.current.enrichedItems
+    expect(aapl.currentPrice).toBe(101)
+    expect(m.currentPrice).toBe(400)
+    expect(m._priceResolved).toBe(true)
+    expect(m._priceStale).toBe(true)
+    unmount()
+  })
+})
+
 // ⛔ Defensa en profundidad: la lista es BLANCA, no negra.
 describe('un item que no cotiza nunca recibe una cotizacion', () => {
   it('una cuenta de efectivo llamada USD no se cotiza como el ETF USD', async () => {

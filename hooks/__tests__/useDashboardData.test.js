@@ -172,10 +172,20 @@ describe('ningun escritor corre con los datos a medio asentar', () => {
   // cada negativo significa "la compuerta lo detuvo", no "nunca hubo nada
   // que detener".
   it('con todas las compuertas abiertas SI archiva el dia', async () => {
-    const enriched = [item()]
+    const enriched = [{ ...item(), _priceResolved: true }]
     const { unmount } = setup({ firestore: { items: enriched }, prices: { enrichedItems: enriched } })
     await act(async () => {})
     expect(fakeFirestore.saveSnapshot).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  // FASE QY: una posicion de mercado que ninguna cotizacion valoro cae a su
+  // precio guardado; archivar ese total parcial es el punto falso de $18.4B.
+  it('no escribe si una posicion de mercado quedo sin valorar', async () => {
+    const enriched = [item()]
+    const { unmount } = setup({ firestore: { items: enriched }, prices: { enrichedItems: enriched } })
+    await act(async () => {})
+    expect(fakeFirestore.saveSnapshot).not.toHaveBeenCalled()
     unmount()
   })
 

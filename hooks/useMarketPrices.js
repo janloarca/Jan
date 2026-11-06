@@ -75,7 +75,18 @@ export function useMarketPrices(items) {
 
       if (priceRes.ok) {
         const data = await priceRes.json()
-        _cachedPrices = data.prices || {}
+        // FASE QY. Una respuesta PARCIAL (el proveedor falló en algunos símbolos)
+        // no puede borrar lo que ya se sabía: esas posiciones caían a su precio
+        // guardado y el patrimonio saltaba entre cargas sin ninguna operación.
+        // Se conserva el último precio conocido del símbolo, marcado stale.
+        const fresh = data.prices || {}
+        const merged = { ...fresh }
+        for (const [sym, prev] of Object.entries(_cachedPrices)) {
+          if (!merged[sym] && prev && typeof prev.price === 'number') {
+            merged[sym] = { ...prev, stale: true, asOf: prev.asOf || (_cachedLastUpdate ? String(_cachedLastUpdate).slice(0, 10) : null) }
+          }
+        }
+        _cachedPrices = merged
         _cachedLastUpdate = data.timestamp
         setPrices(_cachedPrices)
         setLastUpdate(_cachedLastUpdate)
@@ -124,6 +135,10 @@ export function useMarketPrices(items) {
       // stored balance/price with it.
       if (priceData && isMarketPriced(it)) {
         enriched.currentPrice = priceData.price
+        // FASE QY: este activo SÍ se valoró con una cotización (viva o la última
+        // conocida). Los escritores de fondo lo usan para no archivar un total
+        // con posiciones de mercado sin valorar.
+        enriched._priceResolved = true
         enriched.change7d = priceData.change7d
         enriched.change1d = priceData.change1d
         // FASE KN: qué VENTANA mide ese change1d y de cuándo es. Para una acción
