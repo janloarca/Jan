@@ -1499,7 +1499,7 @@ export default function DashboardPage() {
           )}
           <span className="text-xs" style={{ color: dataAge != null && dataAge >= 14 ? 'var(--alert-warn-icon)' : 'var(--text-muted)' }}>
             {dataAge === 0
-              ? (lang === 'es' ? 'Datos al día' : 'Data up to date')
+              ? (lang === 'es' ? 'Precios al día' : 'Prices up to date')
               : dataAge != null
                 ? (lang === 'es' ? `Actualizado hace ${dataAge}d` : `Updated ${dataAge}d ago`)
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
@@ -1522,8 +1522,8 @@ export default function DashboardPage() {
               style={{ color: dataCompleteness.globalScore < 60 ? 'var(--accent-orange)' : 'var(--text-muted)' }}
             >
               {lang === 'es'
-                ? `· ${pendingFindings} pendiente${pendingFindings === 1 ? '' : 's'}`
-                : `· ${pendingFindings} pending`}
+                ? `· ${pendingFindings} por completar`
+                : `· ${pendingFindings} to complete`}
             </button>
           )}
           </>}

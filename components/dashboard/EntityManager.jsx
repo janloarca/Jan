@@ -48,9 +48,9 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
       <div className="p-3 rounded-xl border text-xs space-y-1.5" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)', color: 'var(--text-secondary)' }}>
         <p className="font-medium" style={{ color: 'var(--alert-info-icon)' }}>{t('¿Cómo funciona?', 'How does it work?')}</p>
         <p>1. {t('Crea una entidad (ej. "Mi empresa").', 'Create an entity (e.g. "My business").')}</p>
-        <p>2. {t('Selecciónala en el switcher junto al título del dashboard.', 'Select it in the switcher next to the dashboard title.')}</p>
+        <p>2. {t('Al tener más de una, aparece un selector junto al título del dashboard: elígela ahí.', 'Once you have more than one, a selector appears next to the dashboard title: pick it there.')}</p>
         <p>3. {t('Todo lo que agregues o importes con ella activa queda asignado a esa entidad.', 'Everything you add or import while it\'s active gets assigned to that entity.')}</p>
-        <p>{t('El "Consolidado" siempre suma todas. También puedes mover una cuenta existente de entidad al editarla.', '"Consolidated" always sums them all. You can also move an existing account between entities when editing it.')}</p>
+        <p>{t('La opción "Consolidado" del selector suma todas. También puedes mover una cuenta existente de entidad al editarla.', 'The "Consolidated" option in the selector sums them all. You can also move an existing account between entities when editing it.')}</p>
       </div>
 
       <div className="space-y-1.5">
