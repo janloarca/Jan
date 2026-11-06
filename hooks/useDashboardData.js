@@ -362,6 +362,21 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (alreadyExists && hasBrokerItem) { snapshotSavedRef.current = todayStr; return }
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
+    // FASE QY. Posiciones de mercado que ninguna cotización valoró (ni viva ni
+    // la última conocida) caen a su precio guardado: el total sale parcial y un
+    // doc archivado no se corrige solo. En vez de archivar eso (o chocar con el
+    // cinturón del 30% de abajo y dejar el día sin snapshot), se ESPERA: este
+    // efecto se re-ejecuta cuando llegan los precios. Se tolera hasta 2% del
+    // valor (un ticker muerto no debe bloquear el archivo para siempre).
+    let unresolvedWeight = 0
+    let totalWeight = 0
+    enrichedItems.forEach((it) => {
+      if (!it || it.isDebt || isExcludedFromNetWorth(it)) return
+      const w = Math.abs((it.quantity || 0) * (it.currentPrice ?? it.purchasePrice ?? 0))
+      totalWeight += w
+      if (isMarketPriced(it) && !it._priceResolved && (it.quantity || 0) > 0) unresolvedWeight += w
+    })
+    if (totalWeight > 0 && unresolvedWeight / totalWeight > 0.02) return
     enrichedItems.forEach((it) => {
       // Keep the snapshot baseline consistent with the live netWorth, which drops
       // receivables the user excluded from net worth (otherwise daily change / returns
