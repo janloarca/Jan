@@ -209,7 +209,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           48 en desktop como siempre. */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-20 sm:bottom-6 right-0 sm:right-6 z-40 w-7 h-11 sm:w-12 sm:h-12 rounded-l-full rounded-r-none sm:rounded-full flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
+        className="fixed bottom-20 sm:bottom-24 lg:bottom-6 right-0 sm:right-6 z-40 w-7 h-11 sm:w-12 sm:h-12 rounded-l-full rounded-r-none sm:rounded-full flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
         style={open
           ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff', boxShadow: 'var(--shadow-elevated)' }
           // --bg-primary y NO --bg-card: bg-card es TRANSLUCIDO en tema oscuro
@@ -235,7 +235,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-36 sm:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-theme-card border border-glass-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-36 sm:bottom-40 lg:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-theme-card border border-glass-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="px-4 py-3 border-b border-glass-border flex items-center justify-between">
             <div className="flex items-center gap-2">
