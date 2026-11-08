@@ -47,7 +47,13 @@ export default function CommandPalette({ open, onClose, items, lang, onAction, b
         return name.includes(q) || sym.includes(q) || inst.includes(q)
       }).slice(0, 8)
 
+      // Dos posiciones con mismo nombre, símbolo e institución se veían idénticas:
+      // se agrega cantidad e identificador corto SOLO cuando hay homónimos.
+      const keyOf = (it) => `${it.name}|${it.symbol}|${it.institution}`
+      const dupCount = {}
+      matchedItems.forEach((it) => { dupCount[keyOf(it)] = (dupCount[keyOf(it)] || 0) + 1 })
       matchedItems.forEach((it) => {
+        const dup = dupCount[keyOf(it)] > 1
         const cat = getTypeCategory(it)
         const icon = TYPE_ICONS[cat] || '📦'
         const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
@@ -56,7 +62,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction, b
           id: `item-${it.id}`,
           icon,
           label: `${it.name || it.symbol}${it.symbol ? ` (${it.symbol})` : ''}`,
-          detail: `${it.institution || it.type} · ${formatCurrency(value)}`,
+          detail: `${it.institution || it.type} · ${formatCurrency(value)}${dup ? ` · ${it.quantity ?? 1} u. · #${String(it.id || '').slice(-4)}` : ''}`,
           data: it,
         })
       })
