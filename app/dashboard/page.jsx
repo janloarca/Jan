@@ -1456,7 +1456,7 @@ export default function DashboardPage() {
           card (que casi siempre es un monto, alineado a la derecha) queda
           debajo de ella incluso con el scroll al fondo. En sm+ la burbuja vive
           en bottom-6 y no compite con el contenido. */}
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 sm:py-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 sm:pt-6 sm:pb-28 lg:pb-6 space-y-4 sm:space-y-6">
         {/* Demo mode: the exit must always be obvious, even after the tour ends */}
         {isDemoMode && (
           <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
