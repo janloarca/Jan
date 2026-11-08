@@ -263,8 +263,10 @@ export default function QuickAddRow({
       </div>
 
       <div className="flex items-center justify-between gap-3 mt-1.5">
-        <span className="text-[10px]" style={{ color: error ? 'var(--text-negative)' : 'var(--text-muted)' }}>
-          {error || (usingSuggestion
+        <span className="text-[10px]" style={{ color: (error || amountInvalid) ? 'var(--text-negative)' : 'var(--text-muted)' }}>
+          {error || (amountInvalid
+            ? t('Escribe un monto en números, mayor que cero', 'Enter an amount in numbers, greater than zero')
+            : usingSuggestion
             ? t('Categoría sugerida por la descripción', 'Category suggested from the description')
             : t('Enter para anotar', 'Press Enter to log'))}
         </span>

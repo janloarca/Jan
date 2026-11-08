@@ -1,5 +1,6 @@
 'use client'
 
+import { todayLocalISO } from '@/lib/localDate'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -1018,7 +1019,7 @@ export default function DashboardPage() {
       })))
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions')
     }
-    XLSX.writeFile(wb, `chispudo-portfolio-${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(wb, `chispu-portfolio-${todayLocalISO()}.xlsx`)
     showToast(lang === 'es' ? 'Excel exportado ✓' : 'Excel exported ✓')
   }, [enrichedItems, snapshots, transactions, baseCurrency, showToast, lang])
 
@@ -1051,7 +1052,7 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `chispudo-transactions-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `chispu-transactions-${todayLocalISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }, [transactions, lots])
@@ -2172,7 +2173,7 @@ export default function DashboardPage() {
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `chispudo-backup-${new Date().toISOString().split('T')[0]}.json`
+            a.download = `chispu-backup-${todayLocalISO()}.json`
             a.click()
             URL.revokeObjectURL(url)
           }}

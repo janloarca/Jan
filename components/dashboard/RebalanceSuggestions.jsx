@@ -62,8 +62,9 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
   // viejos, y en la próxima carga el plan "guardado" volvía solo al anterior.
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const formTotal = Object.values(form).reduce((s, v) => s + (v || 0), 0)
   const handleSave = async () => {
-    if (saving) return
+    if (saving || formTotal !== 100) return
     setSaveError('')
     setSaving(true)
     try {
@@ -136,17 +137,16 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
           ))}
           <div className="flex items-center justify-between pt-2">
             {(() => {
-              const total = Object.values(form).reduce((s, v) => s + (v || 0), 0)
-              // Un plan que no suma 100 no bloquea el guardado (puede ser una
-              // decisión: dejar 5% "sin asignar"), pero decirlo evita que un
-              // typo pase como plan.
+              const total = formTotal
+              // Un plan que no suma 100 bloquea Guardar: un total de 60% o 161%
+              // no es un plan y sus sugerencias saldrían contra un objetivo roto.
               return (
-                <span className="text-xs" style={total === 100 ? { color: 'var(--text-muted)' } : { color: 'var(--alert-warn-icon)' }}>
-                  {t('Total', 'Total')}: {total}%{total !== 100 ? ` · ${t('no suma 100', 'does not add to 100')}` : ''}
+                <span className="text-xs" role={total !== 100 ? 'alert' : undefined} style={total === 100 ? { color: 'var(--text-muted)' } : { color: 'var(--alert-warn-icon)' }}>
+                  {t('Total', 'Total')}: {total}%{total !== 100 ? ` · ${t('debe sumar 100 para guardar', 'must add to 100 to save')}` : ''}
                 </span>
               )
             })()}
-            <button onClick={handleSave} disabled={saving}
+            <button onClick={handleSave} disabled={saving || formTotal !== 100}
               className="px-3 py-1.5 text-xs bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-60" style={{ color: '#ffffff' }}>
               {saving ? t('Guardando...', 'Saving...') : t('Guardar', 'Save')}
             </button>

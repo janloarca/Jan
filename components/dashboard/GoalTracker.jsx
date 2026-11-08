@@ -110,7 +110,22 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
     setGoalProbability(result.goalProbability)
   }, [portfolioNow, portfolioGoal, monthsLeft, volatility, contribution])
 
+  // Validación a la vista: "abc", "-5" y "1e999" antes se conservaban sin
+  // aviso y con Guardar activo. Aquí se nombra el motivo y se bloquea el botón.
+  const goalProblem = (raw) => {
+    const v = String(raw ?? '').trim()
+    if (!v) return ''
+    if (!/\d/.test(v)) return t('Escribe un monto en números', 'Enter an amount in numbers')
+    if (/e\d/i.test(v) || parseAmount(v) > 999999999999) return t('El monto es demasiado grande: revisa los datos', 'The amount is too large: check your data')
+    if (parseAmount(v) < 0 || /^\s*-/.test(v)) return t('La meta no puede ser negativa', 'The goal cannot be negative')
+    return ''
+  }
+  const incomeProblem = goalProblem(form.incomeGoal)
+  const portfolioProblem = goalProblem(form.portfolioGoal)
+  const hasProblem = !!(incomeProblem || portfolioProblem)
+
   const handleSave = async () => {
+    if (hasProblem) return
     if (onSaveGoals) {
       await onSaveGoals({
         incomeGoal: parseAmount(form.incomeGoal),
@@ -157,14 +172,16 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
             <div>
               <label className="text-xs text-slate-500 mb-1 block">{t('Meta de ingreso pasivo anual', 'Annual passive income goal')}</label>
               <AmountInput value={form.incomeGoal} onChange={(e) => setForm({ ...form, incomeGoal: e.target.value })}
-                placeholder="12000"
+                placeholder="12000" aria-invalid={!!incomeProblem}
                 className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+              {incomeProblem && <p role="alert" className="text-xs mt-1" style={{ color: 'var(--text-negative)' }}>{incomeProblem}</p>}
             </div>
             <div>
               <label className="text-xs text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
               <AmountInput value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
-                placeholder="100000"
+                placeholder="100000" aria-invalid={!!portfolioProblem}
                 className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
+              {portfolioProblem && <p role="alert" className="text-xs mt-1" style={{ color: 'var(--text-negative)' }}>{portfolioProblem}</p>}
             </div>
           </div>
           <div>
@@ -173,8 +190,8 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
               type="number" inputMode="numeric" min={new Date().getFullYear()} max="2060" placeholder="2030"
               className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
           </div>
-          <button onClick={handleSave}
-            className="w-full py-2 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium" style={{ color: '#ffffff' }}>
+          <button onClick={handleSave} disabled={hasProblem}
+            className="w-full py-2 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: '#ffffff' }}>
             {t('Guardar metas', 'Save goals')}
           </button>
         </div>

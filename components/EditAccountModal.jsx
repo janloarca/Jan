@@ -267,7 +267,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
   const [showContribution, setShowContribution] = useState(false)
   const [contribType, setContribType] = useState('add')
   const [contribAmount, setContribAmount] = useState('')
-  const [contribDate, setContribDate] = useState(new Date().toISOString().split('T')[0])
+  const [contribDate, setContribDate] = useState(todayLocalISO())
   const [contribDesc, setContribDesc] = useState('')
   const [contribSaving, setContribSaving] = useState(false)
   const [contribSuccess, setContribSuccess] = useState('')
@@ -805,7 +805,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       updated.isIlliquid = form.isIlliquid
       if (form.isIlliquid && form.lastManualValuation) {
         updated.lastManualValuation = parseAmount(form.lastManualValuation) || 0
-        updated.lastValuationDate = new Date().toISOString().split('T')[0]
+        updated.lastValuationDate = todayLocalISO()
         updated.valuationMethod = 'manual'
       }
 
@@ -974,7 +974,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       }
       if (createFlow && onAddTransaction && Math.abs(delta) > 0.01) {
         await onAddTransaction({
-          date: new Date().toISOString().split('T')[0],
+          date: todayLocalISO(),
           type: delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL',
           symbol: item.symbol || item.name || '',
           description: `${delta > 0 ? t('Aporte a', 'Contribution to') : t('Retiro de', 'Withdrawal from')} ${item.name || item.symbol}`,
@@ -1213,7 +1213,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
           <div>
             <label htmlFor="edit-acquisition-date" className={labelCls}>{t('Fecha de adquisición', 'Acquisition date')}</label>
             <input id="edit-acquisition-date" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-              type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+              type="date" max={todayLocalISO()} className={inputCls} />
           </div>
 
           {/* Contribution / Withdrawal */}
@@ -1252,7 +1252,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <div>
                       <label htmlFor="edit-contrib-date" className={labelCls}>{t('Fecha', 'Date')}</label>
                       <input id="edit-contrib-date" value={contribDate} onChange={e => setContribDate(e.target.value)}
-                        type="date" max={new Date().toISOString().split('T')[0]} className={inputCls} />
+                        type="date" max={todayLocalISO()} className={inputCls} />
                     </div>
                   </div>
                   <div>
@@ -1334,7 +1334,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div>
                                 <span className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{t('Fecha', 'Date')}</span>
-                                <input type="date" value={txDraft.date} max={new Date().toISOString().split('T')[0]}
+                                <input type="date" value={txDraft.date} max={todayLocalISO()}
                                   onChange={e => setTxDraft(d => ({ ...d, date: e.target.value }))} className={inputCls} />
                               </div>
                               <div>
