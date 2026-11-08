@@ -137,7 +137,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 const active = pathname === item.href
                 return (
                   <Link key={item.href} href={item.href}
-                    className="px-2 md:px-3 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
+                    className="px-1.5 md:px-2 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
                     style={active
                       ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
                       : { color: 'var(--text-muted)' }}>

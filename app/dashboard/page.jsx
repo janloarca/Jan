@@ -1025,7 +1025,7 @@ export default function DashboardPage() {
 
   const handleExportTransactionsCSV = useCallback(() => {
     if (!transactions || transactions.length === 0) return
-    const header = 'Date,Type,Symbol,Description,Quantity,Price,Total,Currency,Cost Basis,Realized Gain'
+    const header = 'Date,Type,Symbol,Description,Quantity,Price,Total,Currency,Cost Basis,Realized Gain,Received Amount,Received Currency,FX Rate'
     const rows = [...transactions].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((tx) => {
       const esc = (v) => `"${String(v || '').replace(/"/g, '""')}"`
       let costBasis = ''
@@ -1045,6 +1045,8 @@ export default function DashboardPage() {
         tx.date || '', tx.type || '', tx.symbol || '', esc(tx.description || ''),
         tx.quantity || '', tx.pricePerUnit || '', tx.totalAmount || '', tx.currency || 'USD',
         costBasis, realizedGain,
+        // Transferencias entre monedas: lo que de verdad llegó y la tasa implícita.
+        tx._toAmount != null ? tx._toAmount : '', tx._toCurrency || '', tx._fxRate != null ? tx._fxRate : '',
       ].join(',')
     })
     const csv = [header, ...rows].join('\n')
