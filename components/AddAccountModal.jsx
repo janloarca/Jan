@@ -151,7 +151,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     // sugerencia real (la fecha del primer movimiento), que es justo el bulletin
     // que el usuario echaba de menos. El formulario largo sí la ofrece prellena:
     // ahí el campo está a la vista y se corrige de un vistazo.
-    acquisitionDate: new Date().toISOString().split('T')[0],
+    acquisitionDate: todayLocalISO(),
     accountType: 'taxable',
     incomeAmount: '', incomeMode: 'fixed', incomeRate: '',
     incomePayDay: '', incomeMonths: [],
@@ -456,7 +456,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     const sym = (form.symbol || '').trim()
     const date = form.acquisitionDate
     if (!isMarketAsset || !sym || !date || fetchingQuote || !autoPriceRef.current) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayLocalISO()
     if (date >= today) return
     const ctrl = new AbortController()
     const timer = setTimeout(async () => {
@@ -1737,7 +1737,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 {isBank ? t('Fecha de apertura', 'Opening date') : t('Fecha de compra', 'Purchase date')} <span style={{ color: 'var(--text-negative)' }}>*</span>
               </label>
               <input id="add-acquisitionDate" value={form.acquisitionDate} onChange={e => set('acquisitionDate', e.target.value)}
-                type="date" max={new Date().toISOString().split('T')[0]} className={inputCls}
+                type="date" max={todayLocalISO()} className={inputCls}
                 disabled={valueTimeline === 'multi'} />
               {valueTimeline === 'multi' && (
                 <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
@@ -2663,7 +2663,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         onClick={() => {
                           setValueTimeline(o.key)
                           if (o.key === 'multi' && timelineRows.length === 0) {
-                            setTimelineRows([{ date: form.acquisitionDate || new Date().toISOString().split('T')[0], amount: String(tlTotal) }])
+                            setTimelineRows([{ date: form.acquisitionDate || todayLocalISO(), amount: String(tlTotal) }])
                           }
                         }}
                         className="flex-1 px-2 py-2 text-xs font-medium leading-tight rounded-lg border transition-colors"
