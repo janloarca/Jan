@@ -370,11 +370,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // valor (un ticker muerto no debe bloquear el archivo para siempre).
     let unresolvedWeight = 0
     let totalWeight = 0
+    const unresolvedSymbols = []
     enrichedItems.forEach((it) => {
       if (!it || it.isDebt || isExcludedFromNetWorth(it)) return
       const w = Math.abs((it.quantity || 0) * (it.currentPrice ?? it.purchasePrice ?? 0))
       totalWeight += w
-      if (isMarketPriced(it) && !it._priceResolved && (it.quantity || 0) > 0) unresolvedWeight += w
+      if (isMarketPriced(it) && !it._priceResolved && (it.quantity || 0) > 0) {
+        unresolvedWeight += w
+        unresolvedSymbols.push(it.symbol || it.name || it.id)
+      }
     })
     if (totalWeight > 0 && unresolvedWeight / totalWeight > 0.02) return
     enrichedItems.forEach((it) => {
@@ -401,8 +405,20 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const lastFull = snapshots
       .filter((s) => (s._source === 'daily' || s._source === 'backfill') && s.date !== todayStr && Number(s.totalActivosUSD) > 0)
       .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
+    // FASE QZ4 (con OK del usuario sobre C/D). El peso de arriba mide una
+    // posición sin cotización a su precio de RESPALDO (el costo), que es
+    // minúsculo frente a su valor real: TSLA/SPCX a costo pesan millones dentro
+    // de un total parcial de 18.4B, no pasan el 2% y el total parcial se
+    // archivaba o chocaba con el cinturón. La vara que no depende del respaldo
+    // es el último total completo: con posiciones sin valorar y un total que
+    // cae más de 10% contra él, se ESPERA a que lleguen los precios (el efecto
+    // se re-ejecuta). Y se nombra QUÉ faltó, que es lo que la consola no decía.
+    if (unresolvedSymbols.length > 0 && lastFull && totalAssetsUSD < Number(lastFull.totalActivosUSD) * 0.9) {
+      console.warn('[snapshot] posiciones de mercado sin cotización, se espera antes de archivar:', unresolvedSymbols.join(', '), totalAssetsUSD, 'vs', lastFull.totalActivosUSD)
+      return
+    }
     if (lastFull && totalAssetsUSD < Number(lastFull.totalActivosUSD) * 0.3) {
-      console.warn('[snapshot] total diario sospechosamente bajo, no se archiva:', totalAssetsUSD, 'vs', lastFull.totalActivosUSD)
+      console.warn('[snapshot] total diario sospechosamente bajo, no se archiva:', totalAssetsUSD, 'vs', lastFull.totalActivosUSD, unresolvedSymbols.length ? `sin cotización: ${unresolvedSymbols.join(', ')}` : '')
       return
     }
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {

@@ -189,6 +189,20 @@ describe('ningun escritor corre con los datos a medio asentar', () => {
     unmount()
   })
 
+  // FASE QZ4: la posicion sin cotizar pesa casi nada a su precio de respaldo
+  // (pasa el 2%), pero su valor real es lo que falta del total. La vara es el
+  // ultimo total completo archivado.
+  it('no escribe si falta una posicion grande aunque su respaldo pese poco', async () => {
+    const big = { ...item({ id: 'a', symbol: 'AAA', quantity: 1e6, currentPrice: 100 }), _priceResolved: true }
+    const dead = item({ id: 'b', symbol: 'TSLA', quantity: 1000, currentPrice: 1, purchasePrice: 1 })
+    const enriched = [big, dead]
+    const snapshots = [{ id: '2020-01-01', date: '2020-01-01', _source: 'daily', totalActivosUSD: 120e6 }]
+    const { unmount } = setup({ firestore: { items: enriched, snapshots }, prices: { enrichedItems: enriched } })
+    await act(async () => {})
+    expect(fakeFirestore.saveSnapshot).not.toHaveBeenCalled()
+    unmount()
+  })
+
   it('no escribe mientras los precios estan en vuelo', async () => {
     const { result, unmount } = setup({
       firestore: withItems,
