@@ -24,7 +24,7 @@ import { walletCoverage } from '@/lib/walletCoverage'
 import { cardBalanceSummary } from '@/lib/cardBalance'
 import { planCardDebtSync, describeCardDebtLine } from '@/lib/cardDebt'
 import { applyCategoryToMatchingRows, learnablesFrom } from '@/lib/importLearning'
-import { validateItem, sanitizeImportItem, sanitizeCell } from '@/lib/validation'
+import { validateItem, sanitizeImportItem, sanitizeCell, translateValidationError, oversizedQuantityRows } from '@/lib/validation'
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
@@ -684,7 +684,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
         const errors = validateItem(item)
         if (errors.length > 0) {
           failed++
-          if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${errors[0]}`)
+          if (failReasons.length < 5) failReasons.push(`${item.symbol || item.name || '?'}: ${translateValidationError(errors[0], lang)}`)
           continue
         }
         Object.assign(item, scopeTagFor(activePortfolio, activeEntity)) // FASE OJ, lib/scopeTag.js
@@ -1003,6 +1003,18 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       })
       enrichUpdates = rec.updateItems
       incomingItems = rec.newItems
+    }
+
+    // FASE RA. Una cantidad sobre el tope rechaza el archivo ENTERO, antes de
+    // escribir nada y sin tocar la cantidad.
+    const oversized = oversizedQuantityRows(incomingItems)
+    if (oversized.length > 0) {
+      const names = oversized.slice(0, 3).map((r) => r.symbol || r.name || '?').join(', ')
+      setError(lang === 'es'
+        ? `Se rechazó el archivo: ${oversized.length === 1 ? 'una fila supera' : oversized.length + ' filas superan'} la cantidad máxima de 1,000,000,000 (${names}). No se importó nada; corrige la cantidad y vuelve a subirlo.`
+        : `File rejected: ${oversized.length} row(s) exceed the maximum quantity of 1,000,000,000 (${names}). Nothing was imported; fix the quantity and upload again.`)
+      setImporting(false)
+      return
     }
 
     const validItems = []

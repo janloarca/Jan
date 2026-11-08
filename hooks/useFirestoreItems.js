@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { sanitizeImportItem } from '@/lib/validation'
+import { sanitizeImportItem, assertQuantitiesWithinLimit } from '@/lib/validation'
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 import { transactionDocId } from '@/lib/transactionDocId'
@@ -315,6 +315,7 @@ export function useFirestoreItems() {
       const { db, fs } = await getFirebase()
       const id = item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const { id: _removed, ...raw } = item
+      assertQuantitiesWithinLimit([raw]) // FASE RA
       const data = sanitizeImportItem(raw)
       const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
       // FASE OL. Con un id que YA existe (el merge de "Agregar a posición")
@@ -1361,6 +1362,10 @@ export function useFirestoreItems() {
     const strip = (obj) => { const { id: _id, ...rest } = obj || {}; return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }
 
     const ops = []
+
+    // FASE RA. Se valida TODO antes de armar un solo op: una fila sobre el tope
+    // rechaza la importacion completa, sin escritura parcial.
+    assertQuantitiesWithinLimit([...(newItems || []), ...(updateItems || []).map((u) => u.fields || {})])
 
     for (const id of (deleteIds || [])) {
       ops.push({ type: 'delete', ref: fs.doc(db, `users/${uid}/items`, id) })
