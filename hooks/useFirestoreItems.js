@@ -3,7 +3,7 @@ import { sanitizeImportItem, assertQuantitiesWithinLimit } from '@/lib/validatio
 import { SNAPSHOT_SRC_PRIORITY } from '@/components/dashboard/utils'
 import { detectMisstampedMonthlyNavSnapshots } from '@/lib/badDataCleanup'
 import { transactionDocId } from '@/lib/transactionDocId'
-import { roundQty, closesWholeLot, closedLotDocId, openLotDocId } from '@/lib/lotClose'
+import { roundQty, closesWholeLot, closedLotDocId, openLotDocId, orderLotsForClose } from '@/lib/lotClose'
 import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 import { planPortfolioDelete } from '@/lib/portfolioDelete'
@@ -938,12 +938,10 @@ export function useFirestoreItems() {
       // --- READS FIRST (Firestore requires all reads before any writes) ---
       let closes = []
       if (lotClose && lotClose.symbol && lotClose.qty > 0) {
-        let openLots = (await readOpenLotsInTx(tx, fs, db, uid, lotClose.symbol))
-          .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
-        if (lotClose.institution) {
-          const instLots = openLots.filter((l) => l.institution === lotClose.institution)
-          if (instLots.length > 0) openLots = instLots
-        }
+        const openLots = orderLotsForClose(
+          await readOpenLotsInTx(tx, fs, db, uid, lotClose.symbol),
+          { itemId, institution: lotClose.institution, acquisitionDate: lotClose.acquisitionDate },
+        )
         let remaining = lotClose.qty
         for (const lot of openLots) {
           if (remaining <= 0) break
@@ -1034,12 +1032,10 @@ export function useFirestoreItems() {
       // --- READS (only needed for withdraw / FIFO close) ---
       let closes = []
       if (lotClose && lotClose.symbol && lotClose.qty > 0) {
-        let openLots = (await readOpenLotsInTx(tx, fs, db, uid, lotClose.symbol))
-          .sort((a, b) => (a.acquisitionDate || '').localeCompare(b.acquisitionDate || ''))
-        if (lotClose.institution) {
-          const instLots = openLots.filter((l) => l.institution === lotClose.institution)
-          if (instLots.length > 0) openLots = instLots
-        }
+        const openLots = orderLotsForClose(
+          await readOpenLotsInTx(tx, fs, db, uid, lotClose.symbol),
+          { itemId, institution: lotClose.institution, acquisitionDate: lotClose.acquisitionDate },
+        )
         let remaining = lotClose.qty
         for (const lot of openLots) {
           if (remaining <= 0) break
