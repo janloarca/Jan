@@ -203,6 +203,31 @@ describe('ningun escritor corre con los datos a medio asentar', () => {
     unmount()
   })
 
+  // FASE RB: el ciclo COMPLETO que la captura de produccion dejo sin confirmar.
+  // Espera mientras faltan cotizaciones (con el aviso nombrando los simbolos) y,
+  // cuando llegan, archiva el total COMPLETO, una sola vez.
+  it('espera con simbolos sin cotizar y luego archiva el total completo', async () => {
+    const big = { ...item({ id: 'a', symbol: 'AAA', quantity: 1e6, currentPrice: 100 }), _priceResolved: true }
+    const pend = item({ id: 'b', symbol: 'TSLA', quantity: 1000, currentPrice: 1, purchasePrice: 1 })
+    const snapshots = [{ id: '2020-01-01', date: '2020-01-01', _source: 'daily', totalActivosUSD: 220e6 }]
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const { rerender, unmount } = setup({ firestore: { items: [big, pend], snapshots }, prices: { enrichedItems: [big, pend] } })
+    await act(async () => {})
+    expect(fakeFirestore.saveSnapshot).not.toHaveBeenCalled()
+    const msg = warn.mock.calls.map((c) => c.join(' ')).find((m) => m.includes('sin cotización'))
+    expect(msg).toContain('TSLA')
+
+    // Llega la cotizacion de TSLA: ahora vale 120,000 y el total ya es ~220M.
+    const resolved = { ...pend, currentPrice: 120000, _priceResolved: true }
+    fakePrices.enrichedItems = [big, resolved]
+    rerender()
+    await act(async () => {})
+    expect(fakeFirestore.saveSnapshot).toHaveBeenCalledTimes(1)
+    expect(fakeFirestore.saveSnapshot.mock.calls[0][0].totalActivosUSD).toBe(1e6 * 100 + 1000 * 120000)
+    warn.mockRestore()
+    unmount()
+  })
+
   it('no escribe mientras los precios estan en vuelo', async () => {
     const { result, unmount } = setup({
       firestore: withItems,

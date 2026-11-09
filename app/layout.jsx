@@ -93,7 +93,7 @@ export default function RootLayout({ children }) {
           if (window.MutationObserver) {
             new MutationObserver(applyMeta).observe(document.head, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['content'] });
           }
-          } } catch (e) {}
+        } catch (e) {}
         var tc = theme === 'light' ? '#F8F9FB' : '#0A0A12';
         var metas = document.querySelectorAll('meta[name="theme-color"]');
         metas.forEach(function(m) { m.setAttribute('content', tc); });
