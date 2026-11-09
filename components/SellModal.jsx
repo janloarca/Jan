@@ -77,7 +77,7 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
     e.preventDefault()
     setError('')
 
-    if (qtySell <= 0) { setError(t('Ingresa una cantidad valida', 'Enter a valid quantity')); return }
+    if (qtySell <= 0) { setError(t('Ingresa una cantidad válida', 'Enter a valid quantity')); return }
     if (exceedsHolding(qtySell, item.quantity)) { setError(t('No puedes vender mas de lo que tienes', 'Cannot sell more than you own')); return }
     // Precio 0 explicito es valido (donacion); un campo vacio no.
     if (price < 0 || (price === 0 && !/\d/.test(salePrice))) { setError(t('Ingresa un precio de venta válido', 'Enter a valid sale price')); return }
@@ -252,6 +252,12 @@ export default function SellModal({ item, onClose, onExecuteSale, onSold, existi
           {qtySell > 0 && price >= 0 && /\d/.test(salePrice) && (
             <p className="text-xs text-emerald-400 -mt-2">
               {t('Monto de venta', 'Sale proceeds')}: {origCur} {proceeds.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          )}
+
+          {qtySell > 0 && price === 0 && /\d/.test(salePrice) && (
+            <p className="text-xs -mt-2" style={{ color: 'var(--text-secondary)' }}>
+              {t('Precio 0: se registra como donación o regalo, sin dinero de entrada.', 'Price 0: recorded as a gift or donation, no money received.')}
             </p>
           )}
 

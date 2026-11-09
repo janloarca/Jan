@@ -304,6 +304,11 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     if (/e\d/i.test(raw) || parseAmount(raw) > maxPriceFor(form.currency)) return t('El monto es demasiado grande: revisa los datos', 'The amount is too large: check your data')
     return ''
   })()
+  // Precio 0 explícito en un activo de mercado: se acepta (donación o regalo) y
+  // se DICE, para que un Registrar habilitado no parezca un descuido.
+  const zeroPriceNote = (isMarketAsset && /\d/.test(String(form.purchasePrice ?? '')) && parseAmount(form.purchasePrice) === 0)
+    ? t('Precio 0: se registra como donación o regalo, con costo 0. Si fue una compra, escribe el precio pagado.', 'Price 0: recorded as a gift or donation with zero cost. If it was a purchase, enter the price paid.')
+    : ''
   const currentTypeInfo = TYPES.find(tp => tp.key === type)
 
   // If the schedule the user just configured (months + pay day) plus the
@@ -2716,6 +2721,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
               return null
             })()}
 
+            {zeroPriceNote && !amountProblem && (
+              <div role="status" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{zeroPriceNote}</div>
+            )}
             {amountProblem && (
               <div id="add-amount-problem" role="alert" className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--text-negative) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--text-negative) 20%, transparent)', color: 'var(--text-negative)' }}>{amountProblem}</div>
             )}

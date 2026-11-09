@@ -24,7 +24,11 @@ export default function LotsAudit({ items, lots, lang }) {
               </span>
             </div>
             {g.positions.map((p) => (
-              <div key={p.id} className="pl-3 tabular-nums">{p.institution || p.name}: {f(p.quantity)}</div>
+              <div key={p.id} className="pl-3 tabular-nums">{p.institution || p.name}{p.date ? ` · ${p.date}` : ''}: {f(p.quantity)}
+                {p.lotQty == null
+                  ? ` · ${es ? 'sin lote que coincida' : 'no matching lot'}`
+                  : ` · ${es ? 'lote' : 'lot'} ${f(p.lotQty)}${p.lotGap ? ` · ${es ? 'ajustar' : 'adjust'} ${f(p.lotGap)}` : ' ✓'}`}
+              </div>
             ))}
             {g.openLots.map((l) => (
               <div key={l.id} className="pl-3 tabular-nums" style={{ color: 'var(--text-muted)' }}>
