@@ -552,11 +552,11 @@ export function useFirestoreItems() {
   }, [uid, items, lots, transactions])
 
   const saveSnapshot = useCallback(async (snapshot) => {
-    if (!uid) return
+    if (!uid) return null
     // Demo mode (onboarding sample data) must not leave real history behind —
     // snapshots written while demo items exist would pollute the NAV chart
     // after the demo is deleted.
-    if (items.some((i) => i._source === 'demo')) return
+    if (items.some((i) => i._source === 'demo')) return null
     const { db, fs } = await getFirebase()
     const dateStr = snapshot.date || new Date().toISOString().split('T')[0]
     // Per-account calibration anchors share their date with real NAV snapshots
@@ -575,6 +575,9 @@ export function useFirestoreItems() {
       : dateStr)
     const clean = Object.fromEntries(Object.entries({ ...body, createdAt: new Date().toISOString() }).filter(([, v]) => v !== undefined))
     await fs.setDoc(fs.doc(db, `users/${uid}/snapshots`, id), clean, { merge: true })
+    // Devuelve el id escrito (null arriba cuando no se escribió nada) para que
+    // un caller pueda CONFIRMAR el archivo en vez de suponerlo (FASE RD).
+    return id
   }, [uid, items])
 
   // Single-doc delete: the snapshot doc id IS its date string, so re-stamping

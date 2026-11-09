@@ -179,6 +179,23 @@ describe('ningun escritor corre con los datos a medio asentar', () => {
     unmount()
   })
 
+  // FASE RD: el archivo se CONFIRMA en consola solo cuando la escritura
+  // devolvio un id; un fallo lo dice y no lo da por archivado.
+  it('confirma en consola el dia archivado, y avisa si la escritura falla', async () => {
+    const info = jest.spyOn(console, 'info').mockImplementation(() => {})
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const enriched = [{ ...item(), _priceResolved: true }]
+    let r = setup({ firestore: { items: enriched, saveSnapshot: jest.fn(async () => 'x') }, prices: { enrichedItems: enriched } })
+    await act(async () => {})
+    expect(info.mock.calls.some((c) => c[0] === '[snapshot] día archivado:')).toBe(true)
+    r.unmount()
+    r = setup({ firestore: { items: enriched, saveSnapshot: jest.fn(async () => { throw new Error('boom') }) }, prices: { enrichedItems: enriched } })
+    await act(async () => {})
+    expect(warn.mock.calls.some((c) => c[0] === '[snapshot] falló el archivo del día:')).toBe(true)
+    r.unmount()
+    info.mockRestore(); warn.mockRestore()
+  })
+
   // FASE QY: una posicion de mercado que ninguna cotizacion valoro cae a su
   // precio guardado; archivar ese total parcial es el punto falso de $18.4B.
   it('no escribe si una posicion de mercado quedo sin valorar', async () => {

@@ -22,6 +22,7 @@ import SegmentedTabs from '@/components/ui/SegmentedTabs'
 import BusyLabel, { BusyRing } from '@/components/ui/BusyLabel'
 import AmountInput from '@/components/ui/AmountInput'
 import { parseAmount } from '@/lib/numberParse'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 function polyline(pts) {
   return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
@@ -2143,7 +2144,8 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       {/* Institution filter: selecting one sums its holdings (e.g. bond + the
           cash account it pays into) into a single combined line. */}
       {institutions.length > 1 && (
-        <div ref={instFade.ref} className="flex gap-1.5 overflow-x-auto pb-2 mb-3 -mx-1 px-1" style={{ scrollbarWidth: 'none', ...instFade.maskStyle }}>
+        <div className="relative mb-3">
+        <div ref={instFade.ref} className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollbarWidth: 'none', ...instFade.maskStyle }}>
           <button onClick={() => { setSelectedInst('ALL'); setHoverIdx(null) }}
             className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
             style={selectedInst === 'ALL'
@@ -2161,6 +2163,26 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
               <span className="ml-1.5 opacity-70">{formatCompact(inst.value, baseCurrency)}</span>
             </button>
           ))}
+        </div>
+        {/* FASE RD: el difuminado solo se leía como un chip cortado (PRUEBA a
+            768 px). La flecha dice que hay más y desplaza la fila al tocarla;
+            solo aparece mientras de verdad queda contenido escondido. */}
+        {instFade.fade.right && (
+          <button type="button" onClick={() => instFade.scrollBy(1)}
+            aria-label={t('Ver más instituciones', 'Show more institutions')}
+            className="absolute right-0 top-0 h-[30px] w-7 flex items-center justify-center rounded-full border shadow-sm"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {instFade.fade.left && (
+          <button type="button" onClick={() => instFade.scrollBy(-1)}
+            aria-label={t('Ver instituciones anteriores', 'Show previous institutions')}
+            className="absolute left-0 top-0 h-[30px] w-7 flex items-center justify-center rounded-full border shadow-sm"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        )}
         </div>
       )}
 

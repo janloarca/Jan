@@ -359,7 +359,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // reasoning as FASE EG — let ONE mount overwrite it if the live total
     // now differs, never mid-session (the ref below still guards that).
     const hasBrokerItem = enrichedItems.some((it) => it && it._source === 'ibkr')
-    if (alreadyExists && hasBrokerItem) { snapshotSavedRef.current = todayStr; return }
+    if (alreadyExists && hasBrokerItem) {
+      snapshotSavedRef.current = todayStr
+      // FASE RD: la ausencia de log no distinguía "ya estaba archivado" de
+      // "nunca se archivó". Se dice una vez por sesión.
+      console.info('[snapshot] el día ya está archivado:', todayStr)
+      return
+    }
     let totalAssetsUSD = 0
     let totalDebtUSD = 0
     // FASE QY. Posiciones de mercado que ninguna cotización valoró (ni viva ni
@@ -444,8 +450,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // _source:'daily' marks this as a FULL-portfolio snapshot (all enriched
       // items) so other writers (IBKR sync = broker-only NAV) know not to
       // overwrite it with a poorer value for the same date.
-      saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
+      // FASE RD: confirmar el archivo solo cuando Firestore lo aceptó. Sin
+      // esto, "se archivó" y "se intentó" se veían igual desde la consola.
+      Promise.resolve(saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily' }))
+        .then((id) => {
+          if (id) console.info('[snapshot] día archivado:', todayStr, 'total USD', Math.round(netWorthUSD * 100) / 100)
+          else console.info('[snapshot] no se archivó (modo demo o sin sesión):', todayStr)
+        })
+        .catch((err) => {
+          // Deja reintentar en esta sesión: un fallo de escritura no es un archivo.
+          if (snapshotSavedRef.current === todayStr) snapshotSavedRef.current = null
+          console.warn('[snapshot] falló el archivo del día:', todayStr, err?.code || err?.message || err)
+        })
     }
   }, [user, dataLoading, pricesLoading, pricesFetching, pricesError, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions, quotedSymbols])
 
