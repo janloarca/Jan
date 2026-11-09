@@ -55,5 +55,13 @@ export function useEdgeFade(deps = []) {
 
   const maskStyle = gradient ? { WebkitMaskImage: gradient, maskImage: gradient } : {}
 
-  return { ref, maskStyle }
+  // FASE RD: el estado crudo, para un caller que quiera una pista EXPLICITA
+  // (una flecha) además del difuminado: a 768 px el difuminado de 24px solo
+  // se leía como un chip cortado.
+  const scrollBy = useCallback((dir) => {
+    if (!node) return
+    node.scrollBy({ left: dir * Math.max(120, node.clientWidth * 0.7), behavior: 'smooth' })
+  }, [node])
+
+  return { ref, maskStyle, fade, scrollBy }
 }
