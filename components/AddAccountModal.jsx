@@ -578,7 +578,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
     const rawAmount = String(form.purchasePrice ?? '').trim()
     if (rawAmount && !/\d/.test(rawAmount)) { setError(t('Escribe un monto en números', 'Enter an amount in numbers')); return }
     if (/e\d/i.test(rawAmount) || price > maxPriceFor(form.currency)) { setError(t('El monto es demasiado grande: revisa los datos', 'The amount is too large: check your data')); return }
-    if (!isBank && price <= 0 && !privateHasValue) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
+    // Compra a 0 explicito (donacion, regalo): valida para activos de mercado.
+    const zeroOk = isMarketAsset && price === 0 && /\d/.test(rawAmount)
+    if (!isBank && price <= 0 && !privateHasValue && !zeroOk) { setError(t('El precio debe ser mayor a 0', 'Price must be greater than 0')); return }
     if (isMarketAsset && qty <= 0) { setError(t('La cantidad debe ser mayor a 0', 'Quantity must be greater than 0')); return }
     if (form.maturityDate && form.acquisitionDate && form.maturityDate < form.acquisitionDate) { setError(t('La fecha de vencimiento debe ser posterior a la de compra', 'Maturity date must be after acquisition date')); return }
     // At least one past payment is confirmed received, in cash: make sure
@@ -2567,7 +2569,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 )}
 
                 {/* Notas */}
-                {(isBond || isAlternative || isProperty) && (
+                {true && (
                   <div className="pt-3.5 border-t border-glass-border/50">
                     <span className="text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>📝 {t('Notas', 'Notes')}</span>
                     <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
@@ -2723,7 +2725,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 className="btn-secondary flex-1">
                 ← {t('Atrás', 'Back')}
               </button>
-              <button type="submit" disabled={saving || !!amountProblem || (!isBank && parseAmount(form.purchasePrice) <= 0 && !(isPrivateStock && parseAmount(form.currentPrice) > 0))}
+              <button type="submit" disabled={saving || !!amountProblem || (!isBank && parseAmount(form.purchasePrice) <= 0 && !(isPrivateStock && parseAmount(form.currentPrice) > 0) && !(isMarketAsset && /\d/.test(String(form.purchasePrice ?? ''))))}
                 className="btn-primary flex-1">
                 {<BusyLabel busy={saving} lang={lang}>{t('Registrar', 'Register')}</BusyLabel>}
               </button>
