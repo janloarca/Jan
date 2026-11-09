@@ -31,7 +31,7 @@ import { corruptSnapshotRunIds, feEraSuspectDailyIds, usdFlowEvents } from '@/li
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -158,7 +158,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   useEffect(() => { setBaseCurrency(baseCurrency) }, [baseCurrency])
   useEffect(() => { setUtilsLang(lang) }, [lang])
 
-  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, isFetching: pricesFetching, error: pricesError, lastUpdate: pricesUpdate, refresh: refreshPrices } = useMarketPrices(items)
+  const { enrichedItems: rawEnriched, prices: marketPrices, loading: pricesLoading, isFetching: pricesFetching, error: pricesError, lastUpdate: pricesUpdate, quotedSymbols, refresh: refreshPrices } = useMarketPrices(items)
   const { rates, convert, convertItemValue, loading: ratesLoading, error: ratesError, stale: ratesStale, lastUpdate: ratesUpdate, refresh: refreshRates } = useExchangeRates(baseCurrency)
 
   // ⛔ FASE NP. Un ancla calibrada que sus propios vecinos contradicen deja de
@@ -368,19 +368,31 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // cinturón del 30% de abajo y dejar el día sin snapshot), se ESPERA: este
     // efecto se re-ejecuta cuando llegan los precios. Se tolera hasta 2% del
     // valor (un ticker muerto no debe bloquear el archivo para siempre).
-    let unresolvedWeight = 0
-    let totalWeight = 0
-    const unresolvedSymbols = []
+    // FASE RC. Esperar SOLO lo que todavía no tuvo respuesta. Antes se esperaba
+    // por cualquier posición sin `_priceResolved`, y el efecto evalúa en el
+    // MISMO commit en que llegan los ítems, antes de que el fetch de precios
+    // arranque: cada carga en frío imprimía "SPCX ×5, TSLA ×3 sin cotización"
+    // aunque las dos cotizan (la tarjeta de movimientos mostraba su cambio del
+    // día minutos después). Ahora una posición sin precio es:
+    //  - PENDIENTE si ninguna respuesta completada la incluyó en su pedido:
+    //    se espera en silencio (el efecto se re-ejecuta al llegar los precios).
+    //  - SIN PROVEEDOR si la respuesta llegó y no la trae (ni viva ni la última
+    //    conocida de 7 días): se valora con su precio guardado, la MISMA regla
+    //    de getItemPrice con la que el patrimonio vivo ya la muestra, y el día
+    //    se archiva. Esperar para siempre por un símbolo que no cotiza dejaba
+    //    el día sin snapshot.
+    const quotedSet = new Set((quotedSymbols || []).map((s) => String(s).toUpperCase()))
+    const pendingSymbols = []
+    const unquotedSymbols = []
     enrichedItems.forEach((it) => {
       if (!it || it.isDebt || isExcludedFromNetWorth(it)) return
-      const w = Math.abs((it.quantity || 0) * (it.currentPrice ?? it.purchasePrice ?? 0))
-      totalWeight += w
       if (isMarketPriced(it) && !it._priceResolved && (it.quantity || 0) > 0) {
-        unresolvedWeight += w
-        unresolvedSymbols.push(it.symbol || it.name || it.id)
+        const sym = String(it.symbol || '').toUpperCase()
+        if (quotedSet.has(sym)) unquotedSymbols.push(it.symbol || it.name || it.id)
+        else pendingSymbols.push(it.symbol || it.name || it.id)
       }
     })
-    if (totalWeight > 0 && unresolvedWeight / totalWeight > 0.02) return
+    if (pendingSymbols.length > 0) return
     enrichedItems.forEach((it) => {
       // Keep the snapshot baseline consistent with the live netWorth, which drops
       // receivables the user excluded from net worth (otherwise daily change / returns
@@ -405,20 +417,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const lastFull = snapshots
       .filter((s) => (s._source === 'daily' || s._source === 'backfill') && s.date !== todayStr && Number(s.totalActivosUSD) > 0)
       .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
-    // FASE QZ4 (con OK del usuario sobre C/D). El peso de arriba mide una
-    // posición sin cotización a su precio de RESPALDO (el costo), que es
-    // minúsculo frente a su valor real: TSLA/SPCX a costo pesan millones dentro
-    // de un total parcial de 18.4B, no pasan el 2% y el total parcial se
-    // archivaba o chocaba con el cinturón. La vara que no depende del respaldo
-    // es el último total completo: con posiciones sin valorar y un total que
-    // cae más de 10% contra él, se ESPERA a que lleguen los precios (el efecto
-    // se re-ejecuta). Y se nombra QUÉ faltó, que es lo que la consola no decía.
-    if (unresolvedSymbols.length > 0 && lastFull && totalAssetsUSD < Number(lastFull.totalActivosUSD) * 0.9) {
-      console.warn('[snapshot] posiciones de mercado sin cotización, se espera antes de archivar:', unresolvedSymbols.join(', '), totalAssetsUSD, 'vs', lastFull.totalActivosUSD)
-      return
+    // FASE QZ4 se reemplaza por el corte de pendientes de arriba: la espera
+    // ahora depende de si el precio TUVO respuesta, no de compararse contra el
+    // último total (que con un símbolo sin proveedor esperaba para siempre).
+    if (unquotedSymbols.length > 0) {
+      console.info('[snapshot] sin proveedor de precio, valoradas a su precio guardado:', unquotedSymbols.join(', '))
     }
-    if (lastFull && totalAssetsUSD < Number(lastFull.totalActivosUSD) * 0.3) {
-      console.warn('[snapshot] total diario sospechosamente bajo, no se archiva:', totalAssetsUSD, 'vs', lastFull.totalActivosUSD, unresolvedSymbols.length ? `sin cotización: ${unresolvedSymbols.join(', ')}` : '')
+    // El cinturón queda para un total a medio cargar. Con símbolos SIN
+    // proveedor no aplica: ese total es exactamente el que muestra el
+    // patrimonio vivo (misma regla de precio), así que archivarlo no inventa
+    // nada, y bloquearlo dejaba el día sin snapshot para siempre.
+    if (unquotedSymbols.length === 0 && lastFull && totalAssetsUSD < Number(lastFull.totalActivosUSD) * 0.3) {
+      console.warn('[snapshot] total diario sospechosamente bajo, no se archiva:', totalAssetsUSD, 'vs', lastFull.totalActivosUSD)
       return
     }
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
@@ -437,7 +447,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily' })
       snapshotSavedRef.current = todayStr
     }
-  }, [user, dataLoading, pricesLoading, pricesFetching, pricesError, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions])
+  }, [user, dataLoading, pricesLoading, pricesFetching, pricesError, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshots, saveSnapshot, convert, baseCurrency, transactions, quotedSymbols])
 
   // Backfill missing snapshots for the last 30 days.
   // A 'backfill' doc is a RECONSTRUCTION from whatever items existed the
@@ -710,8 +720,16 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           ...contradictedCal,
         ])
         const fills = composedAll.filter((f) => rewriteSet.has(f.date))
+        // FASE RC: el doc plano que ya existe por fecha, para no reescribir un
+        // día cuyo valor no cambió (ver backfillDocUnchanged).
+        const plainByDate = new Map()
+        for (const s of snapshotsAll) {
+          if (s && s.date && s.id === s.date && !s._account) plainByDate.set(s.date, s)
+        }
+        let written = 0
+        let unchanged = 0
         for (const f of fills) {
-          await saveSnapshot({
+          const doc = {
             date: f.date,
             netWorthUSD: f.total - currentDebtUSD,
             totalActivosUSD: f.total,
@@ -724,10 +742,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // broker ES la medición del broker (que ya contiene el efecto de
             // los depósitos) y la manual es reconstrucción transaccional.
             _transactional: f.composed ? true : isTransactional,
-          })
+          }
+          if (!contradictedCal.has(f.date) && backfillDocUnchanged(plainByDate.get(f.date), doc)) { unchanged += 1; continue }
+          await saveSnapshot(doc)
+          written += 1
         }
-        if (fills.length > 0) {
-          console.info(`[backfill] ${fills.length} día(s) escritos${composing ? ' componiendo NAV real del broker' : ''}`)
+        if (written > 0 || unchanged > 0) {
+          console.info(`[backfill] ${written} día(s) escritos, ${unchanged} sin cambios${composing ? ' componiendo NAV real del broker' : ''}`)
         }
         // Solo una pasada COMPLETA estampa el día (FASE HZ): un return temprano
         // (respuesta degradada, !res.ok, sin puntos) deja el día sin estampar y

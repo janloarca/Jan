@@ -3,12 +3,28 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { safeJson } from '@/lib/authFetch'
 import { isExcludedFromNetWorth } from '@/components/dashboard/utils'
+import { useEscClose } from '@/hooks/useEscClose'
 
 const STORAGE_KEY = 'chispudo-anthropic-key'
 
-export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency, lang, onUpdateItem }) {
+// FASE RC. `open`/`onOpenChange` lo vuelven CONTROLADO: el tablero abre el
+// chat desde el header (sm+) y desde "Mas" en el telefono, y pasa
+// `showLauncher={false}`, asi que no queda ningun boton flotando encima de los
+// montos. Un boton fijo tapa lo que haya debajo segun el scroll (a 768 px
+// tapaba "Invertido" y cortaba el chip PRUEBA), y ninguna reserva de padding lo
+// evita fuera del final de la pagina. Sin esas props el widget se comporta
+// como siempre (la Hoja lo sigue usando asi).
+export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
   const t = (es, en) => lang === 'es' ? es : en
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const controlled = typeof openProp === 'boolean'
+  const open = controlled ? openProp : openState
+  const setOpen = useCallback((v) => {
+    const next = typeof v === 'function' ? v(open) : v
+    if (controlled) onOpenChange?.(next)
+    else setOpenState(next)
+  }, [controlled, onOpenChange, open])
+  useEscClose(() => setOpen(false), open)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -127,7 +143,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
       if (!res.ok) {
         const data = await safeJson(res) || {}
         if (res.status === 401 && data.error === 'Invalid API key') {
-          setError(t('API key inválida. Revisa tu key.', 'Invalid API key. Check your key.'))
+          setError(t('La clave no es válida. Revísala.', 'Invalid key. Check it.'))
           setShowKeyInput(true)
         } else {
           setError(data.error || 'Error')
@@ -207,7 +223,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           mientras nadie lo usa, mejor. En movil es una pestana pegada al borde (28x44px:
           la altura cumple el minimo tactil y casi no cubre los montos), y a partir de sm un disco,
           48 en desktop como siempre. */}
-      <button
+      {showLauncher && <button
         onClick={() => setOpen(!open)}
         className="fixed bottom-20 sm:bottom-24 lg:bottom-6 right-0 sm:right-6 z-40 w-7 h-11 sm:w-12 sm:h-12 rounded-l-full rounded-r-none sm:rounded-full flex items-center justify-center transition-all hover:scale-105 hover:opacity-90"
         style={open
@@ -231,11 +247,23 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
         )}
-      </button>
+      </button>}
 
-      {/* Chat panel */}
+      {/* Chat panel. Sin lanzador flotante (modo controlado del tablero) el
+          panel es un MODAL con telon: hoja inferior en telefono y panel bajo el
+          header desde sm. Un panel flotante que tapa a medias el patrimonio y
+          el YTD se lee como pantalla rota; con telon se lee como lo que es,
+          algo que abriste encima y se cierra tocando afuera. Con lanzador (la
+          Hoja) conserva su posicion de siempre, encima del boton. */}
+      {open && !showLauncher && (
+        <div className="fixed inset-0 z-40 modal-backdrop" aria-hidden="true" onClick={() => setOpen(false)} />
+      )}
       {open && (
-        <div className="fixed bottom-36 sm:bottom-40 lg:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-theme-card border border-glass-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div role="dialog" aria-label={t('Asistente AI', 'AI Assistant')}
+          className={showLauncher
+            ? 'fixed bottom-36 sm:bottom-40 lg:bottom-20 right-4 sm:right-6 z-50 w-[340px] sm:w-[380px] max-h-[70vh] bg-theme-card border border-glass-border rounded-xl shadow-2xl flex flex-col overflow-hidden'
+            : 'fixed z-50 inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl sm:inset-x-auto sm:bottom-auto sm:top-16 sm:right-4 lg:right-6 sm:w-[380px] sm:max-h-[calc(100vh-5rem)] sm:rounded-xl bg-theme-card border border-glass-border shadow-2xl flex flex-col overflow-hidden modal-anim'}
+          style={showLauncher ? undefined : { backgroundColor: 'var(--bg-primary)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {/* Header */}
           <div className="px-4 py-3 border-b border-glass-border flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -244,7 +272,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
             </div>
             <div className="flex items-center gap-1">
               <button onClick={() => setShowKeyInput(!showKeyInput)}
-                className="p-1 text-slate-400 hover:text-white transition-colors" title="API Key" aria-label="API Key">
+                className="p-1 text-slate-400 hover:text-white transition-colors" title={t('Clave de acceso', 'Access key')} aria-label={t('Clave de acceso', 'Access key')}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
@@ -267,12 +295,13 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
           {/* API Key input */}
           {showKeyInput && (
             <div className="px-4 py-3 border-b border-glass-border bg-theme-base">
-              <label className="text-xs text-slate-400 uppercase tracking-wide mb-1 block">Anthropic API Key</label>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>{t('Tu clave de acceso de Anthropic', 'Your Anthropic access key')}</label>
               <div className="flex gap-2">
                 <input
                   type="password"
                   defaultValue={apiKey}
-                  placeholder="sk-ant-..."
+                  placeholder={t('Pega tu clave aquí', 'Paste your key here')}
+                  aria-label={t('Clave de acceso de Anthropic', 'Anthropic access key')}
                   className="flex-1 px-2 py-1.5 bg-theme-card border border-glass-border rounded text-xs text-white focus:outline-none focus:border-blue-500"
                   onKeyDown={(e) => { if (e.key === 'Enter') saveKey(e.target.value) }}
                 />
@@ -281,12 +310,12 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
                   className="px-3 py-1.5 text-xs rounded hover:opacity-90 transition-colors"
                   style={{ backgroundColor: 'var(--accent-blue)', color: '#ffffff' }}
                 >
-                  OK
+                  {t('Guardar', 'Save')}
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {t('Tu key se guarda solo en tu navegador. Nunca se almacena en nuestros servidores.',
-                   'Your key is stored only in your browser. Never saved on our servers.')}
+                {t('El asistente usa tu propia clave de Anthropic. Se guarda solo en tu navegador, nunca en nuestros servidores.',
+                   'The assistant uses your own Anthropic key. It is stored only in your browser, never on our servers.')}
               </p>
             </div>
           )}

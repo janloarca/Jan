@@ -214,8 +214,10 @@ describe('ningun escritor corre con los datos a medio asentar', () => {
     const { rerender, unmount } = setup({ firestore: { items: [big, pend], snapshots }, prices: { enrichedItems: [big, pend] } })
     await act(async () => {})
     expect(fakeFirestore.saveSnapshot).not.toHaveBeenCalled()
-    const msg = warn.mock.calls.map((c) => c.join(' ')).find((m) => m.includes('sin cotización'))
-    expect(msg).toContain('TSLA')
+    // FASE RC: mientras ninguna respuesta incluyó a TSLA se espera EN SILENCIO.
+    // El aviso viejo salía en cada carga en frío (el efecto evalúa antes de que
+    // el fetch de precios arranque) y se leía como "TSLA no cotiza".
+    expect(warn.mock.calls.some((c) => c.join(' ').includes('sin cotización'))).toBe(false)
 
     // Llega la cotizacion de TSLA: ahora vale 120,000 y el total ya es ~220M.
     const resolved = { ...pend, currentPrice: 120000, _priceResolved: true }
@@ -225,6 +227,40 @@ describe('ningun escritor corre con los datos a medio asentar', () => {
     expect(fakeFirestore.saveSnapshot).toHaveBeenCalledTimes(1)
     expect(fakeFirestore.saveSnapshot.mock.calls[0][0].totalActivosUSD).toBe(1e6 * 100 + 1000 * 120000)
     warn.mockRestore()
+    unmount()
+  })
+
+  // FASE RC: la salida para un símbolo SIN proveedor. La respuesta de precios
+  // ya llegó con TSLA en el pedido y sin precio: esperar sería para siempre.
+  // Se valora con su precio guardado (la regla de getItemPrice que el
+  // patrimonio vivo ya usa) y el día se archiva, aunque el cinturón del 30%
+  // lo habría bloqueado.
+  it('un simbolo ya pedido y sin precio se valora a su precio guardado y se archiva', async () => {
+    const big = { ...item({ id: 'a', symbol: 'AAA', quantity: 1e6, currentPrice: 100 }), _priceResolved: true }
+    const dead = item({ id: 'b', symbol: 'tsla', quantity: 1000, currentPrice: undefined, purchasePrice: 2 })
+    const snapshots = [{ id: '2020-01-01', date: '2020-01-01', _source: 'daily', totalActivosUSD: 900e6 }]
+    const info = jest.spyOn(console, 'info').mockImplementation(() => {})
+    const { unmount } = setup({
+      firestore: { items: [big, dead], snapshots },
+      prices: { enrichedItems: [big, dead], quotedSymbols: ['AAA', 'TSLA'], lastUpdate: '2026-11-09T10:00:00Z' },
+    })
+    await act(async () => {})
+    expect(fakeFirestore.saveSnapshot).toHaveBeenCalledTimes(1)
+    expect(fakeFirestore.saveSnapshot.mock.calls[0][0].totalActivosUSD).toBe(1e6 * 100 + 1000 * 2)
+    expect(info.mock.calls.some((c) => c.join(' ').includes('tsla'))).toBe(true)
+    info.mockRestore()
+    unmount()
+  })
+
+  it('control: un simbolo pedido pero OTRO pendiente sigue esperando', async () => {
+    const dead = item({ id: 'b', symbol: 'TSLA', quantity: 1000, purchasePrice: 2 })
+    const pend = item({ id: 'c', symbol: 'SPCX', quantity: 10, purchasePrice: 2 })
+    const { unmount } = setup({
+      firestore: { items: [dead, pend] },
+      prices: { enrichedItems: [dead, pend], quotedSymbols: ['TSLA'] },
+    })
+    await act(async () => {})
+    expect(fakeFirestore.saveSnapshot).not.toHaveBeenCalled()
     unmount()
   })
 

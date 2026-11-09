@@ -8,6 +8,12 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 let _cachedPrices = {}
 let _cachedDividends = {}
 let _cachedLastUpdate = null
+// FASE RC. Símbolos que una respuesta COMPLETADA (200) ya incluyó en su
+// pedido. Distingue "el precio todavía no llegó" (no hubo respuesta para ese
+// símbolo) de "se pidió y el proveedor no lo tiene" (respuesta recibida sin
+// él). El escritor del snapshot diario espera lo primero y valora lo segundo
+// con la regla de los activos sin cotización (su precio guardado).
+let _cachedQuoted = []
 
 export function useMarketPrices(items) {
   const [prices, setPrices] = useState(_cachedPrices)
@@ -28,6 +34,7 @@ export function useMarketPrices(items) {
   const [isFetching, setIsFetching] = useState(false)
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(_cachedLastUpdate)
+  const [quotedSymbols, setQuotedSymbols] = useState(_cachedQuoted)
   const abortRef = useRef(null)
   // A single failed poll is usually Yahoo hiccupping for a few seconds, not a
   // real outage — the server already retries per-request (fetchWithRetry +
@@ -88,6 +95,8 @@ export function useMarketPrices(items) {
         }
         _cachedPrices = merged
         _cachedLastUpdate = data.timestamp
+        _cachedQuoted = [...new Set([..._cachedQuoted, ...symbols.map((x) => String(x.symbol || '').toUpperCase())])]
+        setQuotedSymbols(_cachedQuoted)
         setPrices(_cachedPrices)
         setLastUpdate(_cachedLastUpdate)
         consecutiveFailuresRef.current = 0
@@ -178,5 +187,5 @@ export function useMarketPrices(items) {
     })
   }, [items, prices, dividends])
 
-  return { enrichedItems, prices, loading, isFetching, error, lastUpdate, refresh: fetchPrices }
+  return { enrichedItems, prices, loading, isFetching, error, lastUpdate, quotedSymbols, refresh: fetchPrices }
 }

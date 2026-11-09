@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import ChispudoRefreshButton from '@/components/ui/ChispudoRefreshButton'
 import { RING_VIEWBOX, RING_CX, RING_CY, RING_R, sweepDash } from '@/lib/brandRing'
 import Logo from '@/components/ui/Logo'
-import { Search, Settings, LogOut, Plus, ChevronDown } from 'lucide-react'
+import { Search, Settings, LogOut, Plus, ChevronDown, MessageSquare } from 'lucide-react'
 import { dashboardActionGroups } from '@/lib/dashboardActions'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
@@ -57,7 +57,7 @@ function MenuGroupLabel({ children }) {
   )
 }
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, ibkrLastSync, ibkrProgress = null, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided, onCashFlow, onSell, onTransfer, onReview, onPriceAlerts, alertCount = 0 }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, ibkrLastSync, ibkrProgress = null, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided, onCashFlow, onSell, onTransfer, onReview, onPriceAlerts, alertCount = 0, onChat, chatOpen = false }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -137,7 +137,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 const active = pathname === item.href
                 return (
                   <Link key={item.href} href={item.href}
-                    className="px-1.5 md:px-2 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
+                    className="px-1.5 md:px-1 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
                     style={active
                       ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
                       : { color: 'var(--text-muted)' }}>
@@ -276,6 +276,19 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                   </>
                 )}
               </div>
+            )}
+
+            {/* FASE RC: el asistente vive en el header desde sm, nunca como
+                boton flotante sobre los montos. En el telefono va en "Mas". */}
+            {onChat && (
+              <button onClick={onChat}
+                className={`${iconBtn} hover:bg-theme-elevated hidden sm:flex`}
+                style={chatOpen ? { color: '#ffffff', backgroundColor: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' } : iconBtnStyle}
+                aria-pressed={chatOpen}
+                aria-label={lang === 'es' ? 'Asistente AI' : 'AI Assistant'}
+                title={lang === 'es' ? 'Asistente AI' : 'AI Assistant'}>
+                <MessageSquare size={15} />
+              </button>
             )}
 
             <button onClick={onSettings}
