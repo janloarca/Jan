@@ -29,6 +29,7 @@ import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import AnalysisTabs from '@/components/dashboard/AnalysisTabs'
 import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
+import LotsAudit from '@/components/dashboard/LotsAudit'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
@@ -1783,6 +1784,12 @@ export default function DashboardPage() {
           <ErrorBoundary lang={lang}>
             <CardBoundary id="IG-01"><DividendIncome transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} totalAssets={totalAssets} /></CardBoundary>
             <CardBoundary id="COST-01"><CostsCard transactions={transactions} items={portfolioItems} convert={convert} baseCurrency={baseCurrency} lang={lang} /></CardBoundary>
+          </ErrorBoundary>
+        </SectionCollapse></div>
+
+        <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Auditoría de lotes' : 'Lots audit'} id="lots-audit" defaultOpen={false}>
+          <ErrorBoundary lang={lang}>
+            <CardBoundary id="LOT-01"><LotsAudit items={items} lots={lots} lang={lang} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 
