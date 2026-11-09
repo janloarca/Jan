@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Building2, Sparkles, Zap, SlidersHorizontal } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Building2, Sparkles, Zap, SlidersHorizontal, MessageSquare } from 'lucide-react'
 
-export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, onManage, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0 }) {
+export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, onManage, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0, onChat }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const t = (es, en) => lang === 'es' ? es : en
   const pathname = usePathname()
@@ -65,6 +65,7 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
               // goes straight to adding a position, so completing what is
               // already there needs its own door here or it is unreachable.
               onEnrich && { action: onEnrich, icon: Sparkles, label: t('Completar información', 'Complete your data'), badge: enrichGapCount > 0 ? enrichGapCount : null },
+              onChat && { action: onChat, icon: MessageSquare, label: t('Asistente AI', 'AI Assistant') },
               { action: onImport, icon: Upload, label: t('Importar archivo', 'Import file') },
               { action: onExport, icon: Download, label: t('Exportar Excel', 'Export Excel') },
               onManage && { action: onManage, icon: SlidersHorizontal, label: t('Administrar gastos', 'Manage expenses') },

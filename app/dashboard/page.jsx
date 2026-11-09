@@ -172,6 +172,9 @@ export default function DashboardPage() {
   const [lang, setLang] = useState('es')
   const [beginnerMode, setBeginnerMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  // FASE RC: el chat se abre desde el header (sm+) o desde "Mas" (telefono);
+  // ya no hay boton flotante encima de los montos.
+  const [chatOpen, setChatOpen] = useState(false)
   // Primeros pasos guiados: le preguntamos al usuario qué tiene y lo
   // acompañamos activo por activo. Es lo que ve un usuario nuevo en vez de
   // caer directo en el formulario largo.
@@ -1331,6 +1334,8 @@ export default function DashboardPage() {
         onSettings={handleOpenSettings}
         onSignOut={handleSignOut}
         onRefresh={handleRefresh}
+        onChat={portfolioItems.length > 0 ? () => setChatOpen((v) => !v) : null}
+        chatOpen={chatOpen}
         // Same flags computeLoadStages counts as real stages below, so the
         // ring never sits at "idle" while one of them is still genuinely in
         // flight (e.g. rates/prices already landed but the benchmark hasn't).
@@ -1456,7 +1461,7 @@ export default function DashboardPage() {
           card (que casi siempre es un monto, alineado a la derecha) queda
           debajo de ella incluso con el scroll al fondo. En sm+ la burbuja vive
           en bottom-6 y no compite con el contenido. */}
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 sm:pt-6 sm:pb-28 lg:pb-6 space-y-4 sm:space-y-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 sm:pt-6 sm:pb-6 lg:pb-6 space-y-4 sm:space-y-6">
         {/* Demo mode: the exit must always be obvious, even after the tour ends */}
         {isDemoMode && (
           <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
@@ -2520,6 +2525,7 @@ export default function DashboardPage() {
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
         enrichGapCount={pendingFindings}
+        onChat={portfolioItems.length > 0 ? () => setChatOpen(true) : null}
         friendsEnabled={settings?.friendsEnabled !== false}
       />
 
@@ -2594,7 +2600,8 @@ export default function DashboardPage() {
       {portfolioItems.length > 0 && (
         <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
           returnYTD={returnYTD} annualDividends={annualDividends} riskMetrics={riskMetrics}
-          baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
+          baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem}
+          open={chatOpen} onOpenChange={setChatOpen} showLauncher={false} />
       )}
     </div>
   )
