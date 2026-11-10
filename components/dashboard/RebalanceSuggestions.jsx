@@ -27,7 +27,8 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
 
   const allocation = useMemo(() => {
     const cats = {}
-    const assetItems = items.filter((it) => !it.isDebt)
+    // FASE RL. La vivienda no entra al rebalanceo: no se "vende" para cumplir un objetivo.
+    const assetItems = items.filter((it) => !it.isDebt && getTypeCategory(it) !== 'realestate')
     const totalAssets = assetItems.reduce((s, it) => s + Math.max(0, getItemValue(it)), 0)
 
     assetItems.forEach((it) => {
@@ -40,7 +41,7 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
     const result = []
 
     for (const cat of allCats) {
-      if (cat === 'debts' || cat === 'other') continue
+      if (cat === 'debts' || cat === 'other' || cat === 'realestate') continue
       const current = cats[cat] || 0
       const currentPct = totalAssets > 0 ? (current / totalAssets) * 100 : 0
       const targetPct = targets[cat] || 0
@@ -78,8 +79,14 @@ export default function RebalanceSuggestions({ items, netWorth, goals, onSaveGoa
     }
   }
 
+  const hasHome = items.some((it) => !it.isDebt && getTypeCategory(it) === 'realestate')
   return (
     <div className="card p-4 sm:p-5">
+      {hasHome && (
+        <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+          {t('El rebalanceo mide solo tu portafolio invertible. Tu vivienda y su hipoteca se muestran aparte y nunca se sugiere venderlas.', 'Rebalancing covers only your investable portfolio. Your home and mortgage are shown separately and selling them is never suggested.')}
+        </p>
+      )}
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
