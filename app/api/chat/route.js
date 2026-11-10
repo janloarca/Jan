@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/apiAuth'
 import { rateLimit } from '@/lib/rateLimit'
+import { buildSystemPrompt } from '@/lib/chatPrompt'
 
 export const dynamic = 'force-dynamic'
 
@@ -379,72 +380,4 @@ async function handleStreaming(apiKey, systemPrompt, messages, ctx) {
       Connection: 'keep-alive',
     },
   })
-}
-
-function sanitizeCtxString(val) {
-  if (typeof val !== 'string') return val
-  return val.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').slice(0, 200)
-}
-
-function buildSystemPrompt(ctx) {
-  const lines = [
-    'You are a financial advisor AI embedded in Chispu, a personal portfolio tracking app.',
-    'You have access to the user\'s real portfolio data below. Answer questions about their finances, suggest optimizations, estimate values, and provide actionable advice.',
-    'Be concise and direct. Use numbers and percentages. Respond in the same language the user writes in (Spanish or English).',
-    'You have tools available to estimate reward values, analyze debt payoff strategies, and update portfolio items when the user asks.',
-    'When estimating credit card reward values, use the estimate_rewards tool.',
-    'When the user asks which card to use or which gives better rewards, use the compare_cards tool.',
-    'When the user asks to update a value, use the update_item tool.',
-    'When the user asks about the value of a physical asset (property, car, collectible), use estimate_asset_value to provide your best estimate and optionally update the value.',
-    'Never make up data the user hasn\'t provided. If you need more info, ask.',
-    '',
-  ]
-
-  if (!ctx) return lines.join('\n')
-
-  if (ctx.netWorth != null) lines.push(`Net worth: $${ctx.netWorth.toLocaleString()}`)
-  if (ctx.totalAssets != null) lines.push(`Total assets: $${ctx.totalAssets.toLocaleString()}`)
-  if (ctx.returnYTD != null) lines.push(`Return YTD: ${ctx.returnYTD.toFixed(2)}%`)
-  // Dos cifras distintas, nunca una sola llamada "Annual dividends": lo COBRADO en
-  // los ultimos 12 meses (hechos) y lo ESTIMADO a futuro (proyeccion de tasas
-  // declaradas). Mezclarlas hacia que el asistente llamara "anual" a lo recibido.
-  if (ctx.annualDividends) lines.push(`Dividends/interest RECEIVED in the last 12 months (actual, not a projection): $${ctx.annualDividends.toLocaleString()}`)
-  if (ctx.estimatedAnnualIncome) lines.push(`ESTIMATED annual income going forward (projection from declared yields): $${ctx.estimatedAnnualIncome.toLocaleString()}`)
-  if (ctx.baseCurrency) lines.push(`Base currency: ${ctx.baseCurrency}`)
-
-  if (ctx.items?.length > 0) {
-    lines.push('', '## Portfolio Holdings')
-    const safeItems = ctx.items.slice(0, 200)
-    safeItems.forEach(it => {
-      const val = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
-      const name = sanitizeCtxString(it.name || it.symbol || 'Unknown')
-      const parts = [`${name}: $${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })}`]
-      if (it.type) parts.push(`type=${sanitizeCtxString(it.type)}`)
-      if (it.currency && it.currency !== 'USD') parts.push(`cur=${sanitizeCtxString(it.currency)}`)
-      if (it.institution) parts.push(`at ${sanitizeCtxString(it.institution)}`)
-      if (it.isDebt) parts.push('(DEBT)')
-      if (it.isReceivable) parts.push('(RECEIVABLE)')
-      if (it.interestRate) parts.push(`rate=${it.interestRate}%`)
-      if (it.debtTerm) parts.push(`term=${it.debtTerm}`)
-      if (it.monthlyPayment) parts.push(`payment=$${it.monthlyPayment}/mo`)
-      if (it.installmentsRemaining) parts.push(`${it.installmentsRemaining} pmts left`)
-      if (it.rewardType) parts.push(`rewards=${it.rewardType}`)
-      if (it.rewardBalance) parts.push(`reward_balance=${it.rewardBalance}`)
-      if (it.cardBrand) parts.push(`card=${it.cardBrand}`)
-      if (it.incomeRate) parts.push(`yield=${it.incomeRate}%`)
-      if (it.maturityDate) parts.push(`matures=${it.maturityDate}`)
-      lines.push(`- ${parts.join(' | ')}`)
-    })
-  }
-
-  if (ctx.riskMetrics) {
-    const rm = ctx.riskMetrics
-    lines.push('', '## Risk Metrics')
-    if (rm.volatility != null) lines.push(`Volatility: ${rm.volatility.toFixed(1)}%`)
-    if (rm.sharpe != null) lines.push(`Sharpe ratio: ${rm.sharpe.toFixed(2)}`)
-    if (rm.maxDrawdown != null) lines.push(`Max drawdown: ${rm.maxDrawdown.toFixed(1)}%`)
-    if (rm.hhi != null) lines.push(`Concentration (HHI): ${rm.hhi.toFixed(0)}`)
-  }
-
-  return lines.join('\n')
 }
