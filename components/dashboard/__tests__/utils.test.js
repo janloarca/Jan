@@ -1362,3 +1362,11 @@ describe('anchorMissesLateItems (FASE QR2)', () => {
     expect(anchorMissesLateItems({ ...anchor, createdAt: undefined }, [late])).toBe(false)
   })
 })
+
+import { formatUnitPrice as _fup } from '../utils'
+describe('formatUnitPrice', () => {
+  it('conserva los decimales reales del precio', () => {
+    expect(_fup(105.318, 'USD')).toContain('105.318')
+    expect(_fup(105.3, 'USD')).toContain('105.30')
+  })
+})

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { formatCurrency, formatDate, formatMonth } from './utils'
+import { formatCurrency, formatUnitPrice, formatDate, formatMonth } from './utils'
 import { transferReversalPlan, reversalLines } from '@/lib/transferReversal'
 import { cashflowReversalPlan, cashflowReversalLines } from '@/lib/cashflowReversal'
 import { saleReversalPlan, saleReversalLines } from '@/lib/saleReversal'
@@ -321,7 +321,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
                   </span>
                   {tx.quantity > 0 && (
                     <div className="text-xs text-slate-500 font-mono tabular-nums">
-                      {tx.quantity} x {formatCurrency(tx.pricePerUnit || 0, tx.currency)}
+                      {tx.quantity} x {formatUnitPrice(tx.pricePerUnit || 0, tx.currency)}
                     </div>
                   )}
                 </div>
