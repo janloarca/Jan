@@ -350,7 +350,7 @@ export default function DashboardPage() {
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
     deleteTransactionWithReversal, updateTransactionWithReversal,
     addAlert, deleteAlert,
-    addLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
+    addLot, updateLot, closeLotsFIFO, transferFunds, executeSaleAtomic, executeContribution,
     addPortfolio, deletePortfolio, addItemInScope,
     addFinanceTransaction, updateFinanceTransaction, deleteFinanceTransaction, deleteAllFinanceTransactions,
     deleteFinanceTransactionsByIds,
@@ -1789,7 +1789,7 @@ export default function DashboardPage() {
 
         <div className="stagger-5"><SectionCollapse title={lang === 'es' ? 'Auditoría de lotes' : 'Lots audit'} id="lots-audit" defaultOpen={false}>
           <ErrorBoundary lang={lang}>
-            <CardBoundary id="LOT-01"><LotsAudit items={items} lots={lots} lang={lang} /></CardBoundary>
+            <CardBoundary id="LOT-01"><LotsAudit items={items} lots={lots} lang={lang} onFixLot={updateLot} /></CardBoundary>
           </ErrorBoundary>
         </SectionCollapse></div>
 
