@@ -191,8 +191,13 @@ export async function POST(request) {
   const auth = await verifyAuth(request)
   if (auth.error) return auth.error
 
+  // FASE RR: quién pidió la reconstrucción ('backfill' o el ancla del YTD),
+  // para que un fallo en el log diga cuál de los dos escritores perdió su
+  // pasada.
+  let purpose = 'anchor'
   try {
-    const { items, lots, period, income, breakdown } = await request.json()
+    const { items, lots, period, income, breakdown, _purpose } = await request.json()
+    if (_purpose === 'backfill') purpose = 'backfill'
     if (!items || !Array.isArray(items) || items.length > 100) {
       return NextResponse.json({ error: `Invalid request: items (${Array.isArray(items) ? items.length : typeof items}, max 100)`, errorCode: 'BAD_REQUEST' }, { status: 400 })
     }
@@ -630,7 +635,7 @@ export async function POST(request) {
 
     return NextResponse.json({ dataPoints, staticTotal, staticPoints, transactional: usedTransactional, degraded, failedSymbols, staticFallbackSymbols, cache: kvBackend() })
   } catch (err) {
-    console.error('portfolio-history error:', err)
+    console.error(`portfolio-history error (${purpose}):`, err)
     return NextResponse.json({ error: 'Internal server error', errorCode: 'INTERNAL', dataPoints: [] }, { status: 500 })
   }
 }

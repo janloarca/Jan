@@ -6,7 +6,8 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, anchorMissesLateItems, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
+import { accountsUSDFromBreakdown, anchorAccountsUSD, lateItemsStart } from '@/lib/ytdAnchor'
+import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, anchorMissesLateItems, lateItemsOf, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { scopeTagFor, tagForScope } from '@/lib/scopeTag'
 import { isReinvestedDividend, reinvestIndex } from '@/lib/dividendCash'
@@ -399,6 +400,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     })
     if (pendingSymbols.length > 0) return
+    const dailyAccounts = {}
     enrichedItems.forEach((it) => {
       // Keep the snapshot baseline consistent with the live netWorth, which drops
       // receivables the user excluded from net worth (otherwise daily change / returns
@@ -414,7 +416,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       let value = (it.quantity || 0) * origPrice
       value = convert ? convert(value, origCurrency, 'USD') : value
       if (it.isDebt) totalDebtUSD += Math.abs(value)
-      else totalAssetsUSD += value
+      else {
+        totalAssetsUSD += value
+        // FASE RR: el reparto por cuenta del MISMO total que se archiva.
+        const k = accountKeyOfItem(it)
+        if (k && isFinite(value)) dailyAccounts[k] = (dailyAccounts[k] || 0) + value
+      }
     })
     const netWorthUSD = totalAssetsUSD - totalDebtUSD
     // Cinturón: si el total cae por debajo del 30% del último doc de
@@ -453,7 +460,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       snapshotSavedRef.current = todayStr
       // FASE RD: confirmar el archivo solo cuando Firestore lo aceptó. Sin
       // esto, "se archivó" y "se intentó" se veían igual desde la consola.
-      Promise.resolve(saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily' }))
+      Promise.resolve(saveSnapshot({ date: todayStr, totalActivosUSD: totalAssetsUSD, totalDebtUSD, netWorthUSD, rates: rates || {}, baseCurrency, _source: 'daily', _accountsUSD: Object.fromEntries(Object.entries(dailyAccounts).map(([k, v]) => [k, Math.round(v * 100) / 100])) }))
         .then((id) => {
           if (id) console.info('[snapshot] día archivado:', todayStr, 'total USD', Math.round(netWorthUSD * 100) / 100)
           else console.info('[snapshot] no se archivó (modo demo o sin sesión):', todayStr)
@@ -685,10 +692,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // FASE GD: con huecos más viejos que la ventana clásica de 30 días se
           // pide el año completo (resolución diaria en la ruta); los gaps fuera
           // del rango devuelto simplemente no matchean ningún punto.
-          body: JSON.stringify(buildHistoryRequestBody({
+          body: JSON.stringify({ ...buildHistoryRequestBody({
             items: assetItems, transactions, lots, convert,
+            // FASE RR: con desglose por ítem para guardar el reparto por
+            // cuenta de cada doc (el panel del YTD reparte el ancla con él).
+            breakdown: true,
             period: gaps.some((d) => (Date.now() - new Date(`${d}T00:00:00Z`).getTime()) > 32 * 86400000) ? 'YTD' : '1M',
-          })),
+          }), _purpose: 'backfill' }),
         })
         if (!res.ok) {
           console.warn('[backfill] portfolio-history respondió', res.status, ': no se escribe nada esta sesión')
@@ -733,7 +743,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // corrupto (los picos de fin de semana). Escribir se sigue limitando a
         // lo necesario: un hueco, o un 'daily' que contradice la composición.
         const composedAll = composeDailyTotals({
-          gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing,
+          gaps: windowDates(366), manualPoints: pts, navByDate, hasBrokerItems: composing, withParts: true,
         })
         // FASE NL: una calibración GLOBAL que la composición contradice. Es el
         // único doc que ningún reparador podía tocar (su `_source:'manual'` la
@@ -777,6 +787,14 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // los depósitos) y la manual es reconstrucción transaccional.
             _transactional: f.composed ? true : isTransactional,
           }
+          // FASE RR: el reparto por cuenta con el MISMO punto que formó el
+          // total. Solo si cuadra con él (si no, se omite: un reparto que no
+          // suma el ancla vuelve a fabricar un "Sin atribuir").
+          const acc = accountsUSDFromBreakdown({
+            byKey: f.manualByKey, items: assetItems, keyOf: accountKeyOfItem,
+            navUSD: f.composed ? f.nav : null,
+          })
+          if (acc && anchorAccountsUSD({ _accountsUSD: acc, totalActivosUSD: f.total })) doc._accountsUSD = acc
           if (!contradictedCal.has(f.date) && backfillDocUnchanged(plainByDate.get(f.date), doc)) { unchanged += 1; continue }
           await saveSnapshot(doc)
           written += 1
@@ -2173,7 +2191,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const assetTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(viewTransactions, debtIds), ibkrIds), [viewTransactions, debtIds, ibkrIds])
   const assetDietzTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(dietzTransactions, debtIds), ibkrIds), [dietzTransactions, debtIds, ibkrIds])
 
-  const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed } = useMemo(() => {
+  const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, ytdStartLate, ytdStartLateByAccount, ytdAnchorDoc } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
@@ -2191,6 +2209,11 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // reescribe si difiere de la composición en más de 8%. Sin saber cuál es,
     // un descuadre chico contra ese ancla no se puede diagnosticar.
     let anchorSrc = null
+    // FASE RR: lo que se sumó al doc archivado por activos que no podía
+    // contener, y el doc mismo (su reparto por cuenta alimenta el panel).
+    let lateAdd = 0
+    let lateByAccount = {}
+    let anchorDoc = null
     // When the start value is not actually Jan 1's, the window starts where the
     // value does (see jan1Ts). Desde FASE MT también puede moverse hacia ATRÁS,
     // a un ancla de fines de diciembre: el buscador de anclas acepta las dos
@@ -2204,14 +2227,34 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // pasada no lo contiene; mientras el backfill la re-deriva se mide contra
       // la reconstrucción en vivo (jan1Value), que sí lo incluye. Sin
       // reconstrucción disponible se conserva el ancla: mejor eso que ocultar.
-      if (bestSnap && jan1Value != null && jan1Value > 0 && anchorMissesLateItems(bestSnap, portfolioItems)) bestSnap = null
+      //
+      // ⛔ FASE RR (con OK del usuario): el arranque ES el doc archivado. Lo que
+      // ese doc no podía contener se SUMA con su valor reconstruido al
+      // arranque (el desglose por ítem de la misma reconstrucción), en vez de
+      // cambiar el ancla ENTERA por la reconstrucción. Cambiarla entera hacía
+      // que el arranque saltara de un valor a otro según qué respuesta llegara
+      // primero (-0.21% sobre $343,570.55 contra -0.57% sobre $344,827.15 con
+      // el mismo patrimonio). Solo si ese desglose no cubre a todos los
+      // tardíos se cae a la reconstrucción, rotulada como estimada.
+      const late = bestSnap ? lateItemsOf(bestSnap, portfolioItems) : []
+      if (late.length > 0) {
+        const add = lateItemsStart({ lateItems: late, startByKey: ytdEndpoints?.start, keyOf: accountKeyOfItem })
+        if (add) {
+          lateAdd = add.total
+          lateByAccount = add.byAccount
+        } else if (jan1Value != null && jan1Value > 0) {
+          bestSnap = null
+        }
+      }
       if (bestSnap) {
         // FASE LU: el ancla del año en SOLO-ACTIVOS. El campo lleva ahí
         // desde siempre (el escritor diario y el backfill guardan
         // totalActivosUSD/totalDebtUSD junto a netWorthUSD), así que no
         // hay que reescribir historia: solo dejar de leer el neto.
         anchorUSD = snapshotAssetsUSD(bestSnap)
-        startVal = convertSnapshot(anchorUSD)
+        startVal = convertSnapshot(anchorUSD) + lateAdd
+        if (lateAdd) anchorUSD += toUSD(lateAdd)
+        anchorDoc = bestSnap
         // FASE GE: un doc 'backfill' TRANSACCIONAL (rebobinado a través del
         // ledger real de depósitos/trades, ver el efecto de backfill) refleja
         // el timing de los flujos igual que un NAV real: las compras de mitad
@@ -2259,6 +2302,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       startVal = jan1Value
       flowAware = jan1Transactional
       if (jan1Ts != null && jan1Ts > yearStartTs) startTs = jan1Ts
+      // FASE RR: sin doc archivado el arranque es la reconstrucción, y se dice.
+      if (startVal != null && startVal > 0) anchorSrc = 'reconstruction'
     }
 
     // Per-account calibration: swap each calibrated account's ESTIMATED share
@@ -2328,7 +2373,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     const calibrated = ytdCalApplied || anchorCalibrated
-    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdStartSrc: null, ytdFlowsUsed: null }
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdStartSrc: null, ytdFlowsUsed: null, ytdStartLate: 0, ytdStartLateByAccount: {}, ytdAnchorDoc: null }
     // FASE LU: la lista viene del universo de ACTIVOS (lib/assetReturns.js):
     // los flujos de una deuda no entran, y los que cruzan la frontera (pago
     // desde una cuenta, desembolso hacia una cuenta) entran como el flujo
@@ -2422,8 +2467,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // publica null. Recibiendo un valor ya saturado nunca veia uno fuera de
     // banda, asi que el YTD mas roto se publicaba como +200.00% exacto y
     // encabezaba el ranking (el defecto que FASE JA5 vino a cerrar).
-    return { returnYTD: clampedPct, returnYTDRaw: effPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows }
-  }, [jan1Value, jan1Ts, jan1Transactional, totalAssets, assetTransactions, assetDietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
+    return { returnYTD: clampedPct, returnYTDRaw: effPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows, ytdStartLate: lateAdd, ytdStartLateByAccount: lateByAccount, ytdAnchorDoc: (anchorDoc && !ytdCalApplied) ? anchorDoc : null }
+  }, [ytdEndpoints, jan1Value, jan1Ts, jan1Transactional, totalAssets, assetTransactions, assetDietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
   // reconstruction -- the engine (lib/historicalValues.js) the user validated as
@@ -2947,6 +2992,35 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       }
     })
 
+    // ⛔ FASE RR: si el doc del ancla guardó su reparto por cuenta, ESE es el
+    // arranque de cada cuenta (más lo que se le sumó por activos tardíos, con
+    // la misma cifra que sumó el encabezado). Así las cuentas suman el ancla
+    // por construcción y "Sin atribuir" deja de existir; antes se repartía con
+    // la reconstrucción de HOY un valor que el doc nunca desglosó, y la
+    // diferencia (-$1,264.44 en el reporte) quedaba sin dueño.
+    const archivedAcc = anchorAccountsUSD(ytdAnchorDoc)
+    const buildArchived = () => {
+      if (!archivedAcc) return null
+      const keys = new Set([...endByAccount.keys()])
+      return [...keys].map((k) => ({
+        startSrc: 'archived',
+        startDate: anchorDateStr,
+        key: k,
+        name: nameOf.get(k) || k,
+        endVal: endByAccount.get(k) || 0,
+        flow: flowByAccount.get(k) || 0,
+        flowBase: flowBaseByAccount.get(k) || 0,
+        start: convertSnapshot(archivedAcc[k] || 0) + ((ytdStartLateByAccount || {})[k] || 0),
+        startIsReal: true,
+        internal: internalByAccount.get(k) || 0,
+      }))
+    }
+    // Cuentas que estaban en el ancla y ya no existen: su valor es parte del
+    // arranque y se nombra en vez de quedar como "Sin atribuir".
+    const goneAccounts = archivedAcc
+      ? Object.entries(archivedAcc).filter(([k, v]) => !endByAccount.has(k) && Math.abs(v) > 0.005)
+      : []
+
     const args = { portfolioStart: ytdStartValue, headlineGain: ytdChange, unattributedFlow }
     // The broker's real year-start NAV is the better input, so it is tried
     // first. But treating it as fixed truth can itself make the split
@@ -2965,7 +3039,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     const diagReal = {}
     const diagDerived = {}
     const diagEst = {}
+    const archived = buildArchived()
+    const diagArchived = {}
     const attempts = [
+      ...(archived ? [{ accounts: [...archived, ...goneAccounts.map(([k, v]) => ({
+        startSrc: 'archived', startDate: anchorDateStr, key: k, name: `${k} · ${lang === 'en' ? 'no longer in the portfolio' : 'ya no está en el portafolio'}`,
+        endVal: 0, flow: 0, flowBase: 0, start: convertSnapshot(v), startIsReal: true, internal: 0, gone: true,
+      }))], diag: diagArchived }] : []),
       { accounts: build(brokerStartUSD, 'nav'), diag: diagReal },
       ...(derivedBrokerStart != null ? [{ accounts: build(derivedBrokerStart, 'derived'), diag: diagDerived }] : []),
       { accounts: build(null, null), diag: diagEst },
@@ -3051,7 +3131,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         brokerAnchorFound: brokerStartUSD != null,
       },
     }
-  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
+  }, [ytdEndpoints, portfolioItems, convert, baseCurrency, lang, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, ytdAnchorDoc, ytdStartLateByAccount, snapshots, convertSnapshot, spreadsheetStart, transactions, lots])
 
   // Month-to-date return (Modified Dietz) — the "how are we doing THIS month"
   // number for the Friends monthly leaderboard. Same shape as YTD, anchored to
@@ -4114,7 +4194,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ignoredCalibrations,
     // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
     // un ancla equivocada se ve en vez de tener que despejarse a mano.
-    ytdStartTs, ytdStartSrc,
+    ytdStartTs, ytdStartSrc, ytdStartLate,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome, incomeVerification,
     // FASE RQ: la proyección por ítem, para que el chat cite la MISMA cifra

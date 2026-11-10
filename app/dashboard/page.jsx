@@ -367,7 +367,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError, ratesUpdate, ratesStale, ytdResolved, historyBusy,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
+    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdStartLate, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     annualDividends, estimatedAnnualIncome, incomeVerification, incomeProjections,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -1659,7 +1659,7 @@ export default function DashboardPage() {
             <YtdBreakdownSection
               open={ytdBreakdownOpen} onClose={() => setYtdBreakdownOpen(false)} lang={lang}
               ytdChange={ytdChange} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason} ytdBreakdownDetail={ytdBreakdownDetail}
-              ytdDegradedAccounts={ytdDegradedAccounts} ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdCalIgnored={ytdCalIgnored}
+              ytdDegradedAccounts={ytdDegradedAccounts} ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdStartLate={ytdStartLate} ytdCalIgnored={ytdCalIgnored}
             />
           )}
 

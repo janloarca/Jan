@@ -38,14 +38,19 @@ const START_SRC_LABEL = {
   derived: { es: 'despejado', en: 'derived' },
   mixed: { es: 'mixto', en: 'mixed' },
   none: { es: 'sin fuente', en: 'no source' },
+  archived: { es: 'del doc archivado', en: 'from the archived doc' },
 }
 
+// FASE RR: el arranque se rotula por lo que ES para el lector: observado (la
+// app o el broker lo midieron ese día), transcrito (lo tecleaste) o estimado
+// (una reconstrucción, aunque use el NAV real del broker en su mitad).
 const ANCHOR_SRC_LABEL = {
   daily: { es: 'observado', en: 'observed' },
+  ibkr: { es: 'observado (NAV broker)', en: 'observed (broker NAV)' },
   manual: { es: 'transcrito', en: 'transcribed' },
-  backfill: { es: 'derivado', en: 'derived' },
-  ibkr: { es: 'NAV broker', en: 'broker NAV' },
-  ibkr_quarterly: { es: 'trimestre transcrito', en: 'transcribed quarter' },
+  ibkr_quarterly: { es: 'transcrito (trimestre)', en: 'transcribed (quarter)' },
+  backfill: { es: 'estimado', en: 'estimated' },
+  reconstruction: { es: 'estimado (reconstrucción)', en: 'estimated (reconstruction)' },
 }
 
 const TONE_COLOR = {
@@ -166,7 +171,7 @@ export function YtdBreakdownToggle({ open, onToggle, lang }) {
 export default function YtdBreakdownSection({
   open, onClose, lang,
   ytdChange, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdDegradedAccounts,
-  ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdCalIgnored = 0,
+  ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdStartLate = 0, ytdCalIgnored = 0,
 }) {
   const L = lang === 'es' ? 'es' : 'en'
   const cur = getBaseCurrency()
@@ -397,7 +402,10 @@ export default function YtdBreakdownSection({
               {lang === 'es' ? 'Valor inicial del año: ' : 'Year-start value: '}
               <span className="font-mono tabular-nums">{formatCurrency(ytdStartValue, cur)}</span>
               {ytdStartTs ? ` · ${formatDate(new Date(ytdStartTs))}` : ''}
-              {ANCHOR_SRC_LABEL[ytdStartSrc] ? ` · ${lang === 'es' ? 'cálculo' : 'value'} ${ANCHOR_SRC_LABEL[ytdStartSrc][L]}` : ''}
+              {ANCHOR_SRC_LABEL[ytdStartSrc] ? ` · ${ANCHOR_SRC_LABEL[ytdStartSrc][L]}` : ''}
+              {ytdStartLate > 0.005 ? (lang === 'es'
+                ? ` · incluye ${formatCurrency(ytdStartLate, cur)} de activos que agregaste después con fecha anterior`
+                : ` · includes ${formatCurrency(ytdStartLate, cur)} of assets you added later with an earlier date`) : ''}
               {'.'}
             </p>
           )}

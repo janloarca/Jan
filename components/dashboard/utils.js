@@ -609,12 +609,20 @@ export function findYearStartAnchor(snapshots, year) {
 // del doc o del activo no hay evidencia, y no se afirma nada. Un activo de
 // broker se ignora: su fecha de compra es el sello del sync, no una compra.
 export function anchorMissesLateItems(anchor, items) {
-  if (!anchor || !anchor.date || !Array.isArray(items)) return false
-  if (anchor._calibrated || ['ibkr', 'ibkr_quarterly', 'manual'].includes(anchor._source)) return false
+  return lateItemsOf(anchor, items).length > 0
+}
+
+// FASE RR: la LISTA de activos que un ancla derivada no contiene (misma regla
+// que anchorMissesLateItems). El YTD los SUMA al doc archivado con su valor
+// reconstruido al arranque, en vez de cambiar el ancla entera por la
+// reconstrucción: el arranque sigue siendo el documento del 1 de enero.
+export function lateItemsOf(anchor, items) {
+  if (!anchor || !anchor.date || !Array.isArray(items)) return []
+  if (anchor._calibrated || ['ibkr', 'ibkr_quarterly', 'manual'].includes(anchor._source)) return []
   const wroteAt = Date.parse(anchor.createdAt)
   const anchorTs = Date.parse(anchor.date)
-  if (!isFinite(wroteAt) || !isFinite(anchorTs)) return false
-  return items.some((it) => {
+  if (!isFinite(wroteAt) || !isFinite(anchorTs)) return []
+  return items.filter((it) => {
     if (!it || it.isDebt || isExcludedFromNetWorth(it) || hasUnreliableAcqDate(it)) return false
     if (!(Number(it.quantity) > 0)) return false
     if (!it.acquisitionDate) return false
