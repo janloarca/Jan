@@ -138,7 +138,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
 // sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
 // dato real se lean como cubiertas. Sin estos props el comportamiento es el de
 // antes.
-export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null, ytdStartTs = null }) {
+export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null, ytdStartTs = null, ytdStartValue = null }) {
   // ⛔ FASE LU (extensión de la superficie congelada D, decisión del usuario,
   // 28 ago 2026): la gráfica mide tus ACTIVOS. La deuda no es una inversión,
   // así que sale del universo entero de esta card: de la línea, de los chips
@@ -1259,8 +1259,25 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       // el año en otro día (2 ene) y el primer punto cae unos días después
       // (4 ene), el tooltip no puede decir otra cosa que el encabezado. Solo
       // se mueve la ETIQUETA de fecha del primer punto, nunca su valor.
-      if (shownInst === 'ALL' && ytdStartTs && pts[0].ts > ytdStartTs && pts[0].ts - ytdStartTs <= 7 * 86400000 && ytdStartTs >= yearStart) {
-        pts[0] = { ...pts[0], ts: ytdStartTs, date: new Date(ytdStartTs) }
+      //
+      // FASE RU (dentro del OK de FASE RT): el bloque de arriba solo agrega el
+      // punto de arranque cuando NO hay ningún punto el 1 de enero. Con un doc
+      // del 1 (el cierre del 31 arrastrado) la serie arrancaba ahí, con su
+      // propio valor ($344,827.15), mientras el encabezado medía desde el 2
+      // ($345,344.80). Ahora, en la vista "Todas", lo anterior al día del
+      // ancla del encabezado sale de la serie y el primer punto ES el ancla:
+      // misma fecha y mismo valor que el encabezado y el tooltip.
+      if (shownInst === 'ALL' && ytdStartTs && ytdStartTs >= yearStart && ytdStartTs <= Date.now()) {
+        const startDay = Math.floor(ytdStartTs / 86400000)
+        while (pts.length > 1 && Math.floor(pts[0].ts / 86400000) < startDay) pts.shift()
+        const v = ytdStartValue > 0 ? ytdStartValue : null
+        if (Math.floor(pts[0].ts / 86400000) === startDay) {
+          pts[0] = { ...pts[0], ts: ytdStartTs, date: new Date(ytdStartTs), value: v ?? pts[0].value }
+        } else if (v != null) {
+          pts.unshift({ ts: ytdStartTs, date: new Date(ytdStartTs), value: v })
+        } else if (pts[0].ts > ytdStartTs && pts[0].ts - ytdStartTs <= 7 * 86400000) {
+          pts[0] = { ...pts[0], ts: ytdStartTs, date: new Date(ytdStartTs) }
+        }
       }
     }
     if (period === 'MTD' && pts.length > 0) {
@@ -1305,7 +1322,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact, ytdStartTs])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact, ytdStartTs, ytdStartValue])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's

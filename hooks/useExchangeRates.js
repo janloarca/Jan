@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 let _cachedRates = null
 let _cachedLastUpdate = null
 let _cachedStale = false
+let _fetchedOnce = false
 
 // FASE FS. Persistencia entre sesiones: sin tasas, convert() devuelve el monto
 // 1:1 (no hay número correcto que inventar), así que durante la carga fría un
@@ -51,6 +52,15 @@ export function useExchangeRates(baseCurrency) {
   const [error, setError] = useState(null)
   const [stale, setStale] = useState(_cachedStale)
   const [lastUpdate, setLastUpdate] = useState(_cachedLastUpdate)
+  // FASE RU: la tasa sembrada desde localStorage es la de AYER. Mientras la de
+  // hoy no responde, `loading` antes quedaba en false (habia tasa que usar), asi
+  // que la primera pintura del patrimonio y el backfill del dia corrian con la
+  // tasa vieja: el patrimonio cambiaba unos dolares al llegar la nueva, y el
+  // backfill escribia 0 dias en la primera apertura y ~312 en la siguiente
+  // (todos los docs en quetzales cambiaban con la tasa). `settled` se marca al
+  // terminar la PRIMERA consulta de la sesion (con exito o sin el); es de
+  // modulo para que volver al tablero no vuelva a esperar.
+  const [settled, setSettled] = useState(_fetchedOnce)
 
   const ratesRef = useRef(null)
   const baseRef = useRef(baseCurrency)
@@ -112,7 +122,8 @@ export function useExchangeRates(baseCurrency) {
       consecutiveFailuresRef.current += 1
       if (consecutiveFailuresRef.current >= 2) setError(err.message)
     }
-    if (mountedRef.current) setLoading(false)
+    _fetchedOnce = true
+    if (mountedRef.current) { setLoading(false); setSettled(true) }
   }, [])
 
   useEffect(() => {
@@ -176,5 +187,5 @@ export function useExchangeRates(baseCurrency) {
 
   const ready = !!rates
 
-  return { rates, loading, error, stale, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
+  return { rates, loading: loading || !settled, error, stale, lastUpdate, convert, getRate, convertItemValue, ready, refresh: fetchRates }
 }

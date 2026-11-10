@@ -132,3 +132,40 @@ describe('useExchangeRates: nunca inventa un numero', () => {
     unmount()
   })
 })
+
+// FASE RU: con la tasa de AYER sembrada desde localStorage, `loading` quedaba
+// en false mientras llegaba la de hoy. La primera pintura del patrimonio y el
+// backfill del dia corrian con la tasa vieja (el patrimonio cambiaba unos
+// dolares al recargar, y el backfill reescribia ~312 dias en la siguiente
+// pasada del mismo dia). `loading` ahora espera la primera consulta.
+describe('useExchangeRates: la tasa sembrada no cuenta como lista (FASE RU)', () => {
+  it('con tasa guardada, loading sigue en true hasta que responde la de hoy', async () => {
+    localStorage.setItem('chispudo-fx-rates-v1', JSON.stringify({ rates: { USD: 1, GTQ: 7.6 }, timestamp: 'ayer' }))
+    jest.resetModules()
+    pinReact()
+    jest.doMock('../../lib/authFetch', () => ({ authFetch: jest.fn() }))
+    ;({ authFetch } = require('../../lib/authFetch'))
+    ;({ useExchangeRates } = require('../useExchangeRates'))
+    let resolve
+    authFetch.mockReturnValue(new Promise((r) => { resolve = r }))
+
+    const { result, unmount } = renderHook(() => useExchangeRates('USD'))
+    // La semilla se usa para mostrar algo, pero no se declara lista.
+    expect(result.current.convert(760, 'GTQ', 'USD')).toBeCloseTo(100, 6)
+    expect(result.current.loading).toBe(true)
+
+    await act(async () => { resolve(okRates({ USD: 1, GTQ: 7.7 })) })
+    expect(result.current.loading).toBe(false)
+    expect(result.current.convert(770, 'GTQ', 'USD')).toBeCloseTo(100, 6)
+    unmount()
+  })
+
+  it('una consulta fallida tambien suelta la espera', async () => {
+    authFetch.mockRejectedValue(new Error('offline'))
+    const { result, unmount } = renderHook(() => useExchangeRates('USD'))
+    expect(result.current.loading).toBe(true)
+    await act(async () => {})
+    expect(result.current.loading).toBe(false)
+    unmount()
+  })
+})
