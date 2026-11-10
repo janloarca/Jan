@@ -481,7 +481,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
 
   // Dividend fetch
   useEffect(() => {
-    if (!isMarketAsset || !form.symbol || form.symbol.length < 1) { setDivInfo(null); setMarketDivOverride(false); return }
+    // FASE RM. Cripto no paga dividendos: 'ETH' en Yahoo es Ethan Allen, una
+    // acción que sí los paga, y se le asignaba al Ethereum del usuario.
+    if (!isMarketAsset || isCrypto || !form.symbol || form.symbol.length < 1) { setDivInfo(null); setMarketDivOverride(false); return }
     // A new symbol lookup starting invalidates any manual override made for
     // the PREVIOUS symbol — otherwise switching AAPL → MSFT mid-form could
     // silently keep AAPL's hand-edited rate/months on the new pick.
@@ -497,7 +499,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
       setDivLoading(false)
     }, 800)
     return () => clearTimeout(timer)
-  }, [form.symbol, isMarketAsset])
+  }, [form.symbol, isMarketAsset, isCrypto])
 
   const goToStep2 = () => {
     setError('')
