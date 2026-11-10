@@ -62,6 +62,7 @@ const AddAccountModal = dynamic(() => import('@/components/AddAccountModal'), { 
 const SellModal = dynamic(() => import('@/components/SellModal'), { loading: () => <ModalSkeleton /> })
 const SellPickerModal = dynamic(() => import('@/components/dashboard/SellPickerModal'), { loading: () => <ModalSkeleton /> })
 const PriceAlertsModal = dynamic(() => import('@/components/dashboard/PriceAlertsModal'), { loading: () => <ModalSkeleton /> })
+const QuickAddModal = dynamic(() => import('@/components/QuickAddModal'), { loading: () => <ModalSkeleton /> })
 const TransferModal = dynamic(() => import('@/components/TransferModal'), { loading: () => <ModalSkeleton /> })
 const IBKRSyncModal = dynamic(() => import('@/components/IBKRSyncModal'), { loading: () => <ModalSkeleton /> })
 const BlockchainSyncModal = dynamic(() => import('@/components/BlockchainSyncModal'), { loading: () => <ModalSkeleton /> })
@@ -440,6 +441,7 @@ export default function DashboardPage() {
   const handleOpenSettings = useCallback(() => setModal('settings'), [])
   const handleOpenConnections = useCallback(() => setModal('connections'), [])
   const handleOpenTransfer = useCallback(() => setModal('transfer'), [])
+  const handleOpenQuickAdd = useCallback(() => setModal('quickAdd'), [])
   const handleOpenCashflow = useCallback(() => { setCashflowPrefill(null); setModal('cashflow') }, [])
   const handleOpenCashflowPrefilled = useCallback((prefill) => { setCashflowPrefill(prefill || null); setModal('cashflow') }, [])
   const handleOpenIBKR = useCallback(() => setModal('ibkr'), [])
@@ -1372,6 +1374,7 @@ export default function DashboardPage() {
         // entrada del menu PARA SIEMPRE en cuanto habia un activo. Quien ya
         // tiene cuentas tambien quiere agregar la siguiente paso a paso.
         onGuided={handleOpenGuided}
+        onQuickAdd={handleOpenQuickAdd}
         enrichGapCount={pendingFindings}
         friendsEnabled={settings?.friendsEnabled !== false}
         onCashFlow={handleOpenCashflow}
@@ -1586,6 +1589,7 @@ export default function DashboardPage() {
             onStart={handleOpenGuided}
             onConnect={brokersOn ? handleOpenConnections : null}
             onImport={handleOpenImport}
+            onQuickAdd={handleOpenQuickAdd}
             brokersEnabled={brokersOn}
             onDemo={async () => {
               // Sembrar PRIMERO y después abrir el tour: con los datos de
@@ -1925,6 +1929,20 @@ export default function DashboardPage() {
           onAddTransaction={addTransaction} onAddLot={addLot} onExecuteContribution={executeContribution}
           onCreateDestination={addItemInScope}
           existingItems={items} activePortfolio={activePortfolio}
+          activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
+          lang={lang}
+        />
+      )}
+      </ModalMount>
+
+      <ModalMount closing={modalClosing}>
+      {modalShown === 'quickAdd' && (
+        <QuickAddModal
+          onClose={handleCloseModal}
+          onAdd={addItem}
+          onAddLot={addLot} onAddTransaction={addTransaction}
+          onImport={handleOpenImport}
+          activePortfolio={activePortfolio}
           activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang}
         />
