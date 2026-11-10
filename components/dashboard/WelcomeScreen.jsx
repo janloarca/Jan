@@ -28,6 +28,7 @@ export default function WelcomeScreen({
   onStart,
   onConnect,
   onImport,
+  onQuickAdd,
   onDemo,
   onHowItWorks,
   demoBusy = false,
@@ -86,11 +87,18 @@ export default function WelcomeScreen({
             {t('¿Tu broker se conecta solo?', 'Does your broker sync itself?')}
           </button>
         )}
-        {onConnect && onImport && <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>·</span>}
+        {onConnect && (onQuickAdd || onImport) && <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>·</span>}
+        {onQuickAdd && (
+          <button type="button" onClick={onQuickAdd} className="px-2 py-1 min-h-[28px] underline underline-offset-2"
+            style={{ color: 'var(--accent-blue)' }}>
+            {t('Cargar varias de una vez', 'Add several at once')}
+          </button>
+        )}
+        {onQuickAdd && onImport && <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>·</span>}
         {onImport && (
           <button type="button" onClick={onImport} className="px-2 py-1 min-h-[28px] underline underline-offset-2"
             style={{ color: 'var(--text-muted)' }}>
-            {t('Tengo un archivo', 'I have a file')}
+            {t('Importar CSV o Excel', 'Import CSV or Excel')}
           </button>
         )}
         {onImport && onDemo && <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>·</span>}

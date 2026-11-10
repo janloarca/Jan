@@ -57,7 +57,7 @@ function MenuGroupLabel({ children }) {
   )
 }
 
-export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, ibkrLastSync, ibkrProgress = null, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided, onCashFlow, onSell, onTransfer, onReview, onPriceAlerts, alertCount = 0, onChat, chatOpen = false }) {
+export default function Header({ user, lang, setLang, onImport, onSignOut, onRefresh, onSettings, pricesLoading, loadStagesDone = 0, loadStagesTotal = 0, refreshError = false, onAddAccount, onCommandPalette, onOpenConnections, ibkrConnected, ibkrAutoSyncing, ibkrSyncStatus, ibkrNeedsAttention = false, ibkrSyncSummary, ibkrLastSync, ibkrProgress = null, onIBKR, friendsEnabled = true, onEnrich, enrichGapCount = 0, onGuided, onQuickAdd, onCashFlow, onSell, onTransfer, onReview, onPriceAlerts, alertCount = 0, onChat, chatOpen = false }) {
   const [newMenuOpen, setNewMenuOpen] = useState(false)
   const newMenuRef = useRef(null)
 
@@ -114,7 +114,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   const actionGroups = dashboardActionGroups({
     lang, onCashFlow, onAddAccount, onSell, onTransfer,
     onImport, onIntegrations: onOpenConnections, onReview,
-    onGuided, onEnrich,
+    onGuided, onQuickAdd, onEnrich,
     alertCount, enrichGapCount,
     ibkrSyncStatus, ibkrLastSync, ibkrNeedsAttention, ibkrProgress,
   })
