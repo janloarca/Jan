@@ -30,6 +30,19 @@ export function formatCurrency(value, currency) {
   }
 }
 
+// Precio POR UNIDAD: dos decimales como mínimo y hasta seis si el precio los
+// tiene (105.318 no puede verse como 105.32). Un monto total sigue en dos.
+export function formatUnitPrice(value, currency) {
+  if (value == null || !isFinite(value)) return '$0.00'
+  const cur = currency || _baseCurrency
+  const locale = _lang === 'es' ? 'es-US' : 'en-US'
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(value)
+  } catch {
+    return formatCurrency(value, cur)
+  }
+}
+
 export function formatCompact(value, currency) {
   if (value == null || !isFinite(value)) return '$0'
   const sym = CURRENCY_SYMBOLS[currency || _baseCurrency] || '$'
