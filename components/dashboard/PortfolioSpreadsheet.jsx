@@ -2059,6 +2059,47 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           because both trace back to the same accidental second scroll
           container. A small portfolio that already fits on screen is
           unaffected: max-height only ever caps what would otherwise overflow. */}
+      {/* FASE RO. Resumen de tres números ANTES del detalle mensual: activos,
+          deuda y patrimonio neto de este mes, cada uno con su cambio contra el
+          mes anterior. Las cifras de este mes son las mismas que alimentan la
+          fila TOTAL; las del mes anterior salen de las mismas particiones
+          (monthlyAssetTotals / monthlyDebtTotals / monthlyTotals). */}
+      {isCurrentYear && months[months.length - 1] === currentMonthKey && (() => {
+        const pm = prevMonthKey
+        const prevA = pm ? monthlyAssetTotals[pm] : null
+        const prevD = pm ? monthlyDebtTotals[pm] : null
+        const prevN = pm ? monthlyTotals[pm] : null
+        const cards = [
+          { key: 'a', label: t('Activos', 'Assets'), val: totalAssets, prev: prevA, goodUp: true },
+          { key: 'd', label: t('Deuda', 'Debt'), val: totalDebt, prev: prevD, goodUp: false },
+          { key: 'n', label: t('Patrimonio neto', 'Net worth'), val: grandTotal, prev: prevN, goodUp: true },
+        ]
+        return (
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {cards.map((c) => {
+                const delta = (c.prev != null && isFinite(c.prev)) ? c.val - c.prev : null
+                const good = delta == null || delta === 0 ? null : (delta > 0) === c.goodUp
+                return (
+                  <div key={c.key} className="rounded-xl p-2.5 sm:p-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.label}</div>
+                    <div className="text-sm sm:text-base font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(c.val)}</div>
+                    <div className="text-xs tabular-nums" style={{ color: good == null ? 'var(--text-muted)' : good ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                      {delta == null ? t('sin mes anterior', 'no prior month') : `${delta > 0 ? '+' : delta < 0 ? '-' : ''}${formatCurrency(Math.abs(delta))} ${t('vs mes anterior', 'vs last month')}`}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {hasEstimated && (
+              <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                ~ {t('Algunos meses son estimados porque no hay precio histórico de mercado, así que se mantiene el saldo o la posición plano.',
+                     'Some months are estimated because there is no historical market price, so the balance or position is held flat.')}
+              </p>
+            )}
+          </div>
+        )
+      })()}
       <div className="overflow-auto max-h-[75vh] sheet-scroll">
         {/* CSS zoom (not transform: scale) — a transform creates a containing
             block that disables position:sticky on the name column at zoom ≠ 1. */}
