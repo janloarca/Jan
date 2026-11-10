@@ -2091,15 +2091,17 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         ]
         return (
           <div className="px-4 pb-3">
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            {/* FASE RU: a 320 px tres columnas no caben con montos de seis cifras
+                (se cortaban). Bajo 420 px van una debajo de otra, a lo ancho. */}
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2 sm:gap-3">
               {cards.map((c) => {
                 const delta = (c.prev != null && isFinite(c.prev)) ? c.val - c.prev : null
                 const good = delta == null || delta === 0 ? null : (delta > 0) === c.goodUp
                 return (
-                  <div key={c.key} className="rounded-xl p-2.5 sm:p-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div key={c.key} className="rounded-xl p-2.5 sm:p-3 min-w-0" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.label}</div>
-                    <div className="text-sm sm:text-base font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(c.val)}</div>
-                    <div className="text-xs tabular-nums" style={{ color: good == null ? 'var(--text-muted)' : good ? 'var(--accent-green)' : 'var(--text-negative)' }}>
+                    <div className="text-sm sm:text-base font-bold tabular-nums break-words" style={{ color: 'var(--text-primary)' }}>{formatCurrency(c.val)}</div>
+                    <div className="text-xs tabular-nums break-words" style={{ color: good == null ? 'var(--text-muted)' : good ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                       {delta == null ? t('sin mes anterior', 'no prior month') : `${delta > 0 ? '+' : delta < 0 ? '-' : ''}${formatCurrency(Math.abs(delta))} ${t('vs mes anterior', 'vs last month')}`}
                     </div>
                   </div>

@@ -987,6 +987,27 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         // encuentre es accionable.
                         return null
                       })}
+                      {/* FASE RU: el enlace del índice de Firestore. El aviso
+                          ámbar del camino lento se quitó en FASE QE por ruido,
+                          y con él desapareció la única forma de ver el enlace
+                          para crear el índice. Vuelve como una línea neutra y
+                          única (no una por cadencia): es una mejora opcional,
+                          el correo llega igual por el camino lento. */}
+                      {(() => {
+                        const slow = (autoStatus?.lookups || []).find((l) => l.includesYou && l.via === 'userScan')
+                        if (!slow) return null
+                        const m = String(slow.error || '').match(/https:\/\/console\.firebase\.google\.com\/[^\s)"']+/)
+                        return (
+                          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                            {t('Opcional: los correos llegan por un camino más lento porque falta un índice de Firestore. ', 'Optional: emails go through a slower path because a Firestore index is missing. ')}
+                            {m ? (
+                              <a href={m[0]} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--accent-blue)' }}>
+                                {t('Crear el índice', 'Create the index')}
+                              </a>
+                            ) : t('Firebase no devolvió el enlace esta vez.', 'Firebase did not return the link this time.')}
+                          </p>
+                        )
+                      })()}
                     </div>
                     {/* El correo de grupos es la única cadencia que todavía no
                         se comprobó en un envío automático real, así que conserva
