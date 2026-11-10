@@ -501,7 +501,17 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   // puede cambiar de la reconstrucción en vivo al doc archivado: el YTD saltaba
   // sin ninguna operación (+2.24% a -0.41%). Es un estado y no solo el ref para
   // que la pantalla pueda decir "actualizando" en vez de mostrar el número.
-  const [historyBusy, setHistoryBusy] = useState(false)
+  // FASE RP: arranca en true. Antes arrancaba en false y la PRIMERA carga
+  // mostraba el YTD de la reconstruccion en vivo (-0.77%) mientras el backfill
+  // todavia no habia decidido nada; al archivar, el ancla pasaba al doc y el
+  // numero cambiaba (-0.84%). Se suelta cuando la pasada del dia completa o
+  // se descarta (sin huecos), o por un plazo maximo para que una pasada
+  // bloqueada (sin red, sin sesion) no deje el esqueleto para siempre.
+  const [historyBusy, setHistoryBusy] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => setHistoryBusy(false), 12000)
+    return () => clearTimeout(t)
+  }, [])
   // FASE GM2. Un borrado de cuentas a mitad de sesión re-arma el backfill: la
   // regeneración del historial de portafolio completo ya corrió al inicio de
   // la sesión, y sin este reset el auto-reparado post-borrado (re-derivar los
@@ -606,7 +616,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // 'daily' corrupto, y esos docs NO son huecos (están protegidos justo por
     // ser observaciones). Es una sola llamada por sesión, y sin nada que
     // corregir no escribe nada.
-    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillDayRef.current = todayKey; return }
+    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillDayRef.current = todayKey; setHistoryBusy(false); return }
     // El intento se cuenta AQUÍ, después de los gates: una evaluación bloqueada
     // por un sync en curso no consume reintentos, solo un fetch que sí arrancó.
     backfillAttemptRef.current = {
