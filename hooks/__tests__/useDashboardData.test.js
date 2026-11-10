@@ -76,9 +76,11 @@ function setup(over = {}) {
   jest.doMock('../useTabCoordination', () => ({
     useTabCoordination: () => ({ acquireLock: () => true, releaseLock: () => {} }),
   }))
+  // `over.fetch(url)` responde con datos reales (FASE RR): sin él, toda
+  // respuesta se lee como {} igual que siempre.
   jest.doMock('../../lib/authFetch', () => ({
-    authFetch: jest.fn(async () => jsonResponse({})),
-    safeJson: jest.fn(async () => ({})),
+    authFetch: jest.fn(async (url) => (over.fetch ? jsonResponse(over.fetch(url)) : jsonResponse({}))),
+    safeJson: jest.fn(async (res) => (over.fetch && res && typeof res.json === 'function' ? res.json() : {})),
   }))
   ;({ authFetch } = require('../../lib/authFetch'))
   ;({ useDashboardData } = require('../useDashboardData'))
@@ -1645,9 +1647,10 @@ describe('FASE OM: reinvertir en un ítem de saldo no corrompe la cantidad', () 
 // el ancla del 1 de enero archivada sin él, y el YTD lo contaba entero como
 // ganancia. Agregar/editar un activo re-arma la pasada; un tick de precios no.
 describe('FASE QN: agregar un activo a mitad de día re-arma el backfill', () => {
-  // Solo las llamadas del BACKFILL: las del ancla del YTD llevan breakdown:true.
+  // Solo las llamadas del BACKFILL. Desde FASE RR el backfill también pide
+  // breakdown (para guardar el reparto por cuenta), así que se marca aparte.
   const histCalls = () => authFetch.mock.calls
-    .filter((c) => String(c[0]).includes('portfolio-history') && !String(c[1]?.body || '').includes('"breakdown":true')).length
+    .filter((c) => String(c[0]).includes('portfolio-history') && String(c[1]?.body || '').includes('"_purpose":"backfill"')).length
 
   async function renderWith(items) {
     const r = setup({ firestore: { items, snapshots: [] }, prices: { enrichedItems: items } })
@@ -1675,6 +1678,79 @@ describe('FASE QN: agregar un activo a mitad de día re-arma el backfill', () =>
     rerender()
     await act(async () => {})
     expect(histCalls()).toBe(before)
+    unmount()
+  })
+})
+
+// ⛔ FASE RR (superficie C, con OK del usuario): un solo arranque del año.
+// Con un activo agregado DESPUÉS de archivar el ancla (y fecha de compra
+// anterior), el encabezado cambiaba el doc ENTERO por la reconstrucción en
+// cuanto esta llegaba: el arranque saltaba de un valor a otro. Ahora el
+// arranque es el doc archivado + el valor al arranque de ese activo tardío.
+describe('FASE RR: el arranque del año es el doc archivado, sin saltos', () => {
+  afterEach(() => jest.useRealTimers())
+
+  const bank = item({
+    id: 'b1', symbol: 'B', type: 'Bank', quantity: 1, institution: 'Banco',
+    currentPrice: 11000, purchasePrice: 10000,
+    acquisitionDate: '2024-01-01', createdAt: '2024-01-01',
+  })
+  // Agregado en marzo, comprado en 2025: el ancla del 1 de enero no lo contiene.
+  const late = item({
+    id: 'l1', symbol: 'LATE', type: 'Bank', quantity: 1, institution: 'Otro',
+    currentPrice: 2100, purchasePrice: 2000,
+    acquisitionDate: '2025-06-01', createdAt: '2026-03-01T00:00:00Z',
+  })
+  const anchor = {
+    id: '2026-01-01', date: '2026-01-01', _source: 'backfill', createdAt: '2026-01-02T00:00:00Z',
+    netWorthUSD: 10000, totalActivosUSD: 10000, totalDebtUSD: 0, _accountsUSD: { banco: 10000 },
+  }
+  const later = { id: '2026-06-15', date: '2026-06-15', _source: 'daily', netWorthUSD: 12500, totalActivosUSD: 12500, totalDebtUSD: 0 }
+
+  function historyResponse() {
+    // La reconstrucción del ancla: dice 13,000 (con el tardío) y su desglose.
+    return ({
+      dataPoints: [{
+        ts: Date.parse('2026-01-01T00:00:00Z'), total: 13000,
+        byKey: { b1: 10900, l1: 2000 },
+      }, {
+        ts: Date.parse('2026-08-19T00:00:00Z'), total: 13100,
+        byKey: { b1: 11000, l1: 2100 },
+      }],
+      transactional: true,
+    })
+  }
+
+  it('suma el tardío al doc archivado en vez de reemplazarlo, y lo rotula', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const items = [bank, late]
+    const { result, unmount } = setup({
+      firestore: { items, snapshots: [anchor, later] }, prices: { enrichedItems: items },
+      fetch: (url) => (String(url).includes('portfolio-history') ? historyResponse() : {}),
+    })
+    await act(async () => {})
+    await act(async () => {})
+    // Doc archivado (10,000) + LATE al arranque (2,000) = 12,000, nunca la
+    // reconstrucción entera (13,000).
+    expect(result.current.ytdStartValue).toBeCloseTo(12000, 6)
+    expect(result.current.ytdStartLate).toBeCloseTo(2000, 6)
+    expect(result.current.ytdStartSrc).toBe('backfill')
+    unmount()
+  })
+
+  it('sin desglose del tardío cae a la reconstrucción y la rotula estimada', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-20T12:00:00Z'))
+    const items = [bank, late]
+    const { result, unmount } = setup({
+      firestore: { items, snapshots: [anchor, later] }, prices: { enrichedItems: items },
+      fetch: (url) => (String(url).includes('portfolio-history')
+        ? { dataPoints: [{ ts: Date.parse('2026-01-01T00:00:00Z'), total: 13000 }], transactional: true }
+        : {}),
+    })
+    await act(async () => {})
+    await act(async () => {})
+    expect(result.current.ytdStartValue).toBeCloseTo(13000, 6)
+    expect(result.current.ytdStartSrc).toBe('reconstruction')
     unmount()
   })
 })

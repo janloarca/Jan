@@ -76,7 +76,7 @@ describe('YtdBreakdownSection', () => {
     expect(txt).toMatch(/Las transferencias entre cuentas propias se netean y no se contabilizan como rendimiento\./)
     expect(txt).toMatch(/Transferencias internas neteadas: IDC −\$223\.97 · AIXEN \+\$223\.97\./)
     expect(txt).toMatch(/Valor inicial del año: \$11,756\.88 · /)
-    expect(txt).toMatch(/cálculo derivado\./)
+    expect(txt).toMatch(/· estimado\./) // FASE RR: la etiqueta dice observado/transcrito/estimado
   })
 
   it('si las filas NO suman el YTD, lo dice con las dos cifras en vez de esconderlo', () => {
