@@ -1189,7 +1189,9 @@ describe('FASE NL: el ancla del YTD sale de UN doc, y ese doc puede estar mal', 
     // El doc del 1 de enero reescrito por la composición (NAV real del broker
     // arrastrado al feriado + reconstrucción de lo manual).
     const repaired = { ...real(`${yr}-01-01`, 5555), _source: 'backfill', _transactional: true }
-    const r = await run([repaired, real(`${yr}-01-02`, 5560), real(`${yr}-06-15`, 8000)])
+    // FASE RT: el vecino va fuera de la ventana de enero; con un doc del 2 de
+    // enero el ancla pasa a ese dia y este test dejaria de aislar la reparacion.
+    const r = await run([repaired, real(`${yr}-01-20`, 5560), real(`${yr}-06-15`, 8000)])
     expect(r.start).toBeCloseTo(5555, 2)
     expect(r.change).toBeCloseTo(532.65, 2)
     expect(r.calibrated).toBe(false)
