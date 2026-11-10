@@ -1,9 +1,12 @@
 'use client'
 import { useMemo } from 'react'
 import { buildLotsAudit } from '@/lib/lotsAudit'
+import ConfirmTap from '@/components/ui/ConfirmTap'
 
-// Solo lectura: no hay ningún botón que escriba.
-export default function LotsAudit({ items, lots, lang }) {
+// Lectura por defecto. El único botón que escribe es "Ajustar lote" (dos toques):
+// fija la cantidad del lote de UNA posición a la de la posición y le anota su
+// dueño (itemId), para que las ventas futuras cierren ese lote.
+export default function LotsAudit({ items, lots, lang, onFixLot }) {
   const es = lang === 'es'
   const rows = useMemo(() => buildLotsAudit(items, lots), [items, lots])
   const f = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 8 })
@@ -28,6 +31,14 @@ export default function LotsAudit({ items, lots, lang }) {
                 {p.lotQty == null
                   ? ` · ${es ? 'sin lote que coincida' : 'no matching lot'}`
                   : ` · ${es ? 'lote' : 'lot'} ${f(p.lotQty)}${p.lotGap ? ` · ${es ? 'ajustar' : 'adjust'} ${f(p.lotGap)}` : ' ✓'}`}
+                {onFixLot && p.lotId && p.lotGap ? (
+                  <ConfirmTap
+                    onConfirm={() => onFixLot(p.lotId, { quantity: p.quantity, itemId: p.id })}
+                    className="ml-2 underline" style={{ color: 'var(--accent-blue)' }}
+                    confirmContent={es ? `¿Fijar lote en ${f(p.quantity)}? Toca otra vez` : `Set lot to ${f(p.quantity)}? Tap again`}
+                    confirmStyle={{ color: 'var(--text-negative)' }}
+                  >{es ? 'Ajustar lote' : 'Fix lot'}</ConfirmTap>
+                ) : null}
               </div>
             ))}
             {g.openLots.map((l) => (
