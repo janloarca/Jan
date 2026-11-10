@@ -169,7 +169,11 @@ export function useMarketPrices(items) {
         enriched.marketCurrency = priceData.currency
       }
 
-      if (divData?.hasDividend && !it.incomeAmount && !it.incomeRate) {
+      // FASE RM. Solo acciones y fondos reciben dividendo detectado: cripto,
+      // efectivo, bienes raices y deudas no, aunque su simbolo coincida con el
+      // de una accion (ETH = Ethan Allen).
+      const dividendEligible = !it.isDebt && !/crypto|cripto|blockchain|bank|banco|cash|real.?estate|inmueble|property|debt|deuda/i.test(`${it.type || ''} ${it.subtype || ''}`)
+      if (dividendEligible && divData?.hasDividend && !it.incomeAmount && !it.incomeRate) {
         enriched.dividendYield = divData.dividendYield
         enriched.annualDividend = divData.annualDividend
         if (!it.incomeMonths || it.incomeMonths.length === 0) {
