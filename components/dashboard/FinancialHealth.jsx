@@ -50,7 +50,7 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     return {
       debtScore, debtRatio, totalDebt,
       liquidScore, liquidPct,
-      diverseScore, diversePct, numTypes, hasHome,
+      diverseScore, diversePct, numTypes, hasHome, types: Object.keys(typeCounts),
       growthScore, growthPct,
       total,
     }
@@ -89,9 +89,22 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       const targetScore = scores.numTypes + needed >= 5 ? 25 : scores.numTypes + needed >= 4 ? 22 : 18
       const delta = targetScore - currentScore
       if (delta > 0) {
+        // FASE RQ: "agrega 1 tipo" sin decir cuál no se puede actuar. Se
+        // nombran las exposiciones que faltan, en orden de liquidez.
+        const CANDIDATES = [
+          ['banks', 'efectivo o cuenta de ahorro', 'cash or savings'],
+          ['bonds', 'renta fija (bonos o fondos de bonos)', 'fixed income (bonds or bond funds)'],
+          ['funds', 'fondos indexados o ETFs diversificados', 'index funds or diversified ETFs'],
+          ['stocks', 'acciones individuales', 'individual stocks'],
+          ['crypto', 'cripto', 'crypto'],
+          ['alternatives', 'alternativos (capital privado, materias primas)', 'alternatives (private equity, commodities)'],
+        ]
+        const missing = CANDIDATES.filter(([k]) => !scores.types.includes(k)).slice(0, needed)
+        const listEs = missing.map((m) => m[1]).join(', ')
+        const listEn = missing.map((m) => m[2]).join(', ')
         tips.push({
-          textEs: `Agrega ${needed} ${needed === 1 ? 'tipo' : 'tipos'} de activo más, para mejorar tu puntaje de diversificación`,
-          textEn: `Add ${needed} more asset ${needed === 1 ? 'type' : 'types'}, to improve your diversification score`,
+          textEs: `Te falta exposición a: ${listEs}. Sumarla mejora tu diversificación`,
+          textEn: `You have no exposure to: ${listEn}. Adding it improves your diversification`,
           points: delta,
         })
       }

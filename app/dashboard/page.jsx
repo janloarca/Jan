@@ -132,6 +132,7 @@ import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
 import { scopeTagFor } from '@/lib/scopeTag'
+import { investableValue } from '@/lib/investable'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
 // wears the same card: same shell, same header shape, same segmented control.
@@ -885,6 +886,9 @@ export default function DashboardPage() {
       return Object.keys(patches).length > 0 ? { ...item, ...patches } : item
     })
   }, [rawPortfolioItems, enrichData])
+  // FASE RQ: lo invertible (sin vivienda ni deudas), una sola cifra para metas,
+  // riesgo y rendimiento comparable. Ver lib/investable.js.
+  const investableAssets = useMemo(() => investableValue(portfolioItems), [portfolioItems])
 
   // Data-completeness engine: gap findings + score over RAW data (items carry
   // their own currency; the engine converts per-tx via `convert`). marketPrices
@@ -1828,9 +1832,9 @@ export default function DashboardPage() {
         {/* ═══ METAS ═══ */}
         <div className="stagger-6"><SectionCollapse title={lang === 'es' ? 'Metas' : 'Goals'} id="goals" defaultOpen={!!(goals?.incomeGoal || goals?.portfolioGoal)}>
           <ErrorBoundary lang={lang}>
-            <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} totalAssets={totalAssets} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} convert={convert} baseCurrency={baseCurrency} transactions={transactions} items={items} /></CardBoundary>
+            <CardBoundary id="GO-01"><GoalTracker netWorth={netWorth} totalAssets={totalAssets} investableAssets={investableAssets} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} goals={goals} onSaveGoals={saveGoals} volatility={riskMetrics?.volatility} lang={lang} convert={convert} baseCurrency={baseCurrency} transactions={transactions} items={items} /></CardBoundary>
             {!settings?.hideRebalanceSuggestions && (
-              <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ hideRebalanceSuggestions: true })} /></CardBoundary>
+              <CardBoundary id="IG-10"><RebalanceSuggestions items={portfolioItems} lots={lots} netWorth={netWorth} goals={goals} onSaveGoals={saveGoals} lang={lang} onDismiss={() => saveSettings({ hideRebalanceSuggestions: true })} /></CardBoundary>
             )}
           </ErrorBoundary>
         {/* La sección "Análisis" que vivía aquí abajo se movió arriba, a la

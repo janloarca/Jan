@@ -15,7 +15,7 @@ import { monthsUntilGoal, monthlyNeeded, measuredMonthlyContribution } from '@/l
 // porque el test de esta card los importa desde acá.
 export { GOAL_MAX_YEAR, clampTargetYear, readGoal, goalInBase } from '@/lib/goalFields'
 
-export default function GoalTracker({ netWorth, totalAssets = null, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null, transactions = null, items = null }) {
+export default function GoalTracker({ netWorth, totalAssets = null, investableAssets = null, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null, transactions = null, items = null }) {
   const [editing, setEditing] = useState(false)
   // El form trabaja SIEMPRE en la base actual: lo guardado se siembra ya
   // convertido (si la meta vivia en otra moneda) para que lo que se ve, lo que
@@ -43,7 +43,10 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
   // mes a mes en vez de quedarse quieto doce meses y caer de golpe en enero.
   const monthsLeft = monthsUntilGoal(targetYear)
 
-  const portfolioNow = portfolioValue(totalAssets, netWorth)
+  // FASE RQ: la meta de portafolio se mide contra lo INVERTIBLE (sin vivienda
+  // ni deudas, lib/investable.js). Con la casa adentro salía "superada 3.5x".
+  const usingInvestable = Number.isFinite(Number(investableAssets)) && investableAssets !== null
+  const portfolioNow = usingInvestable ? Number(investableAssets) : portfolioValue(totalAssets, netWorth)
   const effectiveIncome = Math.max(annualDividends || 0, estimatedAnnualIncome || 0)
   // Clamp por AMBOS lados: un patrimonio negativo (deuda mayor que activos)
   // producía un "-15%" con barra invisible.
@@ -228,7 +231,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
           <div>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white font-medium">{t('Tamaño de portafolio', 'Portfolio size')}</span>
+                <span className="text-xs text-white font-medium">{t('Portafolio invertible', 'Investable portfolio')}</span>
                 <span className="text-xs text-slate-500 bg-theme-base px-1.5 py-0.5 rounded">{formatCompact(portfolioGoal)}</span>
               </div>
               <span className="text-xs font-bold" style={{ color: portfolioPct >= 75 ? 'var(--accent-green)' : portfolioPct >= 25 ? 'var(--accent-orange)' : 'var(--text-negative)' }}>{portfolioOver ? t(`Meta superada (${portfolioOver})`, `Goal exceeded (${portfolioOver})`) : `${portfolioPct.toFixed(0)}%`}</span>
@@ -242,6 +245,11 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
               <span className="text-xs text-slate-500">{formatCurrency(portfolioGoal)}</span>
             </div>
           </div>
+          {usingInvestable && (
+            <p className="text-[11px] -mt-2" style={{ color: 'var(--text-muted)' }}>
+              {t('Sin vivienda ni deudas: lo que se puede invertir y mover.', 'Excluding home and debts: what you can invest and move.')}
+            </p>
+          )}
 
           {/* Goal probability */}
           {goalProbability != null && (() => {
@@ -262,7 +270,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, annualDivide
                   </div>
                 </div>
                 <div>
-                  <span className="text-sm font-semibold text-white block">{t('Probabilidad de éxito', 'Probability of success')}</span>
+                  <span className="text-sm font-semibold text-white block">{t(`Probabilidad de llegar a ${formatCompact(portfolioGoal)} invertible en ${targetYear}`, `Chance of reaching ${formatCompact(portfolioGoal)} investable by ${targetYear}`)}</span>
                   <span className="text-xs font-medium mt-0.5 block" style={{ color: probColor }}>{probLabel}</span>
                   {/* Decir CON QUÉ APORTE se corrió es la mitad del dato: sin
                       eso, un 12% se lee como "la meta es mala" cuando lo que
