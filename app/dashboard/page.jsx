@@ -362,7 +362,7 @@ export default function DashboardPage() {
     marketPrices,
     pricesLoading, pricesFetching, pricesError, pricesUpdate,
     rates, convert,
-    ratesLoading, ratesError, ratesUpdate, ratesStale, ytdResolved,
+    ratesLoading, ratesError, ratesUpdate, ratesStale, ytdResolved, historyBusy,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
@@ -1620,7 +1620,7 @@ export default function DashboardPage() {
             {/* Mientras llegan precios, tasas o el ancla del año, las cifras son
                 parciales (patrimonio y YTD absurdos por unos segundos): se
                 muestra el esqueleto en vez de un número que no es el final. */}
-            {(!firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved) ? (
+            {(!firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved || historyBusy) ? (
               <div className="card p-4 sm:p-5" aria-busy="true">
                 <Shimmer className="h-4 w-28 mb-3" />
                 <Shimmer className="h-10 w-56 mb-3" />

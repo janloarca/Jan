@@ -496,6 +496,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const backfillDayRef = useRef(null)
   const backfillAttemptRef = useRef({ dayKey: null, ts: 0, tries: 0 })
   const backfillRunningRef = useRef(false)
+  // FASE RJ. Mientras el backfill reescribe el historial (y un instante después,
+  // hasta que el listener de Firestore trae los docs nuevos) el ANCLA del YTD
+  // puede cambiar de la reconstrucción en vivo al doc archivado: el YTD saltaba
+  // sin ninguna operación (+2.24% a -0.41%). Es un estado y no solo el ref para
+  // que la pantalla pueda decir "actualizando" en vez de mostrar el número.
+  const [historyBusy, setHistoryBusy] = useState(false)
   // FASE GM2. Un borrado de cuentas a mitad de sesión re-arma el backfill: la
   // regeneración del historial de portafolio completo ya corrió al inicio de
   // la sesión, y sin este reset el auto-reparado post-borrado (re-derivar los
@@ -609,6 +615,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       tries: (att.dayKey === todayKey ? att.tries : 0) + 1,
     }
     backfillRunningRef.current = true
+    setHistoryBusy(true)
 
     let cancelled = false
     async function doBackfill() {
@@ -779,6 +786,8 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         console.error('[backfill] Failed:', err.message)
       } finally {
         backfillRunningRef.current = false
+        // Colchón: el listener tarda un momento en entregar lo recién escrito.
+        setTimeout(() => setHistoryBusy(false), 1500)
       }
     }
     doBackfill()
@@ -4082,7 +4091,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
 
     // Computed values
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, returnMTD, returnMTDRaw, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved, assetTransactions,
+    returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, returnMTD, returnMTDRaw, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail, ytdBreakdownTerms, ytdDegradedAccounts, ytdResolved, historyBusy, assetTransactions,
     // El valor con el que arrancó el año, o sea contra QUÉ se midió returnYTD.
     // Adición pura: ya se calculaba acá dentro (alimenta el desglose por
     // cuenta) y solo faltaba exponerlo. Lo consume la card de invertido por
