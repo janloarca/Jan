@@ -204,10 +204,14 @@ export async function POST(request) {
   if (authError) return authError
 
   try {
-    const { messages, portfolioContext, apiKey, stream } = await request.json()
-
+    const body = await request.json()
+    const { messages, portfolioContext, stream } = body
+    // FASE RK. Un usuario normal no tiene clave de Anthropic: manda la del
+    // servidor. Si el usuario trae la suya, manda la suya. Sin ninguna, el
+    // asistente no está disponible y se dice claro (503), nunca se pide una clave.
+    const apiKey = body.apiKey || process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key required' }, { status: 400 })
+      return NextResponse.json({ error: 'assistant_unavailable' }, { status: 503 })
     }
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'Messages required' }, { status: 400 })

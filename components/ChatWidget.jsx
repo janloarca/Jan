@@ -39,7 +39,6 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) setApiKey(saved)
-      else setShowKeyInput(true)
     }
   }, [])
 
@@ -110,8 +109,6 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || loading) return
-    if (!apiKey) { setShowKeyInput(true); return }
-
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -134,7 +131,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
         body: JSON.stringify({
           messages: newMessages,
           portfolioContext: buildContext(),
-          apiKey,
+          ...(apiKey ? { apiKey } : {}),
           stream: true,
         }),
         signal: controller.signal,
@@ -142,7 +139,9 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
 
       if (!res.ok) {
         const data = await safeJson(res) || {}
-        if (res.status === 401 && data.error === 'Invalid API key') {
+        if (res.status === 503 || data.error === 'assistant_unavailable' || (res.status === 401 && !apiKey)) {
+          setError(t('El asistente todavía no está disponible para tu cuenta.', 'The assistant is not available for your account yet.'))
+        } else if (res.status === 401 && data.error === 'Invalid API key' && apiKey) {
           setError(t('La clave no es válida. Revísala.', 'Invalid key. Check it.'))
           setShowKeyInput(true)
         } else {
