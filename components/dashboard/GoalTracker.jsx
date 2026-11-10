@@ -180,7 +180,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, investableAs
               {incomeProblem && <p role="alert" className="text-xs mt-1" style={{ color: 'var(--text-negative)' }}>{incomeProblem}</p>}
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">{t('Meta de portfolio', 'Portfolio goal')}</label>
+              <label className="text-xs text-slate-500 mb-1 block">{t('Meta de portafolio invertible (sin vivienda)', 'Investable portfolio goal (excludes your home)')}</label>
               <AmountInput value={form.portfolioGoal} onChange={(e) => setForm({ ...form, portfolioGoal: e.target.value })}
                 placeholder="100000" aria-invalid={!!portfolioProblem}
                 className="w-full px-3 py-2 bg-theme-base border border-glass-border rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50" />
