@@ -1,12 +1,38 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { computeSharpeRatio, computeVolatility, computeMaxDrawdown, computePeriodicReturns, pairPortfolioWithBenchmark, computeSortino, computeTreynor, computeJensensAlpha, computeInformationRatio, inferPeriodsPerYear, filterValueSpikes } from './analytics'
 import { InfoTip } from '../ui/Tooltip'
 import { formatShortDate } from './utils'
 import { snapshotAssetsUSD } from '@/lib/assetReturns'
+import { snapshotsWithoutRealEstate } from '@/lib/investable'
+import { getTypeCategory } from './utils'
+import SegmentedTabs from '../ui/SegmentedTabs'
 
-export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, transactions, convert, baseCurrency, benchmarkName }) {
+// FASE RQ: tasa libre de riesgo declarada en pantalla, la misma que usan
+// computeSharpeRatio/Sortino/Treynor por default.
+const RISK_FREE = 0.04
+
+export default function RiskMetrics({ snapshots: allSnapshots, benchmarkData, netWorth, lang, transactions: allTransactions, convert, baseCurrency, benchmarkName, items }) {
+  // FASE RQ: la vivienda pesa 72% del activo y su valuación casi no se mueve,
+  // así que aplana la volatilidad y el beta. Por defecto se mide SIN ella.
+  const homeIds = useMemo(() => new Set((items || []).filter((it) => !it.isDebt && getTypeCategory(it) === 'realestate').map((it) => it.id)), [items])
+  const hasHome = homeIds.size > 0
+  const [scope, setScope] = useState('investable')
+  const investable = hasHome && scope === 'investable'
+  const snapshots = useMemo(() => {
+    if (!investable) return allSnapshots
+    const toUSD = (v) => (convert && baseCurrency && baseCurrency !== 'USD' ? convert(v, baseCurrency, 'USD') : v)
+    return snapshotsWithoutRealEstate(allSnapshots, items, toUSD)
+  }, [investable, allSnapshots, items, convert, baseCurrency])
+  const transactions = useMemo(() => {
+    if (!investable) return allTransactions
+    return (allTransactions || []).filter((tx) => !(tx._linkedItemId && homeIds.has(tx._linkedItemId)))
+  }, [investable, allTransactions, homeIds])
+  const period = useMemo(() => {
+    const ds = (snapshots || []).map((x) => String(x.date || '').slice(0, 10)).filter(Boolean).sort()
+    return ds.length ? { from: ds[0], to: ds[ds.length - 1] } : null
+  }, [snapshots])
   const metrics = useMemo(() => {
     const returns = computePeriodicReturns(snapshots, transactions, convert, baseCurrency)
     const ppy = inferPeriodsPerYear(snapshots)
@@ -101,6 +127,21 @@ export default function RiskMetrics({ snapshots, benchmarkData, netWorth, lang, 
         {t('MÉTRICAS DE RIESGO', 'RISK METRICS')}
       </h3>
 
+      {hasHome && (
+        <SegmentedTabs
+          tabs={[{ key: 'investable', label: t('Sin vivienda', 'Excl. home') }, { key: 'all', label: t('Todo', 'All assets') }]}
+          value={scope} onChange={setScope} deps={[lang]}
+          ariaLabel={t('Universo medido', 'Measured universe')} className="mb-2"
+        />
+      )}
+      {hasData && period && (
+        <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+          {t(
+            `Periodo: ${formatShortDate(period.from)} a ${formatShortDate(period.to)} · retornos ${inferPeriodsPerYear(snapshots) >= 200 ? 'diarios' : inferPeriodsPerYear(snapshots) >= 40 ? 'semanales' : 'mensuales'} anualizados · tasa libre de riesgo ${(RISK_FREE * 100).toFixed(0)}% anual · beta vs ${benchmarkName || 'S&P 500'}${investable ? ' · sin vivienda (a su valor de hoy)' : ''}`,
+            `Period: ${formatShortDate(period.from)} to ${formatShortDate(period.to)} · ${inferPeriodsPerYear(snapshots) >= 200 ? 'daily' : inferPeriodsPerYear(snapshots) >= 40 ? 'weekly' : 'monthly'} returns annualized · risk-free rate ${(RISK_FREE * 100).toFixed(0)}%/yr · beta vs ${benchmarkName || 'S&P 500'}${investable ? ' · excluding home (at today\'s value)' : ''}`,
+          )}
+        </p>
+      )}
       {!hasData ? (
         <div className="text-center py-4 text-sm text-slate-600">
           {t('Se necesitan más datos históricos (mín. 15 snapshots)', 'More historical data needed (min. 15 snapshots)')}

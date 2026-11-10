@@ -107,7 +107,7 @@ export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAsse
         <CardBoundary id="AN-01"><FinancialHealth items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets} snapshots={snapshots} lang={lang} /></CardBoundary>
       )}
       {activeTab === 'risk' && !beginnerMode && (
-        <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} /></CardBoundary>
+        <CardBoundary id="AN-05"><RiskMetrics snapshots={snapshots} benchmarkData={benchmarkData} netWorth={netWorth} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} benchmarkName={benchmarkName} items={portfolioItems} /></CardBoundary>
       )}
       {activeTab === 'concentration' && (
         <CardBoundary id="AN-02b"><ConcentrationRisk items={portfolioItems} lang={lang} /></CardBoundary>
@@ -119,7 +119,7 @@ export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAsse
         <CardBoundary id="AN-04"><PerformanceAttribution items={portfolioItems} lang={lang} transactions={transactions} convert={convert} baseCurrency={baseCurrency} /></CardBoundary>
       )}
       {activeTab === 'benchmark' && (
-        <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} /></CardBoundary>
+        <CardBoundary id="OL-02"><BenchmarkComparison benchmarkReturn={benchmarkReturn} portfolioReturn={portfolioReturn} benchmarkName={benchmarkName} lang={lang} snapshots={snapshots} transactions={transactions} convert={convert} baseCurrency={baseCurrency} items={portfolioItems} /></CardBoundary>
       )}
       {activeTab === 'quality' && (
         <CardBoundary id="HO-03"><DataQualityCard items={portfolioItems} transactions={transactions} snapshots={snapshots} convert={convert} baseCurrency={baseCurrency} lang={lang} onConnect={onConnect} onImportBroker={onImportBroker} /></CardBoundary>

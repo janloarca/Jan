@@ -183,6 +183,9 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
     return {
       annualTotal, sources: sources.sort((a, b) => b.annual - a.annual), upcoming: upcoming.slice(0, 6),
       next12, next12Total, restOfYearTotal,
+      // FASE RQ: lo del mes en curso que ya se cobró o cuyo día ya pasó. Es la
+      // diferencia entre el anual estimado y los próximos 12 meses.
+      skippedThisMonth: next12[0]?.skippedValue || 0,
     }
   }, [items, transactions, convert, baseCurrency])
 
@@ -494,6 +497,14 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Próximos 12 meses (proyectado)', 'Next 12 months (projected)')}</span>
             <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(projected.next12Total)}</span>
           </div>
+          {/* FASE RQ: tres cifras que se leen como contradictorias si no se
+              dice qué ventana mide cada una. */}
+          <p className="col-span-2 text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+            {t(
+              `Anual est. ${formatCurrency(estAnnual)}: tasas declaradas por un año completo de pagos. Próximos 12 meses: desde hoy hasta ${monthName((now.getMonth() + 11) % 12)} ${now.getFullYear() + (now.getMonth() > 0 ? 1 : 0)}, sin lo de este mes que ya se cobró o cuya fecha pasó${projected.skippedThisMonth > 0 ? ` (${formatCurrency(projected.skippedThisMonth)})` : ''}. Resto de ${now.getFullYear()}: solo lo que falta de este año.`,
+              `Annual est. ${formatCurrency(estAnnual)}: declared yields over a full year of payments. Next 12 months: from today to ${monthName((now.getMonth() + 11) % 12)} ${now.getFullYear() + (now.getMonth() > 0 ? 1 : 0)}, excluding this month's payments already received or past due${projected.skippedThisMonth > 0 ? ` (${formatCurrency(projected.skippedThisMonth)})` : ''}. Rest of ${now.getFullYear()}: only what remains this year.`,
+            )}
+          </p>
         </div>
       )}
 

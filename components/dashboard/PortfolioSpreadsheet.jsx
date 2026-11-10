@@ -238,12 +238,12 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
   )
 })
 
-// El % de la columna: qué parte del patrimonio de HOY es esta fila.
+// El % de la columna: qué parte del activo total de HOY es esta fila.
 //
 // ⛔ Vivía SOLO en las filas de categoría, así que en un portafolio de 18
 // posiciones la columna tenía DOS valores y veinte celdas vacías: "el % no
 // funciona" (reporte del usuario, con captura). El denominador es el MISMO
-// para todas las filas (`grandTotal`), así que una categoría sigue siendo
+// para todas las filas (el ACTIVO total desde FASE RQ, igual que el tablero), así que una categoría sigue siendo
 // exactamente la suma de sus hijas y las dos lecturas no pueden divergir.
 //
 // "<1%" en vez de "0%" a propósito: un cero AFIRMA que la fila no pesa nada, y
@@ -1080,6 +1080,21 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
   }, [items, lang])
 
   const grandTotal = totalAssets - totalDebt
+  // FASE RQ: la tabla abre mostrando el mes en curso. En un teléfono solo
+  // entraban ene-mar y había que deslizar todo el año para llegar a hoy. Una
+  // sola vez por montaje y por vista: después manda el scroll del usuario.
+  const sheetScrollRef = useRef(null)
+  const scrolledViewRef = useRef(null)
+  useEffect(() => {
+    const el = sheetScrollRef.current
+    if (!el || scrolledViewRef.current === viewMode) return
+    const th = el.querySelector('[data-current-col="1"]')
+    if (!th) return
+    scrolledViewRef.current = viewMode
+    const right = th.getBoundingClientRect().right - el.getBoundingClientRect().left + el.scrollLeft
+    const target = right - el.clientWidth + 8
+    if (target > 0) el.scrollLeft = target
+  })
   const [collapsed, setCollapsed] = useState({})
   const [collapsedInst, setCollapsedInst] = useState({})
   const [editingItemId, setEditingItemId] = useState(null)
@@ -2100,7 +2115,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           </div>
         )
       })()}
-      <div className="overflow-auto max-h-[75vh] sheet-scroll">
+      <div ref={sheetScrollRef} className="overflow-auto max-h-[75vh] sheet-scroll">
         {/* CSS zoom (not transform: scale) — a transform creates a containing
             block that disables position:sticky on the name column at zoom ≠ 1. */}
         <div style={{ zoom }}>
@@ -2115,13 +2130,14 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 it needs the highest z-index for the moment it visually
                 overlaps both the stuck header row and the stuck name column. */}
             <tr className="border-b border-[var(--border-color)] bg-theme-tertiary">
-              <th scope="col" className="text-left py-2.5 pl-4 pr-2 font-semibold text-xs uppercase tracking-wide sticky left-0 top-0 bg-theme-tertiary z-30 min-w-[140px] max-w-[200px]" style={{ color: 'var(--text-muted)' }} />
-              <th scope="col" className="text-right py-2.5 px-1 font-semibold text-xs w-8 sticky top-0 bg-theme-tertiary z-20" style={{ color: 'var(--text-muted)' }}>%</th>
+              <th scope="col" className="text-left py-2.5 pl-4 pr-2 font-semibold text-xs uppercase tracking-wide sticky left-0 top-0 bg-theme-tertiary z-30 min-w-[112px] sm:min-w-[140px] max-w-[200px]" style={{ color: 'var(--text-muted)' }} />
+              {/* FASE RQ: el denominador se dice. Antes era el patrimonio NETO, así que la casa salía 127% en la Hoja y 72.2% en el tablero; ahora es el activo total, igual que el tablero. */}
+              <th scope="col" className="text-right py-2.5 px-1 font-semibold text-xs w-8 sticky top-0 bg-theme-tertiary z-20" style={{ color: 'var(--text-muted)' }} title={t('Porcentaje sobre tus activos totales (sin restar deudas), el mismo denominador que el tablero.', 'Percent of your total assets (debts not subtracted), the same denominator as the dashboard.')}>{t('% act.', '% assets')}</th>
               {showOriginal && <th scope="col" className="text-center py-2.5 px-1 font-semibold text-xs w-10 sticky top-0 bg-theme-tertiary z-20" style={{ color: 'var(--text-muted)' }}>{t('Mon', 'Cur')}</th>}
               {months.map(mk => {
                 const isCurrent = mk === currentMonthKey
                 return (
-                  <th scope="col" key={mk} className="text-right py-2.5 px-2 font-semibold text-xs w-32 sticky top-0 bg-theme-tertiary z-20" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--accent-blue-strong)' } : { color: 'var(--text-muted)' }}>
+                  <th scope="col" key={mk} data-current-col={isCurrent ? '1' : undefined} className="text-right py-2.5 px-2 font-semibold text-xs w-32 sticky top-0 bg-theme-tertiary z-20" style={isCurrent ? { backgroundColor: CURRENT_COL_BG, color: 'var(--accent-blue-strong)' } : { color: 'var(--text-muted)' }}>
                     {getColumnLabel(mk, lang, viewMode)}
                     {isCurrent && <div className="text-xs font-normal" style={{ color: 'var(--accent-blue-soft)' }}>{t('actual', 'current')}</div>}
                   </th>
@@ -2158,7 +2174,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       {isDebtsRow && <InfoTip text={DEBT_CLARIFICATION[lang]} />}
                     </div>
                   </td>
-                  <td className="text-right py-3 px-1 font-semibold text-sm" style={{ color: 'var(--text-muted)' }}>{shareLabel(cat.total, grandTotal) || ''}</td>
+                  <td className="text-right py-3 px-1 font-semibold text-sm" style={{ color: 'var(--text-muted)' }}>{shareLabel(cat.total, totalAssets) || ''}</td>
                   {showOriginal && <td className="text-center py-3 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>{baseCurrency || 'USD'}</td>}
                   {months.map(mk => {
                     const isCurrent = mk === currentMonthKey
@@ -2256,7 +2272,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>{inst.name}</span>
                             <span className="text-xs ml-1.5" style={{ color: 'var(--text-muted)' }}>{isInstCollapsed ? '>' : 'v'}</span>
                           </td>
-                          <td className="text-right py-2 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>{shareLabel(inst.total, grandTotal) || ''}</td>
+                          <td className="text-right py-2 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>{shareLabel(inst.total, totalAssets) || ''}</td>
                           {showOriginal && <td className="text-center py-2 px-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                             {singleCurrency || baseCurrency || 'USD'}
                           </td>}
@@ -2346,7 +2362,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                 )}
                               </div>
                             </td>
-                            <td className="text-right py-2.5 px-1 text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{shareLabel(getItemValue(item), grandTotal) || ''}</td>
+                            <td className="text-right py-2.5 px-1 text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{shareLabel(getItemValue(item), totalAssets) || ''}</td>
                             {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? 'var(--accent-blue)' : 'var(--text-muted)', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
