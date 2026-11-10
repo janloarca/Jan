@@ -14,7 +14,7 @@ const STORAGE_KEY = 'chispudo-anthropic-key'
 // tapaba "Invertido" y cortaba el chip PRUEBA), y ninguna reserva de padding lo
 // evita fuera del final de la pagina. Sin esas props el widget se comporta
 // como siempre (la Hoja lo sigue usando asi).
-export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
+export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, estimatedAnnualIncome, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [openState, setOpenState] = useState(false)
   const controlled = typeof openProp === 'boolean'
@@ -77,6 +77,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     totalAssets,
     returnYTD,
     annualDividends,
+    estimatedAnnualIncome,
     baseCurrency,
     riskMetrics,
     items: (items || [])
@@ -92,7 +93,7 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
         incomeRate: it.incomeRate, maturityDate: it.maturityDate,
         acquisitionDate: it.acquisitionDate, notes: it.notes,
       })),
-  }), [items, netWorth, totalAssets, returnYTD, annualDividends, riskMetrics, baseCurrency])
+  }), [items, netWorth, totalAssets, returnYTD, annualDividends, estimatedAnnualIncome, riskMetrics, baseCurrency])
 
   const handleActions = useCallback((actions) => {
     if (!actions || !onUpdateItem) return
@@ -404,18 +405,49 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
   )
 }
 
+// Render ligero de Markdown (sin dependencias): **negrita**, *cursiva*, `codigo`,
+// listas con "-", "*" o "1.", encabezados "#" y saltos de linea. Todo se
+// dibuja como nodos React, nunca como HTML, asi que el texto del modelo no
+// puede inyectar marcado.
+function renderInline(text, keyBase) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/g)
+  return parts.map((part, i) => {
+    if (!part) return null
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={keyBase + i} className="font-semibold">{part.slice(2, -2)}</strong>
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) return <code key={keyBase + i} className="px-1 rounded" style={{ background: 'var(--bg-tertiary)' }}>{part.slice(1, -1)}</code>
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) return <em key={keyBase + i}>{part.slice(1, -1)}</em>
+    return <span key={keyBase + i}>{part}</span>
+  })
+}
+
 function MessageContent({ content }) {
   if (!content) return null
-  const parts = content.split(/(\*\*.*?\*\*|\n)/g)
-  return (
-    <>
-      {parts.map((part, i) => {
-        if (part === '\n') return <br key={i} />
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
-        }
-        return <span key={i}>{part}</span>
-      })}
-    </>
-  )
+  const lines = content.split('\n')
+  const out = []
+  let list = null
+  const flush = () => {
+    if (!list) return
+    out.push(list.ordered
+      ? <ol key={'l' + out.length} className="list-decimal pl-5 my-1 space-y-0.5">{list.items}</ol>
+      : <ul key={'l' + out.length} className="list-disc pl-5 my-1 space-y-0.5">{list.items}</ul>)
+    list = null
+  }
+  lines.forEach((raw, i) => {
+    const line = raw.trimEnd()
+    const ul = line.match(/^\s*[-*•]\s+(.*)$/)
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/)
+    if (ul || ol) {
+      const ordered = !!ol
+      if (!list || list.ordered !== ordered) { flush(); list = { ordered, items: [] } }
+      list.items.push(<li key={i}>{renderInline((ul || ol)[1], 'i' + i + '-')}</li>)
+      return
+    }
+    flush()
+    const h = line.match(/^#{1,6}\s+(.*)$/)
+    if (h) { out.push(<p key={i} className="font-semibold mt-1">{renderInline(h[1], 'h' + i + '-')}</p>); return }
+    if (line.trim() === '') { out.push(<div key={i} className="h-2" />); return }
+    out.push(<p key={i}>{renderInline(line, 'p' + i + '-')}</p>)
+  })
+  flush()
+  return <>{out}</>
 }

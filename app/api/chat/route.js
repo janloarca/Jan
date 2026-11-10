@@ -405,7 +405,11 @@ function buildSystemPrompt(ctx) {
   if (ctx.netWorth != null) lines.push(`Net worth: $${ctx.netWorth.toLocaleString()}`)
   if (ctx.totalAssets != null) lines.push(`Total assets: $${ctx.totalAssets.toLocaleString()}`)
   if (ctx.returnYTD != null) lines.push(`Return YTD: ${ctx.returnYTD.toFixed(2)}%`)
-  if (ctx.annualDividends) lines.push(`Annual dividends: $${ctx.annualDividends.toLocaleString()}`)
+  // Dos cifras distintas, nunca una sola llamada "Annual dividends": lo COBRADO en
+  // los ultimos 12 meses (hechos) y lo ESTIMADO a futuro (proyeccion de tasas
+  // declaradas). Mezclarlas hacia que el asistente llamara "anual" a lo recibido.
+  if (ctx.annualDividends) lines.push(`Dividends/interest RECEIVED in the last 12 months (actual, not a projection): $${ctx.annualDividends.toLocaleString()}`)
+  if (ctx.estimatedAnnualIncome) lines.push(`ESTIMATED annual income going forward (projection from declared yields): $${ctx.estimatedAnnualIncome.toLocaleString()}`)
   if (ctx.baseCurrency) lines.push(`Base currency: ${ctx.baseCurrency}`)
 
   if (ctx.items?.length > 0) {

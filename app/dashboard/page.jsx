@@ -2624,7 +2624,7 @@ export default function DashboardPage() {
           carga donde el peso se nota, que es la primera de todas. */}
       {portfolioItems.length > 0 && (
         <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          returnYTD={returnYTD} annualDividends={annualDividends} riskMetrics={riskMetrics}
+          returnYTD={returnYTD} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} riskMetrics={riskMetrics}
           baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem}
           open={chatOpen} onOpenChange={setChatOpen} showLauncher={false} />
       )}

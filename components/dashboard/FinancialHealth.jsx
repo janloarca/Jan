@@ -90,8 +90,8 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
       const delta = targetScore - currentScore
       if (delta > 0) {
         tips.push({
-          textEs: `Agrega ${needed} tipo(s) de activo más, para mejorar tu puntaje de diversificación`,
-          textEn: `Add ${needed} more asset type(s), to improve your diversification score`,
+          textEs: `Agrega ${needed} ${needed === 1 ? 'tipo' : 'tipos'} de activo más, para mejorar tu puntaje de diversificación`,
+          textEn: `Add ${needed} more asset ${needed === 1 ? 'type' : 'types'}, to improve your diversification score`,
           points: delta,
         })
       }

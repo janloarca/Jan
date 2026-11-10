@@ -2026,7 +2026,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                             ? t('precio de mercado real.', 'real market price.')
                             : s.source === 'events'
                               ? t('reconstruido de tus movimientos.', 'rebuilt from your transactions.')
-                              : t(`sin precio histórico${s.symbol ? ` para ${s.symbol}` : ''}, se mantiene plano.`,
+                              : t(`sin precio histórico${s.symbol ? ` para ${s.symbol}` : ''}, se mantiene sin cambio.`,
                                   `no historical price${s.symbol ? ` for ${s.symbol}` : ''}, held flat.`)}
                         </li>
                       ))}
@@ -2093,7 +2093,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             </div>
             {hasEstimated && (
               <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                ~ {t('Algunos meses son estimados porque no hay precio histórico de mercado, así que se mantiene el saldo o la posición plano.',
+                ~ {t('Algunos meses son estimados porque no hay precio histórico de mercado, así que se mantiene el saldo o la posición sin cambio.',
                      'Some months are estimated because there is no historical market price, so the balance or position is held flat.')}
               </p>
             )}
