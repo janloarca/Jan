@@ -20,9 +20,16 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     const liquidPct = totalAssets > 0 ? (liquidValue / totalAssets) * 100 : 0
     const liquidScore = liquidPct > 20 ? 25 : liquidPct > 10 ? 20 : liquidPct > 5 ? 15 : liquidPct > 0 ? 10 : 5
 
+    // FASE RL. La diversificación mide el portafolio INVERTIBLE: la vivienda
+    // (y su hipoteca) se muestran aparte. Con 73% del patrimonio en la casa,
+    // contarla como un "tipo de activo más" daba 25/25 a un portafolio líquido
+    // de tres o cuatro tipos.
+    const hasHome = items.some((it) => !it.isDebt && getTypeCategory(it) === 'realestate')
     const typeCounts = {}
     items.forEach((it) => {
+      if (it.isDebt) return
       const cat = getTypeCategory(it)
+      if (cat === 'realestate' || cat === 'debts') return
       typeCounts[cat] = (typeCounts[cat] || 0) + 1
     })
     const numTypes = Object.keys(typeCounts).length
@@ -43,7 +50,7 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
     return {
       debtScore, debtRatio, totalDebt,
       liquidScore, liquidPct,
-      diverseScore, diversePct, numTypes,
+      diverseScore, diversePct, numTypes, hasHome,
       growthScore, growthPct,
       total,
     }
@@ -129,6 +136,13 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
   // double the border and the padding.
   return (
     <div>
+      {scores.hasHome && (
+        <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+          {lang === 'es'
+            ? 'La diversificación mide tu portafolio invertible. Tu vivienda y su hipoteca se cuentan aparte del patrimonio.'
+            : 'Diversification measures your investable portfolio. Your home and its mortgage are counted separately in net worth.'}
+        </p>
+      )}
       <div className="flex items-center justify-between mb-4">
         <h3 className="card-title">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent-blue-soft)' }} />
