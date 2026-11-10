@@ -4117,6 +4117,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ytdStartTs, ytdStartSrc,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome, incomeVerification,
+    // FASE RQ: la proyección por ítem, para que el chat cite la MISMA cifra
+    // que la card en vez de multiplicar una tasa por su cuenta.
+    incomeProjections,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,

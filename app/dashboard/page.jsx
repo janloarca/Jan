@@ -367,7 +367,7 @@ export default function DashboardPage() {
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
     returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
-    annualDividends, estimatedAnnualIncome, incomeVerification,
+    annualDividends, estimatedAnnualIncome, incomeVerification, incomeProjections,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
     liquidYieldCandidates, acceptLiquidYield, dismissLiquidYield,
@@ -2624,7 +2624,11 @@ export default function DashboardPage() {
           carga donde el peso se nota, que es la primera de todas. */}
       {portfolioItems.length > 0 && (
         <ChatWidget user={user} items={portfolioItems} netWorth={netWorth} totalAssets={totalAssets}
-          returnYTD={returnYTD} annualDividends={annualDividends} estimatedAnnualIncome={estimatedAnnualIncome} riskMetrics={riskMetrics}
+          returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc}
+          returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
+          benchmarkReturn={benchmarkReturn} benchmarkName={benchmarkName}
+          transactions={transactions} convert={convert} incomeProjections={incomeProjections}
+          estimatedAnnualIncome={estimatedAnnualIncome} riskMetrics={riskMetrics}
           baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem}
           open={chatOpen} onOpenChange={setChatOpen} showLauncher={false} />
       )}

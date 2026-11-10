@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { safeJson } from '@/lib/authFetch'
 import { isExcludedFromNetWorth } from '@/components/dashboard/utils'
 import { useEscClose } from '@/hooks/useEscClose'
+import { buildChatContext } from '@/lib/chatContext'
+import { parseMarkdownTable } from '@/lib/markdownTable'
 
 const STORAGE_KEY = 'chispudo-anthropic-key'
 
@@ -14,7 +16,7 @@ const STORAGE_KEY = 'chispudo-anthropic-key'
 // tapaba "Invertido" y cortaba el chip PRUEBA), y ninguna reserva de padding lo
 // evita fuera del final de la pagina. Sin esas props el widget se comporta
 // como siempre (la Hoja lo sigue usando asi).
-export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, annualDividends, estimatedAnnualIncome, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
+export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, benchmarkReturn, benchmarkName, transactions, convert, incomeProjections, estimatedAnnualIncome, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [openState, setOpenState] = useState(false)
   const controlled = typeof openProp === 'boolean'
@@ -72,28 +74,18 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
   // igual en el bloque de holdings que alimenta al modelo, dos líneas abajo
   // del patrimonio CORRECTO en el prompt del servidor — un asistente que
   // suma por su cuenta puede contradecir en vivo esa decisión explícita.
-  const buildContext = useCallback(() => ({
-    netWorth,
-    totalAssets,
-    returnYTD,
-    annualDividends,
-    estimatedAnnualIncome,
-    baseCurrency,
-    riskMetrics,
-    items: (items || [])
-      .filter(it => !isExcludedFromNetWorth(it))
-      .map(it => ({
-        name: it.name, symbol: it.symbol, type: it.type, subtype: it.subtype,
-        quantity: it.quantity, purchasePrice: it.purchasePrice, currentPrice: it.currentPrice,
-        currency: it.currency, institution: it.institution,
-        isDebt: it.isDebt, isReceivable: it.isReceivable,
-        interestRate: it.interestRate, debtTerm: it.debtTerm,
-        monthlyPayment: it.monthlyPayment, installmentsRemaining: it.installmentsRemaining,
-        rewardType: it.rewardType, rewardBalance: it.rewardBalance, cardBrand: it.cardBrand,
-        incomeRate: it.incomeRate, maturityDate: it.maturityDate,
-        acquisitionDate: it.acquisitionDate, notes: it.notes,
-      })),
-  }), [items, netWorth, totalAssets, returnYTD, annualDividends, estimatedAnnualIncome, riskMetrics, baseCurrency])
+  // FASE RQ: los hechos salen de lib/chatContext.js, con la fecha de hoy, el
+  // benchmark, el arranque del YTD y el ingreso por posición ya calculados.
+  // El modelo no tiene que (ni puede) derivar ninguno por su cuenta.
+  const buildContext = useCallback(() => buildChatContext({
+    items: (items || []).filter(it => !isExcludedFromNetWorth(it)),
+    transactions, convert, baseCurrency,
+    netWorth, totalAssets,
+    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc,
+    returnSinceStart, sinceStartDate,
+    benchmarkReturn, benchmarkName,
+    estimatedAnnualIncome, incomeProjections, riskMetrics,
+  }), [items, transactions, convert, baseCurrency, netWorth, totalAssets, returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, benchmarkReturn, benchmarkName, estimatedAnnualIncome, incomeProjections, riskMetrics])
 
   const handleActions = useCallback((actions) => {
     if (!actions || !onUpdateItem) return
@@ -416,8 +408,29 @@ function renderInline(text, keyBase) {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={keyBase + i} className="font-semibold">{part.slice(2, -2)}</strong>
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) return <code key={keyBase + i} className="px-1 rounded" style={{ background: 'var(--bg-tertiary)' }}>{part.slice(1, -1)}</code>
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) return <em key={keyBase + i}>{part.slice(1, -1)}</em>
-    return <span key={keyBase + i}>{part}</span>
+    // FASE RQ: un asterisco que no cierra (el modelo deja "**" o "*" sueltos)
+    // se veía tal cual en la burbuja. Fuera de un énfasis bien formado, sobra.
+    return <span key={keyBase + i}>{part.replace(/\*+/g, '')}</span>
   })
+}
+
+// FASE RQ: una tabla Markdown ("| a | b |" + "|---|---|") salía como texto con
+// barras. Se dibuja como tabla de verdad, con scroll propio si no cabe.
+function MarkdownTable({ table, keyBase }) {
+  return (
+    <div className="my-1 overflow-x-auto">
+      <table className="text-xs border-collapse">
+        <thead>
+          <tr>{table.head.map((c, i) => <th key={i} className="text-left font-semibold px-2 py-1" style={{ borderBottom: '1px solid var(--card-border)' }}>{renderInline(c, keyBase + 'h' + i + '-')}</th>)}</tr>
+        </thead>
+        <tbody>
+          {table.rows.map((r, ri) => (
+            <tr key={ri}>{r.map((c, ci) => <td key={ci} className="px-2 py-1 tabular-nums whitespace-nowrap" style={{ borderBottom: '1px solid var(--card-border)' }}>{renderInline(c, keyBase + ri + '-' + ci + '-')}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function MessageContent({ content }) {
@@ -432,8 +445,23 @@ function MessageContent({ content }) {
       : <ul key={'l' + out.length} className="list-disc pl-5 my-1 space-y-0.5">{list.items}</ul>)
     list = null
   }
+  let tableBuf = null
+  const flushTable = () => {
+    if (!tableBuf) return
+    const t = parseMarkdownTable(tableBuf.lines)
+    if (t) out.push(<MarkdownTable key={'t' + tableBuf.start} table={t} keyBase={'t' + tableBuf.start + '-'} />)
+    else tableBuf.lines.forEach((l, k) => out.push(<p key={'tp' + tableBuf.start + '-' + k}>{renderInline(l.replace(/\|/g, ' '), 'tp' + k + '-')}</p>))
+    tableBuf = null
+  }
   lines.forEach((raw, i) => {
     const line = raw.trimEnd()
+    if (/^\s*\|/.test(line)) {
+      flush()
+      if (!tableBuf) tableBuf = { start: i, lines: [] }
+      tableBuf.lines.push(line)
+      return
+    }
+    flushTable()
     const ul = line.match(/^\s*[-*•]\s+(.*)$/)
     const ol = line.match(/^\s*\d+[.)]\s+(.*)$/)
     if (ul || ol) {
@@ -448,6 +476,7 @@ function MessageContent({ content }) {
     if (line.trim() === '') { out.push(<div key={i} className="h-2" />); return }
     out.push(<p key={i}>{renderInline(line, 'p' + i + '-')}</p>)
   })
+  flushTable()
   flush()
   return <>{out}</>
 }
