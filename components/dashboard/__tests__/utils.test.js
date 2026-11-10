@@ -1370,3 +1370,30 @@ describe('formatUnitPrice', () => {
     expect(_fup(105.3, 'USD')).toContain('105.30')
   })
 })
+
+describe('findYearStartAnchor: el 2 de enero (FASE RT)', () => {
+  const year = 2026
+  it('salta un doc derivado del 1 de enero cuando hay uno posterior de enero', () => {
+    const snaps = [
+      { date: '2026-01-01', netWorthUSD: 100, _source: 'backfill' },
+      { date: '2026-01-02', netWorthUSD: 101, _source: 'backfill' },
+    ]
+    expect(findYearStartAnchor(snaps, year).date).toBe('2026-01-02')
+  })
+  it('una calibracion o transcripcion fechada el 1 sigue mandando', () => {
+    expect(findYearStartAnchor([
+      { date: '2026-01-01', netWorthUSD: 100, _calibrated: true, _source: 'manual' },
+      { date: '2026-01-02', netWorthUSD: 101, _source: 'backfill' },
+    ], year).date).toBe('2026-01-01')
+    expect(findYearStartAnchor([
+      { date: '2026-01-01', netWorthUSD: 100, _source: 'ibkr_quarterly' },
+      { date: '2026-01-02', netWorthUSD: 101, _source: 'daily' },
+    ], year).date).toBe('2026-01-01')
+  })
+  it('sin doc posterior en la ventana conserva el 1 de enero', () => {
+    expect(findYearStartAnchor([
+      { date: '2026-01-01', netWorthUSD: 100, _source: 'backfill' },
+      { date: '2026-01-31', netWorthUSD: 130, _source: 'backfill' },
+    ], year).date).toBe('2026-01-01')
+  })
+})

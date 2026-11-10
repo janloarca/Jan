@@ -586,7 +586,21 @@ export function findYearStartAnchor(snapshots, year) {
   //    NAV export) sits 30 days out and fails on purpose: that row already
   //    holds January's deposit and gain, so anchoring YTD there would make
   //    Modified Dietz subtract January's flows a second time.
-  const jan = sorted.find((s) => s.date.slice(0, 7) === `${year}-01`)
+  //
+  // FASE RT (con OK del usuario sobre logica congelada C/D, 10 nov 2026): el
+  // arranque acordado es el 2 de enero, el primer dia habil. El 1 de enero es
+  // feriado de mercado: un doc DERIVADO de esa fecha ('backfill', 'daily', NAV
+  // de broker) solo arrastra el cierre del 31 de diciembre, asi que si hay un
+  // doc posterior de enero dentro de la ventana se ancla ahi. Una observacion
+  // del usuario fechada el 1 (calibracion o transcripcion manual) SI manda:
+  // es lo que el tecleo, y saltarla perderia su trabajo.
+  const janDocs = sorted.filter((s) => s.date.slice(0, 7) === `${year}-01`)
+  const isUserObservation = (s) => !!s._calibrated || s._source === 'manual' || s._source === 'ibkr_quarterly'
+  let jan = janDocs[0]
+  if (jan && jan.date.slice(0, 10) === `${year}-01-01` && !isUserObservation(jan)) {
+    const later = janDocs.find((s) => s.date.slice(0, 10) !== `${year}-01-01`)
+    if (later && Math.abs(new Date(later.date).getTime() - jan1) <= WINDOW) jan = later
+  }
   if (jan && Math.abs(new Date(jan.date).getTime() - jan1) <= WINDOW) return jan
   // 2) Otherwise (no January row, or it failed the window) anchor on the
   //    LATEST late-December snapshot of the prior year. |Dec 17 - Jan 1| is
