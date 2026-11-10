@@ -129,11 +129,11 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
       descEn: 'Your week and your year, plus market levels. Sundays.',
       ready: true },
     { key: 'notifyMonthly', es: 'Resumen mensual', en: 'Monthly brief',
-      descEs: 'Tu mes y el año, con el reporte YTD y el spreadsheet de enero al mes cubierto. Día 1.',
+      descEs: 'Tu mes y el año, con el reporte YTD y la Hoja de enero al mes cubierto. Día 1.',
       descEn: 'Your month and your year, with the YTD report and the January-to-date spreadsheet. On the 1st.',
       ready: true },
     { key: 'notifyAnnual', es: 'Resumen anual', en: 'Annual brief',
-      descEs: 'El cierre del año, con su reporte y el spreadsheet completo. 1 de enero.',
+      descEs: 'El cierre del año, con su reporte y la Hoja completa. 1 de enero.',
       descEn: 'The year close, with its report and the full-year spreadsheet. January 1st.',
       ready: true },
     // El único que habla de OTRAS personas y no de vos, por eso es una

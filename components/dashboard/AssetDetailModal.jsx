@@ -521,7 +521,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                         ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff' }
                         : { color: 'var(--text-muted)' }
                       }>
-                      {r}
+                      {lang === 'es' ? ({ '1W': '1S', '1Y': '1A', ALL: 'TODO' }[r] || r) : r}
                     </button>
                   ))}
                 </div>

@@ -46,6 +46,9 @@ export default function Logo({
   // Native browser tooltip on the whole mark (e.g. Header's tagline) —
   // passed straight through as the standard HTML `title` attribute.
   title,
+  // Clases solo para el texto "Chispu" (p.ej. sr-only en pantallas muy
+  // angostas): el header a 320 px no cabe con el wordmark completo.
+  wordmarkClassName,
 }) {
   const [hovered, setHovered] = useState(false)
   const strokeWidth = boltStrokeWidth(size)
@@ -119,6 +122,7 @@ export default function Logo({
     >
       {bolt}
       <WordmarkTag
+        className={wordmarkClassName}
         style={{
           // 900, no 800: era el ÚNICO consumidor del 800 de Inter en toda la
           // app, y ese peso se quitó de la carga para pagar el 700 de

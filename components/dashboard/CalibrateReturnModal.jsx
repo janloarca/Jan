@@ -69,12 +69,12 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
   const monthStartStr = `${year}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}-01`
   const PERIODS = [
     { kind: 'day', label: t('Hoy', 'Today'), startDate: asDateStr(shiftDays(1)), placeholder: '0.15' },
-    { kind: '1w', label: '1W', startDate: asDateStr(shiftDays(7)), placeholder: '0.42' },
-    { kind: 'mtd', label: 'MTD', startDate: monthStartStr, placeholder: '1.2' },
+    { kind: '1w', label: t('1S', '1W'), startDate: asDateStr(shiftDays(7)), placeholder: '0.42' },
+    { kind: 'mtd', label: t('Mes', 'MTD'), startDate: monthStartStr, placeholder: '1.2' },
     { kind: '1m', label: '1M', startDate: asDateStr(shiftMonths(1)), placeholder: '1.8' },
     { kind: '3m', label: '3M', startDate: asDateStr(shiftMonths(3)), placeholder: '4.5' },
     { kind: 'ytd', label: 'YTD', startDate: `${year}-01-01`, placeholder: '8.61' },
-    { kind: '1y', label: '1Y', startDate: asDateStr(shiftMonths(12)), placeholder: '14.2' },
+    { kind: '1y', label: t('1A', '1Y'), startDate: asDateStr(shiftMonths(12)), placeholder: '14.2' },
     { kind: 'all', label: t('Desde el inicio', 'Since inception'), startDate: null, placeholder: '87.24' },
     // On the 1st of the month the MTD window has zero length (its anchor date
     // IS today): nothing to solve, hide the row for the day.

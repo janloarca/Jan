@@ -124,10 +124,10 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
   return (
     <header className="border-b sticky top-0 z-20 bg-theme-base\/95"
       style={{ borderColor: 'var(--card-border)', paddingTop: 'env(safe-area-inset-top, 0px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 min-[380px]:px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-2 md:gap-4 min-w-0">
-            <Logo size={19} as="h1" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'} />
+            <Logo size={19} as="h1" wordmarkClassName="sr-only min-[380px]:not-sr-only" title={lang === 'es' ? 'Tu dinero, tu control' : 'Your money, your control'} />
 
             {/* Navigation — segmented control */}
             <nav className="hidden sm:flex items-center gap-0.5 p-1 rounded-[10px] min-w-0 overflow-x-auto"
@@ -202,7 +202,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                   <span aria-hidden="true" className="absolute inset-0 rounded-full chispu-pill-anim"
                     style={{ backgroundColor: 'var(--accent-green)', animation: 'chispuPillFlash 700ms ease-out forwards' }} />
                 )}
-                <span className="font-mono relative">IBKR</span>
+                <span className="font-mono relative hidden min-[400px]:inline">IBKR</span>
                 {ibkrAutoSyncing ? (
                   // Same sweep language as the header refresh ring's own
                   // indeterminate state, at pill scale — not a bare browser spin.
@@ -237,8 +237,10 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                   aria-haspopup="menu" aria-expanded={newMenuOpen}
                   aria-label={lang === 'es' ? 'Agregar' : 'Add'}
                   className="btn-primary text-body" data-tour="header-new">
-                  <Plus size={14} /> {lang === 'es' ? 'Nuevo' : 'New'}
-                  <ChevronDown size={13} className={newMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                  {/* A 320 px el header no cabe con la etiqueta: queda el +,
+                      y el aria-label ya dice "Agregar". */}
+                  <Plus size={14} /> <span className="hidden min-[400px]:inline">{lang === 'es' ? 'Nuevo' : 'New'}</span>
+                  <ChevronDown size={13} className={`hidden min-[400px]:block ${newMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'}`} />
                 </button>
                 {newMenuOpen && (
                   <>
