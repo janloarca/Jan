@@ -5,13 +5,106 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    match /users/{userId}/{document=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.keys().size() < 50;
-      allow update: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.keys().size() < 50;
-      allow delete: if request.auth != null && request.auth.uid == userId;
+    function signedIn() { return request.auth != null; }
+    function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
+
+    // ── Modo institucional (Fase 1) ────────────────────────────────────────
+    // Un asesor lee datos de un cliente SOLO a través del espejo
+    // users/{clientUid}/advisorAccess/{advisorUid}, que el servidor deriva de
+    // los grants ACTIVOS del cliente dentro de la misma transacción que el
+    // vínculo. Revocar borra el espejo: la siguiente lectura ya falla.
+    function accessPath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/advisorAccess/$(request.auth.uid);
     }
+    function advisorHas(userId, scopes) {
+      return signedIn()
+        && exists(accessPath(userId))
+        && get(accessPath(userId)).data.status == 'active'
+        && get(accessPath(userId)).data.scopes.hasAny(scopes);
+    }
+    function memberPath(orgId) {
+      return /databases/$(database)/documents/organizations/$(orgId)/memberships/$(request.auth.uid);
+    }
+    function isMember(orgId) {
+      return signedIn() && exists(memberPath(orgId)) && get(memberPath(orgId)).data.status == 'active';
+    }
+    function isAdmin(orgId) {
+      return isMember(orgId) && get(memberPath(orgId)).data.role == 'admin';
+    }
+    function linkData(linkId) {
+      return get(/databases/$(database)/documents/clientLinks/$(linkId)).data;
+    }
+    function isLinkParty(link) {
+      return signedIn() && (
+        link.clientUid == request.auth.uid
+        || (link.get('advisorUids', []).hasAny([request.auth.uid]) && isMember(link.orgId))
+        || isAdmin(link.orgId)
+      );
+    }
+
+    // Datos del usuario. El dueño lee todo lo suyo; NO puede escribir los
+    // documentos que solo el servidor mantiene (grants, espejo de acceso,
+    // espejo de membresías): si pudiera, se concedería o se quitaría accesos
+    // saltándose el consentimiento y la auditoría.
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && request.resource.data.keys().size() < 50;
+      allow delete: if isOwner(userId);
+    }
+    match /users/{userId}/{coll}/{rest=**} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && !(coll in ['grants', 'advisorAccess', 'orgMemberships'])
+        && request.resource.data.keys().size() < 50;
+      allow delete: if isOwner(userId)
+        && !(coll in ['grants', 'advisorAccess', 'orgMemberships']);
+    }
+
+    // Lectura del asesor, por alcance. Sin alcance no hay lectura, y jamás
+    // hay escritura. Nunca se abren credenciales (settings/ibkr, ingest...).
+    match /users/{userId}/{coll}/{docId} {
+      allow read: if coll in ['items', 'transactions', 'lots', 'snapshots', 'portfolios', 'entities']
+        && advisorHas(userId, ['patrimonio', 'hoja', 'dividendos']);
+    }
+    match /users/{userId}/advisorSummary/{docId} {
+      allow read: if (docId == 'meta' && advisorHas(userId, ['patrimonio', 'hoja', 'dividendos', 'metas', 'flujo']))
+        || (docId == 'latest' && advisorHas(userId, ['patrimonio', 'metas']));
+    }
+    match /users/{userId}/itemSnapshots/{docId} {
+      allow read: if advisorHas(userId, ['hoja']);
+    }
+    match /users/{userId}/financeTransactions/{docId} {
+      allow read: if advisorHas(userId, ['flujo']);
+    }
+    match /users/{userId}/settings/{docId} {
+      allow read: if (docId == 'goals' && advisorHas(userId, ['metas']))
+        || (docId == 'sheetObservations' && advisorHas(userId, ['hoja']))
+        || (docId == 'incomePlan' && advisorHas(userId, ['flujo']));
+    }
+
+    // Organizaciones, vínculos, hilos y notas: solo lectura desde el
+    // navegador. TODA escritura va por el servidor (/api/org), que valida,
+    // audita y mantiene los espejos en una transacción.
+    match /organizations/{orgId} {
+      allow read: if isMember(orgId);
+      match /memberships/{memberId} {
+        allow read: if isOwner(memberId) || isAdmin(orgId);
+      }
+      match /notes/{noteId} {
+        allow read: if signedIn() && (
+          (resource.data.visibility == 'shared' && resource.data.clientUid == request.auth.uid)
+          || isAdmin(orgId)
+          || (isMember(orgId) && linkData(orgId + '_' + resource.data.clientUid).get('advisorUids', []).hasAny([request.auth.uid]))
+        );
+      }
+    }
+    match /clientLinks/{linkId} {
+      allow read: if isLinkParty(resource.data);
+    }
+    match /threads/{linkId}/messages/{msgId} {
+      allow read: if isLinkParty(linkData(linkId));
+    }
+    // auditLog e inviteTokens: nadie los lee ni escribe desde el navegador
+    // (caen en la regla por defecto). El cliente ve SU actividad por servidor.
   }
 }

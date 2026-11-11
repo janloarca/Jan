@@ -259,7 +259,7 @@ export function shareLabel(value, total) {
   return `${p.toFixed(0)}%`
 }
 
-export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, onUpdateTransaction, onDeleteTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, observations, onSaveObservations, lots, transactions, onRegisterRecalculate }) {
+export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateItem, onEditItem, onShowItemInfo, onAddTransaction, onUpdateTransaction, onDeleteTransaction, returnYTD, netWorth, convert, baseCurrency, onSaveItemSnapshots, onLoadItemSnapshots, observations, onSaveObservations, lots, transactions, onRegisterRecalculate, readOnly = false }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [showOriginal, setShowOriginal] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -1772,7 +1772,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               title={t('Descargar la matriz mensual como Excel', 'Download the monthly matrix as Excel')}>
               <FileSpreadsheet size={13} strokeWidth={2} /> Excel
             </button>
-            <button onClick={handleRecalculate} disabled={recalculating || loadingHistory}
+            {!readOnly && <button onClick={handleRecalculate} disabled={recalculating || loadingHistory}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter] disabled:opacity-40"
               style={{ color: 'var(--text-secondary)' }}
               title={t('Volver a calcular los meses pasados con la información de hoy',
@@ -1783,7 +1783,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               <BusyLabel busy={recalculating} lang={lang} busyLabel={t('Recalculando...', 'Recomputing...')}>
                 {t('Recalcular', 'Recompute')}
               </BusyLabel>
-            </button>
+            </button>}
             <button onClick={() => setShowDiag((v) => !v)}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter]"
               style={{ color: showDiag ? 'var(--accent-blue)' : 'var(--text-muted)' }}
@@ -1799,7 +1799,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 className="text-xs font-medium text-[var(--accent-blue)]" />
             </span>
           )}
-          <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Toca una celda del mes actual para editarla', 'Tap a current-month cell to edit it')}</span>
+          {!readOnly && <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Toca una celda del mes actual para editarla', 'Tap a current-month cell to edit it')}</span>}
         </div>
       </div>
 

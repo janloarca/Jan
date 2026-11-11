@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useInstitutional } from '@/hooks/useInstitutional'
 import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Building2, Sparkles, Zap, SlidersHorizontal, MessageSquare } from 'lucide-react'
 
 export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, onManage, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0, onChat }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const t = (es, en) => lang === 'es' ? es : en
   const pathname = usePathname()
+  const inst = useInstitutional()
 
   return (
     <>
@@ -60,6 +62,18 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
               <Building2 size={18} className="text-slate-400" />
               <span className="text-body">{t('Mundo', 'World')}</span>
             </Link>
+            {inst.isAdvisor && (
+              <Link href="/asesor" onClick={() => setMoreOpen(false)} className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors">
+                <Users size={18} className="text-slate-400" />
+                <span className="text-body">{t('Asesor', 'Advisor')}</span>
+              </Link>
+            )}
+            {inst.hasAdvisor && (
+              <Link href="/tu-asesor" onClick={() => setMoreOpen(false)} className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors">
+                <MessageSquare size={18} className="text-slate-400" />
+                <span className="text-body">{t('Tu asesor', 'Your advisor')}</span>
+              </Link>
+            )}
             {[
               // On a phone the header's "Nuevo" menu is cramped and the big +
               // goes straight to adding a position, so completing what is
