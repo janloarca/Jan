@@ -23,6 +23,9 @@ import ShareTab from '@/components/settings/ShareTab'
 import CountrySelect from '@/components/ui/CountrySelect'
 import { TAX_JURISDICTION_OPTIONS } from '@/components/dashboard/utils'
 import { closeLabel } from '@/lib/closeLabel'
+import { useInstitutional } from '@/hooks/useInstitutional'
+import AdvisorSetup from '@/components/institutional/AdvisorSetup'
+import ClientAdvisorsPanel from '@/components/institutional/ClientAdvisorsPanel'
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', nameEs: 'dólar estadounidense', symbol: '$' },
@@ -531,11 +534,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     }
   }
 
+  const inst = useInstitutional()
   const tabs = [
     { key: 'general', label: t('General', 'General'), icon: SlidersHorizontal },
     { key: 'entities', label: t('Entidades', 'Entities'), icon: Building2 },
     { key: 'share', label: t('Compartir', 'Share'), icon: Share2 },
     { key: 'data', label: t('Datos', 'Data'), icon: Database },
+    // Modo institucional: solo con ?institucional=1 o siendo miembro de una firma.
+    ...(inst.showAdvisorSetup ? [{ key: 'advisors', label: t('Para asesores', 'For advisors'), icon: Building2 }] : []),
   ]
   // FASE GP: fade the scroll edge only where the tab row actually hides
   // content — this row has no scrollbar to hint it scrolls at all.
@@ -1054,6 +1060,14 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
             </div>
           )}
 
+
+          {tab === 'advisors' && inst.showAdvisorSetup && <AdvisorSetup lang={lang} flash={flash} />}
+
+          {tab === 'share' && inst.grants.length > 0 && (
+            <div className="mb-5 pb-5 border-b" style={{ borderColor: 'var(--card-border)' }}>
+              <ClientAdvisorsPanel lang={lang} flash={flash} />
+            </div>
+          )}
 
           {tab === 'share' && (
             <ShareTab

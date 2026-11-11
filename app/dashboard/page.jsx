@@ -133,6 +133,8 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
 import { scopeTagFor } from '@/lib/scopeTag'
 import { investableValue } from '@/lib/investable'
+import { useInstitutional } from '@/hooks/useInstitutional'
+import { useAdvisorSummaryPublisher } from '@/hooks/useAdvisorSummary'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
 // wears the same card: same shell, same header shape, same segmented control.
@@ -1288,6 +1290,18 @@ export default function DashboardPage() {
       setFirstLoadSettled(true)
     }
   }, [firstLoadSettled, dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved])
+
+  // Modo institucional: si este usuario tiene un asesor con acceso activo, se
+  // publican una vez al dia las cifras de cabecera YA calculadas, para que el
+  // asesor las lea sin recalcular nada. Sin asesor no corre ni escribe.
+  const institutional = useInstitutional()
+  useAdvisorSummaryPublisher({
+    uid: user?.uid,
+    enabled: institutional.hasAdvisor && !isDemoMode && !scopedView,
+    ready: firstLoadSettled && !pricesLoading && !pricesFetching && !ratesLoading && ytdResolved,
+    netWorth, investable: investableAssets, ytdPct: returnYTD, ytdChange,
+    baseCurrency, convert, clientName: profile?.name || user?.displayName || '',
+  })
 
   // Loading state — show the structural skeleton (same layout as the loaded page)
   // instead of a lone spinner, so first paint already looks like the dashboard.

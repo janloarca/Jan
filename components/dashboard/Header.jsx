@@ -9,6 +9,7 @@ import { RING_VIEWBOX, RING_CX, RING_CY, RING_R, sweepDash } from '@/lib/brandRi
 import Logo from '@/components/ui/Logo'
 import { Search, Settings, LogOut, Plus, ChevronDown, MessageSquare } from 'lucide-react'
 import { dashboardActionGroups } from '@/lib/dashboardActions'
+import { useInstitutional } from '@/hooks/useInstitutional'
 
 // ibkrNeedsAttention (not a raw `ibkrSyncStatus === 'error'`) drives the warning
 // triangle: a single transient sync failure is not news while auto-sync is still
@@ -87,6 +88,9 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     day: 'numeric', month: 'short', year: 'numeric'
   }).replace('.', '')
   const pathname = usePathname()
+  // Modo institucional: las dos entradas solo existen para quien pertenece a
+  // una firma o tiene un asesor con acceso activo. Para el resto, nada cambia.
+  const inst = useInstitutional()
 
   const navItems = [
     // "Net Worth", not "Portfolio" — one name for the core concept everywhere
@@ -96,6 +100,8 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
     { href: '/spreadsheet', label: lang === 'es' ? 'Hoja' : 'Spreadsheet' },
     ...(friendsEnabled !== false ? [{ href: '/friends', label: lang === 'es' ? 'Amigos' : 'Friends' }] : []),
     { href: '/world', label: lang === 'es' ? 'Mundo' : 'World' },
+    ...(inst.isAdvisor ? [{ href: '/asesor', label: lang === 'es' ? 'Asesor' : 'Advisor' }] : []),
+    ...(inst.hasAdvisor ? [{ href: '/tu-asesor', label: lang === 'es' ? 'Tu asesor' : 'Your advisor' }] : []),
   ]
 
   // Shared icon-button style (settings, logout, refresh) — 36px, hairline border.
@@ -134,7 +140,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
               style={{ backgroundColor: 'var(--bg-tertiary)', scrollbarWidth: 'none' }}
               aria-label={lang === 'es' ? 'Navegación principal' : 'Main navigation'} data-tour="nav">
               {navItems.map(item => {
-                const active = pathname === item.href
+                const active = pathname === item.href || (item.href === '/asesor' && pathname.startsWith('/asesor/'))
                 return (
                   <Link key={item.href} href={item.href}
                     className="px-1.5 md:px-1 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"

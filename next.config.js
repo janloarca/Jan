@@ -73,7 +73,7 @@ const nextConfig = {
       // Los assets con hash de contenido (/_next/static/*) NO entran acá a
       // propósito: sus nombres cambian en cada build, así que cachearlos para
       // siempre es correcto y es lo que hace que la app cargue rápido.
-      ...['/', '/dashboard', '/finances', '/spreadsheet', '/friends', '/costs', '/login'].map((source) => ({
+      ...['/', '/dashboard', '/finances', '/spreadsheet', '/friends', '/costs', '/login', '/asesor', '/asesor/:path*', '/invitacion', '/tu-asesor'].map((source) => ({
         source,
         headers: [
           { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate' },

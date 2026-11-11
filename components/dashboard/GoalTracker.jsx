@@ -15,7 +15,7 @@ import { monthsUntilGoal, monthlyNeeded, measuredMonthlyContribution } from '@/l
 // porque el test de esta card los importa desde acá.
 export { GOAL_MAX_YEAR, clampTargetYear, readGoal, goalInBase } from '@/lib/goalFields'
 
-export default function GoalTracker({ netWorth, totalAssets = null, investableAssets = null, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null, transactions = null, items = null }) {
+export default function GoalTracker({ netWorth, totalAssets = null, investableAssets = null, annualDividends, estimatedAnnualIncome, goals, onSaveGoals, volatility, lang, convert = null, baseCurrency = null, transactions = null, items = null, readOnly = false }) {
   const [editing, setEditing] = useState(false)
   // El form trabaja SIEMPRE en la base actual: lo guardado se siembra ya
   // convertido (si la meta vivia en otra moneda) para que lo que se ve, lo que
@@ -162,10 +162,12 @@ export default function GoalTracker({ netWorth, totalAssets = null, investableAs
                 : `${Math.round(monthsLeft / 12)}${t(' años', 'y')}`}
             </span>
           )}
+          {!readOnly && (
           <button onClick={() => { setEditing(!editing); if (!editing) setForm({ incomeGoal, portfolioGoal, targetYear }) }}
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
             {editing ? t('Cancelar', 'Cancel') : t('Editar', 'Edit')}
           </button>
+          )}
         </div>
       </div>
 

@@ -7,7 +7,8 @@
     "build": "rm -rf .next && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest"
+    "test": "jest",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-chispu \"jest lib/__tests__/firestoreRules.test.js\""
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
@@ -27,6 +28,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
     "@jest/globals": "^30.4.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
