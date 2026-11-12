@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { computePeriodicReturns } from './analytics'
 import { getTypeCategory } from './utils'
-import { snapshotsWithoutRealEstate, ytdTwrFromSnapshots } from '@/lib/investable'
+import { benchmarkTwrYtd } from '@/lib/investable'
 import SegmentedTabs from '../ui/SegmentedTabs'
 import { InfoTip } from '../ui/Tooltip'
 
@@ -25,12 +25,10 @@ export default function BenchmarkComparison({ benchmarkReturn, portfolioReturn, 
   const [scope, setScope] = useState('investable')
   const investable = hasHome && scope === 'investable'
 
-  const twr = useMemo(() => {
-    const toUSD = (v) => (convert && baseCurrency && baseCurrency !== 'USD' ? convert(v, baseCurrency, 'USD') : v)
-    const snaps = investable ? snapshotsWithoutRealEstate(snapshots, items, toUSD) : snapshots
-    const txs = investable ? (transactions || []).filter((tx) => !(tx._linkedItemId && homeIds.has(tx._linkedItemId))) : transactions
-    return ytdTwrFromSnapshots(snaps, txs, convert, computePeriodicReturns)
-  }, [investable, snapshots, transactions, convert, baseCurrency, items, homeIds])
+  const twr = useMemo(
+    () => benchmarkTwrYtd({ snapshots, transactions, items, convert, baseCurrency, investable, computePeriodicReturns }),
+    [investable, snapshots, transactions, convert, baseCurrency, items],
+  )
 
   if (benchmarkReturn == null || !isFinite(benchmarkReturn)) return (
     <div className="text-center py-2">

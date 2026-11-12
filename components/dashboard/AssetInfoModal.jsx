@@ -5,7 +5,8 @@ import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { assetSummary } from '@/lib/assetSummary'
 import { learnedRateSuggestion, applyPatch, dismissPatch } from '@/lib/learnedRate'
-import { formatCurrency, categoryLabel, itemLabel } from './utils'
+import { formatCurrency, formatDate, categoryLabel, itemLabel, isMarketPriced } from './utils'
+import { openLotsOfItem } from '@/lib/itemLots'
 import { InfoTip } from '../ui/Tooltip'
 
 // Ficha general de un activo, la que sale al tocar su nombre en la Hoja.
@@ -30,7 +31,7 @@ const Row = ({ label, children, tip }) => (
   </div>
 )
 
-export default function AssetInfoModal({ item, items = [], transactions = [], convert, baseCurrency = 'USD', lang = 'es', observations, currentMonthKey, onUpdateItem, onClose, onEdit }) {
+export default function AssetInfoModal({ item, items = [], transactions = [], lots = null, convert, baseCurrency = 'USD', lang = 'es', observations, currentMonthKey, onUpdateItem, onClose, onEdit }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const trapRef = useFocusTrap()
   useEscClose(onClose)
@@ -53,7 +54,14 @@ export default function AssetInfoModal({ item, items = [], transactions = [], co
     try { await onUpdateItem(item.id, patch) } catch { setRateError(true) }
     setRateBusy(false)
   }
+  // Lotes de compra de ESTA posicion (auditoria 12 nov): se veian en la
+  // revision del tablero y no aca. Sin `lots` (caller viejo) no se afirma nada.
+  const lotInfo = useMemo(() => (Array.isArray(lots) ? openLotsOfItem(item, lots, items) : null), [item, lots, items])
   if (!s) return null
+  const lotCur = item._originalCurrency || item.currency || s.currency
+  const fmtQty = (q) => Number(q).toLocaleString(lang === 'es' ? 'es' : 'en', { maximumFractionDigits: 8 })
+  // 'Unknown' es el valor interno de "sin clasificar": no se imprime crudo.
+  const known = (v) => (v && v !== 'Unknown' ? v : null)
 
   const money = (v) => formatCurrency(v, s.currency)
   const gainUp = s.gain != null && s.gain >= 0
@@ -108,9 +116,43 @@ export default function AssetInfoModal({ item, items = [], transactions = [], co
               )}
             </>
           )}
-          <Row label={t('Sector', 'Sector')}>{s.sector || dash}</Row>
-          <Row label={t('Ubicación', 'Location')}>{s.location || dash}</Row>
+          <Row label={t('Sector', 'Sector')}>{known(s.sector) || t('Sin clasificar', 'Unclassified')}</Row>
+          <Row label={t('Ubicación', 'Location')}>{known(s.location) || t('Sin definir', 'Not set')}</Row>
         </div>
+
+        {lotInfo && !s.isDebt && (lotInfo.lots.length > 0 || isMarketPriced(item)) && (
+          <div className="mt-3" data-testid="asset-lots">
+            <p className="text-caption mb-1" style={{ color: 'var(--text-muted)' }}>
+              {t('Lotes de compra', 'Purchase lots')}{lotInfo.lots.length > 0 ? ` (${lotInfo.lots.length})` : ''}
+            </p>
+            {lotInfo.lots.length === 0 ? (
+              <p className="text-micro" style={{ color: 'var(--text-muted)' }}>
+                {lotInfo.sharedCount > 0
+                  ? t(`Hay ${lotInfo.sharedCount} lote(s) de este símbolo sin posición asignada, compartidos con otra posición igual: no se puede decir cuáles son de esta.`,
+                      `There are ${lotInfo.sharedCount} lot(s) of this symbol with no position assigned, shared with another identical position: it is not possible to say which are this one's.`)
+                  : t('Esta posición no tiene lotes de compra registrados: su historia se estima con la cantidad de hoy.',
+                      'This position has no purchase lots recorded: its history is estimated from today\'s quantity.')}
+              </p>
+            ) : (
+              <ul className="text-body tabular-nums">
+                {lotInfo.lots.map((l) => (
+                  <li key={l.id || `${l.acquisitionDate}-${l.quantity}-${l.costBasis}`} className="flex justify-between gap-3 py-1 border-t first:border-t-0" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{l.acquisitionDate ? formatDate(l.acquisitionDate) : t('Sin fecha', 'No date')}</span>
+                    <span className="text-right min-w-0 break-words" style={{ color: 'var(--text-primary)' }}>
+                      {fmtQty(l.quantity)} × {formatCurrency(Number(l.costBasis) || 0, lotCur)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {lotInfo.lots.length > 0 && Math.abs(lotInfo.totalQty - (Number(item.quantity) || 0)) > 1e-8 && (
+              <p className="text-micro mt-1" style={{ color: 'var(--alert-warn-icon)' }}>
+                {t(`Los lotes suman ${fmtQty(lotInfo.totalQty)} y la posición tiene ${fmtQty(Number(item.quantity) || 0)}.`,
+                   `Lots add up to ${fmtQty(lotInfo.totalQty)} and the position holds ${fmtQty(Number(item.quantity) || 0)}.`)}
+              </p>
+            )}
+          </div>
+        )}
 
         {learned && onUpdateItem && (
           <div className="mt-3 rounded-xl p-3" style={{ border: '1px solid var(--card-border)', background: 'var(--bg-tertiary)' }}>

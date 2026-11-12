@@ -14,7 +14,6 @@ import { authFetch, safeJson } from '@/lib/authFetch'
 import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from '@/lib/notifications'
 import { BENCHMARKS } from '@/hooks/useBenchmark'
 import { disconnectAllSyncs, IBKR_DISCONNECTED_FIELDS } from '@/lib/brokerRegistry'
-import { useEdgeFade } from '@/hooks/useEdgeFade'
 import { isFirestoreQuotaError } from '@/lib/firestoreErrors'
 import BusyLabel from '@/components/ui/BusyLabel'
 import FinanceWipePanel from '@/components/settings/FinanceWipePanel'
@@ -545,7 +544,6 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
   ]
   // FASE GP: fade the scroll edge only where the tab row actually hides
   // content — this row has no scrollbar to hint it scrolls at all.
-  const tabsFade = useEdgeFade([tabs.length])
   useEffect(() => { if (tab === 'advisors' && !inst.showAdvisorSetup) setTab('general') }, [tab, inst.showAdvisorSetup])
 
   return (
@@ -575,13 +573,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         )}
 
         <div className="px-5 pt-3.5 pb-3.5 border-b border-glass-border">
-          <div ref={tabsFade.ref} className={`flex gap-1 p-1 rounded-xl bg-theme-base border border-glass-border ${tabs.length > 4 ? 'grid grid-cols-3 sm:flex' : 'overflow-x-auto'}`} style={tabs.length > 4 ? undefined : tabsFade.maskStyle}>
+          <div className={`flex gap-1 p-1 rounded-xl bg-theme-base border border-glass-border ${tabs.length > 4 ? 'grid grid-cols-3 sm:flex' : 'grid grid-cols-2 min-[400px]:flex'}`}>
             {tabs.map((tb) => {
               const active = tab === tb.key
               const Icon = tb.icon
               return (
                 <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
-                  className={`flex-1 ${tabs.length > 4 ? 'min-w-0 px-1 sm:px-2' : 'px-2'} flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all`}
+                  className={`flex-1 ${tabs.length > 4 ? 'min-w-0 px-1 sm:px-2' : 'min-w-0 px-2'} flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all`}
                   style={active
                     ? { backgroundColor: 'var(--bg-card-hover)', color: 'var(--accent-blue)', boxShadow: 'var(--shadow-card)' }
                     : { color: 'var(--text-secondary)' }}>

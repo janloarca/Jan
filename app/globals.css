@@ -1445,3 +1445,26 @@ html {
     user-select: none;
   }
 }
+
+/* Hoja a 320 px (auditoria 12 nov). La tabla scrollea en horizontal dentro de
+   su caja por diseno (12 meses no caben en un telefono), pero la columna fija
+   de nombres se comia mas de la mitad del ancho y tapaba los importes: en una
+   tabla de layout automatico su ancho es el min-content de la fila mas larga,
+   y nombre + cantidad + moneda iban en una sola linea sin envolver. Bajo 480px
+   la columna se acota, los chips bajan de linea y la sangria se reduce
+   conservando los tres niveles. */
+@media (max-width: 479px) {
+  .sheet-table td.sticky.left-0:not([colspan]),
+  .sheet-table th.sticky.left-0 {
+    max-width: 136px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .sheet-table td.sticky.left-0:not([colspan]) > div.flex {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .sheet-table td.sticky.left-0.pl-8 { padding-left: 1.25rem; }
+  .sheet-table td.sticky.left-0.pl-12 { padding-left: 1.75rem; }
+  .sheet-table td.sticky.left-0.pl-16 { padding-left: 2.25rem; }
+}

@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, formatShortDate, getBaseCurrency, getTypeCa
 import { InfoTip } from '../ui/Tooltip'
 import { YtdBreakdownToggle } from './YtdBreakdownSection'
 import { computeDayMovers } from '@/lib/dayMovers'
+import { startKindOf } from '@/lib/ytdAnchor'
 
 const QUICK_CURRENCIES = ['USD', 'EUR', 'GBP', 'MXN', 'GTQ', 'COP', 'BRL', 'CAD']
 
@@ -31,7 +32,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdAnchorIgnored = 0, ytdStartValue = null, ytdStartTs = null, pricesUpdate = null, scopedView = false, ytdBreakdownOpen = false, onToggleYtdBreakdown = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdAnchorIgnored = 0, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, pricesUpdate = null, scopedView = false, ytdBreakdownOpen = false, onToggleYtdBreakdown = null }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -360,7 +361,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {hasYTD && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartTs != null && (
         <div className="mt-0.5 text-[11px] tabular-nums" style={{ color: 'var(--text-muted)' }}>
-          {lang === 'es' ? 'Arranque del año (solo activos)' : 'Year start (assets only)'}: {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}
+          {lang === 'es' ? 'Arranque del año (solo activos)' : 'Year start (assets only)'}: {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}{ytdStartSrc && startKindOf(ytdStartSrc) === 'estimated' ? (lang === 'es' ? ' · estimado' : ' · estimated') : ''}
         </div>
       )}
 
