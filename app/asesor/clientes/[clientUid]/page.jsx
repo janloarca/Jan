@@ -38,7 +38,9 @@ function ClientPageInner() {
 
   const orgIds = useMemo(() => inst.memberships.map((m) => m.orgId).join(','), [inst.memberships])
   useEffect(() => {
-    if (!user || !clientUid || !orgIds) return undefined
+    if (!user || !clientUid || inst.loading) return undefined
+    // Sin ninguna firma no hay dónde buscar: se dice en vez de quedarse cargando.
+    if (!orgIds) { setError(t('No tienes acceso a este cliente.', 'You do not have access to this client.')); return undefined }
     let cancelled = false
     ;(async () => {
       let lastErr = null
@@ -54,7 +56,7 @@ function ClientPageInner() {
       if (!cancelled) setError(orgErrorText(lastErr, lang))
     })()
     return () => { cancelled = true }
-  }, [user, clientUid, orgIds, lang])
+  }, [user, clientUid, orgIds, lang, inst.loading, t])
 
   const active = client?.status === 'active'
   const screens = useMemo(

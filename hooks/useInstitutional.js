@@ -19,11 +19,24 @@ function emit(next) {
   listeners.forEach((fn) => fn(state))
 }
 
-function readFlag() {
+// ?institucional=1 deja la bandera guardada (como ?brokers=1 en su momento) y
+// ?institucional=0 la apaga. Se exporta para que la landing la capture ANTES de
+// redirigir al tablero, que si no pierde el query.
+export function captureInstitutionalFlag() {
   try {
-    if (new URLSearchParams(window.location.search).get('institucional') === '1') localStorage.setItem(FLAG_KEY, '1')
+    const q = new URLSearchParams(window.location.search).get('institucional')
+    if (q === '1') localStorage.setItem(FLAG_KEY, '1')
+    else if (q === '0') localStorage.removeItem(FLAG_KEY)
     return localStorage.getItem(FLAG_KEY) === '1'
   } catch { return false }
+}
+
+const readFlag = captureInstitutionalFlag
+
+// Apagar la bandera desde la interfaz (solo tiene efecto si no hay firma).
+export function clearInstitutionalFlag() {
+  try { localStorage.removeItem(FLAG_KEY) } catch {}
+  emit({ ...state, flag: false })
 }
 
 async function load() {

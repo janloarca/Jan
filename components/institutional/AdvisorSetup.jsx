@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { orgApi, orgErrorText } from '@/lib/institutional/client'
-import { useInstitutional } from '@/hooks/useInstitutional'
+import { useInstitutional, clearInstitutionalFlag } from '@/hooks/useInstitutional'
 import BusyLabel from '@/components/ui/BusyLabel'
 import ConfirmTap from '@/components/ui/ConfirmTap'
 import InlineNotice from '@/components/ui/InlineNotice'
@@ -74,6 +74,12 @@ export default function AdvisorSetup({ lang = 'es', flash = () => {} }) {
         <button type="submit" disabled={busy || name.trim().length < 2} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
           <BusyLabel busy={busy} lang={lang}>{t('Crear firma', 'Create firm')}</BusyLabel>
         </button>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {t('Esta pestaña se muestra porque abriste la app con ?institucional=1. ', 'This tab shows because you opened the app with ?institucional=1. ')}
+          <button type="button" onClick={clearInstitutionalFlag} className="underline" style={{ color: 'var(--accent-blue)' }}>
+            {t('Ocultarla', 'Hide it')}
+          </button>
+        </p>
       </form>
     )
   }

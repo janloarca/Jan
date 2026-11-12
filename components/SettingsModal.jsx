@@ -541,15 +541,16 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
     { key: 'share', label: t('Compartir', 'Share'), icon: Share2 },
     { key: 'data', label: t('Datos', 'Data'), icon: Database },
     // Modo institucional: solo con ?institucional=1 o siendo miembro de una firma.
-    ...(inst.showAdvisorSetup ? [{ key: 'advisors', label: t('Para asesores', 'For advisors'), icon: Building2 }] : []),
+    ...(inst.showAdvisorSetup ? [{ key: 'advisors', label: t('Asesores', 'Advisors'), icon: Building2 }] : []),
   ]
   // FASE GP: fade the scroll edge only where the tab row actually hides
   // content — this row has no scrollbar to hint it scrolls at all.
   const tabsFade = useEdgeFade([tabs.length])
+  useEffect(() => { if (tab === 'advisors' && !inst.showAdvisorSetup) setTab('general') }, [tab, inst.showAdvisorSetup])
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
-      <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div ref={trapRef} className={`modal-glass ${inst.showAdvisorSetup ? 'max-w-lg' : 'max-w-md'} w-full max-h-[85vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-glass-border">
           <h2 id="settings-modal-title" className="text-base font-bold text-white flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 14%, transparent)' }}>
