@@ -575,13 +575,13 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         )}
 
         <div className="px-5 pt-3.5 pb-3.5 border-b border-glass-border">
-          <div ref={tabsFade.ref} className={`flex gap-1 p-1 rounded-xl bg-theme-base border border-glass-border ${tabs.length > 4 ? 'flex-wrap' : 'overflow-x-auto'}`} style={tabs.length > 4 ? undefined : tabsFade.maskStyle}>
+          <div ref={tabsFade.ref} className={`flex gap-1 p-1 rounded-xl bg-theme-base border border-glass-border ${tabs.length > 4 ? 'grid grid-cols-3 sm:flex' : 'overflow-x-auto'}`} style={tabs.length > 4 ? undefined : tabsFade.maskStyle}>
             {tabs.map((tb) => {
               const active = tab === tb.key
               const Icon = tb.icon
               return (
                 <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
-                  className={`flex-1 ${tabs.length > 4 ? 'basis-[30%]' : ''} flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all`}
+                  className={`flex-1 ${tabs.length > 4 ? 'min-w-0 px-1 sm:px-2' : 'px-2'} flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all`}
                   style={active
                     ? { backgroundColor: 'var(--bg-card-hover)', color: 'var(--accent-blue)', boxShadow: 'var(--shadow-card)' }
                     : { color: 'var(--text-secondary)' }}>
