@@ -472,7 +472,7 @@ export default function SpreadsheetPage() {
 
       <ModalMount closing={infoClosing}>
       {infoShown && (
-        <AssetInfoModal item={infoShown} items={portfolioItems || enrichedItems} transactions={transactions}
+        <AssetInfoModal item={infoShown} items={portfolioItems || enrichedItems} transactions={transactions} lots={lots}
           convert={convert} baseCurrency={baseCurrency} lang={lang}
           observations={sheetObservations} onUpdateItem={updateItem}
           currentMonthKey={new Date().toISOString().slice(0, 7)}

@@ -16,7 +16,7 @@ const STORAGE_KEY = 'chispudo-anthropic-key'
 // tapaba "Invertido" y cortaba el chip PRUEBA), y ninguna reserva de padding lo
 // evita fuera del final de la pagina. Sin esas props el widget se comporta
 // como siempre (la Hoja lo sigue usando asi).
-export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, benchmarkReturn, benchmarkName, transactions, convert, incomeProjections, estimatedAnnualIncome, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
+export default function ChatWidget({ user, items, netWorth, totalAssets, returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, benchmarkReturn, benchmarkName, benchmarkTwr = null, benchmarkTwrScope = null, transactions, convert, incomeProjections, estimatedAnnualIncome, riskMetrics, baseCurrency, lang, onUpdateItem, open: openProp, onOpenChange, showLauncher = true }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [openState, setOpenState] = useState(false)
   const controlled = typeof openProp === 'boolean'
@@ -83,9 +83,9 @@ export default function ChatWidget({ user, items, netWorth, totalAssets, returnY
     netWorth, totalAssets,
     returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc,
     returnSinceStart, sinceStartDate,
-    benchmarkReturn, benchmarkName,
+    benchmarkReturn, benchmarkName, benchmarkTwr, benchmarkTwrScope,
     estimatedAnnualIncome, incomeProjections, riskMetrics,
-  }), [items, transactions, convert, baseCurrency, netWorth, totalAssets, returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, benchmarkReturn, benchmarkName, estimatedAnnualIncome, incomeProjections, riskMetrics])
+  }), [benchmarkTwr, benchmarkTwrScope, items, transactions, convert, baseCurrency, netWorth, totalAssets, returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, returnSinceStart, sinceStartDate, benchmarkReturn, benchmarkName, estimatedAnnualIncome, incomeProjections, riskMetrics])
 
   const handleActions = useCallback((actions) => {
     if (!actions || !onUpdateItem) return

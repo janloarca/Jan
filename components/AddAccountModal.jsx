@@ -2223,7 +2223,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           placeholder={form.managementFeeType === 'fixed' ? '50' : '0.50'} type="text" inputMode="decimal" className={inputCls} />
                       </div>
                       <div>
-                        <label className={labelCls}>{t('Expense %', 'Expense %')} <InfoTip text={t('Ratio de gastos anual, ej. 0.03 = 0.03%/año.', 'Annual expense ratio, e.g. 0.03 = 0.03%/yr.')} /></label>
+                        <label className={labelCls}>{t('Gastos %', 'Expense %')} <InfoTip text={t('Ratio de gastos anual, ej. 0.03 = 0.03%/año.', 'Annual expense ratio, e.g. 0.03 = 0.03%/yr.')} /></label>
                         <input value={form.expenseRatio} onChange={e => set('expenseRatio', e.target.value)}
                           placeholder="0.03" type="text" inputMode="decimal" className={inputCls} />
                       </div>
@@ -2287,9 +2287,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       <p className="text-xs mt-1.5" style={{ color: 'color-mix(in srgb, var(--accent-orange) 70%, transparent)' }}>
                         {parseAmount(form.entryFee) > 0 && `${t('Entrada', 'Entry')}: ${form.currency} ${parseAmount(form.entryFee).toFixed(2)}  `}
                         {parseAmount(form.managementFee) > 0 && (form.managementFeeType === 'fixed'
-                          ? `${t('Mgmt', 'Mgmt')}: ${form.currency} ${parseAmount(form.managementFee).toFixed(2)}/yr  `
-                          : `${t('Mgmt', 'Mgmt')}: ${parseAmount(form.managementFee).toFixed(2)}%/yr  `)}
-                        {parseAmount(form.expenseRatio) > 0 && `Expense: ${parseAmount(form.expenseRatio).toFixed(2)}%/yr`}
+                          ? `${t('Gestión', 'Mgmt')}: ${form.currency} ${parseAmount(form.managementFee).toFixed(2)}/${t('año', 'yr')}  `
+                          : `${t('Gestión', 'Mgmt')}: ${parseAmount(form.managementFee).toFixed(2)}%/${t('año', 'yr')}  `)}
+                        {parseAmount(form.expenseRatio) > 0 && `${t('Gastos', 'Expense')}: ${parseAmount(form.expenseRatio).toFixed(2)}%/${t('año', 'yr')}`}
                       </p>
                     )}
                   </div>

@@ -132,7 +132,8 @@ import { useEntities } from '@/hooks/useEntities'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { activePortfolioAfterDelete } from '@/lib/portfolioDelete'
 import { scopeTagFor } from '@/lib/scopeTag'
-import { investableValue } from '@/lib/investable'
+import { investableValue, benchmarkTwrYtd } from '@/lib/investable'
+import { computePeriodicReturns } from '@/components/dashboard/analytics'
 import { useInstitutional } from '@/hooks/useInstitutional'
 import { useAdvisorSummaryPublisher } from '@/hooks/useAdvisorSummary'
 
@@ -975,6 +976,16 @@ export default function DashboardPage() {
   // Cuenta la MISMA lista que dibuja la card (incluye los hallazgos de
   // rendimiento líquido): con dataCompleteness.findings a secas el header decía
   // 28 y la card 31.
+  // El TWR que muestra la tarjeta de Benchmark (su vista por defecto: solo lo
+  // invertible cuando hay vivienda), para que el chat compare contra el indice
+  // con la MISMA metrica y no con el Dietz del encabezado.
+  const chatBenchmarkTwr = useMemo(() => {
+    const hasHome = (portfolioItems || []).some((it) => !it.isDebt && getTypeCategory(it) === 'realestate')
+    return {
+      twr: benchmarkTwrYtd({ snapshots: augmentedSnapshots, transactions: assetTransactions, items: portfolioItems, convert, baseCurrency, investable: true, computePeriodicReturns }),
+      scope: hasHome ? 'investable' : 'all',
+    }
+  }, [portfolioItems, augmentedSnapshots, assetTransactions, convert, baseCurrency])
   const pendingFindings = useMemo(
     () => countPending(suggestionFindings, dismissedIds),
     [suggestionFindings, dismissedIds]
@@ -1549,11 +1560,12 @@ export default function DashboardPage() {
             <button
               onClick={() => document.querySelector('[data-card-id="SUGG-01"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               className="text-xs transition-colors hover:opacity-80"
+              title={lang === 'es' ? 'Datos de tus cuentas que faltan o conviene revisar. No son precios pendientes: los precios ya están al día.' : 'Account details that are missing or worth reviewing. Not pending prices: prices are already up to date.'}
               style={{ color: dataCompleteness.globalScore < 60 ? 'var(--accent-orange)' : 'var(--text-muted)' }}
             >
               {lang === 'es'
-                ? `· ${pendingFindings} por completar`
-                : `· ${pendingFindings} to complete`}
+                ? `· ${pendingFindings} ${pendingFindings === 1 ? 'dato' : 'datos'} por completar`
+                : `· ${pendingFindings} ${pendingFindings === 1 ? 'detail' : 'details'} to complete`}
             </button>
           )}
           </>}
@@ -1656,7 +1668,7 @@ export default function DashboardPage() {
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
               ytdAnchorIgnored={ytdAnchorIgnored}
-              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs}
+              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc}
               pricesUpdate={pricesUpdate}
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
@@ -2645,6 +2657,7 @@ export default function DashboardPage() {
           returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc}
           returnSinceStart={returnSinceStart} sinceStartDate={sinceStartDate}
           benchmarkReturn={benchmarkReturn} benchmarkName={benchmarkName}
+          benchmarkTwr={chatBenchmarkTwr.twr} benchmarkTwrScope={chatBenchmarkTwr.scope}
           transactions={transactions} convert={convert} incomeProjections={incomeProjections}
           estimatedAnnualIncome={estimatedAnnualIncome} riskMetrics={riskMetrics}
           baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem}

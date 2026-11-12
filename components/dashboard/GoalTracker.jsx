@@ -301,7 +301,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, investableAs
                     <div key={s.key} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium" style={{ color: s.color }}>{s.label}</span>
-                        <span className="text-xs text-slate-600">{s.rate}%/yr</span>
+                        <span className="text-xs text-slate-600">{s.rate}%/{t('año', 'yr')}</span>
                       </div>
                       {/* Un "$0.00/mes" es cierto (a esa tasa el crecimiento
                           solo ya llega) pero se lee como "no se sabe": se dice

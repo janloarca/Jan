@@ -2121,7 +2121,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
         {/* CSS zoom (not transform: scale) — a transform creates a containing
             block that disables position:sticky on the name column at zoom ≠ 1. */}
         <div style={{ zoom }}>
-        <table className="w-full text-sm border-collapse min-w-[600px]">
+        <table className="sheet-table w-full text-sm border-collapse min-w-[600px]">
           <caption className="sr-only">{t('Valores históricos del portafolio por mes', 'Historical portfolio values by month')}</caption>
           <thead>
             {/* Sticky vertically (top-0) same as the name column is sticky
