@@ -1,5 +1,6 @@
 'use client'
 
+import { captureInstitutionalFlag } from '@/hooks/useInstitutional'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Logo from '@/components/ui/Logo'
@@ -381,7 +382,7 @@ export default function Home() {
         if (cancelled) return
         unsub = onAuthStateChanged(auth, (user) => {
           if (cancelled) return
-          if (user) router.push('/dashboard')
+          if (user) router.push(captureInstitutionalFlag() ? '/dashboard?institucional=1' : '/dashboard')
           else setChecking(false)
         })
       })
