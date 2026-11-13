@@ -370,7 +370,7 @@ export default function DashboardPage() {
     ratesLoading, ratesError, ratesUpdate, ratesStale, ytdResolved, historyBusy,
     handleRefresh,
     baseCurrency, netWorth, totalAssets, dailyChange, yearlyChange,
-    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdStartLate, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
+    returnYTD, ytdChange, ytdStartValue, ytdStartTs, ytdStartSrc, ytdStartLate, ytdStartMissingLate, ytdCalIgnored, ytdAnchorIgnored, returnSinceStart, sinceStartDate, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdBreakdownDetail,
     annualDividends, estimatedAnnualIncome, incomeVerification, incomeProjections,
     netContributions, contributionsSummary, cashTotal, riskMetrics, insights, dataAge, contributionWarning, ytdDegradedAccounts, assetTransactions,
     brokerCompletionState, ibkrDataComplete, inferredFlowCandidates, inferredFlowReconciliation, ibkrReconciliation, acceptInferredFlow, dismissInferredFlow,
@@ -1668,7 +1668,7 @@ export default function DashboardPage() {
               lang={lang} netContributions={netContributions} cashTotal={cashTotal} snapshots={augmentedSnapshots} items={portfolioItems}
               ytdCalibrated={ytdCalibrated} ytdBreakdown={ytdBreakdown} ytdBreakdownReason={ytdBreakdownReason}
               ytdAnchorIgnored={ytdAnchorIgnored}
-              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc}
+              ytdStartValue={ytdStartValue} ytdStartTs={ytdStartTs} ytdStartSrc={ytdStartSrc} ytdStartMissingLate={ytdStartMissingLate}
               pricesUpdate={pricesUpdate}
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
