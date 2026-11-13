@@ -32,7 +32,7 @@ import { corruptSnapshotRunIds, feEraSuspectDailyIds, usdFlowEvents } from '@/li
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged, backfillRewriteReason, backfillDeltaDetail } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged, backfillRewriteReason, backfillDeltaDetail, formatBackfillLog } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -805,6 +805,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         let maxDelta = 0
         let maxDeltaDate = null
         let maxDeltaPair = null
+        let firstWritten = null
         for (const f of fills) {
           const doc = {
             date: f.date,
@@ -833,21 +834,19 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           reasons[why.reason] = (reasons[why.reason] || 0) + 1
           if (why.reason === 'value' && why.delta > maxDelta) { maxDelta = why.delta; maxDeltaDate = f.date; maxDeltaPair = { stored: plainByDate.get(f.date), next: doc } }
           await saveSnapshot(doc)
+          if (!firstWritten) firstWritten = { date: f.date, reason: why.reason, total: f.total }
           written += 1
         }
         if (written > 0 || unchanged > 0) {
-          // FASE RY: el log dice POR QUÉ se escribió cada día. "cambió de
-          // valor" con un delta chico y parejo en cientos de días es la tasa
-          // de cambio del día moviendo los activos en quetzales, no un error.
-          const parts = Object.entries(reasons).map(([k, n]) => `${({ gap: 'huecos', source: 'otra fuente', value: 'cambió el valor', shape: 'formato' })[k] || k} ${n}`)
-          console.info(`[backfill] ${written} día(s) escritos${parts.length ? ` (${parts.join(', ')}${maxDeltaDate ? `; mayor cambio ${maxDelta.toFixed(2)} USD el ${maxDeltaDate}` : ''})` : ''}, ${unchanged} sin cambios${composing ? ' componiendo NAV real del broker' : ''}`)
-          // FASE RZ: para el día con mayor cambio, el valor GUARDADO contra el
-          // recalculado y qué cuenta explica la diferencia. Con eso un cambio
-          // que se repite entre recargas deja de ser una adivinanza.
-          if (maxDeltaPair) {
-            const d = backfillDeltaDetail(maxDeltaPair.stored, maxDeltaPair.next)
-            console.info(`[backfill] ${maxDeltaDate}: guardado ${d.storedTotal.toFixed(2)} USD, recalculado ${d.nextTotal.toFixed(2)} USD (lotes ${lots.length}, movimientos ${transactions.length})${d.accounts.length ? `; por cuenta: ${d.accounts.map((a) => `${a.key} ${a.stored.toFixed(2)} → ${a.next.toFixed(2)}`).join(' · ')}` : '; el doc guardado no trae reparto por cuenta'}`)
-          }
+          // FASE RY/RZ/SA: un solo mensaje con el motivo de cada día y, si se
+          // escribió algo, el detalle del día de referencia (guardado contra
+          // recalculado, lotes, movimientos y qué cuenta explica la diferencia).
+          console.info(formatBackfillLog({
+            written, unchanged, reasons, maxDelta, maxDeltaDate,
+            detail: maxDeltaPair ? backfillDeltaDetail(maxDeltaPair.stored, maxDeltaPair.next) : null,
+            firstWritten, composing, lotsCount: lots.length, txCount: transactions.length,
+            build: typeof window !== 'undefined' ? window.__CHISPU_BUILD || null : null,
+          }))
         }
         // Solo una pasada COMPLETA estampa el día (FASE HZ): un return temprano
         // (respuesta degradada, !res.ok, sin puntos) deja el día sin estampar y
