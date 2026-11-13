@@ -2295,9 +2295,13 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             {/* Never claim "this year" when the measured window starts at the first
                 real data point instead of January. */}
             <span className="text-slate-500 ml-1">
-              {valueRebasedFrom
-                ? `${t('desde', 'since')} ${formatDate(new Date(valueRebasedFrom).toISOString())}`
-                : period === 'YTD' ? t('este año', 'this year') : period === 'DAY' ? t('hoy', 'today') : period === 'CUSTOM' ? t('rango', 'range') : period}
+              {/* FASE RZ: todos los rangos dicen desde qué fecha miden (la del
+                  primer punto visible), en vez de "1W"/"1M"/"ALL" pelados. */}
+              {period === 'DAY'
+                ? t('hoy', 'today')
+                : (valueRebasedFrom || chartData[0]?.ts)
+                  ? `${t('desde', 'since')} ${formatDate(new Date(valueRebasedFrom || chartData[0].ts).toISOString())}`
+                  : period === 'YTD' ? t('este año', 'this year') : t('en el periodo', 'in this period')}
             </span>
             {/* FASE IX2. Este rótulo decía "incluye depósitos" y el comentario que
                 tenía encima decía "raw NAV delta - deposits count as growth here",

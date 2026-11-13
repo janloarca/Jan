@@ -225,9 +225,26 @@ export function useFirestoreItems() {
       // Solo los listeners de las colecciones que definen "tengo datos" marcan
       // esta bandera: si falla la de alertas o la de lots, la pantalla principal
       // sigue siendo cierta y no hay por qué alarmar.
+      // FASE RZ: `loading` solo baja cuando contestaron TODAS las colecciones
+      // con las que se reconstruye el pasado (items, snapshots, movimientos,
+      // LOTES y las preferencias). Antes bajaba con la primera respuesta de
+      // movimientos o de settings, y el listener de lotes se suscribía
+      // DESPUÉS, así que el backfill y el arranque del año podían correr una
+      // vez sin lotes: una compra reciente (2 VOO del 9 nov) se mantenía plana
+      // hacia atrás y cada recarga reescribía el historial con un valor u otro
+      // según quién llegara primero ($1,256.60 en el arranque, $1,432.40 el
+      // 6 oct). Un listener que falla también cuenta como "contestó": si no,
+      // un error dejaría la pantalla cargando para siempre.
+      const pending = new Set(['items', 'snapshots', 'transactions', 'lots', 'settings'])
+      const markReady = (key) => {
+        if (cancelled || !pending.has(key)) return
+        pending.delete(key)
+        if (pending.size === 0) setLoading(false)
+      }
       const onErr = (label, critical = false) => (err) => {
         console.error(`[Firestore] ${label} listener error:`, err.code, err.message)
         if (critical && !cancelled) setLoadError(err.code || 'unknown')
+        markReady(label)
       }
 
       unsubItems = fs.onSnapshot(
@@ -235,13 +252,14 @@ export function useFirestoreItems() {
         (snap) => {
           if (!cancelled) {
             setItems(snap.docs.map((d) => sanitizeItem({ ...d.data(), id: d.id })))
+            markReady('items')
           }
         },
         onErr('items', true)
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
-        (snap) => { if (!cancelled) setSnapshots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
+        (snap) => { if (!cancelled) { setSnapshots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); markReady('snapshots') } },
         onErr('snapshots')
       )
       unsubTransactions = fs.onSnapshot(
@@ -249,10 +267,16 @@ export function useFirestoreItems() {
         (snap) => {
           if (!cancelled) {
             setTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id })))
-            setLoading(false)
+            markReady('transactions')
           }
         },
         onErr('transactions', true)
+      )
+
+      unsubLots = fs.onSnapshot(
+        fs.collection(db, `users/${currentUid}/lots`),
+        (snap) => { if (!cancelled) { setLots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); markReady('lots') } },
+        onErr('lots')
       )
 
       try {
@@ -271,17 +295,12 @@ export function useFirestoreItems() {
         if (!cancelled && obsDoc.exists()) setSheetObservations(sanitizeObservations(obsDoc.data()))
       } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
 
-      if (!cancelled) setLoading(false)
+      markReady('settings')
 
       unsubAlerts = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/alerts`),
         (snap) => { if (!cancelled) setAlerts(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
         onErr('alerts')
-      )
-      unsubLots = fs.onSnapshot(
-        fs.collection(db, `users/${currentUid}/lots`),
-        (snap) => { if (!cancelled) setLots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))) },
-        onErr('lots')
       )
       unsubPortfolios = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/portfolios`),
