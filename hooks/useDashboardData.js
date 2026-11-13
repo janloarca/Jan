@@ -6,7 +6,7 @@ import { useExchangeRates } from './useExchangeRates'
 import { useBenchmark } from './useBenchmark'
 import { useTabCoordination } from './useTabCoordination'
 import { authFetch, safeJson } from '@/lib/authFetch'
-import { accountsUSDFromBreakdown, anchorAccountsUSD, lateItemsStart } from '@/lib/ytdAnchor'
+import { accountsUSDFromBreakdown, anchorAccountsUSD, lateItemsStart, persistedLateStart, lateStartToPersist } from '@/lib/ytdAnchor'
 import { setBaseCurrency, setLang as setUtilsLang, computeModifiedDietz, getItemValue, getTypeCategory, getInvestmentClass, isExcludedFromNetWorth, isBankLike, computeDayChange, augmentSnapshots, projectItemAnnualIncome, findYearStartAnchor, anchorMissesLateItems, lateItemsOf, findMonthStartAnchor, anchorStartTs, flowsAfterAnchor, computeScopedReturns, shouldHoldFlat, combineAccountCalibrations, accountKeyOfItem, BROKER_NAV_SOURCES, heldFlatAccountValueUSD, isMarketPriced, effectiveAcqTs, entryFeeAddbacks, getEffectiveYield, isPerShareIncome } from '@/components/dashboard/utils'
 import { buildHistoryRequestBody } from '@/lib/historyPayload'
 import { scopeTagFor, tagForScope } from '@/lib/scopeTag'
@@ -2071,6 +2071,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
             // cuáles cuentas no puede tratar como medidas.
             setYtdEndpoints({
               start: scale(picked.start),
+              // FASE RX: el mismo desglose en USD, sin convertir, para guardar
+              // el arranque de los activos tardios en una moneda estable.
+              startUSD: picked.start,
               end: scale(picked.end),
               failedSymbols: data.degraded ? (data.failedSymbols || []) : [],
               // FASE IN: TODO activo de mercado que el server terminó
@@ -2191,7 +2194,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const assetTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(viewTransactions, debtIds), ibkrIds), [viewTransactions, debtIds, ibkrIds])
   const assetDietzTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(dietzTransactions, debtIds), ibkrIds), [dietzTransactions, debtIds, ibkrIds])
 
-  const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, ytdStartLate, ytdStartLateByAccount, ytdAnchorDoc } = useMemo(() => {
+  const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, ytdStartLate, ytdStartLateByAccount, ytdAnchorDoc, ytdStartMissingLate, ytdLateToPersist } = useMemo(() => {
     const year = new Date().getUTCFullYear()
     const yearStartTs = Date.UTC(year, 0, 1)
     const todayStr = new Date().toISOString().split('T')[0]
@@ -2214,6 +2217,10 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     let lateAdd = 0
     let lateByAccount = {}
     let anchorDoc = null
+    // FASE RX: tardios que el arranque NO incluye (ni guardado ni medido en
+    // esta carga), y lo que esta carga midio y todavia no esta guardado.
+    let missingLate = 0
+    let lateToPersist = null
     // When the start value is not actually Jan 1's, the window starts where the
     // value does (see jan1Ts). Desde FASE MT también puede moverse hacia ATRÁS,
     // a un ancla de fines de diciembre: el buscador de anclas acepta las dos
@@ -2238,12 +2245,30 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       // tardíos se cae a la reconstrucción, rotulada como estimada.
       const late = bestSnap ? lateItemsOf(bestSnap, portfolioItems) : []
       if (late.length > 0) {
-        const add = lateItemsStart({ lateItems: late, startByKey: ytdEndpoints?.start, keyOf: accountKeyOfItem })
+        // ⛔ FASE RX (con OK del usuario, 13 nov): manda el valor GUARDADO de
+        // cada tardio; la reconstruccion en vivo solo llena a los que nunca se
+        // midieron. Asi una recarga en la que la reconstruccion no llega (o
+        // llega degradada) ya no puede mover el arranque. Sin nada guardado y
+        // sin medicion, el arranque es el doc solo y se DICE cuantos activos
+        // no incluye, en vez de presentarlo como completo.
+        const toBase = (v) => (baseCurrency !== 'USD' && convert) ? convert(v, 'USD', baseCurrency) : v
+        const persisted = persistedLateStart(settings, bestSnap.date, toBase)
+        const startByKey = { ...(ytdEndpoints?.start || {}), ...persisted }
+        lateToPersist = lateStartToPersist({
+          lateItems: late,
+          startUSDByKey: ytdEndpoints?.startUSD,
+          persisted: (settings?._ytdLateStartUSD || {})[bestSnap.date] || {},
+          unmeasuredSymbols: [...(ytdEndpoints?.failedSymbols || []), ...(ytdEndpoints?.staticFallbackSymbols || [])],
+        })
+        if (lateToPersist) lateToPersist = { date: bestSnap.date, values: lateToPersist }
+        const add = lateItemsStart({ lateItems: late, startByKey, keyOf: accountKeyOfItem })
         if (add) {
           lateAdd = add.total
           lateByAccount = add.byAccount
         } else if (jan1Value != null && jan1Value > 0) {
           bestSnap = null
+        } else {
+          missingLate = late.filter((it) => !Number.isFinite(startByKey[it.id])).length
         }
       }
       if (bestSnap) {
@@ -2373,7 +2398,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
 
     const calibrated = ytdCalApplied || anchorCalibrated
-    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdStartSrc: null, ytdFlowsUsed: null, ytdStartLate: 0, ytdStartLateByAccount: {}, ytdAnchorDoc: null }
+    if (startVal == null || startVal <= 0) return { returnYTD: null, ytdChange: null, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: null, ytdStartTs: null, ytdStartSrc: null, ytdFlowsUsed: null, ytdStartLate: 0, ytdStartLateByAccount: {}, ytdAnchorDoc: null, ytdStartMissingLate: 0, ytdLateToPersist: lateToPersist }
     // FASE LU: la lista viene del universo de ACTIVOS (lib/assetReturns.js):
     // los flujos de una deuda no entran, y los que cruzan la frontera (pago
     // desde una cuenta, desembolso hacia una cuenta) entran como el flujo
@@ -2467,8 +2492,23 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // publica null. Recibiendo un valor ya saturado nunca veia uno fuera de
     // banda, asi que el YTD mas roto se publicaba como +200.00% exacto y
     // encabezaba el ranking (el defecto que FASE JA5 vino a cerrar).
-    return { returnYTD: clampedPct, returnYTDRaw: effPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows, ytdStartLate: lateAdd, ytdStartLateByAccount: lateByAccount, ytdAnchorDoc: (anchorDoc && !ytdCalApplied) ? anchorDoc : null }
-  }, [ytdEndpoints, jan1Value, jan1Ts, jan1Transactional, totalAssets, assetTransactions, assetDietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems])
+    return { returnYTD: clampedPct, returnYTDRaw: effPct, ytdChange: adjAbs, returnSinceStart, sinceStartDate, ytdCalibrated: calibrated, ytdStartValue: startVal, ytdStartTs: startTs, ytdStartSrc: anchorSrc, ytdFlowsUsed: ytdFlows, ytdStartLate: lateAdd, ytdStartLateByAccount: lateByAccount, ytdAnchorDoc: (anchorDoc && !ytdCalApplied) ? anchorDoc : null, ytdStartMissingLate: anchorDoc ? missingLate : 0, ytdLateToPersist: lateToPersist }
+  }, [ytdEndpoints, jan1Value, jan1Ts, jan1Transactional, totalAssets, assetTransactions, assetDietzTransactions, convert, baseCurrency, augmentedSnapshots, convertSnapshot, accountCalibrations, portfolioItems, settings])
+
+  // FASE RX: guarda UNA vez el arranque medido de los activos tardios (ver el
+  // memo de arriba). Fusiona por campo, asi que solo agrega llaves nuevas; una
+  // demo no deja rastro (contrato de lib/demoData.js). Fuera del memo porque un
+  // memo no escribe.
+  const lateSavedRef = useRef('')
+  useEffect(() => {
+    if (!ytdLateToPersist || !saveSettings) return
+    if ((enrichedItems || []).some((i) => i._source === 'demo')) return
+    const key = `${ytdLateToPersist.date}:${Object.keys(ytdLateToPersist.values).sort().join(',')}`
+    if (lateSavedRef.current === key) return
+    lateSavedRef.current = key
+    Promise.resolve(saveSettings({ _ytdLateStartUSD: { [ytdLateToPersist.date]: ytdLateToPersist.values } }))
+      .catch(() => { lateSavedRef.current = '' })
+  }, [ytdLateToPersist, saveSettings, enrichedItems])
 
   // FASE GR3: per-account year-start values from the SPREADSHEET's own monthly
   // reconstruction -- the engine (lib/historicalValues.js) the user validated as
@@ -4194,7 +4234,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     ignoredCalibrations,
     // FASE NL: y de QUÉ doc salió. El panel del YTD ahora lo imprime, así que
     // un ancla equivocada se ve en vez de tener que despejarse a mano.
-    ytdStartTs, ytdStartSrc, ytdStartLate,
+    ytdStartTs, ytdStartSrc, ytdStartLate, ytdStartMissingLate,
     ibkrReturnYTD: ibkrReturns.ytd, ibkrReturnMTD: ibkrReturns.mtd, ibkrDayChange: ibkrReturns.day,
     annualDividends, estimatedAnnualIncome, incomeVerification,
     // FASE RQ: la proyección por ítem, para que el chat cite la MISMA cifra
