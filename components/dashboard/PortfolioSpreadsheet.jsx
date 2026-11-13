@@ -2117,6 +2117,15 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           </div>
         )
       })()}
+      {/* FASE RY. "Activos de enero $340,930.97" contra el "Arranque del año
+          $345,344.79 (2 ene)" del tablero: no son la misma cifra porque no son
+          la misma FECHA. Cada columna es el cierre del mes (enero = 31 ene) y
+          el arranque es el 2 de enero. Se dice aquí, a la vista, para que
+          nadie lo lea como dos medidas en desacuerdo del mismo día. */}
+      <p className="px-4 pb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+        {t('Cada mes muestra su valor al CIERRE (enero = 31 de enero). El arranque del año del tablero es el 2 de enero, así que no tiene por qué coincidir con la columna de enero.',
+           'Each month shows its value at month END (January = January 31). The dashboard\'s year start is January 2, so it need not match the January column.')}
+      </p>
       <div ref={sheetScrollRef} className="overflow-auto max-h-[75vh] sheet-scroll">
         {/* CSS zoom (not transform: scale) — a transform creates a containing
             block that disables position:sticky on the name column at zoom ≠ 1. */}

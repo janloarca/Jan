@@ -61,7 +61,7 @@ export default function InstitutionPanel({ building, lang, baseCurrency, onClose
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         <div className="col-span-2">
-          <div className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</div>
+          <div className="text-caption" style={{ color: 'var(--text-muted)' }}>{t('Valor', 'Value')}</div>
           <div className="font-semibold tabular-nums" title={formatCurrency(building.value, baseCurrency)} style={{ color: 'var(--text-primary)' }}>{formatCompact(building.value, baseCurrency)}</div>
         </div>
         <div>

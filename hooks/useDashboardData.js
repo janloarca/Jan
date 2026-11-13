@@ -32,7 +32,7 @@ import { corruptSnapshotRunIds, feEraSuspectDailyIds, usdFlowEvents } from '@/li
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged, backfillRewriteReason } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -77,6 +77,16 @@ export function ibkrSyncChanges(prev, next) {
 //    primer cierre real meses atras; ahora se valora al precio de compra, igual
 //    que la Hoja, asi que los docs viejos inflan el pasado y hay que reescribirlos.
 const BACKFILL_LOGIC_VERSION = 5
+
+// FASE RY. La pasada diaria del backfill vivía en un ref del hook, así que ir
+// a la Hoja y volver (que desmonta y remonta el tablero) la repetía entera en
+// la misma pestaña: otro fetch de un año de historial y, con la tasa del día
+// moviendo los activos en quetzales, cientos de escrituras (reporte del 12-13
+// nov: "314 escritos" al volver de la Hoja). Se recuerda a nivel de MÓDULO por
+// usuario, junto con la firma del pasado de los items: si algo que cambia el
+// pasado se editó en otra pantalla, la firma difiere y la pasada vuelve a
+// correr. Una recarga real empieza de cero, como siempre.
+const backfillDoneByUser = new Map()
 
 // `publishFriends` lo prende SOLO el tablero. No es un default porque /friends
 // publica por su cuenta al montar (y ahí eso es lo correcto: es el momento en
@@ -529,6 +539,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     if (deletionEpoch !== deletionEpochRef.current) {
       deletionEpochRef.current = deletionEpoch
       backfillDayRef.current = null
+      if (user) backfillDoneByUser.delete(user.uid)
       backfillAttemptRef.current = { dayKey: null, ts: 0, tries: 0 }
     }
   }, [deletionEpoch])
@@ -583,6 +594,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // vez, sin importar que la pasada del dia ya hubiera completado.
     const todayKey = `${new Date().toISOString().split('T')[0]}:${BACKFILL_LOGIC_VERSION}`
     if (backfillDayRef.current === todayKey) return
+    const doneKey = `${todayKey}|${itemsPastSig}`
+    if (user && backfillDoneByUser.get(user.uid) === doneKey) {
+      backfillDayRef.current = todayKey
+      setHistoryBusy(false)
+      return
+    }
     if (backfillRunningRef.current) return
     const att = backfillAttemptRef.current
     if (att.dayKey === todayKey && (att.tries >= 4 || Date.now() - att.ts < 10 * 60 * 1000)) return
@@ -623,7 +640,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // 'daily' corrupto, y esos docs NO son huecos (están protegidos justo por
     // ser observaciones). Es una sola llamada por sesión, y sin nada que
     // corregir no escribe nada.
-    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillDayRef.current = todayKey; setHistoryBusy(false); return }
+    if (gaps.length === 0 && navMigrations.length === 0 && !hasBrokerItem) { backfillDayRef.current = todayKey; backfillDoneByUser.set(user.uid, doneKey); setHistoryBusy(false); return }
     // El intento se cuenta AQUÍ, después de los gates: una evaluación bloqueada
     // por un sync en curso no consume reintentos, solo un fetch que sí arrancó.
     backfillAttemptRef.current = {
@@ -772,6 +789,9 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         }
         let written = 0
         let unchanged = 0
+        const reasons = {}
+        let maxDelta = 0
+        let maxDeltaDate = null
         for (const f of fills) {
           const doc = {
             date: f.date,
@@ -796,11 +816,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           })
           if (acc && anchorAccountsUSD({ _accountsUSD: acc, totalActivosUSD: f.total })) doc._accountsUSD = acc
           if (!contradictedCal.has(f.date) && backfillDocUnchanged(plainByDate.get(f.date), doc)) { unchanged += 1; continue }
+          const why = contradictedCal.has(f.date) ? { reason: 'source', delta: 0 } : backfillRewriteReason(plainByDate.get(f.date), doc)
+          reasons[why.reason] = (reasons[why.reason] || 0) + 1
+          if (why.reason === 'value' && why.delta > maxDelta) { maxDelta = why.delta; maxDeltaDate = f.date }
           await saveSnapshot(doc)
           written += 1
         }
         if (written > 0 || unchanged > 0) {
-          console.info(`[backfill] ${written} día(s) escritos, ${unchanged} sin cambios${composing ? ' componiendo NAV real del broker' : ''}`)
+          // FASE RY: el log dice POR QUÉ se escribió cada día. "cambió de
+          // valor" con un delta chico y parejo en cientos de días es la tasa
+          // de cambio del día moviendo los activos en quetzales, no un error.
+          const parts = Object.entries(reasons).map(([k, n]) => `${({ gap: 'huecos', source: 'otra fuente', value: 'cambió el valor', shape: 'formato' })[k] || k} ${n}`)
+          console.info(`[backfill] ${written} día(s) escritos${parts.length ? ` (${parts.join(', ')}${maxDeltaDate ? `; mayor cambio ${maxDelta.toFixed(2)} USD el ${maxDeltaDate}` : ''})` : ''}, ${unchanged} sin cambios${composing ? ' componiendo NAV real del broker' : ''}`)
         }
         // Solo una pasada COMPLETA estampa el día (FASE HZ): un return temprano
         // (respuesta degradada, !res.ok, sin puntos) deja el día sin estampar y
@@ -810,6 +837,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         // escrituras de arriba ya ocurrieron (el loop no chequea cancelación),
         // y dejar el día sin estampar repetiría una pasada completa entera.
         backfillDayRef.current = todayKey
+        backfillDoneByUser.set(user.uid, doneKey)
       } catch (err) {
         console.error('[backfill] Failed:', err.message)
       } finally {
@@ -820,7 +848,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     doBackfill()
     return () => { cancelled = true }
-  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshotsAll, lots, transactions, saveSnapshot, convert, migrateMisplacedNav])
+  }, [user, dataLoading, pricesLoading, pricesFetching, ratesLoading, bulkWriting, ibkrAutoSyncing, enrichedItems, snapshotsAll, lots, transactions, saveSnapshot, convert, migrateMisplacedNav, itemsPastSig])
 
   // Dividend processing
   const dividendsProcessedRef = useRef(null)

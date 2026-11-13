@@ -5,11 +5,12 @@ import { Shimmer } from '@/components/dashboard/Skeleton'
 import { industryLabel, subIndustryLabel } from '@/lib/classification'
 import { useEscClose } from '@/hooks/useEscClose'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { formatCurrency, formatDate, getItemPrice, isMarketPriced, investmentStyleLabel } from './utils'
+import { formatCurrency, formatDate, getItemPrice, isMarketPriced, investmentStyleLabel, categoryLabel, getTypeCategory } from './utils'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { computeVentureMetrics } from '@/lib/ventureMetrics'
 import { computePropertyEquity, linkedDebtOf, isProperty } from '@/lib/propertyEquity'
 import DocumentVault from './DocumentVault'
+import ItemLotsList from './ItemLotsList'
 import { closeLabel } from '@/lib/closeLabel'
 
 // Unified with the app-wide market whitelist (isMarketPriced) — the old local
@@ -29,7 +30,7 @@ const STAGE_LABELS = {
   buyout: { es: 'Buyout / PE', en: 'Buyout / PE' },
 }
 
-export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD', allItems = [] }) {
+export default function AssetDetailModal({ item, onClose, lang = 'es', uid, transactions = [], convert, baseCurrency = 'USD', allItems = [], lots }) {
   useEscClose(onClose)
   const trapRef = useFocusTrap()
   const [chartData, setChartData] = useState(null)
@@ -248,7 +249,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <div>
             <h2 id="asset-detail-title" className="text-lg font-bold text-white">{item.name || item.symbol}</h2>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.symbol} · {item.type}{item.subtype ? `/${item.subtype}` : ''} {item.institution ? `· ${item.institution}` : ''}</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{[item.symbol, categoryLabel(getTypeCategory(item), lang), item.institution].filter(Boolean).join(' · ')}</span>
           </div>
           <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
         </div>
@@ -267,7 +268,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
               <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalValue)}<span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>{baseCurrency}</span></span>
             </div>
             <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50">
-              <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>P&L</span>
+              <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Ganancia', 'P&L')}</span>
               <span className="text-lg font-bold" style={{ color: pnl >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
               </span>
@@ -283,10 +284,12 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
             <span>{t('Costo', 'Cost')}: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatCurrency(item.purchasePrice)}</span></span>
             {item.change7d != null && (
               <span style={{ color: item.change7d >= 0 ? 'var(--accent-green)' : 'var(--text-negative)' }}>
-                7d: {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
+                {t('7 días', '7d')}: {item.change7d >= 0 ? '+' : ''}{item.change7d.toFixed(1)}%
               </span>
             )}
           </div>
+
+          <ItemLotsList item={item} lots={lots} items={allItems} lang={lang} className="" />
 
           {/* FASE PM. Clasificación: industria + estilo de inversión. Fila propia
               y no mezclada con la línea de arriba porque son dos preguntas

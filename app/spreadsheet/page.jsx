@@ -110,6 +110,10 @@ export default function SpreadsheetPage() {
   const handleCloseEditItem = useCallback(() => { setEditItem(null); setEditFocusField(null) }, [])
 
   const [editItem, setEditItem] = useState(null)
+  // FASE RY: sin lanzador flotante, igual que el tablero (FASE RC). El boton
+  // fijo tapaba la Hoja a 320 px; el chat se abre desde el icono del header
+  // (sm+) y desde "Mas" en el telefono.
+  const [chatOpen, setChatOpen] = useState(false)
   // FASE PP: tocar el nombre de un activo abre su ficha; el editor queda a un
   // botón de ahí (handleEditFromInfo).
   const [infoItem, setInfoItem] = useState(null)
@@ -237,7 +241,9 @@ export default function SpreadsheetPage() {
         onSignOut={handleSignOut} onRefresh={handleHeaderRefresh}
         pricesLoading={pricesLoading || ratesLoading}
         loadStagesDone={[!dataLoading, !ratesLoading, !pricesLoading].filter(Boolean).length}
-        loadStagesTotal={3} />
+        loadStagesTotal={3}
+        onChat={(portfolioItems || enrichedItems || []).length > 0 ? () => setChatOpen((v) => !v) : null}
+        chatOpen={chatOpen} />
       <PageTour pageKey="spreadsheet" nextRoute="/friends" nextFlag="friends" lang={lang} steps={[
         {
           tab: t('Hoja de Cálculo', 'Spreadsheet'),
@@ -545,12 +551,14 @@ export default function SpreadsheetPage() {
       </ModalMount>
 
       <ChatWidget user={user} items={portfolioItems || enrichedItems} netWorth={netWorth}
-        returnYTD={returnYTD} baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem} />
+        returnYTD={returnYTD} baseCurrency={baseCurrency} lang={lang} onUpdateItem={updateItem}
+        open={chatOpen} onOpenChange={setChatOpen} showLauncher={false} />
 
       <MobileNav lang={lang} friendsEnabled={settings?.friendsEnabled !== false}
         onAdd={() => router.push('/dashboard')} onImport={() => router.push('/dashboard')}
         onExport={() => router.push('/dashboard')} onShare={() => router.push('/dashboard')}
-        onSettings={() => router.push('/dashboard')} />
+        onSettings={() => router.push('/dashboard')}
+        onChat={(portfolioItems || enrichedItems || []).length > 0 ? () => setChatOpen(true) : null} />
     </div>
   )
 }
