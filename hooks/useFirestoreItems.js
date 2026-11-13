@@ -8,6 +8,7 @@ import { orphanedAccountSnapshotIds } from '@/lib/accountCleanup'
 import { SNAPSHOT_VERSION } from '@/lib/snapshotVersion'
 import { planPortfolioDelete } from '@/lib/portfolioDelete'
 import { sanitizeObservations } from '@/lib/sheetObservations'
+import { withFirestoreRetry } from '@/lib/firestoreErrors'
 // Historial de bumps de SNAPSHOT_VERSION (el número vive en lib/snapshotVersion.js
 // para que el lector del servidor use la MISMA vara). Cada bump es porque un doc
 // ya cacheado quedó con una reconstrucción que el merge NUNCA corrige por su
@@ -281,19 +282,24 @@ export function useFirestoreItems() {
 
       try {
         // Independent docs — fetch in parallel instead of three round-trips in series.
-        const [goalsDoc, prefsDoc, profileDoc, planDoc, obsDoc] = await Promise.all([
+        // FASE SA: en una carga en frío el canal todavía puede no estar listo
+        // ("client is offline" / unavailable). Los listeners se reintentan
+        // solos dentro del SDK, pero un getDoc no: sin esto el doc de ajustes
+        // quedaba vacío toda la sesión (moneda base y preferencias por
+        // defecto) por un hipo de conexión de un segundo. Solo transitorios.
+        const [goalsDoc, prefsDoc, profileDoc, planDoc, obsDoc] = await withFirestoreRetry(() => Promise.all([
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'goals')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'preferences')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'profile')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'incomePlan')),
           fs.getDoc(fs.doc(db, `users/${currentUid}/settings`, 'sheetObservations')),
-        ])
+        ]), { attempts: 4, baseDelayMs: 500, label: 'firestore settings' })
         if (!cancelled && goalsDoc.exists()) setGoals(sanitizeDoc(goalsDoc.data()))
         if (!cancelled && prefsDoc.exists()) setSettings(sanitizeDoc(prefsDoc.data()))
         if (!cancelled && profileDoc.exists()) setProfile(sanitizeDoc(profileDoc.data()))
         if (!cancelled && planDoc.exists()) setIncomePlan(sanitizeDoc(planDoc.data()))
         if (!cancelled && obsDoc.exists()) setSheetObservations(sanitizeObservations(obsDoc.data()))
-      } catch (e) { console.error('[firestore] settings load failed:', e?.message) }
+      } catch (e) { console.error('[firestore] settings load failed tras reintentos:', e?.code, e?.message) }
 
       markReady('settings')
 

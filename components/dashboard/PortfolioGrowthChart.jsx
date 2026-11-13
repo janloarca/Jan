@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
+import { dayPointLabel, isDateOnlyTs } from '@/lib/dayPointLabel'
 import { formatCurrency, formatCompact, formatAxisTick, formatDate, getItemValue, buildIncomeEvents, isExcludedFromNetWorth, findYearStartAnchor, shouldHoldFlat, hasUnreliableAcqDate, SNAPSHOT_SRC_PRIORITY, BROKER_NAV_SOURCES, computeWindowGrowth, isMarketPriced, effectiveAcqTs, accountKeyOfItem } from './utils'
 import { buildTxEvents, buildCashFlows, rewindableTradeSymbols, brokerAccountTransactions } from '@/lib/portfolioRewind'
 import { niceScale, pctDecimals } from '@/lib/niceAxis'
@@ -359,7 +360,8 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
 
   const formatTooltipDate = useCallback((date) => {
     if (period === 'DAY') {
-      return date.toLocaleTimeString(lang === 'es' ? 'es' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+      // FASE SA: un snapshot diario (medianoche UTC) es un día, no una hora.
+      return dayPointLabel(date.getTime(), lang, { long: true })
     }
     return formatDate(date.toISOString())
   }, [period, lang])
@@ -1847,7 +1849,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     const raw = chartData
       .map((d, i) => ({
         label: period === 'DAY'
-          ? `${d.date.getHours().toString().padStart(2, '0')}:${d.date.getMinutes().toString().padStart(2, '0')}`
+          ? (isDateOnlyTs(d.ts) ? dayPointLabel(d.ts, lang) : `${d.date.getHours().toString().padStart(2, '0')}:${d.date.getMinutes().toString().padStart(2, '0')}`)
           : useDay
             ? d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', day: 'numeric', ...(d.ts % 86400000 === 0 ? { timeZone: 'UTC' } : {}) })
             : d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
