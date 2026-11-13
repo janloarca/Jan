@@ -8,7 +8,7 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
-import { readDismissed, countPending, DISMISS_EVENT } from '@/lib/suggestionDismissals'
+import { readDismissed, countPending, pendingBreakdown, DISMISS_EVENT } from '@/lib/suggestionDismissals'
 import { showsRateTable } from '@/lib/currencyRates'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
@@ -990,6 +990,10 @@ export default function DashboardPage() {
     () => countPending(suggestionFindings, dismissedIds),
     [suggestionFindings, dismissedIds]
   )
+  const pendingDetail = useMemo(
+    () => pendingBreakdown(suggestionFindings, dismissedIds, lang).map((g) => `${g.n} ${g.label}`).join(', '),
+    [suggestionFindings, dismissedIds, lang]
+  )
 
   // Export XLSX
   const handleExport = useCallback(async () => {
@@ -1560,7 +1564,9 @@ export default function DashboardPage() {
             <button
               onClick={() => document.querySelector('[data-card-id="SUGG-01"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               className="text-xs transition-colors hover:opacity-80"
-              title={lang === 'es' ? 'Datos de tus cuentas que faltan o conviene revisar. No son precios pendientes: los precios ya están al día.' : 'Account details that are missing or worth reviewing. Not pending prices: prices are already up to date.'}
+              title={lang === 'es'
+                ? `Datos de tus cuentas que faltan o conviene revisar: ${pendingDetail}. Toca para ir a las sugerencias; cada una baja el contador al resolverla o descartarla.`
+                : `Account details that are missing or worth reviewing: ${pendingDetail}. Tap to go to the suggestions; each one lowers the count once resolved or dismissed.`}
               style={{ color: dataCompleteness.globalScore < 60 ? 'var(--accent-orange)' : 'var(--text-muted)' }}
             >
               {lang === 'es'
@@ -2393,7 +2399,7 @@ export default function DashboardPage() {
       {detailShown && (
         <AssetDetailModal item={detailShown} onClose={handleCloseDetail} lang={lang} uid={user?.uid}
           transactions={transactions} convert={convert} baseCurrency={baseCurrency}
-          allItems={portfolioItems} />
+          allItems={portfolioItems} lots={lots} />
       )}
       </ModalMount>
 

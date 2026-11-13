@@ -13,7 +13,7 @@ export default function WorldSummary({ world, lang, baseCurrency }) {
   return (
     <div className="card p-3 sm:p-4 flex flex-wrap items-baseline gap-x-6 gap-y-1">
       <div className="min-w-0">
-        <span className="text-caption mr-2" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
+        <span className="text-caption mr-2" style={{ color: 'var(--text-muted)' }}>{t('Tamaño de portafolio', 'Portfolio size')}</span>
         <span className="text-h2 font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCompact(world.total, baseCurrency)}</span>
       </div>
       {world.returnPct != null && (

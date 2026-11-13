@@ -964,7 +964,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     return times.length > 0 ? Math.min(...times) : null
   }, [scopedItems])
 
-  const chartData = useMemo(() => {
+  const chartDataFull = useMemo(() => {
     // IBKR-sourced snapshots are the broker's account NAV only — they predate any
     // manually-added assets (a bond, a cash fund), so on the "Todas" (all) view
     // those assets would otherwise pop in only at the present. Overlay their
@@ -1323,6 +1323,25 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     }
     return pts
   }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact, ytdStartTs, ytdStartValue])
+
+  // FASE RY. En la vista Valor la ventana MEDIDA arranca en el primer dato
+  // real (valueRebasedFrom, abajo), pero la gráfica dibujaba también el tramo
+  // anterior. Resultado reportado (13 nov, rango 1M): el primer punto visible
+  // (11 oct) decía "-$636.77 desde inicio" mientras el encabezado decía
+  // "desde 15 oct": dos orígenes en la misma tarjeta. Regla: el primer punto
+  // VISIBLE es el origen, vale +$0.00, y su fecha es la del encabezado. Por
+  // eso el tramo sin medir se deja de dibujar, igual que la vista de
+  // Rendimiento ya hacía (arriba). Solo presentación: firstRealTs, la serie
+  // congelada y computeWindowGrowth reciben exactamente lo mismo que antes
+  // (measuredData ya era este mismo recorte).
+  const valueTrimFrom = !isPerf && period !== 'DAY' && !apiTransactional && firstRealTs != null
+    && chartDataFull.length > 1 && chartDataFull[0].ts < firstRealTs - 2 * 86400000
+    && chartDataFull.filter((p) => p.ts >= firstRealTs - 3600000).length >= 2
+    ? firstRealTs : null
+  const chartData = useMemo(
+    () => (valueTrimFrom != null ? chartDataFull.filter((p) => p.ts >= valueTrimFrom - 3600000) : chartDataFull),
+    [chartDataFull, valueTrimFrom]
+  )
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the return math
   // depends on the SOURCE of the value series (lesson from the +1.98% vs IBKR's
@@ -1893,9 +1912,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // was actually up ~10%). Measure from the first REAL point instead, and say since when.
   // A gap under 2 days is just the window edge (e.g. 1M cutoff mid-day), not
   // an estimated region: don't rebase, so the first drawn point is the base.
-  const valueRebasedFrom = period !== 'DAY' && !apiTransactional && firstRealTs != null && chartData.length > 1
-    && chartData[0].ts < firstRealTs - 2 * 86400000
-    ? firstRealTs : null
+  const valueRebasedFrom = valueTrimFrom
 
   // Pixel split between the estimated (hold-flat) prefix and real broker data, shared
   // by the area fill, the line stroke and the legend so the three never disagree. The
@@ -2411,7 +2428,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       {(period === 'YTD' || period === 'ALL') && !apiTransactional && firstRealTs != null && chartData.length > 1
         && !estimateNoticeDismissed && primaryBrokerId != null
         && firstRealTs > Date.UTC(new Date().getUTCFullYear(), 0, 1) + 45 * 86400000
-        && (isPerf || chartData[0].ts < firstRealTs - 3600000) && (
+        && (isPerf || valueTrimFrom != null) && (
         <div className="relative flex items-start gap-2 px-2.5 py-1.5 pr-7 rounded-lg text-xs mb-3"
           style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--alert-info-icon)' }}>
           <span>ℹ</span>

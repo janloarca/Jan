@@ -199,10 +199,10 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
         <span className="text-xs text-slate-600 mr-1">{lang === 'es' ? 'Periodo:' : 'Period:'}</span>
         {[
           { key: 'all', label: lang === 'es' ? 'Todo' : 'All' },
-          { key: '7d', label: '7d' },
-          { key: '30d', label: '30d' },
-          { key: '90d', label: '90d' },
-          { key: 'ytd', label: 'YTD' },
+          { key: '7d', label: lang === 'es' ? '7 días' : '7d' },
+          { key: '30d', label: lang === 'es' ? '30 días' : '30d' },
+          { key: '90d', label: lang === 'es' ? '90 días' : '90d' },
+          { key: 'ytd', label: lang === 'es' ? 'Año' : 'YTD' },
         ].map((opt) => (
           <button key={opt.key} onClick={() => { setDateRange(opt.key); setShowAll(false) }}
             className="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors"
