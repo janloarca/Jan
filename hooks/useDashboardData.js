@@ -32,7 +32,7 @@ import { corruptSnapshotRunIds, feEraSuspectDailyIds, usdFlowEvents } from '@/li
 import { planEquitySnapshotWrites, misplacedPlainNavMigrations, applyNavMigrations } from '@/lib/ibkrSnapshotPlan'
 import { saveIbkrCredentials } from '@/lib/ibkrVault'
 import { preferFullPortfolioPerDay } from '@/lib/snapshotSelect'
-import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged, backfillRewriteReason } from '@/lib/snapshotBackfill'
+import { staleBackfillDates, buildNavByDate, composeDailyTotals, windowDates, divergentDailyDates, contradictedCalibrationDates, contradictedAccountCalibrations, selfContradictedCalibrationDates, CLEARED_CALIBRATION_FIELDS, navAsOf, navEntryAsOf, brokerConnectedTsOf, backfillDocUnchanged, backfillRewriteReason, backfillDeltaDetail } from '@/lib/snapshotBackfill'
 import { hasCompleteBrokerData, ibkrSnapshotSpanDays as computeIbkrSnapshotSpanDays, earliestNeededDays as computeEarliestNeededDays } from '@/lib/brokerCompletion'
 import { detectInferredFlows, quarterlyOnlyPoints, staleInferredFlowIds, applyLifetimeNetConstraint } from '@/lib/inferredFlows'
 import { ibkrReconciliationReport } from '@/lib/ibkrReconciliation'
@@ -454,6 +454,18 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
       console.warn('[snapshot] total diario sospechosamente bajo, no se archiva:', totalAssetsUSD, 'vs', lastFull.totalActivosUSD)
       return
     }
+    // FASE RZ: volver de otra pantalla monta el hook de nuevo y el ref de
+    // arriba arranca vacío, así que el día se re-archivaba aunque el total
+    // fuera el mismo. Si el doc de hoy ya dice exactamente lo mismo, no se
+    // escribe (un cambio real, por precio o por un activo nuevo, sí pasa).
+    const todayDoc = snapshots.find((s) => s.id === todayStr && !s._account)
+    if (todayDoc && (todayDoc._source || 'daily') === 'daily'
+      && Math.abs((Number(todayDoc.totalActivosUSD) || 0) - totalAssetsUSD) < 0.005
+      && Math.abs((Number(todayDoc.netWorthUSD) || 0) - netWorthUSD) < 0.005) {
+      snapshotSavedRef.current = todayStr
+      console.info('[snapshot] el día ya está archivado, sin cambios:', todayStr)
+      return
+    }
     if (totalAssetsUSD > 0 || totalDebtUSD > 0) {
       // `totalContributedUSD` se archivaba en CADA snapshot diario y no lo leía
       // ninguna superficie: ni la gráfica, ni el ancla del YTD, ni los correos,
@@ -792,6 +804,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const reasons = {}
         let maxDelta = 0
         let maxDeltaDate = null
+        let maxDeltaPair = null
         for (const f of fills) {
           const doc = {
             date: f.date,
@@ -818,7 +831,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           if (!contradictedCal.has(f.date) && backfillDocUnchanged(plainByDate.get(f.date), doc)) { unchanged += 1; continue }
           const why = contradictedCal.has(f.date) ? { reason: 'source', delta: 0 } : backfillRewriteReason(plainByDate.get(f.date), doc)
           reasons[why.reason] = (reasons[why.reason] || 0) + 1
-          if (why.reason === 'value' && why.delta > maxDelta) { maxDelta = why.delta; maxDeltaDate = f.date }
+          if (why.reason === 'value' && why.delta > maxDelta) { maxDelta = why.delta; maxDeltaDate = f.date; maxDeltaPair = { stored: plainByDate.get(f.date), next: doc } }
           await saveSnapshot(doc)
           written += 1
         }
@@ -828,6 +841,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
           // de cambio del día moviendo los activos en quetzales, no un error.
           const parts = Object.entries(reasons).map(([k, n]) => `${({ gap: 'huecos', source: 'otra fuente', value: 'cambió el valor', shape: 'formato' })[k] || k} ${n}`)
           console.info(`[backfill] ${written} día(s) escritos${parts.length ? ` (${parts.join(', ')}${maxDeltaDate ? `; mayor cambio ${maxDelta.toFixed(2)} USD el ${maxDeltaDate}` : ''})` : ''}, ${unchanged} sin cambios${composing ? ' componiendo NAV real del broker' : ''}`)
+          // FASE RZ: para el día con mayor cambio, el valor GUARDADO contra el
+          // recalculado y qué cuenta explica la diferencia. Con eso un cambio
+          // que se repite entre recargas deja de ser una adivinanza.
+          if (maxDeltaPair) {
+            const d = backfillDeltaDetail(maxDeltaPair.stored, maxDeltaPair.next)
+            console.info(`[backfill] ${maxDeltaDate}: guardado ${d.storedTotal.toFixed(2)} USD, recalculado ${d.nextTotal.toFixed(2)} USD (lotes ${lots.length}, movimientos ${transactions.length})${d.accounts.length ? `; por cuenta: ${d.accounts.map((a) => `${a.key} ${a.stored.toFixed(2)} → ${a.next.toFixed(2)}`).join(' · ')}` : '; el doc guardado no trae reparto por cuenta'}`)
+          }
         }
         // Solo una pasada COMPLETA estampa el día (FASE HZ): un return temprano
         // (respuesta degradada, !res.ok, sin puntos) deja el día sin estampar y
@@ -2009,6 +2029,12 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     // Sin activos no hay nada que reconstruir, y esa ausencia YA es la
     // respuesta: se marca resuelto en vez de dejar el latch colgado para
     // siempre en una cartera vacía.
+    // FASE RZ: sin la primera respuesta de items, movimientos y LOTES la
+    // reconstrucción del ancla sale distinta (una compra reciente se mantiene
+    // plana hacia atrás) y el arranque del año alternaba entre recargas. Se
+    // espera; el latch `ytdResolved` sigue abajo, así que nadie publica nada
+    // mientras tanto.
+    if (dataLoading) return
     if (!enrichedItems || enrichedItems.length === 0) { setYtdResolved(true); return }
     let cancelled = false
     async function fetchJan1() {
@@ -2134,7 +2160,7 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
     }
     fetchJan1()
     return () => { cancelled = true }
-  }, [enrichedItems, portfolioItems, viewTransactions, lots, convert, baseCurrency])
+  }, [dataLoading, enrichedItems, portfolioItems, viewTransactions, lots, convert, baseCurrency])
 
   // Whether the auto-imported IBKR cash flows (_source:'ibkr') enter the Dietz math
   // depends on the SOURCE of the start anchor:
