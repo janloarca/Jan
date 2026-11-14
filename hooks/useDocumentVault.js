@@ -19,7 +19,8 @@ export function useDocumentVault() {
 
     setUploading(true)
     try {
-      const { storage } = await import('@/lib/firebase')
+      const { getStorageLazy } = await import('@/lib/firebase')
+      const storage = await getStorageLazy()
       const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage')
       const { db } = await import('@/lib/firebase')
       const fs = await import('firebase/firestore')
@@ -49,7 +50,8 @@ export function useDocumentVault() {
   }, [])
 
   const deleteDocument = useCallback(async (uid, itemId, docId, storagePath) => {
-    const { storage } = await import('@/lib/firebase')
+    const { getStorageLazy } = await import('@/lib/firebase')
+    const storage = await getStorageLazy()
     const { ref, deleteObject } = await import('firebase/storage')
     const { db } = await import('@/lib/firebase')
     const fs = await import('firebase/firestore')

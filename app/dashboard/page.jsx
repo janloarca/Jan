@@ -8,7 +8,9 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
-import { readDismissed, countPending, pendingBreakdown, DISMISS_EVENT } from '@/lib/suggestionDismissals'
+import { readDismissed, countPending, pendingBreakdown, DISMISS_EVENT, undismiss } from '@/lib/suggestionDismissals'
+import { createUndoToastController, previousFieldValues } from '@/lib/undoToast'
+import UndoToast from '@/components/ui/UndoToast'
 import { showsRateTable } from '@/lib/currencyRates'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
@@ -22,14 +24,10 @@ import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
-import YtdBreakdownSection from '@/components/dashboard/YtdBreakdownSection'
-import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
-import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
+import { readNetWorthCache, writeNetWorthCache } from '@/lib/netWorthCache'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
-import AnalysisTabs from '@/components/dashboard/AnalysisTabs'
 import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
-import LotsAudit from '@/components/dashboard/LotsAudit'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
@@ -83,6 +81,15 @@ const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary')
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const GuidedSetup = dynamic(() => import('@/components/dashboard/GuidedSetup'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
+// FASE SB (A5): fuera del JS inicial del tablero: modales, la barra del viaje
+// de IBKR y las cards que viven debajo del patrimonio cargan aparte.
+const YtdBreakdownSection = dynamic(() => import('@/components/dashboard/YtdBreakdownSection'))
+const CalibrateReturnModal = dynamic(() => import('@/components/dashboard/CalibrateReturnModal'), { loading: () => <ModalSkeleton /> })
+const IBKRJourneyBar = dynamic(() => import('@/components/dashboard/IBKRJourneyBar'))
+const AnalysisTabs = dynamic(() => import('@/components/dashboard/AnalysisTabs'), { loading: () => <SkeletonCard /> })
+const LotsAudit = dynamic(() => import('@/components/dashboard/LotsAudit'), { loading: () => <SkeletonCard /> })
+const RecentTransactions = dynamic(() => import('@/components/dashboard/RecentTransactions'), { loading: () => <SkeletonCard /> })
+const CostsCard = dynamic(() => import('@/components/dashboard/CostsCard'), { loading: () => <SkeletonCard /> })
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
@@ -108,9 +115,7 @@ const InvestmentComparator = dynamic(() => import('@/components/dashboard/Invest
 // N trimestres guardados" confirmation, short enough to still feel automatic.
 const IBKR_AUTO_ADVANCE_MS = 1600
 
-import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
-import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
@@ -676,9 +681,35 @@ export default function DashboardPage() {
 
   const showToast = useCallback((msg, type = 'success', duration = 3000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
+    // Un aviso nuevo reemplaza al de "Deshacer": nunca dos apilados.
+    undoCtlRef.current?.dismiss()
     setToast({ msg, type })
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
+
+  // FASE SB (B8): toast con "Deshacer" por 5 s, uno a la vez, solo para
+  // acciones reversibles sin efectos en otras cuentas (editar campos de un
+  // activo, descartar una sugerencia). Borrados y movimientos de saldo siguen
+  // pidiendo confirmación y no se ofrecen acá.
+  const [undoToast, setUndoToast] = useState(null)
+  const undoCtlRef = useRef(null)
+  if (undoCtlRef.current == null) undoCtlRef.current = createUndoToastController({ onChange: setUndoToast })
+  useEffect(() => () => undoCtlRef.current?.destroy(), [])
+  const showUndoToast = useCallback((message, onUndo) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast(null)
+    undoCtlRef.current.show({ message, onUndo })
+  }, [])
+  const handleUndo = useCallback(async () => {
+    try { await undoCtlRef.current.undo() } catch (err) {
+      console.error('[undo]', err)
+      showToast(lang === 'es' ? 'No se pudo deshacer. Revisa tu conexión.' : 'Could not undo. Check your connection.', 'warning', 4500)
+    }
+  }, [lang, showToast])
+  const handleDismissUndo = useCallback(() => undoCtlRef.current.dismiss(), [])
+  const handleSuggestionDismissed = useCallback((ids) => {
+    showUndoToast(lang === 'es' ? 'Sugerencia descartada' : 'Suggestion dismissed', () => undismiss(ids))
+  }, [lang, showUndoToast])
 
   // Shared by the sync modal's "Desconectar IBKR" button and the red top
   // banner's own dismiss action — a locked/expired token only ever offered
@@ -1218,11 +1249,28 @@ export default function DashboardPage() {
       case 'blockchain': handleOpenBlockchain(); break
       case 'ledger': setModal('ledger'); break
       case 'viewItem': setDetailItem(data); break
+      // FASE SB (B4): un símbolo con historia (o un movimiento) abre el editor
+      // de su posición, que lista sus movimientos aunque tenga 0 unidades. Si
+      // ya no existe ningún ítem con ese símbolo, se dice en vez de no hacer nada.
+      case 'viewActivity': {
+        const sym = String(data?.symbol || '').toUpperCase()
+        const hit = sym && items.find((it) => String(it.symbol || '').toUpperCase() === sym)
+        if (hit) handleOpenEditItem(hit)
+        else showToast(lang === 'es'
+          ? `${data?.label || sym}: ya no es una posición. Sus movimientos están en Actividad reciente.`
+          : `${data?.label || sym}: no longer a position. Its movements are in Recent activity.`, 'info', 4500)
+        break
+      }
+      case 'editAccount': {
+        const first = Array.isArray(data) ? data[0] : null
+        if (first) handleOpenEditItem(first)
+        break
+      }
       case 'tour': handleOpenTour(); break
     }
     // handleOpenTour se declara MUY arriba (junto a handleOpenGuided), así que
     // nombrarlo acá no cruza ninguna zona muerta temporal.
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain, handleOpenTour])
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain, handleOpenTour, handleOpenEditItem, items, lang, showToast])
 
   // Acá vivía el auto-open del tour para un usuario con cero activos. Se quitó:
   // se abría ENCIMA de la pantalla de bienvenida y la suprimía, así que lo
@@ -1305,6 +1353,25 @@ export default function DashboardPage() {
       setFirstLoadSettled(true)
     }
   }, [firstLoadSettled, dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved])
+
+  // Bloque A2, primer pintado util: mientras la primera carga no asienta, el
+  // hero muestra el ULTIMO patrimonio conocido (lib/netWorthCache.js) marcado
+  // "actualizando", en vez de un esqueleto. Solo la vista completa (el cache
+  // describe el patrimonio entero) y nunca en modo demo. Es pura presentacion:
+  // ninguna cifra cacheada entra a un calculo ni a Firestore.
+  const heroPending = !firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved || historyBusy
+  const cachedHero = useMemo(
+    () => (scopedView || isDemoMode ? null : readNetWorthCache(user?.uid, baseCurrency)),
+    // heroPending en las deps: si el hero vuelve a quedar pendiente a mitad de
+    // sesion (otra pasada del historial), se relee el cache, que para entonces
+    // ya guarda la ultima cifra viva y no la de la apertura.
+    [user?.uid, baseCurrency, scopedView, isDemoMode, heroPending] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  useEffect(() => {
+    if (heroPending || scopedView || isDemoMode || !user?.uid) return
+    if (portfolioItems.length === 0 || netWorth == null || !isFinite(netWorth)) return
+    writeNetWorthCache(user.uid, { netWorth, baseCurrency, returnYTD, ytdChange, dailyChange })
+  }, [heroPending, scopedView, isDemoMode, user?.uid, portfolioItems.length, netWorth, baseCurrency, returnYTD, ytdChange, dailyChange])
 
   // Modo institucional: si este usuario tiene un asesor con acceso activo, se
   // publican una vez al dia las cifras de cabecera YA calculadas, para que el
@@ -1660,12 +1727,24 @@ export default function DashboardPage() {
             {/* Mientras llegan precios, tasas o el ancla del año, las cifras son
                 parciales (patrimonio y YTD absurdos por unos segundos): se
                 muestra el esqueleto en vez de un número que no es el final. */}
-            {(!firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved || historyBusy) ? (
+            {/* Con cache, el MISMO NetWorthCard se monta desde el primer
+                pintado con la ultima cifra conocida: al asentar solo cambian
+                sus props, asi que la cifra se mueve en su lugar (AnimatedNumber)
+                sin pasar nunca por un esqueleto ni saltar de layout. */}
+            {(heroPending && !cachedHero) ? (
               <div className="card p-4 sm:p-5" aria-busy="true">
                 <Shimmer className="h-4 w-28 mb-3" />
                 <Shimmer className="h-10 w-56 mb-3" />
                 <Shimmer className="h-4 w-40" />
               </div>
+            ) : (
+            heroPending ? (
+            <NetWorthCard
+              updating
+              netWorth={cachedHero.netWorth} returnYTD={cachedHero.returnYTD} ytdChange={cachedHero.ytdChange}
+              dailyChange={cachedHero.dailyChange} convert={convert}
+              lang={lang} items={[]} cashTotal={null}
+            />
             ) : (
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
@@ -1679,6 +1758,7 @@ export default function DashboardPage() {
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
             />
+            )
             )}
           </CardBoundary>
 
@@ -1727,6 +1807,7 @@ export default function DashboardPage() {
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
+                onDismissed={handleSuggestionDismissed}
                 findings={suggestionFindings}
                 globalScore={dataCompleteness.globalScore}
                 items={items}
@@ -2354,10 +2435,17 @@ export default function DashboardPage() {
         <EditAccountModal key={`${editShown.id}:${editFocusField || ''}`} item={editShown} onClose={handleCloseEdit} entities={entities}
           profileTaxResidence={profile?.taxResidence || ''}
           focusField={editFocusField}
-          onSave={async (updated) => {
+          onSave={async (updated, opts = {}) => {
             const { id, ...fields } = updated
-            await updateItem(editShown.id, fields)
-            showToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved')
+            const raw = items.find((it) => it.id === editShown.id)
+            const prev = opts.undoable === false ? {} : previousFieldValues(raw, fields)
+            const targetId = editShown.id
+            await updateItem(targetId, fields)
+            if (Object.keys(prev).length > 0) {
+              showUndoToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved', () => updateItem(targetId, prev))
+            } else {
+              showToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved')
+            }
           }}
           onDelete={async (id) => {
             await deleteItem(id)
@@ -2578,7 +2666,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <CommandPalette open={cmdPaletteOpen} onClose={handleCloseCmdPalette}
-        items={portfolioItems} lang={lang} onAction={handleCmdAction} brokersEnabled={brokersOn} />
+        items={portfolioItems} lots={lots} transactions={transactions} lang={lang} onAction={handleCmdAction} brokersEnabled={brokersOn} />
 
       <MobileNav
         onAdd={portfolioItems.length === 0 ? handleOpenGuided : handleOpenAccount} onImport={handleOpenImport}
@@ -2642,6 +2730,7 @@ export default function DashboardPage() {
       )}
       </ModalMount>
 
+      <UndoToast toast={undoToast} onUndo={handleUndo} onDismiss={handleDismissUndo} lang={lang} />
       {toast && (
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"
           role="status"

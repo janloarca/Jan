@@ -31,6 +31,7 @@ import { parseAmount } from '@/lib/numberParse'
 // El formato del .xlsx, compartido con el adjunto del correo mensual. El
 // módulo no arrastra ExcelJS hasta que se llama (import dinámico adentro).
 import { renderStyledSheet } from '@/lib/xlsxSheet'
+import { ymOfDate } from '@/lib/dateParts'
 
 // Must match lib/historicalValues.js's IBKR_UNKNOWN_KEY_PREFIX exactly — not
 // imported statically because that file pulls in authFetch → Firebase Auth,
@@ -307,13 +308,16 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
     items.forEach(it => {
       const dateStr = it.acquisitionDate || it.createdAt
       if (dateStr) {
-        const y = new Date(dateStr).getFullYear()
+        // El año se lee del TEXTO del día calendario (lib/dateParts): un
+        // `new Date('2026-01-01').getFullYear()` en UTC-6 da 2025 y el
+        // selector ofrecía un año vacío de más.
+        const y = ymOfDate(dateStr)?.y
         if (y >= 2000 && y < earliest) earliest = y
       }
     })
     ;(snapshots || []).forEach(s => {
       if (!s || !s.date) return
-      const y = new Date(s.date).getFullYear()
+      const y = ymOfDate(s.date)?.y
       if (y >= 2000 && y < earliest) earliest = y
     })
     return earliest

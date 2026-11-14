@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 // "Chispu te sugiere" — surfaces the data-completeness findings with a one-tap
 // fix per finding. Renders nothing when the data is complete. Dismissals stick
 // per finding id (stable code:itemId) in localStorage; a fixed finding simply
 // stops being generated, so the list heals itself.
 
-import { readDismissed, writeDismissed } from '@/lib/suggestionDismissals'
+import { readDismissed, writeDismissed, DISMISS_EVENT } from '@/lib/suggestionDismissals'
 
 const SEV_STYLE = {
   high: { color: 'var(--alert-error-icon)', backgroundColor: 'var(--alert-error-bg)', borderColor: 'var(--alert-error-border)' },
@@ -23,12 +23,20 @@ const SEV_LABEL = {
   low: { es: 'Informativa', en: 'Informational' },
 }
 
-export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onCompleteAll, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, items = [] }) {
+export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onCompleteAll, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, onDismissed, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [dismissed, setDismissed] = useState(() => readDismissed())
   const [expanded, setExpanded] = useState(false)
   const [applied, setApplied] = useState(() => new Set())
   const [applyFailed, setApplyFailed] = useState(() => new Set())
+
+  // FASE SB: el "Deshacer" del tablero escribe los descartes desde afuera, así
+  // que esta card se resincroniza con el almacenamiento cuando cambia.
+  useEffect(() => {
+    const sync = () => setDismissed(readDismissed())
+    window.addEventListener(DISMISS_EVENT, sync)
+    return () => window.removeEventListener(DISMISS_EVENT, sync)
+  }, [])
 
   // Findings with a resolved patch stay VISIBLE right after applying (their
   // own next recompute will drop them once items actually update) but their
@@ -87,6 +95,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
     extraIds.forEach((x) => next.add(x))
     setDismissed(next)
     writeDismissed(next)
+    if (onDismissed) onDismissed([id, ...extraIds])
   }
 
   const restoreDismissed = () => {

@@ -407,6 +407,9 @@ export default function YtdBreakdownSection({
                 ? ` · incluye ${formatCurrency(ytdStartLate, cur)} de activos que agregaste después con fecha anterior`
                 : ` · includes ${formatCurrency(ytdStartLate, cur)} of assets you added later with an earlier date`) : ''}
               {'.'}
+              <span className="inline-block align-middle ml-1"><InfoTip text={lang === 'es'
+                ? 'El valor de tus activos (sin vivienda ni deudas) el día desde el que se mide el YTD. Cada fila de arriba parte de su parte de este valor. «Estimado» significa que ese día no se midió y se reconstruyó con precios históricos.'
+                : 'The value of your assets (excluding your home and debts) on the day YTD is measured from. Each row above starts from its share of this value. "Estimated" means that day was not measured and was rebuilt from historical prices.'} /></span>
             </p>
           )}
           {hasBreakdown && ytdCalIgnored > 0 && (

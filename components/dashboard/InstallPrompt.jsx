@@ -14,7 +14,7 @@ export default function InstallPrompt({ lang }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (window.matchMedia('(display-mode: standalone)').matches) return
-    if (localStorage.getItem('chispudo-pwa-dismissed')) return
+    try { if (localStorage.getItem('chispudo-pwa-dismissed')) return } catch { /* almacenamiento bloqueado */ }
 
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
     if (isIOSDevice && !navigator.standalone) {
@@ -23,8 +23,11 @@ export default function InstallPrompt({ lang }) {
       return
     }
 
+    // FASE SB (A7): sin preventDefault. Llamarlo es lo que hace que Chrome
+    // imprima "Banner not shown: beforeinstallpromptevent.preventDefault()
+    // called" en cada carga; guardar el evento basta para llamar prompt()
+    // desde nuestro botón.
     const handler = (e) => {
-      e.preventDefault()
       setDeferredPrompt(e)
       setShow(true)
     }

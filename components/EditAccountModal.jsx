@@ -496,7 +496,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
       if (onExecuteContribution) {
         await onExecuteContribution({ itemId: item.id, itemFields, transaction, newLot, lotClose, prefFields })
       } else {
-        await onSave({ ...rawItem, ...itemFields })
+        await onSave({ ...rawItem, ...itemFields }, { undoable: false })
         if (onAddTransaction) await onAddTransaction(transaction)
       }
 
@@ -955,7 +955,14 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
     setSaving(true)
     setError('')
     try {
-      await onSave(updated)
+      // FASE SB: el guardado solo se ofrece para "Deshacer" cuando no arrastra
+      // nada más que los campos del ítem. Con un movimiento registrado o con la
+      // fecha de compra cambiada (que re-fecha el depósito de apertura) deshacer
+      // solo el ítem dejaría el archivo inconsistente, así que ahí no se ofrece.
+      await onSave(updated, {
+        undoable: !(createFlow && Math.abs(delta) > 0.01)
+          && updated.acquisitionDate === item.acquisitionDate,
+      })
       // ⛔ Extensión de la lógica congelada G, aprobada por el usuario el 23 ago
       // 2026. El depósito de apertura se fecha AL CREAR con la fecha de
       // adquisición, y editarla acá actualizaba solo el ítem: el rebobinado del

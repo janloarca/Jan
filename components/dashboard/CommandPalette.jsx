@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { formatCurrency, getTypeCategory, TYPE_ICONS } from './utils'
+import { formatCurrency, formatDate, getTypeCategory, TYPE_ICONS } from './utils'
+import { searchGlobal, zeroUnitsNote } from '@/lib/globalSearch'
 import Icon from '@/components/ui/Icon'
 
 const ACTIONS = [
@@ -21,7 +22,7 @@ const ACTIONS = [
   { id: 'tour', icon: 'Zap', labelEs: '¿Cómo funciona?', labelEn: 'How does it work?' },
 ]
 
-export default function CommandPalette({ open, onClose, items, lang, onAction, brokersEnabled = true }) {
+export default function CommandPalette({ open, onClose, items, lots, transactions, lang, onAction, brokersEnabled = true }) {
   const [query, setQuery] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(0)
   const inputRef = useRef(null)
@@ -35,57 +36,70 @@ export default function CommandPalette({ open, onClose, items, lang, onAction, b
     }
   }, [open])
 
+  // La lógica de búsqueda vive en lib/globalSearch.js (pura y con tests): acá
+  // solo se formatea. Busca posiciones, símbolos con historia pero sin unidades,
+  // cuentas, movimientos y acciones.
   const results = useMemo(() => {
-    const q = query.toLowerCase().trim()
-    const out = []
-
-    if (q.length > 0) {
-      const matchedItems = (items || []).filter((it) => {
-        const name = (it.name || '').toLowerCase()
-        const sym = (it.symbol || '').toLowerCase()
-        const inst = (it.institution || '').toLowerCase()
-        return name.includes(q) || sym.includes(q) || inst.includes(q)
-      }).slice(0, 8)
-
-      // Dos posiciones con mismo nombre, símbolo e institución se veían idénticas:
-      // se agrega cantidad e identificador corto SOLO cuando hay homónimos.
-      const keyOf = (it) => `${it.name}|${it.symbol}|${it.institution}`
-      const dupCount = {}
-      matchedItems.forEach((it) => { dupCount[keyOf(it)] = (dupCount[keyOf(it)] || 0) + 1 })
-      matchedItems.forEach((it) => {
-        const dup = dupCount[keyOf(it)] > 1
-        const cat = getTypeCategory(it)
-        const icon = TYPE_ICONS[cat] || '📦'
-        const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
-        out.push({
-          type: 'item',
-          id: `item-${it.id}`,
-          icon,
-          label: `${it.name || it.symbol}${it.symbol ? ` (${it.symbol})` : ''}`,
-          detail: `${it.institution || it.type} · ${formatCurrency(value)}${dup ? ` · ${it.quantity ?? 1} u. · #${String(it.id || '').slice(-4)}` : ''}`,
-          data: it,
-        })
-      })
-    }
-
-    ACTIONS.forEach((a) => {
+    const es = lang === 'es'
+    const actions = ACTIONS
       // Integraciones con brokers ocultas: la acción de sincronizar IBKR no
       // debe aparecer en la paleta cuando la UI de conexión está apagada.
-      if (a.id === 'ibkr' && !brokersEnabled) return
-      const label = lang === 'es' ? a.labelEs : a.labelEn
-      if (q.length === 0 || label.toLowerCase().includes(q)) {
-        out.push({
-          type: 'action',
-          id: a.id,
-          icon: a.icon,
-          label,
-          shortcut: a.shortcut,
-        })
-      }
-    })
+      .filter((a) => !(a.id === 'ibkr' && !brokersEnabled))
+      .map((a) => ({ ...a, label: es ? a.labelEs : a.labelEn }))
+    const hits = searchGlobal({ query, items, lots, transactions, actions })
 
-    return out
-  }, [query, items, lang, brokersEnabled])
+    // Dos posiciones con mismo nombre, símbolo e institución se veían idénticas:
+    // se agrega cantidad e identificador corto SOLO cuando hay homónimos.
+    const keyOf = (it) => `${it.name}|${it.symbol}|${it.institution}`
+    const dupCount = {}
+    hits.forEach((h) => { if (h.type === 'item') dupCount[keyOf(h.item)] = (dupCount[keyOf(h.item)] || 0) + 1 })
+
+    return hits.map((h) => {
+      if (h.type === 'item') {
+        const it = h.item
+        const dup = dupCount[keyOf(it)] > 1
+        const cat = getTypeCategory(it)
+        const value = (it.quantity || 0) * (it.currentPrice || it.purchasePrice || 0)
+        const tail = h.zeroUnits
+          ? zeroUnitsNote(h, lang)
+          : formatCurrency(value)
+        return {
+          type: 'item', id: h.id, icon: TYPE_ICONS[cat] || 'BarChart3',
+          label: `${it.name || it.symbol}${it.symbol ? ` (${it.symbol})` : ''}`,
+          detail: `${it.institution || it.type || ''}${it.institution || it.type ? ' · ' : ''}${tail}${dup ? ` · ${it.quantity ?? 1} u. · #${String(it.id || '').slice(-4)}` : ''}`,
+          data: it,
+        }
+      }
+      if (h.type === 'symbol') {
+        return {
+          type: 'symbol', id: h.id, icon: 'Activity',
+          label: h.name ? `${h.name} (${h.symbol})` : h.symbol,
+          detail: zeroUnitsNote(h, lang),
+          data: { symbol: h.symbol, label: h.symbol },
+        }
+      }
+      if (h.type === 'account') {
+        const n = h.items.length
+        return {
+          type: 'account', id: h.id, icon: 'Building2',
+          label: h.name,
+          detail: es ? `Cuenta · ${n} ${n === 1 ? 'posición' : 'posiciones'}` : `Account · ${n} ${n === 1 ? 'position' : 'positions'}`,
+          data: h.items,
+        }
+      }
+      if (h.type === 'transaction') {
+        const tx = h.tx
+        return {
+          type: 'transaction', id: h.id, icon: 'ArrowLeftRight',
+          label: tx.description || h.symbol || tx.type || (es ? 'Movimiento' : 'Movement'),
+          detail: `${es ? 'Movimiento' : 'Movement'} · ${tx.type || ''}${h.symbol ? ` · ${h.symbol}` : ''} · ${formatDate(tx.date)} · ${formatCurrency(tx.totalAmount ?? 0, tx.currency)}`,
+          data: { symbol: h.symbol, txId: tx.id, label: h.symbol || tx.description || '' },
+        }
+      }
+      const a = h.action
+      return { type: 'action', id: a.id, icon: a.icon, label: a.label, shortcut: a.shortcut }
+    })
+  }, [query, items, lots, transactions, lang, brokersEnabled])
 
   useEffect(() => {
     setSelectedIdx(0)
@@ -96,6 +110,10 @@ export default function CommandPalette({ open, onClose, items, lang, onAction, b
     onClose()
     if (result.type === 'item') {
       onAction('viewItem', result.data)
+    } else if (result.type === 'symbol' || result.type === 'transaction') {
+      onAction('viewActivity', result.data)
+    } else if (result.type === 'account') {
+      onAction('editAccount', result.data)
     } else {
       onAction(result.id)
     }
@@ -135,7 +153,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction, b
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={lang === 'es' ? 'Buscar posición o acción...' : 'Search position or action...'}
+            placeholder={lang === 'es' ? 'Busca posición, cuenta, movimiento o acción...' : 'Search position, account, movement or action...'}
             className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none"
           />
           <kbd className="hidden sm:inline-block text-xs text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">ESC</kbd>
@@ -169,7 +187,7 @@ export default function CommandPalette({ open, onClose, items, lang, onAction, b
                   ⌘{r.shortcut}
                 </kbd>
               )}
-              {r.type === 'item' && (
+              {r.type !== 'action' && (
                 <span className="text-xs text-slate-500 shrink-0">→</span>
               )}
             </button>
