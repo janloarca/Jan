@@ -22,14 +22,9 @@ import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
-import YtdBreakdownSection from '@/components/dashboard/YtdBreakdownSection'
-import CalibrateReturnModal from '@/components/dashboard/CalibrateReturnModal'
-import IBKRJourneyBar from '@/components/dashboard/IBKRJourneyBar'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
-import AnalysisTabs from '@/components/dashboard/AnalysisTabs'
 import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
-import LotsAudit from '@/components/dashboard/LotsAudit'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
@@ -83,6 +78,15 @@ const PrintSummary = dynamic(() => import('@/components/dashboard/PrintSummary')
 const OnboardingTour = dynamic(() => import('@/components/dashboard/OnboardingTour'))
 const GuidedSetup = dynamic(() => import('@/components/dashboard/GuidedSetup'))
 const CommandPalette = dynamic(() => import('@/components/dashboard/CommandPalette'))
+// FASE SB (A5): fuera del JS inicial del tablero: modales, la barra del viaje
+// de IBKR y las cards que viven debajo del patrimonio cargan aparte.
+const YtdBreakdownSection = dynamic(() => import('@/components/dashboard/YtdBreakdownSection'))
+const CalibrateReturnModal = dynamic(() => import('@/components/dashboard/CalibrateReturnModal'), { loading: () => <ModalSkeleton /> })
+const IBKRJourneyBar = dynamic(() => import('@/components/dashboard/IBKRJourneyBar'))
+const AnalysisTabs = dynamic(() => import('@/components/dashboard/AnalysisTabs'), { loading: () => <SkeletonCard /> })
+const LotsAudit = dynamic(() => import('@/components/dashboard/LotsAudit'), { loading: () => <SkeletonCard /> })
+const RecentTransactions = dynamic(() => import('@/components/dashboard/RecentTransactions'), { loading: () => <SkeletonCard /> })
+const CostsCard = dynamic(() => import('@/components/dashboard/CostsCard'), { loading: () => <SkeletonCard /> })
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false })
 
 const PortfolioGrowthChart = dynamic(() => import('@/components/dashboard/PortfolioGrowthChart'), { loading: () => <SkeletonChart /> })
@@ -108,9 +112,7 @@ const InvestmentComparator = dynamic(() => import('@/components/dashboard/Invest
 // N trimestres guardados" confirmation, short enough to still feel automatic.
 const IBKR_AUTO_ADVANCE_MS = 1600
 
-import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import ChispuSuggestions from '@/components/dashboard/ChispuSuggestions'
-import CostsCard from '@/components/dashboard/CostsCard'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import { analyzeDataCompleteness } from '@/lib/dataCompleteness'
 import { detectPhantomFlows } from '@/lib/phantomFlows'
