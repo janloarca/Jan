@@ -96,3 +96,19 @@ describe('AccountReviewModal: el progreso sobrevive a desmontar/remontar (FASE N
     expect(screen.getByText(/0 revisados/)).toBeTruthy()
   })
 })
+
+describe('AccountReviewModal: progreso del repaso guiado (FASE SC B2)', () => {
+  it('muestra cuántos datos van completados, no en qué cuenta vas', () => {
+    show({ progress: { done: 3, total: 24, pct: 13, complete: false } })
+    expect(screen.getByText('3 de 24 datos completados')).toBeTruthy()
+    expect(screen.getByText('13%')).toBeTruthy()
+  })
+  it('al terminar lo dice en vez de "24 de 24"', () => {
+    show({ progress: { done: 24, total: 24, pct: 100, complete: true } })
+    expect(screen.getByText('Listo: completaste todos los datos')).toBeTruthy()
+  })
+  it('sin progreso (repaso normal) no dibuja la barra', () => {
+    show({})
+    expect(screen.queryByText(/datos completados/)).toBeNull()
+  })
+})
