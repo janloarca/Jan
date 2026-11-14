@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useInstitutional } from '@/hooks/useInstitutional'
-import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Building2, Sparkles, Zap, SlidersHorizontal, MessageSquare } from 'lucide-react'
+import { Home, Calculator, Plus, Menu, Upload, Download, Share2, Settings, Table, Users, Receipt, Building2, Sparkles, Zap, SlidersHorizontal, MessageSquare, Search } from 'lucide-react'
 
 export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettings, onSearch, onAuto, onManage, lang, friendsEnabled = true, onEnrich, enrichGapCount = 0, onChat }) {
   const [moreOpen, setMoreOpen] = useState(false)
@@ -50,6 +50,16 @@ export default function MobileNav({ onAdd, onImport, onExport, onShare, onSettin
       {moreOpen && (
         <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMoreOpen(false)}>
           <div className="absolute bottom-14 left-0 right-0 bg-theme-card border-t border-glass-border rounded-t-2xl p-4 space-y-1" style={{ backdropFilter: 'var(--glass-blur-strong)', WebkitBackdropFilter: 'var(--glass-blur-strong)', boxShadow: 'var(--shadow-modal)' }} onClick={(e) => e.stopPropagation()}>
+            {/* FASE SB (B4): onSearch llegaba y no se dibujaba en ningún lado, así
+                que en un teléfono la búsqueda global no tenía puerta. Va primero:
+                es la forma más rápida de llegar a cualquier cosa. */}
+            {onSearch && (
+              <button onClick={() => { setMoreOpen(false); onSearch() }}
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-left text-white rounded-lg hover:bg-theme-elevated transition-colors">
+                <Search size={18} className="text-slate-400" />
+                <span className="text-body">{t('Buscar', 'Search')}</span>
+              </button>
+            )}
             <Link href="/costs" onClick={() => setMoreOpen(false)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors"
               style={{ color: pathname === '/costs' ? 'var(--accent-blue)' : undefined }}>

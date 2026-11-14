@@ -1220,11 +1220,28 @@ export default function DashboardPage() {
       case 'blockchain': handleOpenBlockchain(); break
       case 'ledger': setModal('ledger'); break
       case 'viewItem': setDetailItem(data); break
+      // FASE SB (B4): un símbolo con historia (o un movimiento) abre el editor
+      // de su posición, que lista sus movimientos aunque tenga 0 unidades. Si
+      // ya no existe ningún ítem con ese símbolo, se dice en vez de no hacer nada.
+      case 'viewActivity': {
+        const sym = String(data?.symbol || '').toUpperCase()
+        const hit = sym && items.find((it) => String(it.symbol || '').toUpperCase() === sym)
+        if (hit) handleOpenEditItem(hit)
+        else showToast(lang === 'es'
+          ? `${data?.label || sym}: ya no es una posición. Sus movimientos están en Actividad reciente.`
+          : `${data?.label || sym}: no longer a position. Its movements are in Recent activity.`, 'info', 4500)
+        break
+      }
+      case 'editAccount': {
+        const first = Array.isArray(data) ? data[0] : null
+        if (first) handleOpenEditItem(first)
+        break
+      }
       case 'tour': handleOpenTour(); break
     }
     // handleOpenTour se declara MUY arriba (junto a handleOpenGuided), así que
     // nombrarlo acá no cruza ninguna zona muerta temporal.
-  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain, handleOpenTour])
+  }, [handleExport, handleReport, handleRefresh, handleSetTheme, handleSetLang, theme, handleOpenAccount, handleOpenImport, handleOpenPrint, handleOpenTransfer, handleOpenCashflow, handleOpenSettings, handleOpenIBKR, handleOpenBlockchain, handleOpenTour, handleOpenEditItem, items, lang, showToast])
 
   // Acá vivía el auto-open del tour para un usuario con cero activos. Se quitó:
   // se abría ENCIMA de la pantalla de bienvenida y la suprimía, así que lo
@@ -2580,7 +2597,7 @@ export default function DashboardPage() {
       </ModalMount>
 
       <CommandPalette open={cmdPaletteOpen} onClose={handleCloseCmdPalette}
-        items={portfolioItems} lang={lang} onAction={handleCmdAction} brokersEnabled={brokersOn} />
+        items={portfolioItems} lots={lots} transactions={transactions} lang={lang} onAction={handleCmdAction} brokersEnabled={brokersOn} />
 
       <MobileNav
         onAdd={portfolioItems.length === 0 ? handleOpenGuided : handleOpenAccount} onImport={handleOpenImport}
