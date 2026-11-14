@@ -1,5 +1,6 @@
 'use client'
 
+import LoadErrorCard from '@/components/ui/LoadErrorCard'
 import { todayLocalISO } from '@/lib/localDate'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
@@ -1676,20 +1677,7 @@ export default function DashboardPage() {
             igual. Es la afirmación falsa que el invariante de la casa prohíbe,
             y encima invita a volver a crear cuentas que ya existen. */}
         {portfolioItems.length === 0 && !dataLoading && loadError && (
-          <div className="card p-5 sm:p-6 text-center">
-            <p className="text-base font-semibold mb-2" style={{ color: 'var(--alert-warn-icon)' }}>
-              {lang === 'es' ? 'No pudimos cargar tus datos' : 'We could not load your data'}
-            </p>
-            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-              {lang === 'es'
-                ? 'Tus cuentas siguen guardadas: esto es un problema de conexión, no una cuenta vacía. Revisa tu internet y volvé a intentar.'
-                : 'Your accounts are still saved: this is a connection problem, not an empty account. Check your internet and try again.'}
-            </p>
-            <button onClick={() => window.location.reload()} className="btn-primary px-4 py-2 text-sm">
-              {lang === 'es' ? 'Reintentar' : 'Try again'}
-            </button>
-            <p className="text-xs mt-3 font-mono" style={{ color: 'var(--text-muted)' }}>{String(loadError)}</p>
-          </div>
+          <LoadErrorCard error={loadError} lang={lang} />
         )}
 
         {portfolioItems.length === 0 && !dataLoading && !loadError && (
