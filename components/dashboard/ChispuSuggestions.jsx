@@ -1,5 +1,6 @@
 'use client'
 
+import usePersistedState from '@/hooks/usePersistedState'
 import { useEffect, useMemo, useState } from 'react'
 
 // "Chispu te sugiere" — surfaces the data-completeness findings with a one-tap
@@ -26,7 +27,10 @@ const SEV_LABEL = {
 export default function ChispuSuggestions({ findings = [], globalScore = 100, lang = 'es', onEditItem, onOpenCashflow, onOpenReview, onCompleteAll, onOpenLiquidYield, onConfirmDistinct, onApplySuggestion, onDismissed, items = [] }) {
   const t = (es, en) => lang === 'es' ? es : en
   const [dismissed, setDismissed] = useState(() => readDismissed())
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = usePersistedState('card-suggestions-expanded', false)
+  // Plegada, la card queda en su encabezado: el chip sigue diciendo cuántos
+  // pendientes hay, así que plegarla no esconde que existen.
+  const [folded, setFolded] = usePersistedState('card-suggestions-folded', false)
   const [applied, setApplied] = useState(() => new Set())
   const [applyFailed, setApplyFailed] = useState(() => new Set())
 
@@ -144,10 +148,16 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
 
   return (
     <div className="card p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="card-title">
-          {t('Chispu te sugiere', 'Chispu suggests')}
-        </h3>
+      <div className={`flex items-center justify-between gap-2 ${folded ? '' : 'mb-3'}`}>
+        <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded}
+          aria-controls="chispu-suggestions-body" className="flex items-center gap-2 min-h-[28px]">
+          <h3 className="card-title">
+            {t('Chispu te sugiere', 'Chispu suggests')}
+          </h3>
+          <span aria-hidden="true" className={`text-caption transition-transform duration-200 ${folded ? '-rotate-90' : 'rotate-0'}`}
+            style={{ color: 'var(--text-muted)' }}>▾</span>
+          <span className="sr-only">{folded ? t('Mostrar', 'Show') : t('Plegar', 'Collapse')}</span>
+        </button>
         <span className="text-xs px-2 py-1 rounded-full font-medium"
           style={{ color: scoreColor, backgroundColor: 'color-mix(in srgb, currentColor 12%, transparent)' }}
           title={t('El porcentaje pesa cada cuenta por su saldo, así que una cuenta chica con huecos casi no lo mueve. El conteo de al lado dice cuántos huecos hay, sin importar el tamaño de la cuenta.', 'The percentage weighs each account by its balance, so a small account with gaps barely moves it. The count next to it says how many gaps there are, regardless of account size.')}>
@@ -161,6 +171,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
         </span>
       </div>
 
+      {!folded && (<div id="chispu-suggestions-body">
       <div className="space-y-2">
         {shown.map((f) => (
           <div key={f.id} className="flex items-start gap-2 p-2.5 rounded-lg border" style={SEV_STYLE[f.severity]}>
@@ -264,6 +275,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
           </button>
         )}
       </div>
+      </div>)}
     </div>
   )
 }

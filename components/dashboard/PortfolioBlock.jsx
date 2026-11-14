@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import usePersistedState from '@/hooks/usePersistedState'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
 
 // Un solo bloque con una sola sección visible a la vez. Solo diseño: cada
@@ -9,7 +9,7 @@ import SegmentedTabs from '@/components/ui/SegmentedTabs'
 export default function PortfolioBlock({ lang, sections }) {
   const t = (es, en) => (lang === 'es' ? es : en)
   const visible = sections.filter((s) => s.node)
-  const [active, setActive] = useState(visible[0]?.key)
+  const [active, setActive] = usePersistedState('card-portfolio-block', visible[0]?.key)
   const current = visible.find((s) => s.key === active) || visible[0]
   if (!current) return null
   return (

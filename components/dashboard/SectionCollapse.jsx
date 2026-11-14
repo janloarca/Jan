@@ -1,27 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import usePersistedState from '@/hooks/usePersistedState'
 
 export default function SectionCollapse({ title, id, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(() => {
-    try {
-      if (typeof window !== 'undefined' && id) {
-        const saved = localStorage.getItem(`section-${id}`)
-        if (saved !== null) return saved === '1'
-      }
-    } catch {}
-    return defaultOpen
-  })
-
-  const toggle = () => {
-    const next = !open
-    setOpen(next)
-    try {
-      if (typeof window !== 'undefined' && id) {
-        localStorage.setItem(`section-${id}`, next ? '1' : '0')
-      }
-    } catch {}
-  }
+  // La llave vieja (`section-<id>`, '1'/'0') se lee como punto de partida, así
+  // quien ya plegó una sección no pierde su elección al pasar al gancho
+  // compartido (que guarda JSON bajo `section-<id>:v2`).
+  const key = id ? `section-${id}` : null
+  const [open, setOpen] = usePersistedState(key ? `${key}:v2` : null, readLegacy(key, defaultOpen))
+  const toggle = () => setOpen((o) => !o)
 
   return (
     <>
@@ -42,4 +29,14 @@ export default function SectionCollapse({ title, id, children, defaultOpen = fal
       {open && <div id={id ? `section-${id}` : undefined} className="space-y-4 sm:space-y-6">{children}</div>}
     </>
   )
+}
+
+function readLegacy(key, fallback) {
+  try {
+    if (typeof window === 'undefined' || !key) return fallback
+    const v = window.localStorage.getItem(key)
+    if (v === '1') return true
+    if (v === '0') return false
+  } catch {}
+  return fallback
 }
