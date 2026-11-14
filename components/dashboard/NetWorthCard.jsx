@@ -160,14 +160,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
   // lista no es la de hoy, el título deja de decir "hoy" y nombra esa sesión.
   // Eso cubre fines de semana, feriados, medias sesiones y bolsas extranjeras
   // sin una sola hora escrita a mano.
-  const { moversTitle, staleSessionNote } = useMemo(() => {
+  const { moversTitle, staleSessionNote, closedSessionLabel } = useMemo(() => {
     const t = (es, en) => (lang === 'es' ? es : en)
     const notes = []
 
     const todayLocal = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD local
     const closedSession = movers.asOf && movers.asOf < todayLocal ? movers.asOf : null
     if (closedSession) {
-      const label = formatDate(`${closedSession}T12:00:00Z`)
+      const label = formatDate(`${closedSession}T00:00:00Z`)
       notes.push(t(
         `Mercado cerrado: las acciones muestran su sesión del ${label}. La cripto sí son las últimas 24 h.`,
         `Market closed: stocks show their ${label} session. Crypto is the last 24h.`
@@ -201,6 +201,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         ? t('Movimientos del último cierre', 'Moves at the last close')
         : t('Mayores movimientos hoy', "Today's biggest movers"),
       staleSessionNote: notes.length > 0 ? notes.join(' ') : null,
+      closedSessionLabel: closedSession ? formatDate(`${closedSession}T00:00:00Z`) : null,
     }
   }, [movers, lang, pricesUpdate])
 
@@ -326,7 +327,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-x-2 gap-y-1 text-sm">
         {dailyChange && isFinite(dailyChange.pct) && (
           <span className="whitespace-nowrap" title={lang === 'es' ? 'Cambio de todo tu portafolio hoy. El % de cada posición abajo es su impacto sobre este total.' : 'Change of your whole portfolio today. Each position\'s % below is its impact on this total.'}>
-            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'HOY (TOTAL)' : 'TODAY (TOTAL)'}</span>
+            <span className="text-[11px] font-semibold tracking-wide mr-1" style={{ color: 'var(--text-muted)' }}>{lang === 'es' ? 'HOY (TOTAL)' : 'TODAY (TOTAL)'}{closedSessionLabel ? (lang === 'es' ? ` · cierre del ${closedSessionLabel}` : ` · ${closedSessionLabel} close`) : ''}</span>
             <span style={{ color: isDayPositive ? 'var(--accent-green)' : 'var(--text-negative)' }}>{isDayPositive ? '▲' : '▼'}</span>
             {' '}
             <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
@@ -338,6 +339,9 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               <AnimatedNumber value={dailyChange.pct} format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`} />
               {')'}
             </span>
+            <InfoTip text={lang === 'es'
+              ? 'Cuánto se movieron los precios de tus inversiones en la última sesión de mercado, más lo que cobraste hoy. No cuenta el dinero que depositaste o retiraste. Con el mercado cerrado es el movimiento del último cierre.'
+              : 'How much the prices of your investments moved in the last market session, plus anything you collected today. Money you deposited or withdrew is not counted. With the market closed it is the move at the last close.'} />
           </span>
         )}
         {/* El separador es el borde izquierdo del bloque YTD y no un span suelto:
@@ -356,7 +360,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               )}
               {'('}<AnimatedNumber value={displayReturn} format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`} />{')'}
             </span>
-            {hasYTD && <InfoTip text={lang === 'es' ? 'El rendimiento YTD compara el patrimonio actual con el valor al inicio del año. Las transferencias entre cuentas propias no se consideran rendimiento.' : 'YTD performance compares your current net worth with its value at the start of the year. Transfers between your own accounts are not counted as performance.'} />}
+            {hasYTD && <InfoTip text={lang === 'es' ? 'Lo que rindieron tus activos desde el arranque del año, descontando el dinero que depositaste o retiraste (método Modified Dietz: un depósito nunca cuenta como ganancia, y pesa según cuánto tiempo estuvo invertido). Las transferencias entre tus propias cuentas tampoco cuentan.' : 'What your assets earned since the year start, net of the money you deposited or withdrew (Modified Dietz method: a deposit never counts as a gain, and it weighs by how long it was invested). Transfers between your own accounts do not count either.'} />}
             {ytdCalibrated && (
               <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}
                 title={lang === 'es' ? 'Anclado al % que escribiste de tu broker. La curva intermedia se estima.' : 'Anchored to the % you typed from your broker. The in-between curve is estimated.'}>
@@ -369,7 +373,11 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
 
       {hasYTD && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartTs != null && (
         <div className="mt-0.5 text-[11px] tabular-nums" style={{ color: 'var(--text-muted)' }}>
-          {lang === 'es' ? 'Arranque del año (solo activos)' : 'Year start (assets only)'}: {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}{ytdStartSrc && startKindOf(ytdStartSrc) === 'estimated' ? (lang === 'es' ? ' · estimado' : ' · estimated') : ''}{ytdStartMissingLate > 0 ? (lang === 'es' ? ` · sin incluir ${ytdStartMissingLate} activo${ytdStartMissingLate === 1 ? '' : 's'} agregado${ytdStartMissingLate === 1 ? '' : 's'} después` : ` · excludes ${ytdStartMissingLate} asset${ytdStartMissingLate === 1 ? '' : 's'} added later`) : ''}
+          {lang === 'es' ? 'Arranque del año (solo activos)' : 'Year start (assets only)'}
+          <span className="inline-block align-middle mx-0.5"><InfoTip text={lang === 'es'
+            ? 'El valor de tus activos el día que empieza a medirse el YTD. Solo activos: la vivienda y las deudas quedan fuera del rendimiento y de las metas, porque pedir prestado no es perder dinero ni pagarlo es ganarlo. Dice «estimado» cuando ese día no se midió y se reconstruyó con precios históricos.'
+            : 'The value of your assets on the day YTD starts being measured. Assets only: your home and your debts stay out of the return and of your goals, because borrowing is not losing money and paying it back is not earning it. It says "estimated" when that day was not measured and was rebuilt from historical prices.'} /></span>
+          : {formatCurrency(cv(ytdStartValue), displayCur)} · {formatDate(ytdStartTs)}{ytdStartSrc && startKindOf(ytdStartSrc) === 'estimated' ? (lang === 'es' ? ' · estimado' : ' · estimated') : ''}{ytdStartMissingLate > 0 ? (lang === 'es' ? ` · sin incluir ${ytdStartMissingLate} activo${ytdStartMissingLate === 1 ? '' : 's'} agregado${ytdStartMissingLate === 1 ? '' : 's'} después` : ` · excludes ${ytdStartMissingLate} asset${ytdStartMissingLate === 1 ? '' : 's'} added later`) : ''}
         </div>
       )}
 
