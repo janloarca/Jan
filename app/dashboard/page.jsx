@@ -24,6 +24,7 @@ import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
+import { guidedProgress } from '@/lib/guidedProgress'
 import { readNetWorthCache, writeNetWorthCache } from '@/lib/netWorthCache'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
@@ -211,7 +212,11 @@ export default function DashboardPage() {
   // AccountReviewModal se desmonte (ej. al abrir EditAccountModal desde
   // adentro y volver), porque page.jsx es quien lo conserva mientras el
   // componente vive y muere. Toda sesión GENUINAMENTE nueva lo resetea a [].
-  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null, reviewedIds: [] })
+  const [reviewTarget, setReviewTarget] = useState({ itemId: null, guided: false, institution: null, reviewedIds: [], baseline: 0 })
+  // FASE SC (B2): el conteo de pendientes se declara mucho mas abajo; los
+  // handlers de arriba lo leen por ref al momento del clic (nunca en sus deps:
+  // eso seria una lectura en zona muerta, ver noTdzReferences).
+  const pendingFindingsRef = useRef(0)
   const [showEnrich, setShowEnrich] = useState(false)
   const [brokerCompletionId, setBrokerCompletionId] = useState(null)
 
@@ -549,14 +554,14 @@ export default function DashboardPage() {
   const handleOpenEnrich = useCallback(() => setShowEnrich(true), [])
   const handleOpenQuarterly = useCallback(() => setModal('quarterly'), [])
   const handleCloseEnrich = useCallback(() => setShowEnrich(false), [])
-  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null, reviewedIds: [] }); setShowReview(true) }, [])
+  const handleEnrichGuided = useCallback(() => { setReviewTarget({ itemId: null, guided: true, institution: null, reviewedIds: [], baseline: pendingFindingsRef.current }); setShowReview(true) }, [])
   // Al cerrar el recorrido guiado: cerrar el modal y abrir el repaso en modo
   // guiado (`onlyWithFindings`, que AccountReviewModal ya sabe hacer y ya ordena
   // por severidad). Es la promesa de esa pantalla, cumplida: hasta hoy decía que
   // Chispu iba a pedir lo que faltara y no había ningún camino que llevara ahí.
   const handleGuidedComplete = useCallback(() => {
     setShowGuided(false)
-    setReviewTarget({ itemId: null, guided: true, institution: null, reviewedIds: [] })
+    setReviewTarget({ itemId: null, guided: true, institution: null, reviewedIds: [], baseline: pendingFindingsRef.current })
     setShowReview(true)
   }, [])
   const handleEnrichAccount = useCallback((it) => { setReviewTarget({ itemId: it?.id || null, guided: false, institution: null, reviewedIds: [] }); setShowReview(true) }, [])
@@ -1021,6 +1026,7 @@ export default function DashboardPage() {
     () => countPending(suggestionFindings, dismissedIds),
     [suggestionFindings, dismissedIds]
   )
+  pendingFindingsRef.current = pendingFindings
   const pendingDetail = useMemo(
     () => pendingBreakdown(suggestionFindings, dismissedIds, lang).map((g) => `${g.n} ${g.label}`).join(', '),
     [suggestionFindings, dismissedIds, lang]
@@ -1629,11 +1635,11 @@ export default function DashboardPage() {
               interrumpir nada. Se oculta entera con score 100. */}
           {dataCompleteness.globalScore < 100 && pendingFindings > 0 && (
             <button
-              onClick={() => document.querySelector('[data-card-id="SUGG-01"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+              onClick={handleEnrichGuided}
               className="text-xs transition-colors hover:opacity-80"
               title={lang === 'es'
-                ? `Datos de tus cuentas que faltan o conviene revisar: ${pendingDetail}. Toca para ir a las sugerencias; cada una baja el contador al resolverla o descartarla.`
-                : `Account details that are missing or worth reviewing: ${pendingDetail}. Tap to go to the suggestions; each one lowers the count once resolved or dismissed.`}
+                ? `Datos de tus cuentas que faltan o conviene revisar: ${pendingDetail}. Toca para completarlos uno por uno; cada uno baja el contador al resolverlo o descartarlo.`
+                : `Account details that are missing or worth reviewing: ${pendingDetail}. Tap to complete them one by one; each one lowers the count once resolved or dismissed.`}
               style={{ color: dataCompleteness.globalScore < 60 ? 'var(--accent-orange)' : 'var(--text-muted)' }}
             >
               {lang === 'es'
@@ -2507,6 +2513,7 @@ export default function DashboardPage() {
           findings={dataCompleteness.findings}
           startItemId={reviewTarget.itemId}
           onlyWithFindings={reviewTarget.guided}
+          progress={reviewTarget.guided ? guidedProgress(reviewTarget.baseline, pendingFindings) : null}
           institutionFilter={reviewTarget.institution}
           convert={convert}
           baseCurrency={baseCurrency}

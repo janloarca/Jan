@@ -20,7 +20,7 @@ const CATEGORY_LABELS = {
 
 const SEV_WEIGHT = { high: 3, medium: 2, low: 1 }
 
-export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null, convert = null, baseCurrency = null, onNavigate, onItemReviewed, initialReviewed = [] }) {
+export default function AccountReviewModal({ items: allItems, onClose, onEditItem, onOpenCashflow, onConfirmDistinct, onApplySuggestion, lang, transactions, findings = [], startItemId = null, onlyWithFindings = false, institutionFilter = null, convert = null, baseCurrency = null, onNavigate, onItemReviewed, initialReviewed = [], progress = null }) {
   useEscClose(onClose)
   const t = (es, en) => lang === 'es' ? es : en
   const trapRef = useFocusTrap()
@@ -179,6 +179,21 @@ export default function AccountReviewModal({ items: allItems, onClose, onEditIte
       <div ref={trapRef} className="modal-glass max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Progress bar */}
         <div className="px-6 pt-5 pb-2">
+          {/* FASE SC (B2): en el repaso guiado lo que importa es cuántos DATOS
+              faltan (el mismo contador del encabezado), no en qué cuenta vas. */}
+          {progress && (
+            <div className="mb-3" role="status" aria-live="polite">
+              <div className="flex items-center justify-between mb-1.5 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                <span>{progress.complete
+                  ? t('Listo: completaste todos los datos', 'Done: every detail is complete')
+                  : t(`${progress.done} de ${progress.total} datos completados`, `${progress.done} of ${progress.total} details completed`)}</span>
+                <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>{progress.pct}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--track-base)' }}>
+                <div className="h-full rounded-full bar-fill" style={{ backgroundColor: 'var(--accent-green)', width: `${progress.pct}%` }} />
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-slate-400 font-medium">
               {index + 1} / {totalCount} · {reviewedCount} {t('revisados', 'reviewed')}
