@@ -242,6 +242,20 @@ export function useFirestoreItems() {
         pending.delete(key)
         if (pending.size === 0) setLoading(false)
       }
+      // FASE SD (A3): con el cache LRU (lib/firebase.js) un listener que se
+      // re-suscribe emite PRIMERO lo que ya tenia en memoria (fromCache) y
+      // despues lo del servidor. Esa primera foto se pinta (es la de hace un
+      // momento en esta misma sesion), pero NO baja `loading`: los escritores
+      // de fondo (snapshot diario, backfill) solo corren con datos confirmados
+      // por el servidor. Si el servidor no contesta en 8 s (sin conexion), se
+      // acepta lo que ya se emitio, igual que antes un listener offline
+      // terminaba entregando su foto de cache.
+      const emitted = new Set()
+      const markFromSnap = (key, snap) => {
+        emitted.add(key)
+        if (!snap?.metadata?.fromCache) markReady(key)
+      }
+      setTimeout(() => { for (const k of [...pending]) if (emitted.has(k)) markReady(k) }, 8000)
       const onErr = (label, critical = false) => (err) => {
         console.error(`[Firestore] ${label} listener error:`, err.code, err.message)
         if (critical && !cancelled) setLoadError(err.code || 'unknown')
@@ -253,14 +267,14 @@ export function useFirestoreItems() {
         (snap) => {
           if (!cancelled) {
             setItems(snap.docs.map((d) => sanitizeItem({ ...d.data(), id: d.id })))
-            markReady('items')
+            markFromSnap('items', snap)
           }
         },
         onErr('items', true)
       )
       unsubSnapshots = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/snapshots`), fs.orderBy('date')),
-        (snap) => { if (!cancelled) { setSnapshots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); markReady('snapshots') } },
+        (snap) => { if (!cancelled) { setSnapshots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); markFromSnap('snapshots', snap) } },
         onErr('snapshots')
       )
       unsubTransactions = fs.onSnapshot(
@@ -268,7 +282,7 @@ export function useFirestoreItems() {
         (snap) => {
           if (!cancelled) {
             setTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id })))
-            markReady('transactions')
+            markFromSnap('transactions', snap)
           }
         },
         onErr('transactions', true)
@@ -276,7 +290,7 @@ export function useFirestoreItems() {
 
       unsubLots = fs.onSnapshot(
         fs.collection(db, `users/${currentUid}/lots`),
-        (snap) => { if (!cancelled) { setLots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); markReady('lots') } },
+        (snap) => { if (!cancelled) { setLots(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); markFromSnap('lots', snap) } },
         onErr('lots')
       )
 
