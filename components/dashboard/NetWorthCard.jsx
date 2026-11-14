@@ -32,7 +32,7 @@ function getGreeting(lang) {
   return lang === 'es' ? 'Buenas noches' : 'Good evening'
 }
 
-export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdAnchorIgnored = 0, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdStartMissingLate = 0, pricesUpdate = null, scopedView = false, ytdBreakdownOpen = false, onToggleYtdBreakdown = null }) {
+export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSinceStart, sinceStartDate, dailyChange, convert, lang, netContributions, cashTotal, snapshots, items, ytdCalibrated, ytdBreakdown, ytdBreakdownReason, ytdAnchorIgnored = 0, ytdStartValue = null, ytdStartTs = null, ytdStartSrc = null, ytdStartMissingLate = 0, pricesUpdate = null, scopedView = false, ytdBreakdownOpen = false, onToggleYtdBreakdown = null, updating = false }) {
   const hasYTD = returnYTD != null && isFinite(returnYTD)
   const displayReturn = hasYTD ? returnYTD : (returnSinceStart != null && isFinite(returnSinceStart) ? returnSinceStart : null)
   const hasReturn = displayReturn != null
@@ -298,6 +298,14 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
         <InfoTip text={lang === 'es'
           ? 'Tus activos registrados menos tus deudas.'
           : 'Your registered assets minus your debts.'} />
+        {/* Bloque A2: la cifra es la ultima conocida (cache local) mientras
+            asienta la carga. La marca va EN la misma linea del rotulo, asi que
+            aparecer y desaparecer no mueve nada de la card. */}
+        {updating && (
+          <span className="text-[11px] ml-1" role="status" style={{ color: 'var(--text-muted)' }}>
+            · {lang === 'es' ? 'actualizando…' : 'updating…'}
+          </span>
+        )}
       </div>
       <AnimatedNumber
         value={displayValue}

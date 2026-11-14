@@ -22,6 +22,7 @@ import AdBanner from '@/components/AdBanner'
 import MonthEndCheckin, { hasLiveSync } from '@/components/dashboard/MonthEndCheckin'
 import DashboardLoading from './loading'
 import NetWorthCard from '@/components/dashboard/NetWorthCard'
+import { readNetWorthCache, writeNetWorthCache } from '@/lib/netWorthCache'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
@@ -1325,6 +1326,25 @@ export default function DashboardPage() {
     }
   }, [firstLoadSettled, dataLoading, pricesLoading, pricesFetching, ratesLoading, ytdResolved])
 
+  // Bloque A2, primer pintado util: mientras la primera carga no asienta, el
+  // hero muestra el ULTIMO patrimonio conocido (lib/netWorthCache.js) marcado
+  // "actualizando", en vez de un esqueleto. Solo la vista completa (el cache
+  // describe el patrimonio entero) y nunca en modo demo. Es pura presentacion:
+  // ninguna cifra cacheada entra a un calculo ni a Firestore.
+  const heroPending = !firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved || historyBusy
+  const cachedHero = useMemo(
+    () => (scopedView || isDemoMode ? null : readNetWorthCache(user?.uid, baseCurrency)),
+    // heroPending en las deps: si el hero vuelve a quedar pendiente a mitad de
+    // sesion (otra pasada del historial), se relee el cache, que para entonces
+    // ya guarda la ultima cifra viva y no la de la apertura.
+    [user?.uid, baseCurrency, scopedView, isDemoMode, heroPending] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  useEffect(() => {
+    if (heroPending || scopedView || isDemoMode || !user?.uid) return
+    if (portfolioItems.length === 0 || netWorth == null || !isFinite(netWorth)) return
+    writeNetWorthCache(user.uid, { netWorth, baseCurrency, returnYTD, ytdChange, dailyChange })
+  }, [heroPending, scopedView, isDemoMode, user?.uid, portfolioItems.length, netWorth, baseCurrency, returnYTD, ytdChange, dailyChange])
+
   // Modo institucional: si este usuario tiene un asesor con acceso activo, se
   // publican una vez al dia las cifras de cabecera YA calculadas, para que el
   // asesor las lea sin recalcular nada. Sin asesor no corre ni escribe.
@@ -1679,12 +1699,24 @@ export default function DashboardPage() {
             {/* Mientras llegan precios, tasas o el ancla del año, las cifras son
                 parciales (patrimonio y YTD absurdos por unos segundos): se
                 muestra el esqueleto en vez de un número que no es el final. */}
-            {(!firstLoadSettled || pricesLoading || ratesLoading || !ytdResolved || historyBusy) ? (
+            {/* Con cache, el MISMO NetWorthCard se monta desde el primer
+                pintado con la ultima cifra conocida: al asentar solo cambian
+                sus props, asi que la cifra se mueve en su lugar (AnimatedNumber)
+                sin pasar nunca por un esqueleto ni saltar de layout. */}
+            {(heroPending && !cachedHero) ? (
               <div className="card p-4 sm:p-5" aria-busy="true">
                 <Shimmer className="h-4 w-28 mb-3" />
                 <Shimmer className="h-10 w-56 mb-3" />
                 <Shimmer className="h-4 w-40" />
               </div>
+            ) : (
+            heroPending ? (
+            <NetWorthCard
+              updating
+              netWorth={cachedHero.netWorth} returnYTD={cachedHero.returnYTD} ytdChange={cachedHero.ytdChange}
+              dailyChange={cachedHero.dailyChange} convert={convert}
+              lang={lang} items={[]} cashTotal={null}
+            />
             ) : (
             <NetWorthCard
               netWorth={netWorth} returnYTD={returnYTD} ytdChange={ytdChange}
@@ -1698,6 +1730,7 @@ export default function DashboardPage() {
               scopedView={scopedView}
               ytdBreakdownOpen={ytdBreakdownOpen} onToggleYtdBreakdown={toggleYtdBreakdown}
             />
+            )
             )}
           </CardBoundary>
 
