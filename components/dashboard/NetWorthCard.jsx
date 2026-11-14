@@ -360,7 +360,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               )}
               {'('}<AnimatedNumber value={displayReturn} format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`} />{')'}
             </span>
-            {hasYTD && <InfoTip text={lang === 'es' ? 'Lo que rindieron tus activos desde el arranque del año, descontando el dinero que depositaste o retiraste (método Modified Dietz: un depósito nunca cuenta como ganancia, y pesa según cuánto tiempo estuvo invertido). Las transferencias entre tus propias cuentas tampoco cuentan.' : 'What your assets earned since the year start, net of the money you deposited or withdrew (Modified Dietz method: a deposit never counts as a gain, and it weighs by how long it was invested). Transfers between your own accounts do not count either.'} />}
+            {hasYTD && <InfoTip text={lang === 'es' ? 'El rendimiento YTD compara el patrimonio actual con el valor al inicio del año. Las transferencias entre cuentas propias no se consideran rendimiento. Se mide con Modified Dietz: lo que depositas o retiras nunca cuenta como ganancia, y pesa según cuánto tiempo estuvo invertido.' : 'YTD performance compares your current net worth with its value at the start of the year. Transfers between your own accounts are not counted as performance. It uses Modified Dietz: what you deposit or withdraw never counts as a gain, and it weighs by how long it was invested.'} />}
             {ytdCalibrated && (
               <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}
                 title={lang === 'es' ? 'Anclado al % que escribiste de tu broker. La curva intermedia se estima.' : 'Anchored to the % you typed from your broker. The in-between curve is estimated.'}>

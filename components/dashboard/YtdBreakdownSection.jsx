@@ -399,11 +399,7 @@ export default function YtdBreakdownSection({
           {/* Pie de metodología: el ancla del año, dicha de frente (FASE NL). */}
           {hasBreakdown && ytdStartValue != null && isFinite(ytdStartValue) && ytdStartValue > 0 && (
             <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              {lang === 'es' ? 'Valor inicial del año' : 'Year-start value'}
-              <span className="inline-block align-middle mx-0.5"><InfoTip text={lang === 'es'
-                ? 'El valor de tus activos (sin vivienda ni deudas) el día desde el que se mide el YTD. Cada fila de arriba parte de su parte de este valor. «Estimado» significa que ese día no se midió y se reconstruyó con precios históricos.'
-                : 'The value of your assets (excluding your home and debts) on the day YTD is measured from. Each row above starts from its share of this value. "Estimated" means that day was not measured and was rebuilt from historical prices.'} /></span>
-              {': '}
+              {lang === 'es' ? 'Valor inicial del año: ' : 'Year-start value: '}
               <span className="font-mono tabular-nums">{formatCurrency(ytdStartValue, cur)}</span>
               {ytdStartTs ? ` · ${formatDate(new Date(ytdStartTs))}` : ''}
               {ANCHOR_SRC_LABEL[ytdStartSrc] ? ` · ${ANCHOR_SRC_LABEL[ytdStartSrc][L]}` : ''}
@@ -411,6 +407,9 @@ export default function YtdBreakdownSection({
                 ? ` · incluye ${formatCurrency(ytdStartLate, cur)} de activos que agregaste después con fecha anterior`
                 : ` · includes ${formatCurrency(ytdStartLate, cur)} of assets you added later with an earlier date`) : ''}
               {'.'}
+              <span className="inline-block align-middle ml-1"><InfoTip text={lang === 'es'
+                ? 'El valor de tus activos (sin vivienda ni deudas) el día desde el que se mide el YTD. Cada fila de arriba parte de su parte de este valor. «Estimado» significa que ese día no se midió y se reconstruyó con precios históricos.'
+                : 'The value of your assets (excluding your home and debts) on the day YTD is measured from. Each row above starts from its share of this value. "Estimated" means that day was not measured and was rebuilt from historical prices.'} /></span>
             </p>
           )}
           {hasBreakdown && ytdCalIgnored > 0 && (

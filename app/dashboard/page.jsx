@@ -8,7 +8,9 @@ import { useDashboardData } from '@/hooks/useDashboardData'
 import { useIngestRules } from '@/hooks/useIngestRules'
 import { getItemValue, formatCurrency, getTypeCategory, ibkrAttentionNeeded } from '@/components/dashboard/utils'
 import { computeLoadStages } from '@/lib/loadStages'
-import { readDismissed, countPending, pendingBreakdown, DISMISS_EVENT } from '@/lib/suggestionDismissals'
+import { readDismissed, countPending, pendingBreakdown, DISMISS_EVENT, undismiss } from '@/lib/suggestionDismissals'
+import { createUndoToastController, previousFieldValues } from '@/lib/undoToast'
+import UndoToast from '@/components/ui/UndoToast'
 import { showsRateTable } from '@/lib/currencyRates'
 import { ibkrJourneyProgress } from '@/lib/ibkrJourney'
 import Header from '@/components/dashboard/Header'
@@ -679,9 +681,35 @@ export default function DashboardPage() {
 
   const showToast = useCallback((msg, type = 'success', duration = 3000) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
+    // Un aviso nuevo reemplaza al de "Deshacer": nunca dos apilados.
+    undoCtlRef.current?.dismiss()
     setToast({ msg, type })
     toastTimer.current = setTimeout(() => setToast(null), duration)
   }, [])
+
+  // FASE SB (B8): toast con "Deshacer" por 5 s, uno a la vez, solo para
+  // acciones reversibles sin efectos en otras cuentas (editar campos de un
+  // activo, descartar una sugerencia). Borrados y movimientos de saldo siguen
+  // pidiendo confirmación y no se ofrecen acá.
+  const [undoToast, setUndoToast] = useState(null)
+  const undoCtlRef = useRef(null)
+  if (undoCtlRef.current == null) undoCtlRef.current = createUndoToastController({ onChange: setUndoToast })
+  useEffect(() => () => undoCtlRef.current?.destroy(), [])
+  const showUndoToast = useCallback((message, onUndo) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast(null)
+    undoCtlRef.current.show({ message, onUndo })
+  }, [])
+  const handleUndo = useCallback(async () => {
+    try { await undoCtlRef.current.undo() } catch (err) {
+      console.error('[undo]', err)
+      showToast(lang === 'es' ? 'No se pudo deshacer. Revisa tu conexión.' : 'Could not undo. Check your connection.', 'warning', 4500)
+    }
+  }, [lang, showToast])
+  const handleDismissUndo = useCallback(() => undoCtlRef.current.dismiss(), [])
+  const handleSuggestionDismissed = useCallback((ids) => {
+    showUndoToast(lang === 'es' ? 'Sugerencia descartada' : 'Suggestion dismissed', () => undismiss(ids))
+  }, [lang, showUndoToast])
 
   // Shared by the sync modal's "Desconectar IBKR" button and the red top
   // banner's own dismiss action — a locked/expired token only ever offered
@@ -1779,6 +1807,7 @@ export default function DashboardPage() {
           const suggestionsCard = (
             <CardBoundary id="SUGG-01">
               <ChispuSuggestions
+                onDismissed={handleSuggestionDismissed}
                 findings={suggestionFindings}
                 globalScore={dataCompleteness.globalScore}
                 items={items}
@@ -2406,10 +2435,17 @@ export default function DashboardPage() {
         <EditAccountModal key={`${editShown.id}:${editFocusField || ''}`} item={editShown} onClose={handleCloseEdit} entities={entities}
           profileTaxResidence={profile?.taxResidence || ''}
           focusField={editFocusField}
-          onSave={async (updated) => {
+          onSave={async (updated, opts = {}) => {
             const { id, ...fields } = updated
-            await updateItem(editShown.id, fields)
-            showToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved')
+            const raw = items.find((it) => it.id === editShown.id)
+            const prev = opts.undoable === false ? {} : previousFieldValues(raw, fields)
+            const targetId = editShown.id
+            await updateItem(targetId, fields)
+            if (Object.keys(prev).length > 0) {
+              showUndoToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved', () => updateItem(targetId, prev))
+            } else {
+              showToast(lang === 'es' ? 'Cambios guardados' : 'Changes saved')
+            }
           }}
           onDelete={async (id) => {
             await deleteItem(id)
@@ -2694,6 +2730,7 @@ export default function DashboardPage() {
       )}
       </ModalMount>
 
+      <UndoToast toast={undoToast} onUndo={handleUndo} onDismiss={handleDismissUndo} lang={lang} />
       {toast && (
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-xl text-sm font-medium animate-fade-in border"
           role="status"
