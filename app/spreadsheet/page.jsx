@@ -1,5 +1,6 @@
 'use client'
 
+import LoadErrorCard from '@/components/ui/LoadErrorCard'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -85,7 +86,7 @@ export default function SpreadsheetPage() {
     snapshots, addItem, addItemInScope, updateItem, deleteItem, portfolioItems, convert, rates,
     baseCurrency, saveItemSnapshots, loadItemSnapshots, lots, portfolios,
     addTransaction, updateTransaction, deleteTransaction, deleteTransactionWithReversal, updateTransactionWithReversal,
-    addLot, closeLotsFIFO, executeContribution, dataLoading, settings, profile,
+    addLot, closeLotsFIFO, executeContribution, dataLoading, loadError, settings, profile,
     handleRefresh, pricesLoading, ratesLoading,
     sheetObservations, saveSheetObservations,
   } = useDashboardData({ user, lang, activePortfolio: SHEET_SCOPE })
@@ -385,7 +386,11 @@ export default function SpreadsheetPage() {
         </div>
       )}
 
-      {view === 'portfolio' && (portfolioItems || enrichedItems)?.length === 0 ? (
+      {view === 'portfolio' && (portfolioItems || enrichedItems)?.length === 0 && loadError ? (
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
+          <LoadErrorCard error={loadError} lang={lang} className="max-w-lg w-full" />
+        </div>
+      ) : view === 'portfolio' && (portfolioItems || enrichedItems)?.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
           <div className="text-5xl mb-4">📈</div>
           {/* Era `#0f172a` fijo, un casi-negro de tema CLARO. Sobre el fondo

@@ -1,5 +1,6 @@
 'use client'
 
+import LoadErrorCard from '@/components/ui/LoadErrorCard'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/hooks/useDashboardData'
@@ -48,7 +49,7 @@ export default function CostsPage() {
   // ratesLoading también gatea el render: sin él, un portafolio multi-moneda
   // computa los costos con el convert de la carga fría (1:1) y muestra un total
   // equivocado durante los primeros segundos.
-  const { transactions, portfolioItems, convert, baseCurrency, settings, dataLoading, ratesLoading } =
+  const { transactions, portfolioItems, convert, baseCurrency, settings, dataLoading, loadError, ratesLoading } =
     useDashboardData({ user, lang, activePortfolio: '__all__' })
 
   const t = useCallback((es, en) => (lang === 'es' ? es : en), [lang])
@@ -137,7 +138,9 @@ export default function CostsPage() {
             />
           )} />
 
-        {!costs.hasData ? (
+        {!costs.hasData && loadError ? (
+          <LoadErrorCard error={loadError} lang={lang} />
+        ) : !costs.hasData ? (
           <div className="card p-8 text-center">
             <Receipt size={36} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm font-medium text-white mb-1">

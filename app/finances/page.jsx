@@ -1,5 +1,6 @@
 'use client'
 
+import LoadErrorCard from '@/components/ui/LoadErrorCard'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useFirestoreItems } from '@/hooks/useFirestoreItems'
@@ -105,6 +106,7 @@ export default function FinancesPage() {
   const {
     items,
     loading: dataLoading,
+    financeLoadError,
     financeReady,
     addItem,
     updateItem,
@@ -749,7 +751,11 @@ export default function FinancesPage() {
         </SectionCollapse>
         </>}
 
-        {financeReady && financeTransactions.length === 0 && (
+        {financeReady && financeTransactions.length === 0 && financeLoadError && (
+          <LoadErrorCard error={financeLoadError} lang={lang} />
+        )}
+
+        {financeReady && financeTransactions.length === 0 && !financeLoadError && (
           <div className="text-center py-12">
             <div className="text-5xl mb-4">📊</div>
             <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>{t('Sin transacciones aún', 'No transactions yet')}</p>

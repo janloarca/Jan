@@ -190,6 +190,10 @@ export function useFirestoreItems() {
   // que la pantalla pueda distinguir "no tenés nada" de "no pude leer lo que
   // tenés", que hasta ahora se veían idénticas.
   const [loadError, setLoadError] = useState(null)
+  // FASE SG (B6): Flujo lee SOLO financeTransactions, que no es critico para
+  // el tablero (no tumba el patrimonio). Pero en Flujo un fallo de esa lectura
+  // se veia identico a "aun no registras movimientos": su propia senal.
+  const [financeLoadError, setFinanceLoadError] = useState(null)
   const [uid, setUid] = useState(_auth?.currentUser?.uid || null)
 
   useEffect(() => {
@@ -330,7 +334,7 @@ export function useFirestoreItems() {
       unsubFinanceTx = fs.onSnapshot(
         fs.query(fs.collection(db, `users/${currentUid}/financeTransactions`), fs.orderBy('date', 'desc')),
         (snap) => { if (!cancelled) { setFinanceTransactions(snap.docs.map((d) => sanitizeDoc({ ...d.data(), id: d.id }))); setFinanceReady(true) } },
-        (e) => { setFinanceReady(true); onErr('financeTransactions')(e) }
+        (e) => { setFinanceReady(true); if (!cancelled) setFinanceLoadError(e?.code || 'unknown'); onErr('financeTransactions')(e) }
       )
     }
 
@@ -1512,7 +1516,7 @@ export function useFirestoreItems() {
   }, [uid, snapshots])
 
   return {
-    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations, loading, loadError, financeReady,
+    items, snapshots, transactions, alerts, lots, portfolios, financeTransactions, goals, settings, profile, incomePlan, sheetObservations, loading, loadError, financeLoadError, financeReady,
     addItem, updateItem, deleteItem, deleteAllItems, deleteItemGroup,
     saveSnapshot, deleteSnapshot, deleteAllSnapshots, deleteDemoData,
     addTransaction, updateTransaction, deleteTransaction, deleteAllTransactions,
