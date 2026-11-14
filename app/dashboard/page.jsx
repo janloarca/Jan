@@ -29,6 +29,7 @@ import { readNetWorthCache, writeNetWorthCache } from '@/lib/netWorthCache'
 import QuickActionsCard from '@/components/dashboard/QuickActionsCard'
 import PortfolioBlock from '@/components/dashboard/PortfolioBlock'
 import SectionCollapse from '@/components/dashboard/SectionCollapse'
+import { dashboardActionGroups } from '@/lib/dashboardActions'
 import MobileNav from '@/components/dashboard/MobileNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import CardBoundary from '@/components/dashboard/CardBoundary'
@@ -2677,6 +2678,10 @@ export default function DashboardPage() {
 
       <MobileNav
         onAdd={portfolioItems.length === 0 ? handleOpenGuided : handleOpenAccount} onImport={handleOpenImport}
+        addActions={portfolioItems.length === 0 ? null : dashboardActionGroups({
+          lang, onCashFlow: handleOpenCashflow, onAddAccount: handleOpenAccount,
+          onSell: handleOpenSellPicker, onTransfer: handleOpenTransfer,
+        }).record}
         onExport={handleExport} onShare={handleShare}
         onSettings={handleOpenSettings} onSearch={handleOpenCmdPalette} lang={lang}
         onEnrich={portfolioItems.length > 0 ? handleOpenEnrich : null}
