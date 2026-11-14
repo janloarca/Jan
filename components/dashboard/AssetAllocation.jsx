@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import usePersistedState from '@/hooks/usePersistedState'
+import { useMemo } from 'react'
 import { formatCurrency, getTypeCategory, TYPE_COLORS, CHART_PALETTE, getItemValue, getSectorFromItem, getGeographyFromItem, getInvestmentClass, INVESTMENT_CLASS_META, isExcludedFromNetWorth, getDividendIncomeByItem, getIncomeReceivedByItem, getOwnReinvestedYieldByItem, getInvestedCapital, getItemPrincipalCost, getMaturityInfo, CATEGORY_LABELS } from './utils'
 import { InfoTip } from '../ui/Tooltip'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
@@ -29,7 +30,8 @@ function maturityBucketKey(it) {
 }
 
 export default function AssetAllocation({ items, lang, transactions, convert, baseCurrency, ibkrDataComplete, embedded = false }) {
-  const [view, setView] = useState('type')
+  const [view, setView] = usePersistedState('card-alloc-view', 'type',
+    ['type', 'institution', 'sector', 'returnType', 'geography', 'currency', 'maturity'])
 
   const allocation = useMemo(() => {
     const groupFns = {

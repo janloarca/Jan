@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import usePersistedState from '@/hooks/usePersistedState'
+
 import dynamic from 'next/dynamic'
 import { InfoTip } from '@/components/ui/Tooltip'
 import SegmentedTabs from '@/components/ui/SegmentedTabs'
@@ -59,12 +60,12 @@ export default function AnalysisTabs({ lang, portfolioItems, netWorth, totalAsse
     },
   ].filter((f) => f.views.length > 0)
 
-  const [family, setFamily] = useState('risk')
+  const [family, setFamily] = usePersistedState('card-analysis-family', 'risk')
   const activeFamily = families.find((f) => f.key === family) || families[0]
   // La vista arranca en la primera de su familia y se re-ancla al cambiar de
   // familia, así que nunca queda una vista activa que no esté en la fila de
   // abajo (por ejemplo al entrar o salir de modo principiante).
-  const [tab, setTab] = useState(activeFamily.views[0].key)
+  const [tab, setTab] = usePersistedState('card-analysis-tab', activeFamily.views[0].key)
   const activeTab = activeFamily.views.some((v) => v.key === tab) ? tab : activeFamily.views[0].key
 
   return (
