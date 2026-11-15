@@ -8,6 +8,10 @@ import { priceItems } from '@/lib/marketPrices'
 // portafolio sin sesión de navegador. Aquí solo quedan las políticas de la
 // RUTA (rate limit, auth, forma de la respuesta).
 
+// FASE SJ: el presupuesto de lib/marketPrices (12s) cabe aquí con margen y
+// bajo los 30s en que aborta authFetch en el cliente.
+export const maxDuration = 30
+
 export async function POST(request) {
   const { limited } = await rateLimit(request, { maxRequests: 60 })
   if (limited) return NextResponse.json({ error: 'Too many requests', errorCode: 'RATE_LIMITED' }, { status: 429 })
