@@ -81,9 +81,9 @@ export default function GroupCard({
                 </button>
               </div>
             ) : (
-              <div className="text-sm font-semibold truncate flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                {group.name}
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
+              <div className="text-sm font-semibold min-w-0 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                <span className="truncate min-w-0">{group.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
                   style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
                   {group.scope === 'ibkr' ? t('Solo IBKR', 'IBKR only') : t('Todo', 'All')}
                 </span>

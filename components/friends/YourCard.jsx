@@ -122,7 +122,7 @@ export default function YourCard({
               <button
                 onClick={() => setEditing(true)}
                 aria-label={t('Cambiar tu nombre', 'Change your name')}
-                className="shrink-0 p-1 rounded-md transition-opacity opacity-60 hover:opacity-100"
+                className="shrink-0 p-1.5 rounded-md transition-opacity opacity-60 hover:opacity-100"
                 style={{ color: 'var(--text-muted)' }}
               >
                 <Pencil size={13} />
@@ -161,7 +161,7 @@ export default function YourCard({
                   compartido, el único átomo de carga de la app. */}
               {m.v == null && !ready ? <Shimmer className="w-12 h-4 rounded" /> : fmtPct(m.v, 2, m.oob)}
             </div>
-            <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
+            <div className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{m.label}</div>
           </div>
         ))}
       </div>

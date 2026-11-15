@@ -436,7 +436,7 @@ export default function NetWorthCard({ netWorth, returnYTD, ytdChange, returnSin
               <div key={seg.name} className="flex items-center justify-between gap-2 min-w-0">
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-                  <span className="text-xs text-slate-400 truncate">{catLabel(seg)}</span>
+                  <span className="text-xs text-slate-400 leading-tight break-words min-w-0">{catLabel(seg)}</span>
                 </span>
                 <span className="text-xs font-medium font-mono tabular-nums shrink-0" style={{ color: 'var(--text-secondary)' }}>{seg.pct.toFixed(0)}%</span>
               </div>

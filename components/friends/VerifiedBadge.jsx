@@ -15,7 +15,7 @@ export default function VerifiedBadge({ lang }) {
   return (
     <span
       title={lang === 'es' ? 'Tiene un broker conectado y sincronizando' : 'Has a broker connected and syncing'}
-      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold shrink-0"
+      className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold shrink-0"
       style={{ backgroundColor: 'color-mix(in srgb, var(--accent-green) 22%, transparent)', color: 'var(--accent-green)' }}
     >
       ✓
