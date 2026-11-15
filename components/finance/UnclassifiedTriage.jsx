@@ -75,7 +75,7 @@ export default function UnclassifiedTriage({
   return (
     <div className="card p-4 sm:p-5">
       <h3 className="card-title mb-1">
-        <Tags size={14} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+        <Tags size={14} aria-hidden="true" style={{ color: 'var(--accent-blue-text)' }} />
         {t('COMERCIOS SIN CLASIFICAR', 'UNCLASSIFIED MERCHANTS')}
       </h3>
       {/* El encabezado honesto: cuánto cubre lo que se muestra, de cuánto hay.

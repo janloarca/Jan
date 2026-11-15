@@ -68,10 +68,10 @@ function ClientRow({ r, lang, t, clickable }) {
       <p className="md:text-right">
         <span className="md:hidden text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Sin leer', 'Unread')}</span>
         {r.unread > 0
-          ? <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--alert-info-bg)', color: 'var(--accent-blue)' }}>{r.unread}</span>
+          ? <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--alert-info-bg)', color: 'var(--accent-blue-text)' }}>{r.unread}</span>
           : <span style={{ color: 'var(--text-muted)' }}>0</span>}
       </p>
-      <span className="hidden md:block text-xs" style={{ color: 'var(--accent-blue)' }}>{clickable ? t('Abrir', 'Open') : ''}</span>
+      <span className="hidden md:block text-xs" style={{ color: 'var(--accent-blue-text)' }}>{clickable ? t('Abrir', 'Open') : ''}</span>
     </div>
   )
   if (!clickable) return <div className="border-t" style={{ borderColor: 'var(--card-border)' }}>{body}</div>
@@ -137,7 +137,7 @@ export default function AsesorPage() {
       {ready && !inst.isAdvisor && (
         <div className="card p-5 text-sm space-y-2" style={{ color: 'var(--text-secondary)' }}>
           <p>{t('Esta pantalla es para asesores que pertenecen a una firma.', 'This screen is for advisors who belong to a firm.')}</p>
-          <Link href="/dashboard" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Volver a tu patrimonio', 'Back to your net worth')}</Link>
+          <Link href="/dashboard" className="underline" style={{ color: 'var(--accent-blue-text)' }}>{t('Volver a tu patrimonio', 'Back to your net worth')}</Link>
         </div>
       )}
       {error && <InlineNotice tone="warn" actionLabel={t('Reintentar', 'Retry')} onAction={load}>{error}</InlineNotice>}

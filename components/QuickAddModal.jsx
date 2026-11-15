@@ -121,7 +121,7 @@ export default function QuickAddModal({ onClose, onAdd, onAddLot, onAddTransacti
               </div>
             ))}
           </div>
-          <button type="button" onClick={() => setRows((cur) => [...cur, emptyRow()])} className="text-xs underline" style={{ color: 'var(--accent-blue)' }}>
+          <button type="button" onClick={() => setRows((cur) => [...cur, emptyRow()])} className="text-xs underline" style={{ color: 'var(--accent-blue-text)' }}>
             {t('+ Agregar otra fila', '+ Add another row')}
           </button>
           <div className="flex items-center justify-between gap-3 pt-2">

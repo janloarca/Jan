@@ -101,7 +101,7 @@ export default function GroupCard({
             <button onClick={() => onCopy(group.inviteCode, group.name)}
               aria-label={t('Compartir el código de invitación', 'Share the invite code')}
               className="px-2 py-1 text-xs font-mono rounded-md"
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-blue)' }}>
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-blue-text)' }}>
               {group.inviteCode}
             </button>
             <button onClick={() => { setMenuOpen((v) => !v); setArmed(null) }}

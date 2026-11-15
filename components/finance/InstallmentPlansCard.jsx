@@ -47,7 +47,7 @@ export default function InstallmentPlansCard({
     <div className="card p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <h3 className="card-title">
-          <CalendarClock size={14} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+          <CalendarClock size={14} aria-hidden="true" style={{ color: 'var(--accent-blue-text)' }} />
           {t('CUOTAS ACTIVAS', 'ACTIVE INSTALLMENTS')}
         </h3>
         <span className="text-sm font-bold font-mono tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>

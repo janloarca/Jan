@@ -3,6 +3,7 @@
 import { useState, useMemo, Fragment, useCallback } from 'react'
 import { getItemValue, getTypeCategory, formatDate, currencySymbol } from './utils'
 import { parseAmount } from '@/lib/numberParse'
+import { pressable } from '@/lib/pressable'
 
 const PATRIMONIO_CATEGORIES = ['realestate', 'alternatives', 'other']
 
@@ -267,7 +268,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
             <tbody>
               {grouped.map(group => (
                 <Fragment key={group.key}>
-                  <tr className="cursor-pointer hover:bg-theme-tertiary transition-colors" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-tertiary) 70%, transparent)' }} onClick={() => toggleCategory(group.key)}>
+                  <tr className="cursor-pointer hover:bg-theme-tertiary transition-colors" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-tertiary) 70%, transparent)' }} {...pressable(() => toggleCategory(group.key), { role: null, expanded: expanded[group.key] !== false })}>
                     <td className="px-4 py-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }} colSpan={4}>
                       <span className="mr-1.5">{expanded[group.key] === false ? '▸' : '▾'}</span>
                       {group.icon} {group.label}
@@ -327,7 +328,7 @@ export default function PatrimonioSpreadsheet({ items, lang, onEditItem, onUpdat
                             </div>
                           ) : (
                             <span className="font-mono text-sm font-medium cursor-pointer hover:underline" style={{ color: 'var(--text-primary)' }}
-                              onClick={() => startEditValue(item)}>
+                              {...pressable(() => startEditValue(item))}>
                               {money(value)}
                             </span>
                           )}

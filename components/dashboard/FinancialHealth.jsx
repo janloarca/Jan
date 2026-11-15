@@ -210,7 +210,7 @@ export default function FinancialHealth({ items, netWorth, totalAssets, snapshot
               <div key={i} className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {i === 0 && (
-                    <span className="block text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'var(--accent-blue)' }}>
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'var(--accent-blue-text)' }}>
                       {t('Mejor próximo paso', 'Best next step')}
                     </span>
                   )}

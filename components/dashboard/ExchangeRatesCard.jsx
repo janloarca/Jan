@@ -92,7 +92,7 @@ export default function ExchangeRatesCard({
                 </span>
                 {r.isBase && (
                   <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)', color: 'var(--accent-blue)' }}>
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)', color: 'var(--accent-blue-text)' }}>
                     {t('base', 'base')}
                   </span>
                 )}

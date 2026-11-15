@@ -66,7 +66,7 @@ export default function InstallPrompt({ lang }) {
             {isIOS ? (
               <span className="inline-flex flex-wrap items-center gap-1">
                 {t('Toca', 'Tap')}
-                <Share size={12} aria-label={t('Compartir', 'Share')} style={{ color: 'var(--accent-blue)' }} />
+                <Share size={12} aria-label={t('Compartir', 'Share')} style={{ color: 'var(--accent-blue-text)' }} />
                 {t('y luego "Agregar a pantalla de inicio": se abre a pantalla completa.', 'then "Add to Home Screen": it opens full screen.')}
               </span>
             ) : t('Acceso rápido desde tu pantalla de inicio', 'Quick access from your home screen')}

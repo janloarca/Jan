@@ -139,7 +139,7 @@ export default function WeekdayRhythmCard({
     <div className="card p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
         <h3 className="card-title">
-          <CalendarDays size={14} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+          <CalendarDays size={14} aria-hidden="true" style={{ color: 'var(--accent-blue-text)' }} />
           {t('RITMO DE GASTO', 'SPENDING RHYTHM')}
         </h3>
         <SegmentedTabs

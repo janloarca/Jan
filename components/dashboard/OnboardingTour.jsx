@@ -341,7 +341,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
             </button>
             <button onClick={handleDemoNext}
               className="flex-1 px-3 py-2.5 text-xs font-medium transition-colors border-l border-glass-border hover:opacity-80"
-              style={{ color: 'var(--accent-blue)' }}>
+              style={{ color: 'var(--accent-blue-text)' }}>
               {step < demoSteps.length - 1 ? t('Siguiente', 'Next') : t('Terminar', 'Finish')}
             </button>
           </div>
@@ -389,13 +389,13 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
       <div className="modal-glass max-w-md w-full overflow-hidden">
         <div className="p-8 text-center">
           <div className="flex justify-center mb-4">
-            {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} style={{ color: 'var(--accent-blue)' }} /> : null })()}
+            {(() => { const IconComp = ICON_MAP[current.icon]; return IconComp ? <IconComp size={40} style={{ color: 'var(--accent-blue-text)' }} /> : null })()}
           </div>
           <h2 className="text-xl font-bold text-white mb-3">{current.title}</h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-4">{current.body}</p>
           {current.tip && (
             <div className="inline-block px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(37,99,235,0.2)' }}>
-              <p className="text-xs" style={{ color: 'var(--accent-blue)' }}>{current.tip}</p>
+              <p className="text-xs" style={{ color: 'var(--accent-blue-text)' }}>{current.tip}</p>
             </div>
           )}
         </div>
@@ -411,7 +411,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
             )}
             <button onClick={() => { handleFinish(); setTimeout(() => onAction?.('add'), 300) }}
               className="w-full px-4 py-2.5 rounded-lg text-sm font-medium border"
-              style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.35)' }}>
+              style={{ color: 'var(--accent-blue-text)', borderColor: 'rgba(37,99,235,0.35)' }}>
               {t('Agregar mi primer activo', 'Add my first asset')}
             </button>
             <div className="flex items-center justify-between pt-1">
@@ -446,7 +446,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
               {current.action && (
                 <button onClick={() => { handleFinish(); setTimeout(() => onAction?.(current.action), 250) }}
                   className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-glass-border hover:opacity-80"
-                  style={{ color: 'var(--accent-blue)' }}>
+                  style={{ color: 'var(--accent-blue-text)' }}>
                   {current.action === 'add' ? t('Agregar ahora', 'Add now') : t('Ir a ajustes', 'Go to settings')}
                 </button>
               )}
@@ -460,7 +460,7 @@ export default function OnboardingTour({ lang, onAction, onComplete, onSeedDemo,
                 setTimeout(() => onAction?.('add'), 300)
               }}
                 className="flex-1 px-4 py-3.5 text-sm font-medium transition-colors border-l border-glass-border hover:opacity-80"
-                style={{ color: 'var(--accent-blue)' }}>
+                style={{ color: 'var(--accent-blue-text)' }}>
                 {step < classicSteps.length - 1 ? t('Siguiente', 'Next') : t('Empezar', 'Start')}
               </button>
             </div>

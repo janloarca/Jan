@@ -76,7 +76,7 @@ export default function AdvisorSetup({ lang = 'es', flash = () => {} }) {
         </button>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {t('Esta pestaña se muestra porque abriste la app con ?institucional=1. ', 'This tab shows because you opened the app with ?institucional=1. ')}
-          <button type="button" onClick={clearInstitutionalFlag} className="underline" style={{ color: 'var(--accent-blue)' }}>
+          <button type="button" onClick={clearInstitutionalFlag} className="underline" style={{ color: 'var(--accent-blue-text)' }}>
             {t('Ocultarla', 'Hide it')}
           </button>
         </p>

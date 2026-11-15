@@ -74,7 +74,7 @@ export default function CurrencyImpact({ items, convert, baseCurrency, rates, la
       {/* Foreign exposure headline */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-slate-400">{t('Exposición extranjera', 'Foreign exposure')}</span>
-        <span className="text-sm font-bold" style={{ color: 'var(--accent-blue)' }}>{exposure.foreignPct.toFixed(1)}%</span>
+        <span className="text-sm font-bold" style={{ color: 'var(--accent-blue-text)' }}>{exposure.foreignPct.toFixed(1)}%</span>
       </div>
 
       {/* Stacked bar */}

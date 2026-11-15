@@ -70,7 +70,7 @@ export default function PageTour({ pageKey, steps, nextRoute, nextFlag, lang = '
           <p className="text-slate-400 text-sm leading-relaxed">{current.body}</p>
           {current.tip && (
             <div className="mt-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
-              <p className="text-xs" style={{ color: 'var(--accent-blue)' }}>{current.tip}</p>
+              <p className="text-xs" style={{ color: 'var(--accent-blue-text)' }}>{current.tip}</p>
             </div>
           )}
         </div>
@@ -81,7 +81,7 @@ export default function PageTour({ pageKey, steps, nextRoute, nextFlag, lang = '
           </button>
           <button onClick={handleNext}
             className="flex-1 px-3 py-3 text-xs font-medium transition-colors border-l border-glass-border hover:opacity-80"
-            style={{ color: 'var(--accent-blue)' }}>
+            style={{ color: 'var(--accent-blue-text)' }}>
             {step < steps.length - 1 ? t('Siguiente', 'Next') : (nextFlag ? t('Siguiente página', 'Next page') : t('Volver al inicio', 'Back home'))}
           </button>
         </div>

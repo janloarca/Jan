@@ -1086,7 +1086,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               es editable mas abajo y este badge debe seguirlo en vivo. */}
           {form.sector && (
             <div className="flex gap-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{form.sector}</span>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue-text)' }}>{form.sector}</span>
               {form.industry && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-purple) 10%, transparent)', color: 'var(--accent-purple)' }}>{form.industry}</span>}
               {item.exchangeName && <span className="text-xs bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] px-2 py-0.5 rounded">{item.exchangeName}</span>}
             </div>
@@ -1457,7 +1457,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {linkedTransactions.length > 3 && (
                     <button type="button" onClick={() => setShowAllTx(v => !v)}
                       className="w-full text-center text-xs mt-2 pt-2 border-t border-[var(--card-border,#38383A)]/50"
-                      style={{ color: 'var(--accent-blue)' }}>
+                      style={{ color: 'var(--accent-blue-text)' }}>
                       {showAllTx ? t('Ver menos', 'Show less') : t(`Ver todos (${linkedTransactions.length})`, `Show all (${linkedTransactions.length})`)}
                     </button>
                   )}
@@ -1789,7 +1789,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               su cuenta como ítem propio, ver lib/propertyEquity.js. */}
           {isProperty && (
             <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
-              <p className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-blue-text)' }}>
                 🏠 {t('Financiamiento y costos', 'Financing and costs')}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1898,7 +1898,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {' '}
                   <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
                     className="text-xs px-1.5 py-0.5 rounded bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] transition-colors"
-                    style={{ color: 'var(--accent-blue)' }}>
+                    style={{ color: 'var(--accent-blue-text)' }}>
                     {form.managementFeeType === 'fixed' ? '$' : '%'}
                   </button>
                   {' '}
@@ -1944,7 +1944,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                       <button key={m.key} type="button" onClick={() => set('entryFeeMode', m.key)}
                         className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
                         style={form.entryFeeMode === m.key
-                          ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                          ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
                           : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                         {lang === 'es' ? m.es : m.en}
                       </button>
@@ -2035,7 +2035,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                     {t('Tu residencia fiscal', 'Your tax residence')}: {(() => { const o = TAX_JURISDICTION_OPTIONS.find(x => x.key === profileTaxResidence); return o ? t(o.es, o.en) : profileTaxResidence })()}
                     {' · '}
-                    <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
+                    <button type="button" className="underline" style={{ color: 'var(--accent-blue-text)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
                       {t('Usar la de tu perfil', 'Use the one from your profile')}
                     </button>
                   </p>
@@ -2074,7 +2074,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                       ✦ {t('Auto-detectado por tu proveedor de cotizaciones', 'Auto-detected by your quote provider')}
                       {' · '}
-                      <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }}
+                      <button type="button" className="underline" style={{ color: 'var(--accent-blue-text)' }}
                         onClick={() => { const el = document.getElementById('edit-industry'); if (el) el.focus() }}>
                         {t('Corregir', 'Correct')}
                       </button>
@@ -2131,7 +2131,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Reinvertir', 'Reinvest')}
                   </button>
                 </div>
@@ -2175,7 +2175,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   {[{ key: 'fixed', es: 'Fija', en: 'Fixed' }, { key: 'variable', es: 'Variable', en: 'Variable' }, { key: 'continuous', es: 'Continua', en: 'Continuous' }].map(rt => (
                     <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.rateType === rt.key ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       {lang === 'es' ? rt.es : rt.en}
                     </button>
                   ))}
@@ -2186,12 +2186,12 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
               <div className="flex gap-1">
                 <button type="button" onClick={() => set('incomeMode', 'fixed')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('Monto fijo', 'Fixed amount')}
                 </button>
                 <button type="button" onClick={() => set('incomeMode', 'percent')}
                   className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                  style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                   {t('% del saldo', '% of balance')}
                 </button>
               </div>
@@ -2205,7 +2205,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                     {[{ k: 'monthly', es: 'Mensual', en: 'Monthly' }, { k: ACCRUAL_DAILY, es: 'Diario', en: 'Daily' }].map(o => (
                       <button key={o.k} type="button" onClick={() => set('accrual', o.k)}
                         className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                        style={form.accrual === o.k ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                        style={form.accrual === o.k ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                         {lang === 'es' ? o.es : o.en}
                       </button>
                     ))}
@@ -2286,7 +2286,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                         <button key={i} type="button"
                           onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                           className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                          style={active ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                          style={active ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                           {label}
                         </button>
                       )
@@ -2308,7 +2308,7 @@ export default function EditAccountModal({ item, onClose, onSave, onDelete, exis
                   </button>
                   <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                     className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                    style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                     🔄 {t('Se reinvierten', 'They reinvest')}
                   </button>
                 </div>

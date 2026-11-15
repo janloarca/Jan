@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory, liquiditySortScore } from './utils'
+import { pressable } from '@/lib/pressable'
 
 // FASE JU. Esto parseaba con `new Date('2026-01-01')` (que JS lee como
 // medianoche UTC) y después leía el mes con getMonth(), que es LOCAL: al oeste
@@ -61,7 +62,7 @@ function EditableCell({ value, onSave, className, style }) {
     <span
       className={`cursor-pointer rounded px-1 py-0.5 -mx-1 transition-colors ${className}`}
       style={style}
-      onClick={() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) }}
+      {...pressable(() => { setDraft(Math.abs(value).toFixed(2)); setEditing(true) })}
       title="Click to edit"
     >
       {formatCurrency(Math.abs(value))}
@@ -177,7 +178,7 @@ export default function MonthlyBreakdown({ items, snapshots, lang, onUpdateItem,
             return (
               <tbody key={group.name}>
                 <tr className="bg-theme-base/60 cursor-pointer hover:bg-theme-base/80 transition-colors"
-                  onClick={() => toggleGroup(group.name)}>
+                  {...pressable(() => toggleGroup(group.name), { role: null, expanded: !isCollapsed })}>
                   <td className="py-2 pr-2 sticky left-0 bg-theme-base/60 z-10">
                     <div className="flex items-center gap-2">
                       <span className="text-xs w-3" style={{ color: 'var(--text-muted)' }}>{isCollapsed ? '▸' : '▾'}</span>

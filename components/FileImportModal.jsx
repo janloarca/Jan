@@ -30,6 +30,7 @@ import BrokerSteps from '@/components/ui/BrokerSteps'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { closeLabel } from '@/lib/closeLabel'
+import { pressable } from '@/lib/pressable'
 
 // Default institution stamped on imported items when the import was opened for a
 // specific broker (brokerHint) and the file itself has no institution column —
@@ -1244,7 +1245,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
-                onClick={() => !pdfReading && fileRef.current?.click()}
+                {...pressable(() => { if (!pdfReading) fileRef.current?.click() })}
                 className="border-2 border-dashed border-glass-border rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-[#3b82f6]/50 hover:bg-[#3b82f6]/5 transition-colors"
               >
                 {pdfReading ? (
@@ -1287,7 +1288,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
               <div className="mt-4 border rounded-xl overflow-hidden" style={{ borderColor: 'rgba(37,99,235,0.25)', backgroundColor: 'rgba(37,99,235,0.05)' }}>
                 <button onClick={() => setAiOpen(!aiOpen)}
                   className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left"
-                  style={{ color: 'var(--accent-blue)' }}>
+                  style={{ color: 'var(--accent-blue-text)' }}>
                   <span>🤖 {t('¿PDF de más de 3MB, fotos, o prefieres tu propia IA? Prompt manual aquí', 'PDF over 3MB, photos, or prefer your own AI? Manual prompt here')}</span>
                   <span className={`transition-transform text-xs ${aiOpen ? 'rotate-180' : ''}`}>▾</span>
                 </button>
@@ -1358,7 +1359,7 @@ Rules: do not invent any data; if something is missing from my documents leave i
                         This one asks for the value history ALONE, which is exactly
                         what the chart needs to stop estimating the past. */}
                     <div className="pt-3 mt-1 border-t" style={{ borderColor: 'rgba(37,99,235,0.2)' }}>
-                      <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>
+                      <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue-text)' }}>
                         {t('¿Solo tienes una captura del valor de tu cuenta en el tiempo?', 'Only have a screenshot of your account value over time?')}
                       </p>
                       <p className="text-[11px] text-slate-500 leading-relaxed mb-2">
@@ -1402,7 +1403,7 @@ When done, give me the .xlsx file ready to download.`
                           setTimeout(() => setHistCopied(false), 2500)
                         }}
                         className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors border"
-                        style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.4)' }}>
+                        style={{ color: 'var(--accent-blue-text)', borderColor: 'rgba(37,99,235,0.4)' }}>
                         {histCopied ? t('✓ Copiado, pégalo con tu captura', '✓ Copied, paste it with your screenshot') : t('Copiar prompt para historial de valor', 'Copy prompt for value history')}
                       </button>
                     </div>
@@ -1434,7 +1435,7 @@ When done, give me the .xlsx file ready to download.`
           {step === 'map' && (
             <div>
               {pdfNotice && (
-                <div className="mb-3 p-3 rounded-lg text-xs leading-relaxed" style={{ backgroundColor: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.25)', color: 'var(--accent-blue)' }}>
+                <div className="mb-3 p-3 rounded-lg text-xs leading-relaxed" style={{ backgroundColor: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.25)', color: 'var(--accent-blue-text)' }}>
                   {pdfNotice}
                 </div>
               )}
@@ -1443,7 +1444,7 @@ When done, give me the .xlsx file ready to download.`
               </p>
               {detectedBroker && (
                 <div className="px-3 py-2 mb-3 bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)] rounded-lg">
-                  <span className="text-[var(--accent-blue)] text-xs font-medium">
+                  <span className="text-[var(--accent-blue-text)] text-xs font-medium">
                     {t('Formato detectado', 'Format detected')}: {detectedBroker.institution}
                   </span>
                   {detectedBroker.instructions && (
@@ -2149,7 +2150,7 @@ When done, give me the .xlsx file ready to download.`
           {step === 'ibkr-preview' && ibkrData && (
             <div>
               <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)] rounded-lg">
-                <span className="text-[var(--accent-blue)] text-xs font-medium">
+                <span className="text-[var(--accent-blue-text)] text-xs font-medium">
                   {t('Formato detectado: Interactive Brokers', 'Format detected: Interactive Brokers')}
                 </span>
               </div>
@@ -2182,7 +2183,7 @@ When done, give me the .xlsx file ready to download.`
                       const gain = cost > 0 ? ((val - cost) / cost * 100) : 0
                       return (
                         <tr key={i} className="border-b border-glass-border/50 hover:bg-theme-elevated">
-                          <td className="py-1.5 px-1.5 font-medium" style={{ color: 'var(--accent-blue)' }}>{item.symbol}</td>
+                          <td className="py-1.5 px-1.5 font-medium" style={{ color: 'var(--accent-blue-text)' }}>{item.symbol}</td>
                           <td className="py-1.5 px-1.5 text-white max-w-[120px] truncate">{item.name}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">{item.quantity?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                           <td className="py-1.5 px-1.5 text-right text-slate-300">${item.currentPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -2388,13 +2389,13 @@ When done, give me the .xlsx file ready to download.`
                       </p>
                     )}
                     {result.updated > 0 && (
-                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue-text)' }}>
                         {t(`${result.updated} se corrigieron con el monto y los datos finales del banco.`,
                            `${result.updated} were corrected with the bank's final amount and data.`)}
                       </p>
                     )}
                     {result.netted > 0 && (
-                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue-text)' }}>
                         {t(`${result.netted} pago(s) a tu tarjeta quedaron como movimiento entre cuentas propias: ya no cuentan como ingreso ni como gasto.`,
                            `${result.netted} payment(s) to your card are now a transfer between your own accounts: they no longer count as income or expense.`)}
                       </p>
@@ -2403,7 +2404,7 @@ When done, give me the .xlsx file ready to download.`
                         una escritura silenciosa no se distingue de una que
                         falló, y esta además mueve el patrimonio neto. */}
                     {result.debtsWritten > 0 && (
-                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                      <p className="text-xs mt-1" style={{ color: 'var(--accent-blue-text)' }}>
                         {result.debtsWritten === 1
                           ? t('La deuda de esta tarjeta quedó en la Hoja, fechada al corte.',
                                'This card\'s debt is now on the sheet, dated to the cut date.')

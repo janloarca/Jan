@@ -2122,7 +2122,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
           {period === 'DAY' ? (
             <>
               <p>{t('Sin datos intradía: el mercado puede estar cerrado.', 'No intraday data: market may be closed.')}</p>
-              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: 'var(--accent-blue)' }}>
+              <button onClick={() => setPeriod('1W')} className="text-xs" style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Ver última semana', 'View last week')}
               </button>
             </>
@@ -2232,7 +2232,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         <div className="relative -mt-2 mb-3" ref={instPickerRef}>
           <button onClick={() => setShowInstPicker((v) => !v)}
             className="text-xs font-medium underline transition-colors"
-            style={{ color: 'var(--accent-blue)' }}>
+            style={{ color: 'var(--accent-blue-text)' }}>
             {t(`Ver las ${institutions.length} instituciones`, `View all ${institutions.length} institutions`)}
           </button>
           {showInstPicker && (
@@ -2241,7 +2241,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
               <button onClick={() => { setSelectedInst('ALL'); setHoverIdx(null); setShowInstPicker(false) }}
                 className="w-full text-left px-3 py-2 text-xs font-medium transition-colors"
                 style={selectedInst === 'ALL'
-                  ? { color: 'var(--accent-blue)', backgroundColor: 'var(--bg-card-hover)' }
+                  ? { color: 'var(--accent-blue-text)', backgroundColor: 'var(--bg-card-hover)' }
                   : { color: 'var(--text-secondary)' }}>
                 {t('Todas', 'All')}
               </button>
@@ -2250,7 +2250,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
                   onClick={() => { setSelectedInst(inst.key); setHoverIdx(null); setShowInstPicker(false) }}
                   className="w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center justify-between gap-2"
                   style={selectedInst === inst.key
-                    ? { color: 'var(--accent-blue)', backgroundColor: 'var(--bg-card-hover)' }
+                    ? { color: 'var(--accent-blue-text)', backgroundColor: 'var(--bg-card-hover)' }
                     : { color: 'var(--text-secondary)' }}>
                   <span className="truncate">{inst.name}</span>
                   <span className="shrink-0 opacity-70">{formatCompact(inst.value, baseCurrency)}</span>
@@ -2942,7 +2942,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
           </div>
           <div className="flex items-center gap-2 mt-2">
             <button onClick={() => setSnapshotRows(prev => [...prev, { date: '', value: '' }])}
-              className="text-xs" style={{ color: 'var(--accent-blue)' }}>
+              className="text-xs" style={{ color: 'var(--accent-blue-text)' }}>
               + {t('Agregar fila', 'Add row')}
             </button>
             <div className="ml-auto flex gap-2">

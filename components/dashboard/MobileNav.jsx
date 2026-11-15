@@ -24,21 +24,21 @@ export default function MobileNav({ onAdd, addActions = null, onImport, onExport
   return (
     <>
       <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-theme-base\/95 border-t border-glass-border" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 4px)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)' }}>
-        <div className="flex items-center justify-around h-14 px-1">
-          <Link href="/dashboard" aria-label={t('Patrimonio', 'Net Worth')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+        <nav aria-label={t('Navegación principal', 'Main navigation')} className="flex items-center justify-around h-14 px-1">
+          <Link href="/dashboard" aria-current={pathname === '/dashboard' ? 'page' : undefined} aria-label={t('Patrimonio', 'Net Worth')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/dashboard' ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>
             <Home size={20} />
             <span className="text-micro">{t('Patrimonio', 'Net Worth')}</span>
           </Link>
-          <Link href="/finances" aria-label={t('Flujo', 'Flow')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/finances' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+          <Link href="/finances" aria-current={pathname === '/finances' ? 'page' : undefined} aria-label={t('Flujo', 'Flow')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/finances' ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>
             <Calculator size={20} />
             <span className="text-micro">{t('Flujo', 'Flow')}</span>
           </Link>
-          <Link href="/spreadsheet" aria-label={t('Hoja de Cálculo', 'Spreadsheet')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/spreadsheet' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+          <Link href="/spreadsheet" aria-current={pathname === '/spreadsheet' ? 'page' : undefined} aria-label={t('Hoja de Cálculo', 'Spreadsheet')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/spreadsheet' ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>
             <Table size={20} />
             <span className="text-micro">{t('Hoja', 'Sheet')}</span>
           </Link>
           {friendsEnabled !== false && (
-            <Link href="/friends" aria-label={t('Amigos', 'Friends')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/friends' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+            <Link href="/friends" aria-current={pathname === '/friends' ? 'page' : undefined} aria-label={t('Amigos', 'Friends')} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 transition-colors px-0.5 py-2.5 min-h-[44px] justify-center" style={{ color: pathname === '/friends' ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>
               <Users size={20} />
               <span className="text-micro">{t('Amigos', 'Friends')}</span>
             </Link>
@@ -53,7 +53,7 @@ export default function MobileNav({ onAdd, addActions = null, onImport, onExport
             <Menu size={20} />
             <span className="text-micro">{t('Más', 'More')}</span>
           </button>
-        </div>
+        </nav>
       </div>
 
       {addSheet && addOpen && (
@@ -63,7 +63,7 @@ export default function MobileNav({ onAdd, addActions = null, onImport, onExport
             {addActions.map((a) => (
               <button key={a.key} role="menuitem" onClick={() => { setAddOpen(false); a.onClick() }}
                 className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-left rounded-lg hover:bg-theme-elevated transition-colors">
-                <span className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }}>
+                <span className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue-text)' }}>
                   <a.icon size={18} />
                 </span>
                 <span className="min-w-0">
@@ -89,15 +89,15 @@ export default function MobileNav({ onAdd, addActions = null, onImport, onExport
                 <span className="text-body">{t('Buscar', 'Search')}</span>
               </button>
             )}
-            <Link href="/costs" onClick={() => setMoreOpen(false)}
+            <Link href="/costs" aria-current={pathname === '/costs' ? 'page' : undefined} onClick={() => setMoreOpen(false)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors"
-              style={{ color: pathname === '/costs' ? 'var(--accent-blue)' : undefined }}>
+              style={{ color: pathname === '/costs' ? 'var(--accent-blue-text)' : undefined }}>
               <Receipt size={18} className="text-slate-400" />
               <span className="text-body">{t('Costos', 'Costs')}</span>
             </Link>
-            <Link href="/world" onClick={() => setMoreOpen(false)}
+            <Link href="/world" aria-current={pathname === '/world' ? 'page' : undefined} onClick={() => setMoreOpen(false)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-white rounded-lg hover:bg-theme-elevated transition-colors"
-              style={{ color: pathname === '/world' ? 'var(--accent-blue)' : undefined }}>
+              style={{ color: pathname === '/world' ? 'var(--accent-blue-text)' : undefined }}>
               <Building2 size={18} className="text-slate-400" />
               <span className="text-body">{t('Mundo', 'World')}</span>
             </Link>

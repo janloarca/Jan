@@ -38,7 +38,7 @@ const Tile = ({ a }) => (
     className="relative w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-colors hover:bg-theme-elevated min-w-0"
     style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--card-border)' }}>
     <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-      style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>
+      style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue-text)' }}>
       <a.icon size={15} />
     </span>
     <span className="min-w-0 flex-1">
@@ -50,7 +50,7 @@ const Tile = ({ a }) => (
     )}
     {a.badge != null && !a.dot && (
       <span className="text-micro font-semibold px-1.5 py-0.5 rounded shrink-0"
-        style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
+        style={{ color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
         {a.badge}
       </span>
     )}

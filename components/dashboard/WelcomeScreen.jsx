@@ -90,7 +90,7 @@ export default function WelcomeScreen({
         {onConnect && (onQuickAdd || onImport) && <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>·</span>}
         {onQuickAdd && (
           <button type="button" onClick={onQuickAdd} className="px-2 py-1 min-h-[28px] underline underline-offset-2"
-            style={{ color: 'var(--accent-blue)' }}>
+            style={{ color: 'var(--accent-blue-text)' }}>
             {t('Cargar varias de una vez', 'Add several at once')}
           </button>
         )}

@@ -32,7 +32,7 @@ function MenuRow({ it, tour, onSelect }) {
     <button role="menuitem" data-tour={tour}
       onClick={() => onSelect(it)}
       className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated">
-      <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+      <it.icon size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue-text)' }} />
       <span className="min-w-0 flex-1">
         <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>{it.label}</span>
         <span className="block text-micro" style={{ color: 'var(--text-muted)' }}>{it.desc}</span>
@@ -143,6 +143,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                 const active = pathname === item.href || (item.href === '/asesor' && pathname.startsWith('/asesor/'))
                 return (
                   <Link key={item.href} href={item.href}
+                    aria-current={active ? 'page' : undefined}
                     className="px-1.5 md:px-1 lg:px-4 py-1.5 text-body font-medium rounded-lg transition-all whitespace-nowrap shrink-0"
                     style={active
                       ? { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
@@ -194,7 +195,7 @@ export default function Header({ user, lang, setLang, onImport, onSignOut, onRef
                     : (lang === 'es' ? 'Sincronizar IBKR ahora' : 'Sync IBKR now')}
                 className="relative overflow-hidden px-2.5 h-9 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5 disabled:cursor-default"
                 style={ibkrAutoSyncing
-                  ? { color: 'var(--accent-blue)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
+                  ? { color: 'var(--accent-blue-text)', borderColor: 'rgba(79,70,229,0.3)', backgroundColor: 'rgba(79,70,229,0.08)' }
                   : ibkrNeedsAttention
                     // Was a hardcoded light-theme hex triplet with no dark-mode
                     // counterpart — the "needs attention" pill rendered light-theme

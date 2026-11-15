@@ -17,6 +17,7 @@ import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { normalizeIbkrCredentials, ibkrCredentialMessage } from '@/lib/ibkrCredentials'
 import { retryCannotFix, ibkrFixActionLabel, ibkrCooldownRemainingMs, formatCooldown } from '@/lib/ibkrSyncFeedback'
 import { closeLabel } from '@/lib/closeLabel'
+import { pressable } from '@/lib/pressable'
 
 // Real-phase stepper: shows which of the 4 sync phases is running instead of a
 // time-based bar that fills at a fixed rate regardless of IBKR's actual state.
@@ -38,7 +39,7 @@ function SyncStepper({ syncStatus, pollProgress, t }) {
                 backgroundColor: i < activeIdx ? 'var(--accent-green)' : i === activeIdx ? 'var(--accent-blue)' : 'rgba(100,116,139,0.4)',
                 ...(i === activeIdx ? { boxShadow: '0 0 0 3px rgba(37,99,235,0.2)' } : {}),
               }} />
-              <span className="text-[10px]" style={{ color: i === activeIdx ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{p.label}</span>
+              <span className="text-[10px]" style={{ color: i === activeIdx ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>{p.label}</span>
             </div>
             {i < phases.length - 1 && <div className="w-8 h-px mb-4" style={{ backgroundColor: i < activeIdx ? 'var(--accent-green)' : 'rgba(100,116,139,0.3)' }} />}
           </div>
@@ -948,11 +949,11 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
               {!syncing && (
                 <div className="mt-2 flex items-center gap-4">
                   {retryFeedsLockout ? (
-                    <button onClick={() => { setStep('config'); setShowConfig(true) }} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
+                    <button onClick={() => { setStep('config'); setShowConfig(true) }} className="text-xs text-[var(--accent-blue-text)] hover:text-blue-300 transition-colors">
                       {ibkrFixActionLabel(errorCode, lang)} →
                     </button>
                   ) : (
-                    <button onClick={handleSync} className="text-xs text-[var(--accent-blue)] hover:text-blue-300 transition-colors">
+                    <button onClick={handleSync} className="text-xs text-[var(--accent-blue-text)] hover:text-blue-300 transition-colors">
                       {t('Reintentar', 'Retry')} →
                     </button>
                   )}
@@ -1357,7 +1358,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       comisiones. */}
                   <div className="px-3 py-2.5 rounded-lg text-xs leading-relaxed"
                     style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)', color: 'var(--text-secondary)' }}>
-                    <span className="font-semibold" style={{ color: 'var(--accent-blue)' }}>{t('Para el historial de valor: el Flex Query en XML.', 'For the value history: the Flex Query in XML.')}</span>
+                    <span className="font-semibold" style={{ color: 'var(--accent-blue-text)' }}>{t('Para el historial de valor: el Flex Query en XML.', 'For the value history: the Flex Query in XML.')}</span>
                     <span> {t('Es el único que trae el valor diario de tu cuenta, con la sección "Net Asset Value (NAV) in Base". El Activity Statement sirve para lo otro: tus operaciones con fecha, depósitos y comisiones.', 'It is the only one carrying your daily account value, via the "Net Asset Value (NAV) in Base" section. The Activity Statement is for the rest: dated trades, deposits and commissions.')}</span>
                   </div>
 
@@ -1367,7 +1368,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                       <div>
                         <p className="text-xs text-white font-medium">{t('Abrir el Activity Statement', 'Open the Activity Statement')}</p>
                         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          <span className="text-[var(--accent-blue)] font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">Statements</span> → <span className="text-white">Activity</span>
+                          <span className="text-[var(--accent-blue-text)] font-mono">interactivebrokers.com</span> → <span className="text-white">Performance & Reports</span> → <span className="text-white">Statements</span> → <span className="text-white">Activity</span>
                         </p>
                       </div>
                     </div>
@@ -1396,7 +1397,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleFileDrop}
-                    onClick={() => fileInputRef.current?.click()}
+                    {...pressable(() => fileInputRef.current?.click())}
                     className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all"
                     style={dragOver
                       ? { borderColor: 'var(--accent-blue)', backgroundColor: 'var(--alert-info-bg)' }
@@ -1422,7 +1423,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                   </div>
 
                   <div className="bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)] rounded-lg p-3">
-                    <p className="text-xs text-[var(--accent-blue)] opacity-80">
+                    <p className="text-xs text-[var(--accent-blue-text)] opacity-80">
                       {t('Configura el sync automático (pestaña izquierda) para mantener tus datos actualizados sin subir archivos.',
                          'Set up auto sync (left tab) to keep your data updated without uploading files.')}
                     </p>
@@ -1473,7 +1474,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                         }}
                           className="px-3 py-2 rounded-lg text-xs font-mono transition-all border"
                           style={isSelected
-                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'var(--alert-info-bg)', color: 'var(--accent-blue)' }
+                            ? { borderColor: 'var(--accent-blue)', backgroundColor: 'var(--alert-info-bg)', color: 'var(--accent-blue-text)' }
                             : { borderColor: 'var(--card-border)', color: 'var(--text-muted)' }
                           }>
                           {acc} <span className="text-slate-600 ml-1">({count})</span>
@@ -1689,7 +1690,7 @@ export default function IBKRSyncModal({ onClose, onSyncComplete, savedToken, sav
                     {importProgress && importProgress.total > 0 && importProgress.done >= importProgress.total ? (
                       <CheckCircle size={16} className="text-[var(--accent-green)]" />
                     ) : (
-                      <BusyRing size="16px" style={{ color: 'var(--accent-blue)' }} />
+                      <BusyRing size="16px" style={{ color: 'var(--accent-blue-text)' }} />
                     )}
                     <p className="text-sm text-slate-400">
                       {importProgress && importProgress.total > 0

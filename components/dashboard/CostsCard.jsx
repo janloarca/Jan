@@ -43,7 +43,7 @@ export default function CostsCard({ transactions, items, convert, baseCurrency =
       className="card card-interactive p-5 block">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Receipt size={15} style={{ color: 'var(--accent-blue)' }} />
+          <Receipt size={15} style={{ color: 'var(--accent-blue-text)' }} />
           <span className="text-xs uppercase tracking-wider text-slate-500">{t('Costos', 'Costs')} {year}</span>
         </div>
         <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />

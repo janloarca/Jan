@@ -281,7 +281,7 @@ export default function QuickAddRow({
           anotar acá es solo el registro de Flujo, no mueve ninguna cuenta. */}
       <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
         {t('Solo queda en Flujo: no cambia el saldo de tus cuentas. Para mover una cuenta usa ', 'Stays in Flow only: it does not change your account balances. To move an account use ')}
-        <a href="/dashboard" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('«Registrar movimiento» en el tablero', '“Log movement” on the dashboard')}</a>.
+        <a href="/dashboard" className="underline" style={{ color: 'var(--accent-blue-text)' }}>{t('«Registrar movimiento» en el tablero', '“Log movement” on the dashboard')}</a>.
       </p>
     </div>
   )

@@ -80,7 +80,7 @@ function InvitePageInner() {
       {invite && !done && invite.state !== 'ok' && (
         <div className="card p-5 text-sm space-y-3" style={{ color: 'var(--text-secondary)' }}>
           <p>{t(...(STATE_TEXT[invite.state] || STATE_TEXT['not-found']))}</p>
-          <Link href="/dashboard" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Ir a mi patrimonio', 'Go to my net worth')}</Link>
+          <Link href="/dashboard" className="underline" style={{ color: 'var(--accent-blue-text)' }}>{t('Ir a mi patrimonio', 'Go to my net worth')}</Link>
         </div>
       )}
 

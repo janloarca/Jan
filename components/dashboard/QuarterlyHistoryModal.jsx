@@ -431,7 +431,7 @@ export default function QuarterlyHistoryModal({
             <button type="button" disabled={aiReading}
               onClick={() => fileInputRef.current?.click()}
               className="w-full py-2 text-body rounded-lg border disabled:opacity-50 transition-colors hover:bg-theme-elevated"
-              style={{ borderColor: 'var(--card-border)', color: 'var(--accent-blue)' }}>
+              style={{ borderColor: 'var(--card-border)', color: 'var(--accent-blue-text)' }}>
               {aiReading ? t('Leyendo...', 'Reading...') : t('📷 Subir captura del gráfico', '📷 Upload chart screenshot')}
             </button>
             {aiNotice && (
@@ -543,7 +543,7 @@ export default function QuarterlyHistoryModal({
                       style={fromAi ? { ...inputStyle, borderColor: 'var(--accent-blue)' } : inputStyle} />
                     {fromAi && (
                       <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded"
-                        style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}
+                        style={{ color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}
                         title={t('Leído de tu captura: verifica el número.', 'Read from your screenshot: double-check the number.')}>
                         {t('IA', 'AI')}
                       </span>

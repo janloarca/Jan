@@ -59,7 +59,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
 
       <button type="button" onClick={addRow}
         className="w-full px-3 py-2 rounded-lg text-xs font-medium border border-dashed transition-colors"
-        style={{ color: 'var(--accent-blue)', borderColor: 'rgba(37,99,235,0.35)' }}>
+        style={{ color: 'var(--accent-blue-text)', borderColor: 'rgba(37,99,235,0.35)' }}>
         + {t('Agregar aporte', 'Add contribution')}
       </button>
 
@@ -75,7 +75,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
           </p>
           {short && (
             requireExact ? (
-              <button type="button" onClick={fillRemainder} className="underline" style={{ color: 'var(--accent-blue)' }}>
+              <button type="button" onClick={fillRemainder} className="underline" style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Completar en la última fila', 'Fill into the last row')}
               </button>
             ) : (
@@ -83,7 +83,7 @@ export default function TimelineEditor({ rows, onChange, total, currency = 'USD'
                 {t(`La diferencia (${currency} ${fmtNum(remainder)}) se contará como crecimiento de la inversión.`,
                    `The difference (${currency} ${fmtNum(remainder)}) will count as investment growth.`)}
                 {' '}
-                <button type="button" onClick={fillRemainder} className="underline" style={{ color: 'var(--accent-blue)' }}>
+                <button type="button" onClick={fillRemainder} className="underline" style={{ color: 'var(--accent-blue-text)' }}>
                   {t('O complétala en la última fila', 'Or fill it into the last row')}
                 </button>
               </p>

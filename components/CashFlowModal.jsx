@@ -433,7 +433,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
       ]
 
   const chipStyle = (active) => active
-    ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.5)' }
+    ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.5)' }
     : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }
 
   const linkedLabel = isYield
@@ -819,7 +819,7 @@ export default function CashFlowModal({ onClose, onAddTransaction, onTransfer, o
             {!isTransfer && (
               <button type="button" onClick={() => submit(true)} disabled={saving || !amount || parseAmount(amount) <= 0}
                 className="w-full py-2 text-xs underline underline-offset-2 transition-colors disabled:opacity-40"
-                style={{ color: 'var(--accent-blue)' }}>
+                style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Guardar y agregar otro', 'Save and add another')}
               </button>
             )}

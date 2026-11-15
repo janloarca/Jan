@@ -47,7 +47,9 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // FASE SI (B10): sin maximumScale. Bloquear el zoom deja fuera a quien
+  // necesita agrandar la letra (WCAG 1.4.4). El zoom automático de iOS al
+  // enfocar un campo ya lo evita la regla de 16px de globals.css.
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: dark)', color: '#0A0A12' },

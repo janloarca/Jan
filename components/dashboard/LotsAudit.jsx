@@ -34,7 +34,7 @@ export default function LotsAudit({ items, lots, lang, onFixLot }) {
                 {onFixLot && p.lotId && p.lotGap ? (
                   <ConfirmTap
                     onConfirm={() => onFixLot(p.lotId, { quantity: p.quantity, itemId: p.id })}
-                    className="ml-2 underline" style={{ color: 'var(--accent-blue)' }}
+                    className="ml-2 underline" style={{ color: 'var(--accent-blue-text)' }}
                     confirmContent={es ? `¿Fijar lote en ${f(p.quantity)}? Toca otra vez` : `Set lot to ${f(p.quantity)}? Tap again`}
                     confirmStyle={{ color: 'var(--text-negative)' }}
                   >{es ? 'Ajustar lote' : 'Fix lot'}</ConfirmTap>

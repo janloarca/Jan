@@ -38,7 +38,7 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
               activeEntity !== '__all__' ? 'hover:bg-theme-elevated' : ''
             }`}
             style={activeEntity === '__all__'
-              ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' }
+              ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.1)' }
               : { color: 'var(--text-muted)' }
             }
           >
@@ -53,7 +53,7 @@ export default function EntitySwitcher({ entities, activeEntity, onSelect, onAdd
                 activeEntity !== entity.id ? 'hover:bg-theme-elevated' : ''
               }`}
               style={activeEntity === entity.id
-                ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.1)' }
+                ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.1)' }
                 : { color: 'var(--text-muted)' }
               }
             >

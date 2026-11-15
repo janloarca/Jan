@@ -53,7 +53,7 @@ export default function ManageSheet({ onClose, onCategories, onAuto, lang = 'es'
             <button key={key} onClick={action}
               className="w-full flex items-start gap-3 px-3 py-3 text-left rounded-xl hover:bg-theme-elevated transition-colors">
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-blue)' }}>
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-blue-text)' }}>
                 <Icon size={16} aria-hidden="true" />
               </span>
               <span className="flex-1 min-w-0">

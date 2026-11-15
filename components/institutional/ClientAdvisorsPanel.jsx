@@ -95,7 +95,7 @@ function LinkCard({ link, lang, t, onRevoked, flash }) {
         </div>
       )}
       <div>
-        <button type="button" onClick={toggle} aria-expanded={open} className="text-xs underline min-h-[24px]" style={{ color: 'var(--accent-blue)' }}>
+        <button type="button" onClick={toggle} aria-expanded={open} className="text-xs underline min-h-[24px]" style={{ color: 'var(--accent-blue-text)' }}>
           {t('Actividad de tu asesor', "Your advisor's activity")}
         </button>
         {open && (

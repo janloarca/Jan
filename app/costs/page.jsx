@@ -189,7 +189,7 @@ export default function CostsPage() {
               {breakdown.map(({ key, label, value, Icon, hint }) => (
                 <div key={key} className="card p-4">
                   <div className="flex items-center gap-1.5 mb-2">
-                    <Icon size={14} style={{ color: 'var(--accent-blue)' }} />
+                    <Icon size={14} style={{ color: 'var(--accent-blue-text)' }} />
                     <span className="text-xs text-slate-400">{label}</span>
                   </div>
                   <p className="text-lg font-bold text-white">{fmt(value)}</p>

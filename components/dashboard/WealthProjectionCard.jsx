@@ -73,7 +73,7 @@ function PctStepper({ value, onCommit, step, min = 0, max = 100, accent = false,
           aria-label={ariaLabel}
           {...(inputTestId != null ? { 'data-proj-input': inputTestId } : {})}
           className="w-9 bg-transparent font-mono tabular-nums text-center outline-none"
-          style={{ color: accent ? 'var(--accent-blue)' : 'var(--text-primary)' }}
+          style={{ color: accent ? 'var(--accent-blue-text)' : 'var(--text-primary)' }}
           value={shown}
           onChange={(e) => setDraft(e.target.value)}
           onFocus={(e) => { const el = e.target; setTimeout(() => el.select(), 0) }}
@@ -274,7 +274,7 @@ export default function WealthProjectionCard({
                'No income planned for the rest of the year yet. The calendar is built in Flow and this projection reads it.')}
           </p>
           {onOpenFlow && (
-            <button type="button" onClick={onOpenFlow} className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--accent-blue)' }}>
+            <button type="button" onClick={onOpenFlow} className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--accent-blue-text)' }}>
               {t('Armar el plan en Flujo', 'Build the plan in Flow')} <ArrowRight size={12} aria-hidden="true" />
             </button>
           )}
@@ -291,7 +291,7 @@ export default function WealthProjectionCard({
             <ArrowRight size={14} className="mb-1 shrink-0" style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
             <div className="min-w-0">
               <span className="text-[11px] block" style={{ color: 'var(--text-muted)' }}>{t('Diciembre (proyectado)', 'December (projected)')}</span>
-              <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--accent-blue)' }}>{fmt(projection.endValue)}</span>
+              <span className="text-h1 font-mono tabular-nums" style={{ color: 'var(--accent-blue-text)' }}>{fmt(projection.endValue)}</span>
             </div>
           </div>
           <p className="text-[11px] font-mono tabular-nums mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -318,7 +318,7 @@ export default function WealthProjectionCard({
               />
               {returnHint != null ? (
                 <button type="button" onClick={() => savePlan({ ...plan, returnRate: returnHint })}
-                  className="text-[10px] block mt-0.5 hover:underline text-left" style={{ color: 'var(--accent-blue)' }}>
+                  className="text-[10px] block mt-0.5 hover:underline text-left" style={{ color: 'var(--accent-blue-text)' }}>
                   {t(`tu histórico: ${returnHint}% · usar`, `yours so far: ${returnHint}% · use it`)}
                 </button>
               ) : (
@@ -385,7 +385,7 @@ export default function WealthProjectionCard({
             <div data-goal-block className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--card-border)' }}>
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <h4 className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
-                  <Target size={12} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+                  <Target size={12} aria-hidden="true" style={{ color: 'var(--accent-blue-text)' }} />
                   {t(`¿Llegás a ${fmt(goalValue)} en ${targetYear}?`, `Do you reach ${fmt(goalValue)} by ${targetYear}?`)}
                 </h4>
               </div>
@@ -417,7 +417,7 @@ export default function WealthProjectionCard({
                   data-goal-apply
                   onClick={() => applyToAll(String(goalRun.neededPct))}
                   className="text-[11px] font-medium hover:underline mb-2 block"
-                  style={{ color: 'var(--accent-blue)' }}
+                  style={{ color: 'var(--accent-blue-text)' }}
                 >
                   {t(`Poner el ahorro en ${goalRun.neededPct}%`, `Set savings to ${goalRun.neededPct}%`)}
                 </button>
@@ -510,7 +510,7 @@ export default function WealthProjectionCard({
             {t('Los ingresos vienen del plan de Flujo. El mes en curso cuenta completo.',
                'Income comes from the Flow plan. The current month counts as a full month.')}
             {onOpenFlow && (
-              <button type="button" onClick={onOpenFlow} className="font-medium hover:underline" style={{ color: 'var(--accent-blue)' }}>
+              <button type="button" onClick={onOpenFlow} className="font-medium hover:underline" style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Editar en Flujo', 'Edit in Flow')}
               </button>
             )}

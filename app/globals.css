@@ -29,6 +29,12 @@
   --accent-blue: #2563EB;
   --accent-blue-strong: #1D4ED8;
   --accent-blue-soft: #60A5FA;
+  /* FASE SI (B10): el azul de acento como TEXTO. --accent-blue (#2563EB) mide
+     3.2:1 sobre las cards oscuras y 3.9:1 sobre un fondo azul tenue en claro,
+     bajo el piso AA de 4.5 para texto chico. Este token es el que va en
+     `color:`; --accent-blue se queda para fondos, bordes y trazos. Medido con
+     lib/colorMath.js y fijado en lib/__tests__/palette.test.js. */
+  --accent-blue-text: #60A5FA;
   --accent-purple: #BF5AF2;
   --accent-pink: #F472B6;
   --accent-cyan: #64D2FF;
@@ -120,6 +126,7 @@
      puede vivir en el tema oscuro, donde el fondo la permite. Los usos
      decorativos (puntos de 2px) no notan la diferencia. */
   --accent-blue-soft: #2563EB;
+  --accent-blue-text: #1D4ED8;
   --accent-green: #047857;
   --accent-red: #DC2626;
   --text-negative: #DC2626;
@@ -336,7 +343,7 @@ textarea:focus-visible {
    accent competing with the brand indigo (--accent-blue). Collapse every blue
    utility onto the token (theme-aware) so the whole app reads as one brand. The
    light block below already remaps these; these unprefixed rules cover dark. */
-.text-blue-300, .text-blue-400, .text-blue-500, .text-blue-600 { color: var(--accent-blue); }
+.text-blue-300, .text-blue-400, .text-blue-500, .text-blue-600 { color: var(--accent-blue-text); }
 .bg-blue-500, .bg-blue-600 { background-color: var(--accent-blue); }
 /* Estas replican utilidades hover: a mano (Tailwind no puede aplicar /NN a un color
    que es una variable CSS), asi que la bandera `hoverOnlyWhenSupported` del config NO
@@ -415,7 +422,7 @@ textarea:focus-visible {
 [data-theme="light"] .shadow-2xl { box-shadow: var(--shadow-elevated) !important; }
 
 /* Light mode - charts & accent overrides */
-[data-theme="light"] .text-blue-400 { color: var(--accent-blue) !important; }
+[data-theme="light"] .text-blue-400 { color: var(--accent-blue-text) !important; }
 [data-theme="light"] .bg-blue-600 { background-color: var(--accent-blue) !important; }
 [data-theme="light"] .border-blue-400\/30 { border-color: rgba(91, 104, 232, 0.3) !important; }
 [data-theme="light"] .bg-blue-400\/10 { background-color: rgba(91, 104, 232, 0.08) !important; }
@@ -461,9 +468,9 @@ textarea:focus-visible {
 /* Light mode — pale text → darker for readability */
 [data-theme="light"] .text-white\/70 { color: rgba(26, 26, 46, 0.7) !important; }
 [data-theme="light"] .text-blue-200\/70 { color: rgba(91, 104, 232, 0.7) !important; }
-[data-theme="light"] .text-blue-300 { color: var(--accent-blue) !important; }
+[data-theme="light"] .text-blue-300 { color: var(--accent-blue-text) !important; }
 [data-theme="light"] .text-blue-300\/80 { color: rgba(91, 104, 232, 0.85) !important; }
-[data-theme="light"] .text-blue-500 { color: var(--accent-blue) !important; }
+[data-theme="light"] .text-blue-500 { color: var(--accent-blue-text) !important; }
 [data-theme="light"] .text-blue-500\/60 { color: rgba(91, 104, 232, 0.7) !important; }
 [data-theme="light"] .text-blue-600 { color: var(--accent-blue-strong) !important; }
 [data-theme="light"] .text-blue-700 { color: #3B4BC0 !important; }

@@ -107,7 +107,7 @@ export default function InvestedByYearCard({ transactions, items, snapshots, net
                 {r.year}
                 {r.partial && (
                   <span className="ml-1.5 text-[10px] font-semibold px-1 py-0.5 rounded align-middle"
-                    style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
+                    style={{ color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
                     YTD
                   </span>
                 )}

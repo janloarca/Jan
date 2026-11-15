@@ -301,7 +301,7 @@ function LoginForm() {
               {t('Para una mejor experiencia, abre esto en tu navegador:', 'For the best experience, open this in your browser:')}
               <a href={typeof window !== 'undefined' ? window.location.href : '#'}
                 target="_blank" rel="noopener noreferrer"
-                className="block mt-1 underline font-medium" style={{ color: 'var(--accent-blue)' }}>
+                className="block mt-1 underline font-medium" style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Abrir en Safari / Chrome', 'Open in Safari / Chrome')}
               </a>
             </div>
@@ -402,7 +402,7 @@ function LoginForm() {
             {isSignUp ? t('¿Ya tienes cuenta?', 'Already have an account?') : t('¿No tienes cuenta?', "Don't have an account?")}{' '}
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError(''); setShowReset(false); setResetSent(false) }}
-              className="font-medium" style={{ color: 'var(--accent-blue)' }}
+              className="font-medium" style={{ color: 'var(--accent-blue-text)' }}
             >
               {isSignUp ? t('Iniciar sesión', 'Log in') : t('Regístrate', 'Sign up')}
             </button>
@@ -416,7 +416,7 @@ function LoginForm() {
             ("al continuar aceptas..."), que es lo que un aviso legal tiene que
             hacer, y porque también cubre la Política de Privacidad. */}
         <p className="text-center text-xs mt-5" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          {t('Al continuar aceptas los', 'By continuing you accept the')} <a href="/terms" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Términos', 'Terms')}</a> {t('y la', 'and the')} <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Política de Privacidad', 'Privacy Policy')}</a>
+          {t('Al continuar aceptas los', 'By continuing you accept the')} <a href="/terms" className="underline" style={{ color: 'var(--accent-blue-text)' }}>{t('Términos', 'Terms')}</a> {t('y la', 'and the')} <a href="/privacy" className="underline" style={{ color: 'var(--accent-blue-text)' }}>{t('Política de Privacidad', 'Privacy Policy')}</a>
         </p>
         <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
           Powered by Chispu

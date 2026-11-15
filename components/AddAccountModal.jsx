@@ -1119,7 +1119,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all text-center border ${
                       type !== tp.key ? 'bg-[var(--input-bg,#000000)] border-[var(--card-border,#38383A)] text-[var(--text-secondary,#94a3b8)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                     }`}
-                    style={type === tp.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                    style={type === tp.key ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                     <span className="text-lg">{tp.icon}</span>
                     <span className="text-xs font-medium">{lang === 'es' ? tp.es : tp.en}</span>
                   </button>
@@ -1141,7 +1141,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all border ${
                         subtype !== st.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)] hover:border-[var(--text-secondary,#94a3b8)]' : ''
                       }`}
-                      style={subtype === st.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                      style={subtype === st.key ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                       {lang === 'es' ? st.es : st.en}
                     </button>
                   ))}
@@ -1177,7 +1177,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       autoComplete="off" className={inputCls + ' pr-8'} />
                     {(searchLoading || fetchingQuote) && (
                       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        <BusyRing size="14px" style={{ color: 'var(--accent-blue)' }} />
+                        <BusyRing size="14px" style={{ color: 'var(--accent-blue-text)' }} />
                       </div>
                     )}
                   </div>
@@ -1203,9 +1203,9 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                   <div className="flex items-center justify-between bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)] rounded-lg px-3 py-2">
                     <span className="text-sm text-[var(--text-primary,white)]">{form.name}</span>
                     <div className="flex items-center gap-2">
-                      {form.sector && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue)' }}>{form.sector}</span>}
+                      {form.sector && <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)', color: 'var(--accent-blue-text)' }}>{form.sector}</span>}
                       {fetchingQuote ? (
-                        <BusyRing size="12px" style={{ color: 'var(--accent-blue)' }} />
+                        <BusyRing size="12px" style={{ color: 'var(--accent-blue-text)' }} />
                       ) : form.purchasePrice ? (
                         <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>{form.currency} {parseAmount(form.purchasePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       ) : null}
@@ -1749,7 +1749,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 type="date" max={todayLocalISO()} className={inputCls}
                 disabled={valueTimeline === 'multi'} />
               {valueTimeline === 'multi' && (
-                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue-text)' }}>
                   {t('Se toma de la primera fila del historial de aportes.', 'Taken from the first row of the contribution history.')}
                 </p>
               )}
@@ -1839,7 +1839,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                             <button key={i} type="button"
                               onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                               className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                              style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                              style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue-text)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                               {label}
                             </button>
                           )
@@ -1863,7 +1863,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                       className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.dividendAction !== 'reinvest' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                       🔄 {t('Reinvertir', 'Reinvest')}
                     </button>
                   </div>
@@ -1919,7 +1919,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     ].map(rt => (
                       <button key={rt.key} type="button" onClick={() => set('rateType', rt.key)}
                         className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.rateType !== rt.key ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                        style={form.rateType === rt.key ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                        style={form.rateType === rt.key ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                         {lang === 'es' ? rt.es : rt.en}
                       </button>
                     ))}
@@ -1930,12 +1930,12 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                 <div className="flex gap-1">
                   <button type="button" onClick={() => set('incomeMode', 'fixed')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'fixed' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                    style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                    style={form.incomeMode === 'fixed' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                     {t('Monto fijo por pago', 'Fixed amount per payment')}
                   </button>
                   <button type="button" onClick={() => set('incomeMode', 'percent')}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.incomeMode !== 'percent' ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                    style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                    style={form.incomeMode === 'percent' ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                     {t('% anual del saldo', 'Annual % of balance')}
                   </button>
                 </div>
@@ -1949,7 +1949,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                       {[{ k: 'monthly', es: 'Mensual', en: 'Monthly' }, { k: ACCRUAL_DAILY, es: 'Diario', en: 'Daily' }].map(o => (
                         <button key={o.k} type="button" onClick={() => set('accrual', o.k)}
                           className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border ${form.accrual !== o.k ? 'bg-[var(--input-bg,#000000)] text-[var(--text-muted,#475569)] border-[var(--card-border,#38383A)]' : ''}`}
-                          style={form.accrual === o.k ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
+                          style={form.accrual === o.k ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : undefined}>
                           {t(o.es, o.en)}
                         </button>
                       ))}
@@ -2042,7 +2042,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           <button key={i} type="button"
                             onClick={() => set('incomeMonths', active ? form.incomeMonths.filter(x => x !== i) : [...form.incomeMonths, i].sort((a, b) => a - b))}
                             className="px-2 py-1 text-xs font-medium rounded transition-all border"
-                            style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                            style={active ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 25%, transparent)', color: 'var(--accent-blue-text)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                             {label}
                           </button>
                         )
@@ -2069,7 +2069,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                     </button>
                     <button type="button" onClick={() => set('dividendAction', 'reinvest')}
                       className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
-                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
+                      style={form.dividendAction === 'reinvest' ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.4)' } : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                       🔄 {t('Se reinvierten', 'They reinvest')}
                     </button>
                   </div>
@@ -2178,7 +2178,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
             {/* Advanced Options toggle */}
             <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-2 text-sm w-full py-2 mt-1 transition-colors"
-              style={{ color: 'var(--accent-blue)' }}>
+              style={{ color: 'var(--accent-blue-text)' }}>
               <svg className="w-4 h-4 transition-transform" style={{ transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
@@ -2215,7 +2215,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           {t('Mgmt fee', 'Mgmt fee')}
                           {' '}
                           <button type="button" onClick={() => set('managementFeeType', form.managementFeeType === 'fixed' ? 'percent' : 'fixed')}
-                            className="text-xs px-1.5 py-0.5 rounded bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)]" style={{ color: 'var(--accent-blue)' }}>
+                            className="text-xs px-1.5 py-0.5 rounded bg-[var(--input-bg,#000000)] border border-[var(--card-border,#38383A)]" style={{ color: 'var(--accent-blue-text)' }}>
                             {form.managementFeeType === 'fixed' ? '$' : '%'}
                           </button>
                         </label>
@@ -2264,7 +2264,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                               <button key={m.key} type="button" onClick={() => set('entryFeeMode', m.key)}
                                 className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
                                 style={form.entryFeeMode === m.key
-                                  ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                                  ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
                                   : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
                                 {lang === 'es' ? m.es : m.en}
                               </button>
@@ -2322,7 +2322,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                             ✦ {t('Auto-detectado por tu proveedor de cotizaciones', 'Auto-detected by your quote provider')}
                             {' · '}
-                            <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }}
+                            <button type="button" className="underline" style={{ color: 'var(--accent-blue-text)' }}
                               onClick={() => { const el = document.getElementById('add-industry'); if (el) el.focus() }}>
                               {t('Corregir', 'Correct')}
                             </button>
@@ -2376,7 +2376,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                           {t('Tu residencia fiscal', 'Your tax residence')}: {(() => { const o = TAX_JURISDICTION_OPTIONS.find(x => x.key === profileTaxResidence); return o ? t(o.es, o.en) : profileTaxResidence })()}
                           {' · '}
-                          <button type="button" className="underline" style={{ color: 'var(--accent-blue)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
+                          <button type="button" className="underline" style={{ color: 'var(--accent-blue-text)' }} onClick={() => set('taxJurisdiction', profileTaxResidence)}>
                             {t('Usar la de tu perfil', 'Use the one from your profile')}
                           </button>
                         </p>
@@ -2566,7 +2566,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                              `Suggested: ${suggested.toFixed(3)}% (you invested ${form.currency} ${invested.toLocaleString()} against a ${form.currency} ${parseAmount(form.roundValuation).toLocaleString()} valuation).`)}
                           {' '}
                           <button type="button" onClick={() => set('ownershipPct', suggested.toFixed(3))}
-                            className="underline" style={{ color: 'var(--accent-blue)' }}>
+                            className="underline" style={{ color: 'var(--accent-blue-text)' }}>
                             {t('usar', 'use')}
                           </button>
                         </p>
@@ -2677,7 +2677,7 @@ export default function AddAccountModal({ onClose, onAdd, onAddTransaction, onAd
                         }}
                         className="flex-1 px-2 py-2 text-xs font-medium leading-tight rounded-lg border transition-colors"
                         style={valueTimeline === o.key
-                          ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.5)' }
+                          ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.5)' }
                           : { color: 'var(--text-secondary)', borderColor: 'rgba(71,85,105,0.5)' }}>
                         {o.label}
                       </button>

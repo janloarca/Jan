@@ -113,7 +113,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
       <div className="flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-xs"
         style={{ border: '1px solid var(--card-border)', color: 'var(--text-muted)' }}>
         <span>{t(`Descartaste ${dismissedCount} sugerencia${dismissedCount === 1 ? '' : 's'} de datos.`, `You dismissed ${dismissedCount} data suggestion${dismissedCount === 1 ? '' : 's'}.`)}</span>
-        <button onClick={restoreDismissed} className="underline shrink-0" style={{ color: 'var(--accent-blue)' }}>
+        <button onClick={restoreDismissed} className="underline shrink-0" style={{ color: 'var(--accent-blue-text)' }}>
           {t('Restaurar', 'Restore')}
         </button>
       </div>
@@ -190,7 +190,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
               {/* Grounded in real data (a past transaction, the account's own
                   createdAt) — never invented. See lib/dataCompleteness.js. */}
               {f.suggestion && !applied.has(f.id) && (
-                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-blue-text)' }}>
                   💡 {lang === 'es' ? f.suggestion.textEs : f.suggestion.textEn}
                 </p>
               )}
@@ -222,7 +222,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
               {f.action && !applied.has(f.id) && (
                 <button onClick={() => runAction(f)}
                   className="text-xs px-2 py-1 rounded-lg font-medium whitespace-nowrap"
-                  style={{ color: 'var(--accent-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
+                  style={{ color: 'var(--accent-blue-text)', border: '1px solid rgba(37,99,235,0.35)' }}>
                   {actionLabel(f)}
                 </button>
               )}
@@ -258,7 +258,7 @@ export default function ChispuSuggestions({ findings = [], globalScore = 100, la
       <div className="mt-2 flex items-center gap-3 flex-wrap">
         {onCompleteAll && (
           <button onClick={() => onCompleteAll()}
-            className="text-xs underline" style={{ color: 'var(--accent-blue)' }}>
+            className="text-xs underline" style={{ color: 'var(--accent-blue-text)' }}>
             {t(`Completar cuenta por cuenta (${visible.length})`, `Complete account by account (${visible.length})`)}
           </button>
         )}

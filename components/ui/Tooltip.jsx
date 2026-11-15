@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-export default function Tooltip({ text, children }) {
+export default function Tooltip({ text, children, focusable = false, label = null }) {
   const [visible, setVisible] = useState(false)
   const wrapperRef = useRef(null)
   const timeoutRef = useRef(null)
@@ -31,6 +31,31 @@ export default function Tooltip({ text, children }) {
     setVisible((v) => !v)
   }, [])
 
+  // FASE SI (B10): la "i" era invisible para el teclado y para un lector de
+  // pantalla: un span sin tabIndex no recibe foco y su texto solo existía al
+  // pasar el mouse. Con `focusable` el disparador es un botón de verdad: entra
+  // al orden de tabulación, se anuncia con su texto, abre al enfocarlo o con
+  // Enter/Espacio, y Esc lo cierra.
+  const onKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); e.stopPropagation()
+      clearTimeout(timeoutRef.current)
+      setVisible((v) => !v)
+    } else if (e.key === 'Escape' && visible) {
+      e.stopPropagation()
+      setVisible(false)
+    }
+  }, [visible])
+  const keyboardProps = focusable ? {
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': label || (typeof text === 'string' ? text : 'Más información'),
+    'aria-expanded': visible,
+    onKeyDown,
+    onFocus: show,
+    onBlur: () => { clearTimeout(timeoutRef.current); setVisible(false) },
+  } : {}
+
   useEffect(() => {
     if (!visible) return
     const handler = (e) => {
@@ -57,11 +82,13 @@ export default function Tooltip({ text, children }) {
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
       onClick={toggle}
+      {...keyboardProps}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'help' }}
     >
       {children}
       {visible && (
         <span
+          role="tooltip"
           style={{
             position: 'absolute',
             bottom: '100%',
@@ -130,8 +157,8 @@ export function InfoTip({ text }) {
   // mismo espacio de antes (4+16+4-4 = 20 de ancho, 24-8 = 16 de alto), así que
   // el encabezado donde va embebido no se mueve ni un píxel.
   return (
-    <Tooltip text={text}>
-      <span style={{ display: 'inline-flex', padding: '4px', margin: '-4px -4px -4px 0', flexShrink: 0 }}>
+    <Tooltip text={text} focusable>
+      <span aria-hidden="true" style={{ display: 'inline-flex', padding: '4px', margin: '-4px -4px -4px 0', flexShrink: 0 }}>
         <span
           style={{
             display: 'inline-flex',

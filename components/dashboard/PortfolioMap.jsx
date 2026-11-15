@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { formatCurrency, getItemValue, getTypeCategory, TYPE_COLORS, CHART_PALETTE } from './utils'
+import { pressable } from '@/lib/pressable'
 
 function worstRatio(row, rowArea, side) {
   if (side <= 0 || rowArea <= 0) return Infinity
@@ -170,7 +171,8 @@ export default function PortfolioMap({ items, lang }) {
                 key={rect.name}
                 className={`absolute transition-all duration-150 cursor-pointer ${isSel ? 'z-10' : ''}`}
                 style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.w}%`, height: `${rect.h}%`, padding: '1.5px' }}
-                onClick={() => setSelected(isSel ? null : rect.name)}
+                {...pressable(() => setSelected(isSel ? null : rect.name), { label: rect.name })}
+                aria-pressed={isSel}
               >
                 <div
                   className={`w-full h-full rounded-lg p-2 flex flex-col justify-between overflow-hidden transition-all ${

@@ -62,7 +62,7 @@ export default function YearInViewCard({
     <div className="card p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <h3 className="card-title">
-          <CalendarRange size={14} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+          <CalendarRange size={14} aria-hidden="true" style={{ color: 'var(--accent-blue-text)' }} />
           {t('TU AÑO', 'YOUR YEAR')} · {year}
         </h3>
         <span className="flex items-center gap-3 text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>

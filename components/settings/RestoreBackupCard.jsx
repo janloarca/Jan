@@ -46,7 +46,7 @@ export default function RestoreBackupCard({ onRestore, lang = 'es', existing }) 
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 18%, transparent)' }}>
-            <Upload size={16} style={{ color: 'var(--accent-blue)' }} />
+            <Upload size={16} style={{ color: 'var(--accent-blue-text)' }} />
           </span>
           <div className="min-w-0">
             <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{t('Restaurar backup', 'Restore backup')}</div>

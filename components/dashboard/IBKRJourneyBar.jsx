@@ -101,7 +101,7 @@ export default function IBKRJourneyBar({
                   : isCurrent
                     ? { backgroundColor: 'var(--accent-blue)', color: '#ffffff', boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent-blue) 22%, transparent)' }
                     : isPast
-                      ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 18%, transparent)', color: 'var(--accent-blue)' }
+                      ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 18%, transparent)', color: 'var(--accent-blue-text)' }
                       : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
                 {isDone ? <Check size={12} strokeWidth={3} /> : isSkipped ? <Minus size={12} strokeWidth={3} /> : n}
               </button>
