@@ -146,7 +146,7 @@ export default function BrokerProgressPanel({
                     // anillo decía 100% sobre una fila que se leía sin hacer.
                     ? { backgroundColor: 'color-mix(in srgb, var(--accent-green) 16%, transparent)', color: 'var(--accent-green)' }
                     : isNext
-                      ? { backgroundColor: 'var(--bg-card)', color: 'var(--accent-blue)', border: '2px solid var(--accent-blue)' }
+                      ? { backgroundColor: 'var(--bg-card)', color: 'var(--accent-blue-text)', border: '2px solid var(--accent-blue)' }
                       : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
                 {isDone ? <Check size={13} strokeWidth={3} /> : isSkippable ? <Minus size={12} /> : s.step}
               </span>

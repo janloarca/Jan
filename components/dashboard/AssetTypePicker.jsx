@@ -71,7 +71,7 @@ export default function AssetTypePicker({
               {/* La señal que no depende del color. */}
               {on && (
                 <Check size={15} strokeWidth={3} className="shrink-0"
-                  style={{ color: 'var(--accent-blue)' }} aria-hidden="true" />
+                  style={{ color: 'var(--accent-blue-text)' }} aria-hidden="true" />
               )}
             </button>
           )

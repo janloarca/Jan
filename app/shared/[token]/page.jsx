@@ -414,7 +414,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
                         declaradas hacia adelante), y el verde de este repo
                         significa dinero ya cobrado o ganado. */}
                     {showAmounts && income.projectedAnnual > 0 && (
-                      <div className="text-kpi mb-1" style={{ color: 'var(--accent-blue)' }}>{money(income.projectedAnnual)}</div>
+                      <div className="text-kpi mb-1" style={{ color: 'var(--accent-blue-text)' }}>{money(income.projectedAnnual)}</div>
                     )}
                     {income.yieldPct != null && (
                       <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
@@ -464,7 +464,7 @@ function SharedDashboard({ data, lang, t, toggleLang }) {
         )}
 
         <p className="text-center text-micro pt-2" style={{ color: 'var(--text-muted)' }}>
-          {t('Compartido vía', 'Shared via')} <span style={{ color: 'var(--accent-blue)' }}>Chispu</span> · chispu.xyz
+          {t('Compartido vía', 'Shared via')} <span style={{ color: 'var(--accent-blue-text)' }}>Chispu</span> · chispu.xyz
         </p>
       </main>
     </div>
@@ -564,13 +564,13 @@ function Hero({ t, owner, advisor, label, scopeLabel, asOfLabel, kpis, showAmoun
           {asOfLabel && <span>{t('Al', 'As of')} {asOfLabel}</span>}
           {advisor?.phone && (
             <a href={`tel:${advisor.phone.replace(/[^+\d]/g, '')}`} className="inline-flex items-center gap-1 hover:underline"
-              style={{ color: 'var(--accent-blue)' }}>
+              style={{ color: 'var(--accent-blue-text)' }}>
               <Phone size={11} strokeWidth={2} />{advisor.phone}
             </a>
           )}
           {advisor?.email && (
             <a href={`mailto:${advisor.email}`} className="inline-flex items-center gap-1 hover:underline"
-              style={{ color: 'var(--accent-blue)' }}>
+              style={{ color: 'var(--accent-blue-text)' }}>
               <Mail size={11} strokeWidth={2} />{advisor.email}
             </a>
           )}
@@ -712,7 +712,7 @@ function Disclosures({ t, asOfLabel, owner, advisor }) {
           'This summary complements, and does not replace, your official account statement. No minimum return is guaranteed.',
         )}{' '}
         <button onClick={() => setOpen((v) => !v)} className="underline hover:opacity-80"
-          style={{ color: 'var(--accent-blue)' }}>
+          style={{ color: 'var(--accent-blue-text)' }}>
           {open ? t('Ver menos', 'Show less') : t('Avisos importantes', 'Important notices')}
         </button>
       </p>
@@ -761,7 +761,7 @@ function InstrumentSheet({ ins, t, lang, advisor, owner }) {
             {ins.rating?.grade && (
               <span className="text-micro px-1.5 py-0.5 rounded-md border shrink-0"
                 title={ins.rating.agency || undefined}
-                style={{ color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}>
+                style={{ color: 'var(--accent-blue-text)', borderColor: 'var(--accent-blue)' }}>
                 {ins.rating.grade}
               </span>
             )}
@@ -793,7 +793,7 @@ function InstrumentSheet({ ins, t, lang, advisor, owner }) {
             <ul className="space-y-1">
               {ins.highlights.map((h, i) => (
                 <li key={i} className="text-xs flex gap-2" style={{ color: 'var(--text-secondary)' }}>
-                  <span className="shrink-0" style={{ color: 'var(--accent-blue)' }}>•</span>
+                  <span className="shrink-0" style={{ color: 'var(--accent-blue-text)' }}>•</span>
                   <span>{h}</span>
                 </li>
               ))}
@@ -836,7 +836,7 @@ function InstrumentSheet({ ins, t, lang, advisor, owner }) {
               {ins.url && (
                 <a href={ins.url} target="_blank" rel="noopener noreferrer"
                   className="px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5"
-                  style={{ color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}>
+                  style={{ color: 'var(--accent-blue-text)', borderColor: 'var(--accent-blue)' }}>
                   {t('Documento completo', 'Full document')}
                   <ExternalLink size={12} strokeWidth={2} />
                 </a>

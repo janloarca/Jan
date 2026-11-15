@@ -543,14 +543,14 @@ function FriendsPageInner() {
       <button onClick={() => { setCreating((v) => !v); setJoining(false) }}
         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
         style={creating
-          ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+          ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue-text)' }
           : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
         <UserPlus size={14} /> {t('Crear grupo', 'Create group')}
       </button>
       <button onClick={() => { setJoining((v) => !v); setCreating(false) }}
         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors"
         style={joining
-          ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+          ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue-text)' }
           : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
         <KeyRound size={14} /> {t('Unirme con código', 'Join with code')}
       </button>
@@ -663,7 +663,7 @@ function FriendsPageInner() {
                 <button key={o.k} onClick={() => setCreateScope(o.k)}
                   className="px-2.5 py-1.5 text-xs font-medium rounded-lg border"
                   style={createScope === o.k
-                    ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+                    ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue-text)' }
                     : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
                   {o.l}
                 </button>
@@ -710,7 +710,7 @@ function FriendsPageInner() {
           <button key={o.k} onClick={() => setMetric(o.k)}
             className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
             style={metric === o.k
-              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+              ? { borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue-text)' }
               : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }}>
             {o.k === 'mtd' && '🏁 '}{o.l}
           </button>

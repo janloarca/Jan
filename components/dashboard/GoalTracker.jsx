@@ -65,7 +65,7 @@ export default function GoalTracker({ netWorth, totalAssets = null, investableAs
       // color solo tenía que ser legible.
       { key: 'conservative', rate: 5, label: t('Conservador', 'Conservative'), color: 'var(--alert-warn-icon)' },
       { key: 'base', rate: 7, label: t('Base', 'Base'), color: 'var(--accent-green)' },
-      { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: 'var(--accent-blue)' },
+      { key: 'optimistic', rate: 10, label: t('Optimista', 'Optimistic'), color: 'var(--accent-blue-text)' },
     ]
     return rates.map((s) => ({
       ...s,

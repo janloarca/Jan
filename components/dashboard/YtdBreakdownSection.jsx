@@ -77,7 +77,7 @@ function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, 
               <div key={a.name} className="pt-2" style={{ borderTop: '1px solid var(--glass-border)' }}>
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-[11px] leading-tight min-w-0" style={{ color: 'var(--text-secondary)' }}>
-                    {a.name}{a.real ? <span style={{ color: 'var(--accent-blue)' }}>*</span> : ''}
+                    {a.name}{a.real ? <span style={{ color: 'var(--accent-blue-text)' }}>*</span> : ''}
                     {START_SRC_LABEL[a.src] && (
                       <span className="ml-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
                         ({START_SRC_LABEL[a.src][L]}{a.srcDate ? ` · ${formatDate(`${a.srcDate}T00:00:00Z`)}` : ''})
@@ -129,7 +129,7 @@ function AccountTermsTable({ accounts, anchor, anchorTs, anchorSrc, measuredTs, 
       )}
       {accounts.some((a) => a.real) && (
         <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-          <span style={{ color: 'var(--accent-blue)' }}>*</span>{' '}
+          <span style={{ color: 'var(--accent-blue-text)' }}>*</span>{' '}
           {lang === 'es' ? 'arranque real del broker: nunca se ajusta.' : 'real broker year-start: never adjusted.'}
         </p>
       )}
@@ -156,7 +156,7 @@ export function YtdBreakdownToggle({ open, onToggle, lang }) {
       // Área de toque cómoda (>= 32px de alto con el padding) sin que el
       // botón pese más que la cifra: texto pequeño, sin relleno de color.
       className="inline-flex items-center gap-1 -ml-1.5 px-1.5 py-1.5 min-h-[32px] rounded-md text-xs font-medium"
-      style={{ color: 'var(--accent-blue)' }}
+      style={{ color: 'var(--accent-blue-text)' }}
     >
       <span>{open
         ? (lang === 'es' ? 'Ocultar desglose' : 'Hide breakdown')

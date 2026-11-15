@@ -18,7 +18,7 @@ export default function TermsPage() {
     <div className="min-h-screen bg-theme-base py-12 px-6">
       <div className="max-w-2xl mx-auto">
         <div className="mb-10">
-          <a href="/login" className="inline-flex items-center gap-2 mb-6 text-sm" style={{ color: 'var(--accent-blue)' }}>
+          <a href="/login" className="inline-flex items-center gap-2 mb-6 text-sm" style={{ color: 'var(--accent-blue-text)' }}>
             ← Back
           </a>
           <div className="flex mb-2">
@@ -148,12 +148,12 @@ export default function TermsPage() {
 
         <Section title="14. Contact">
           <p>
-            Questions about these terms: <a href="mailto:jan@chispu.xyz" style={{ color: 'var(--accent-blue)' }}>jan@chispu.xyz</a>
+            Questions about these terms: <a href="mailto:jan@chispu.xyz" style={{ color: 'var(--accent-blue-text)' }}>jan@chispu.xyz</a>
           </p>
         </Section>
 
         <p className="text-xs pt-6 border-t border-glass-border" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
-          See also our <a href="/privacy" style={{ color: 'var(--accent-blue)' }}>Privacy Policy</a>.
+          See also our <a href="/privacy" style={{ color: 'var(--accent-blue-text)' }}>Privacy Policy</a>.
         </p>
       </div>
     </div>

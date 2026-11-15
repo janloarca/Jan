@@ -374,7 +374,7 @@ export default function SpreadsheetPage() {
                 // de la app que no sale del token de marca.
                 className="px-3 py-1.5 text-caption min-h-[28px] rounded border transition-colors"
                 style={{
-                  color: 'var(--accent-blue)',
+                  color: 'var(--accent-blue-text)',
                   backgroundColor: 'color-mix(in srgb, var(--accent-blue) 10%, transparent)',
                   borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)',
                 }}

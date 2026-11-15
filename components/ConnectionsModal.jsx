@@ -551,7 +551,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                     depender de eso). */}
                 {ibkrLinked && !ibkrStarted && onOpenBrokerChecklist && (
                   <button onClick={() => { onClose(); setTimeout(() => onOpenBrokerChecklist('ibkr'), 50) }}
-                    className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+                    className="text-xs mt-2 pl-9 hover:underline transition-colors" style={{ color: 'var(--accent-blue-text)' }}>
                     {t('Completar historial', 'Complete history')}
                   </button>
                 )}
@@ -617,7 +617,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                       <p className="text-xs text-slate-600">Blockchain.com, Ledger, MetaMask</p>
                     </div>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onOpenBlockchain) onOpenBlockchain() }, 50) }}
-                      className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                      className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                       {t('Conectar', 'Connect')}
                     </button>
                   </div>
@@ -630,7 +630,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                       <p className="text-xs text-slate-600">Ledger, Trezor, Coldcard (watch-only)</p>
                     </div>
                     <button onClick={() => { onClose(); setTimeout(() => { if (onOpenLedger) onOpenLedger() }, 50) }}
-                      className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                      className="px-2.5 py-1 border text-xs font-medium rounded-md hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                       {t('Conectar', 'Connect')}
                     </button>
                   </div>
@@ -651,7 +651,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => { onClose(); setTimeout(() => { if (onAddAccount) onAddAccount() }, 50) }}
-                    className="flex-1 px-3 py-2 border text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                    className="flex-1 px-3 py-2 border text-xs font-medium rounded-lg hover:bg-blue-500/10 transition-colors" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                     {t('Agregar', 'Add')}
                   </button>
                   <button onClick={() => { onClose(); setTimeout(() => { if (onImport) onImport() }, 50) }}
@@ -695,7 +695,7 @@ export default function ConnectionsModal({ onClose, onSyncBroker, onOpenIBKR, on
                   <span className="text-sm text-white font-medium block">{t('¿Tu retorno no cuadra con tu broker?', "Your return doesn't match your broker?")}</span>
                   <span className="text-xs text-slate-500">{t('Escribe el % que ves ahí y lo calibramos', 'Type the % you see there and we calibrate it')}</span>
                 </span>
-                <span className="text-xs shrink-0" style={{ color: 'var(--accent-blue)' }}>{t('Calibrar', 'Calibrate')}</span>
+                <span className="text-xs shrink-0" style={{ color: 'var(--accent-blue-text)' }}>{t('Calibrar', 'Calibrate')}</span>
               </button>
             )}
           </div>

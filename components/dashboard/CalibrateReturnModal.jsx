@@ -439,7 +439,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
                 <button key={a.key} type="button" onClick={() => setSelected(a.key)}
                   className={accountBtnCls(selKey === a.key)}
                   style={selKey === a.key
-                    ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.5)' }
+                    ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.5)' }
                     : { color: 'var(--text-secondary)' }}>
                   {a.name}
                 </button>
@@ -447,7 +447,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
               <button type="button" onClick={() => setSelected('global')}
                 className={accountBtnCls(isGlobal)}
                 style={isGlobal
-                  ? { color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.5)' }
+                  ? { color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.5)' }
                   : { color: 'var(--text-secondary)' }}>
                 {t('Todo el portafolio', 'Whole portfolio')}
               </button>
@@ -495,7 +495,7 @@ export default function CalibrateReturnModal({ onClose, onSaved, preferredAccoun
             </button>
             <button type="button" disabled={saving} onClick={save}
               className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg border-2 transition-all disabled:opacity-50"
-              style={{ color: 'var(--accent-blue)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.5)' }}>
+              style={{ color: 'var(--accent-blue-text)', backgroundColor: 'rgba(37,99,235,0.2)', borderColor: 'rgba(37,99,235,0.5)' }}>
               {saving ? t('Guardando...', 'Saving...') : t('Guardar calibración', 'Save calibration')}
             </button>
           </div>

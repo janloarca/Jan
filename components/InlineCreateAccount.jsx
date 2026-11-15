@@ -95,7 +95,7 @@ export default function InlineCreateAccount({ onCreate, onCancel, onCreated, lan
             <button key={s.key} type="button" onClick={() => setSubtype(s.key)}
               className="flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all border"
               style={subtype === s.key
-                ? { color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
+                ? { color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' }
                 : { backgroundColor: 'var(--input-bg,#000000)', color: 'var(--text-muted,#475569)', borderColor: 'var(--card-border,#38383A)' }}>
               {lang === 'es' ? s.es : s.en}
             </button>

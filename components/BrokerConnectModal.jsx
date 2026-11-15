@@ -91,7 +91,7 @@ export default function BrokerConnectModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <div className="flex items-center gap-2 mb-1">
-            {Icon && <Icon size={16} style={{ color: 'var(--accent-blue)' }} />}
+            {Icon && <Icon size={16} style={{ color: 'var(--accent-blue-text)' }} />}
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{step.title}</h3>
           </div>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{step.blurb}</p>
@@ -134,7 +134,7 @@ export default function BrokerConnectModal({
 
           {step.key === 'api' && step.available && (
             <div className="space-y-3">
-              <p className="text-xs px-2.5 py-1.5 rounded-lg flex items-start gap-1.5" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--accent-blue)' }}>
+              <p className="text-xs px-2.5 py-1.5 rounded-lg flex items-start gap-1.5" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--accent-blue-text)' }}>
                 <Lock size={12} className="shrink-0 mt-0.5" />
                 {connectorExplainer(broker, t)}
               </p>

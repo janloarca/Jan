@@ -233,7 +233,7 @@ export default function LiquidYieldModal({
                     )}
 
                     <button type="button" onClick={() => setOpenId(openId === c.id ? null : c.id)}
-                      className="text-xs mb-2" style={{ color: 'var(--accent-blue)' }}>
+                      className="text-xs mb-2" style={{ color: 'var(--accent-blue-text)' }}>
                       {openId === c.id ? t('Ocultar el detalle', 'Hide the detail') : t('Ver el detalle', 'See the detail')}
                     </button>
 

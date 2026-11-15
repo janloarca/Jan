@@ -27,7 +27,7 @@ export function PageTitle({ icon: Icon, title, subtitle, actions }) {
     <div className="flex items-start justify-between gap-3 flex-wrap">
       <div className="min-w-0">
         <h1 className="text-h1 font-bold text-white flex items-center gap-2">
-          {Icon && <Icon size={18} style={{ color: 'var(--accent-blue)' }} />}
+          {Icon && <Icon size={18} style={{ color: 'var(--accent-blue-text)' }} />}
           {title}
         </h1>
         {subtitle && <p className="text-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}

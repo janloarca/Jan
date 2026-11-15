@@ -480,7 +480,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
       <div className="grid grid-cols-1 gap-3 mb-4">
         <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }}>
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Mensual est.', 'Monthly est.')}</span>
-          <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(estAnnual / 12)}</span>
+          <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue-text)' }}>{formatCurrency(estAnnual / 12)}</span>
         </div>
       </div>
 
@@ -491,11 +491,11 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }}>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t(`Resto de ${now.getFullYear()} (proyectado)`, `Rest of ${now.getFullYear()} (projected)`)}</span>
-            <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(projected.restOfYearTotal)}</span>
+            <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue-text)' }}>{formatCurrency(projected.restOfYearTotal)}</span>
           </div>
           <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--card-border)' }}>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Próximos 12 meses (proyectado)', 'Next 12 months (projected)')}</span>
-            <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(projected.next12Total)}</span>
+            <span className="text-sm font-semibold block" style={{ color: 'var(--accent-blue-text)' }}>{formatCurrency(projected.next12Total)}</span>
           </div>
           {/* FASE RQ: tres cifras que se leen como contradictorias si no se
               dice qué ventana mide cada una. */}
@@ -523,7 +523,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
               <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-theme-base/60">
                 <span className="text-slate-400 font-medium flex-1 min-w-0 truncate" title={u.label}>{u.label}</span>
                 <span className="text-slate-500 shrink-0">{monthName(u.month)} {u.day}</span>
-                <span className="font-medium font-mono tabular-nums shrink-0" style={{ color: 'var(--accent-blue)' }}>{formatCurrency(u.amount)}</span>
+                <span className="font-medium font-mono tabular-nums shrink-0" style={{ color: 'var(--accent-blue-text)' }}>{formatCurrency(u.amount)}</span>
               </div>
             ))}
           </div>
@@ -579,7 +579,7 @@ export default function DividendIncome({ transactions, items, convert, baseCurre
                     outline: current ? '2px solid var(--accent-blue)' : 'none', outlineOffset: '-2px',
                   }}>
                   <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{monthName(b.month)}{yearSuffix}</span>
-                  <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+                  <span className="text-xs font-semibold" style={{ color: paid ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>
                     {paid ? formatCurrency(b.value) : '-'}
                   </span>
                 </button>

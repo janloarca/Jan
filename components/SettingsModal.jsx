@@ -68,10 +68,10 @@ function ToggleCard({ active, onClick, icon: Icon, title, description }) {
       type="button" role="switch" aria-checked={active} onClick={onClick}
       className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all text-left"
       style={active
-        ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
+        ? { color: 'var(--accent-blue-text)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }
         : { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-input)' }}>
       <div className="flex items-start gap-2.5 min-w-0">
-        {Icon && <Icon size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: active ? 'var(--accent-blue)' : 'var(--text-muted)' }} />}
+        {Icon && <Icon size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: active ? 'var(--accent-blue-text)' : 'var(--text-muted)' }} />}
         <div className="min-w-0">
           <div className="text-sm font-medium" style={active ? undefined : { color: 'var(--text-primary)' }}>{title}</div>
           <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{description}</div>
@@ -552,7 +552,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
         <div className="flex items-center justify-between px-5 py-4 border-b border-glass-border">
           <h2 id="settings-modal-title" className="text-base font-bold text-white flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 14%, transparent)' }}>
-              <Settings size={16} style={{ color: 'var(--accent-blue)' }} />
+              <Settings size={16} style={{ color: 'var(--accent-blue-text)' }} />
             </span>
             {t('Configuración', 'Settings')}
           </h2>
@@ -581,7 +581,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 <button key={tb.key} onClick={() => { setTab(tb.key); setConfirmDelete(null) }}
                   className={`flex-1 ${tabs.length > 4 ? 'min-w-0 px-1 sm:px-2' : 'min-w-0 px-2'} flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all`}
                   style={active
-                    ? { backgroundColor: 'var(--bg-card-hover)', color: 'var(--accent-blue)', boxShadow: 'var(--shadow-card)' }
+                    ? { backgroundColor: 'var(--bg-card-hover)', color: 'var(--accent-blue-text)', boxShadow: 'var(--shadow-card)' }
                     : { color: 'var(--text-secondary)' }}>
                   <Icon size={13} strokeWidth={2.25} className="shrink-0" />
                   {tb.label}
@@ -680,7 +680,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                       </p>
                       <button type="button" onClick={handleSaveName} disabled={!nameDirty || savingName}
                         className="px-4 py-2.5 text-sm font-medium rounded-lg transition-colors shrink-0 border disabled:opacity-40 disabled:cursor-default"
-                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                         <BusyLabel busy={savingName} lang={lang}>{t('Guardar', 'Save')}</BusyLabel>
                       </button>
                     </div>
@@ -693,7 +693,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                 <div className="flex items-center justify-between gap-3 p-3.5 bg-theme-base border border-glass-border rounded-xl">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
-                      <Link2 size={16} style={{ color: 'var(--accent-blue)' }} />
+                      <Link2 size={16} style={{ color: 'var(--accent-blue-text)' }} />
                     </span>
                     <div className="min-w-0">
                       <div className="text-sm text-white font-medium">{t('Conexiones y Sync', 'Connections & Sync')}</div>
@@ -701,7 +701,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                     </div>
                   </div>
                   <button onClick={() => { onClose(); setTimeout(() => onOpenConnections(), 50) }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 border hover:bg-blue-500/10" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 border hover:bg-blue-500/10" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                     {t('Abrir', 'Open')}
                   </button>
                 </div>
@@ -723,7 +723,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                             ? 'border'
                             : 'bg-theme-card border border-glass-border text-slate-300 hover:border-slate-500'
                         }`}
-                        style={theme === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                        style={theme === opt.key ? { color: 'var(--accent-blue-text)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                         <span className="text-base">{opt.icon}</span>
                         <span className="text-xs font-medium">{opt.label}</span>
                       </button>
@@ -745,7 +745,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all ${
                             lang === opt.key ? 'border' : 'bg-theme-card border border-glass-border text-slate-300 hover:border-slate-500'
                           }`}
-                          style={lang === opt.key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                          style={lang === opt.key ? { color: 'var(--accent-blue-text)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                           <span className="text-xs font-medium">{opt.label}</span>
                         </button>
                       ))}
@@ -879,7 +879,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                         catch (e) { flash('err', e.message || t('Error al guardar', 'Error saving')) }
                       }}
                       className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-                      style={{ color: 'var(--accent-blue)', borderColor: 'var(--card-border)' }}>
+                      style={{ color: 'var(--accent-blue-text)', borderColor: 'var(--card-border)' }}>
                       {t('Restaurar', 'Restore')}
                     </button>
                   </div>
@@ -1006,7 +1006,7 @@ export default function SettingsModal({ onClose, settings, onSaveSettings, onDel
                           <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                             {t('Opcional: los correos llegan por un camino más lento porque falta un índice de Firestore. ', 'Optional: emails go through a slower path because a Firestore index is missing. ')}
                             {m ? (
-                              <a href={m[0]} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--accent-blue)' }}>
+                              <a href={m[0]} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--accent-blue-text)' }}>
                                 {t('Crear el índice', 'Create the index')}
                               </a>
                             ) : t('Firebase no devolvió el enlace esta vez.', 'Firebase did not return the link this time.')}

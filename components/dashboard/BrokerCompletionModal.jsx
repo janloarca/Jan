@@ -165,7 +165,7 @@ export default function BrokerCompletionModal({
             <button type="button" onClick={() => { onClose(); onReviewInferredFlows() }}
               className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors hover:bg-theme-elevated"
               style={{ border: '1px solid var(--card-border)' }}>
-              <Sparkles size={16} className="shrink-0" style={{ color: 'var(--accent-blue)' }} />
+              <Sparkles size={16} className="shrink-0" style={{ color: 'var(--accent-blue-text)' }} />
               <span className="min-w-0 flex-1">
                 <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
                   {t('Buscar depósitos o retiros que faltan', 'Look for missing deposits or withdrawals')}

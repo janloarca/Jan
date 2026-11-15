@@ -114,7 +114,7 @@ export default function InferredFlowsModal({
                   </span>
                   {c.source === 'photo' && (
                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium"
-                      style={{ color: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}>
+                      style={{ color: 'var(--accent-blue-text)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' }}>
                       {c.amountFromPhoto
                         ? t('monto leído de la barra de Cash Flows', 'amount read off the Cash Flows bar')
                         : t('de tu captura', 'from your screenshot')}

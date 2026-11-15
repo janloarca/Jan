@@ -259,7 +259,7 @@ export default function IncomePlanCalendar({
                               : t('Toca para editar, arrastra para mover de mes.', 'Tap to edit, drag to move months.')}
                           >
                             <span className="flex items-center gap-1 font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                              {chip.repeat === REPEAT_MONTHLY && <Repeat size={9} style={{ color: 'var(--accent-blue)' }} aria-hidden="true" />}
+                              {chip.repeat === REPEAT_MONTHLY && <Repeat size={9} style={{ color: 'var(--accent-blue-text)' }} aria-hidden="true" />}
                               <span className="truncate">{chip.label || t('Ingreso', 'Income')}</span>
                             </span>
                             <span className="block font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>
@@ -273,7 +273,7 @@ export default function IncomePlanCalendar({
                       type="button"
                       onClick={() => openNew(i)}
                       className="mt-auto pt-1 flex items-center gap-1 text-[10px] hover:underline self-start"
-                      style={{ color: 'var(--accent-blue)' }}
+                      style={{ color: 'var(--accent-blue-text)' }}
                       aria-label={t(`Agregar ingreso a ${monthsLong[i]}`, `Add income to ${monthsLong[i]}`)}
                     >
                       <Plus size={10} aria-hidden="true" /> {t('Agregar', 'Add')}

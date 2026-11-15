@@ -103,7 +103,7 @@ export default function SubIndustryField({
                 onMouseDown={e => e.preventDefault()}
                 onClick={() => pick(industry, 'custom', typed)}
                 className="w-full text-left px-3 py-2 text-sm"
-                style={{ color: 'var(--accent-blue)' }}
+                style={{ color: 'var(--accent-blue-text)' }}
               >
                 {t(`Usar "${typed}"`, `Use "${typed}"`)}
               </button>

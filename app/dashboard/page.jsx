@@ -1625,7 +1625,7 @@ export default function DashboardPage() {
                 : (lang === 'es' ? 'Sin datos aún' : 'No data yet')}
           </span>
           {dataAge != null && dataAge >= 14 && (
-            <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue)' }}>
+            <button onClick={handleRefresh} className="text-micro underline transition-colors" style={{ color: 'var(--accent-blue-text)' }}>
               {lang === 'es' ? 'Actualizar' : 'Refresh'}
             </button>
           )}

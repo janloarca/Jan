@@ -130,7 +130,7 @@ export default function EntityManager({ entities, onAdd, onUpdate, onDelete, ite
                   newType !== et.key ? 'hover:text-white' : ''
                 }`}
                 style={newType === et.key
-                  ? { borderColor: 'rgba(37,99,235,0.5)', backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue)' }
+                  ? { borderColor: 'rgba(37,99,235,0.5)', backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--accent-blue-text)' }
                   : { borderColor: 'var(--card-border)', color: 'var(--text-secondary)' }
                 }>
                 {et.icon} {lang === 'es' ? et.es : et.en}

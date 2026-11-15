@@ -90,7 +90,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
         {step === 'config' && (
           <div className="p-6 space-y-4">
             <div className="border rounded-lg p-3" style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)' }}>
-              <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue)' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent-blue-text)' }}>{t('Cómo obtener tu API key:', 'How to get your API key:')}</p>
               <ol className="text-xs space-y-0.5 list-decimal list-inside" style={{ color: 'var(--text-secondary)' }}>
                 <li>{t('Ve a Blockchain.com Exchange', 'Go to Blockchain.com Exchange')}</li>
                 <li>{t('Settings → API Management', 'Settings → API Management')}</li>
@@ -157,7 +157,7 @@ export default function BlockchainSyncModal({ onClose, onSyncComplete, onSaveCre
               <div className="flex gap-2">
                 <button onClick={() => setSyncMode('merge')}
                   className="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors border"
-                  style={syncMode === 'merge' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
+                  style={syncMode === 'merge' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue-text)', borderColor: 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' } : { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>
                   {t('Fusionar', 'Merge')}
                   <span className="block text-xs mt-0.5 opacity-60">{t('Actualiza existentes, agrega nuevos', 'Update existing, add new')}</span>
                 </button>

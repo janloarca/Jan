@@ -180,7 +180,7 @@ export default function ShareTab({
             <input type="checkbox" checked={selected.includes(ins.id)} onChange={() => onToggle(ins.id)}
               disabled={!selected.includes(ins.id) && selected.length >= 6} />
             <span className="text-xs text-white truncate">{ins.name}</span>
-            {ins.rating?.grade && <span className="text-micro shrink-0" style={{ color: 'var(--accent-blue)' }}>{ins.rating.grade}</span>}
+            {ins.rating?.grade && <span className="text-micro shrink-0" style={{ color: 'var(--accent-blue-text)' }}>{ins.rating.grade}</span>}
           </label>
         ))}
       </div>
@@ -230,7 +230,7 @@ export default function ShareTab({
     <div className="space-y-4">
       <div className="flex items-start gap-2.5">
         <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)' }}>
-          <Link2 size={15} style={{ color: 'var(--accent-blue)' }} />
+          <Link2 size={15} style={{ color: 'var(--accent-blue-text)' }} />
         </span>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white">{t('Links de solo lectura', 'Read-only links')}</h3>

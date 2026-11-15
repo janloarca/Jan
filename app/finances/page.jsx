@@ -508,7 +508,7 @@ export default function FinancesPage() {
             </button>
             <button onClick={() => setModal('auto')}
               className={`hidden sm:inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
-              <Zap size={12} style={{ color: 'var(--accent-blue)' }} /> {t('Automático', 'Automatic')}
+              <Zap size={12} style={{ color: 'var(--accent-blue-text)' }} /> {t('Automático', 'Automatic')}
             </button>
             <button onClick={() => setModal('categories')}
               className={`hidden sm:inline-flex items-center gap-1 ${SECONDARY_BTN}`} style={SECONDARY_STYLE}>
@@ -776,7 +776,7 @@ export default function FinancesPage() {
               <button onClick={() => setModal('auto')}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg border hover:bg-theme-elevated transition-colors text-sm"
                 style={SECONDARY_STYLE}>
-                <Zap size={14} style={{ color: 'var(--accent-blue)' }} /> {t('Configurar Automático', 'Set Up Automatic')}
+                <Zap size={14} style={{ color: 'var(--accent-blue-text)' }} /> {t('Configurar Automático', 'Set Up Automatic')}
               </button>
             </div>
           </div>

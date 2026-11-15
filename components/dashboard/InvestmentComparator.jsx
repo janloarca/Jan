@@ -149,7 +149,7 @@ export default function InvestmentComparator({
           )} />
         </h3>
         {scenarios.length < MAX_SCENARIOS && (
-          <button type="button" onClick={addScenario} className="flex items-center gap-1 text-xs font-medium shrink-0" style={{ color: 'var(--accent-blue)' }}>
+          <button type="button" onClick={addScenario} className="flex items-center gap-1 text-xs font-medium shrink-0" style={{ color: 'var(--accent-blue-text)' }}>
             <Plus size={12} aria-hidden="true" /> {t('Agregar', 'Add')}
           </button>
         )}

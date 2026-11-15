@@ -77,7 +77,7 @@ export default function IncomeMonthModal({ detail, onClose, lang = 'es', baseCur
 
         <div className="rounded-lg p-3 border mb-3" style={{ backgroundColor: kind === 'coming' ? 'var(--alert-info-bg)' : 'var(--bg-tertiary)', borderColor: 'var(--card-border)' }}>
           <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Total', 'Total')}</span>
-          <span className="text-h2 font-mono tabular-nums" style={{ color: kind === 'coming' ? 'var(--accent-blue)' : 'var(--accent-green)' }}>
+          <span className="text-h2 font-mono tabular-nums" style={{ color: kind === 'coming' ? 'var(--accent-blue-text)' : 'var(--accent-green)' }}>
             {formatCurrency(total, baseCurrency)}
           </span>
         </div>

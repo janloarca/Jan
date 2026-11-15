@@ -94,7 +94,7 @@ export default function EnrichModal({
             <button type="button" onClick={() => setMode('pick')}
               className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
               style={{ border: '1px solid var(--card-border)' }}>
-              <ListChecks size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+              <ListChecks size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue-text)' }} />
               <span className="min-w-0 flex-1">
                 <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
                   {t('Una institución en específico', 'One specific institution')}
@@ -109,7 +109,7 @@ export default function EnrichModal({
             <button type="button" onClick={() => { onClose(); onGuided && onGuided() }}
               className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
               style={{ border: '1px solid var(--card-border)' }}>
-              <Sparkles size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+              <Sparkles size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue-text)' }} />
               <span className="min-w-0 flex-1">
                 <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
                   {t('Que Chispu me vaya recomendando', 'Let Chispu guide me')}
@@ -143,7 +143,7 @@ export default function EnrichModal({
               <button type="button" onClick={() => { onClose(); onBrokerChecklist() }}
                 className="w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors hover:bg-theme-elevated"
                 style={{ border: '1px solid var(--card-border)' }}>
-                <ListOrdered size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue)' }} />
+                <ListOrdered size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--accent-blue-text)' }} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-body font-medium" style={{ color: 'var(--text-primary)' }}>
                     {t('Llevar tu broker al 100%', 'Get your broker to 100%')}
@@ -216,7 +216,7 @@ export default function EnrichModal({
                         {onPickInstitution && g.items.length > 1 && (
                           <button type="button" onClick={() => { onClose(); onPickInstitution(g.name, g.items) }}
                             className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors hover:bg-theme-elevated"
-                            style={{ color: 'var(--accent-blue)' }}>
+                            style={{ color: 'var(--accent-blue-text)' }}>
                             <ListChecks size={14} className="shrink-0" />
                             <span className="text-micro font-medium">
                               {t(`Revisar las ${g.items.length} de una vez`, `Review all ${g.items.length} at once`)}
@@ -254,7 +254,7 @@ export default function EnrichModal({
             </div>
             <div className="px-5 py-3" style={{ borderTop: '1px solid var(--card-border)' }}>
               <button type="button" onClick={() => setMode(null)}
-                className="text-body" style={{ color: 'var(--accent-blue)' }}>
+                className="text-body" style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Volver', 'Back')}
               </button>
             </div>

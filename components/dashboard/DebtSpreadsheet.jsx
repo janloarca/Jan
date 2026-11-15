@@ -150,7 +150,7 @@ export default function DebtSpreadsheet({ items, lang, onEditItem, onAdd, baseCu
       {/* Strategy recommendation */}
       {avalancheFirst && !avalancheFirst.same && (
         <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)' }}>
-          <p className="text-xs font-semibold mb-1" style={{ color: 'var(--accent-blue)' }}>{t('Estrategia de pago', 'Payoff strategy')}</p>
+          <p className="text-xs font-semibold mb-1" style={{ color: 'var(--accent-blue-text)' }}>{t('Estrategia de pago', 'Payoff strategy')}</p>
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
               <p className="text-blue-500 font-medium">Avalanche ({t('menos interés', 'less interest')})</p>

@@ -143,7 +143,7 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
         className="modal-anim card max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="card-title">
-            <FileText size={14} strokeWidth={2} className="mr-1.5" style={{ color: 'var(--accent-blue)' }} />
+            <FileText size={14} strokeWidth={2} className="mr-1.5" style={{ color: 'var(--accent-blue-text)' }} />
             {t('Fichas de instrumento', 'Instrument sheets')}
           </h2>
           <button onClick={onClose} aria-label={t('Cerrar', 'Close')}
@@ -170,7 +170,7 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white font-medium truncate">
                         {ins.name}
-                        {ins.rating?.grade && <span className="text-micro ml-2" style={{ color: 'var(--accent-blue)' }}>{ins.rating.grade}</span>}
+                        {ins.rating?.grade && <span className="text-micro ml-2" style={{ color: 'var(--accent-blue-text)' }}>{ins.rating.grade}</span>}
                       </p>
                       {ins.summary && <p className="text-xs text-slate-500 truncate">{ins.summary}</p>}
                     </div>
@@ -256,7 +256,7 @@ export default function InstrumentSheetsManager({ lang = 'es', onClose, instrume
               </div>
               {form.terms.length < LIMITS.terms && (
                 <button onClick={() => set({ terms: [...form.terms, { label: '', value: '' }] })}
-                  className="mt-1.5 text-xs" style={{ color: 'var(--accent-blue)' }}>
+                  className="mt-1.5 text-xs" style={{ color: 'var(--accent-blue-text)' }}>
                   + {t('Agregar fila', 'Add row')}
                 </button>
               )}

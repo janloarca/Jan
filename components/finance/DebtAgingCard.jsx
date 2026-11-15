@@ -57,7 +57,7 @@ export default function DebtAgingCard({ transactions = [], rules = [], lang = 'e
     <div className="card p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <h3 className="card-title">
-          <Hourglass size={14} aria-hidden="true" style={{ color: 'var(--accent-blue)' }} />
+          <Hourglass size={14} aria-hidden="true" style={{ color: 'var(--accent-blue-text)' }} />
           {t('Cuánto tardas en pagar', 'How long you take to pay')}
         </h3>
       </div>
@@ -166,7 +166,7 @@ export default function DebtAgingCard({ transactions = [], rules = [], lang = 'e
                   type="button"
                   onClick={() => setOpenCard(open ? null : key)}
                   className="self-start text-caption underline"
-                  style={{ color: 'var(--accent-blue)' }}
+                  style={{ color: 'var(--accent-blue-text)' }}
                 >
                   {open
                     ? t('Ver menos', 'Show less')

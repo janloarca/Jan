@@ -298,7 +298,7 @@ export default function FinanceTransactionList({ transactions, onDelete, onRecat
                   <th className="text-left py-2 px-2 font-normal">{t('Descripción', 'Description')}</th>
                   <th className="text-left py-2 px-2 font-normal">{t('Categoría', 'Category')}</th>
                   <th className="text-right py-2 px-2 font-normal">{t('Monto', 'Amount')}</th>
-                  <th className="text-center py-2 px-2"></th>
+                  <th className="text-center py-2 px-2"><span className="sr-only">{t('Acciones', 'Actions')}</span></th>
                 </tr>
               </thead>
               <tbody>

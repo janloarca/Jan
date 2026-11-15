@@ -152,7 +152,7 @@ export default function FinancialProfileCard({
         </div>
         <button onClick={() => setOpen(!open)}
           className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors hover:bg-blue-500/10"
-          style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+          style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
           {open ? t('Cerrar', 'Close') : isEmpty ? t('Completar', 'Complete') : t('Actualizar', 'Update')}
         </button>
       </div>
@@ -176,7 +176,7 @@ export default function FinancialProfileCard({
             <span className="flex items-center gap-2 ml-auto">
               <button type="button" data-adopt-goal disabled={resolvingGoals}
                 onClick={() => resolveLegacyGoals(true)}
-                className="font-medium underline disabled:opacity-50" style={{ color: 'var(--accent-blue)' }}>
+                className="font-medium underline disabled:opacity-50" style={{ color: 'var(--accent-blue-text)' }}>
                 {t('Usar la de acá', 'Use this one')}
               </button>
               <button type="button" data-keep-goal disabled={resolvingGoals}
@@ -235,7 +235,7 @@ export default function FinancialProfileCard({
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                     form.riskTolerance === key ? 'border' : 'bg-theme-base border border-glass-border text-slate-300 hover:border-slate-500'
                   }`}
-                  style={form.riskTolerance === key ? { color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
+                  style={form.riskTolerance === key ? { color: 'var(--accent-blue-text)', borderColor: 'var(--accent-blue)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' } : undefined}>
                   {label}
                 </button>
               ))}

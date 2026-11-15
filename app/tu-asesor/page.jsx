@@ -41,7 +41,7 @@ export default function TuAsesorPage() {
       {links && links.length === 0 && (
         <div className="card p-5 text-sm space-y-2" style={{ color: 'var(--text-secondary)' }}>
           <p>{t('No tienes un asesor vinculado.', 'You have no linked advisor.')}</p>
-          <Link href="/dashboard" className="underline" style={{ color: 'var(--accent-blue)' }}>{t('Volver a tu patrimonio', 'Back to your net worth')}</Link>
+          <Link href="/dashboard" className="underline" style={{ color: 'var(--accent-blue-text)' }}>{t('Volver a tu patrimonio', 'Back to your net worth')}</Link>
         </div>
       )}
       {links && links.length > 1 && (

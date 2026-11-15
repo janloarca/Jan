@@ -32,6 +32,7 @@ import { parseAmount } from '@/lib/numberParse'
 // módulo no arrastra ExcelJS hasta que se llama (import dinámico adentro).
 import { renderStyledSheet } from '@/lib/xlsxSheet'
 import { ymOfDate } from '@/lib/dateParts'
+import { pressable } from '@/lib/pressable'
 
 // Must match lib/historicalValues.js's IBKR_UNKNOWN_KEY_PREFIX exactly — not
 // imported statically because that file pulls in authFetch → Firebase Auth,
@@ -212,9 +213,9 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
     return (
       <div className="relative" style={{ minHeight: '2rem' }}>
         <div className="absolute right-0 top-0 z-30 min-w-[190px] bg-theme-card border-2 border-blue-400 rounded-lg shadow-lg p-2">
-          {editLabel && <p className="text-xs text-right mb-1 font-medium" style={{ color: 'var(--accent-blue)' }}>{editLabel}</p>}
+          {editLabel && <p className="text-xs text-right mb-1 font-medium" style={{ color: 'var(--accent-blue-text)' }}>{editLabel}</p>}
           <div className="flex items-center gap-1">
-            {currency && <span className="text-xs font-semibold shrink-0" style={{ color: 'var(--accent-blue)' }}>{currency}</span>}
+            {currency && <span className="text-xs font-semibold shrink-0" style={{ color: 'var(--accent-blue-text)' }}>{currency}</span>}
             <input ref={ref} type="text" value={draft}
               onChange={e => setDraft(e.target.value)}
               onBlur={commit}
@@ -231,7 +232,7 @@ const EditableCell = memo(function EditableCell({ displayValue, editValue, onSav
 
   return (
     <div className="cursor-pointer rounded px-3 py-1.5 -mx-1 transition-all hover:bg-[var(--alert-info-bg)] hover:ring-1 hover:ring-[var(--accent-blue-soft)] text-right"
-      onClick={startEdit}>
+      {...pressable(startEdit)}>
       <span className="font-mono tabular-nums text-sm" style={isNegative ? { color: 'var(--text-negative)' } : { color: 'var(--text-primary)' }}>{formatNum(displayValue)}</span>
       {currency && displayValue != null && <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>{currency}</span>}
       {hint && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
@@ -1790,7 +1791,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             </button>}
             <button onClick={() => setShowDiag((v) => !v)}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--card-border)] bg-theme-tertiary hover:brightness-110 transition-[filter]"
-              style={{ color: showDiag ? 'var(--accent-blue)' : 'var(--text-muted)' }}
+              style={{ color: showDiag ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}
               title={t('Ver qué hay guardado en cada cuenta de saldo',
                        'See what is actually stored in each balance account')}>
               {t('Diagnóstico', 'Diagnostic')}
@@ -1800,7 +1801,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
             <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--alert-info-bg)] border border-[var(--alert-info-border)]">
               <ChispudoLoader mode="inline" size="small" state="section-loading" delay={0}
                 message={t('Calculando historial...', 'Calculating history...')} showLabel
-                className="text-xs font-medium text-[var(--accent-blue)]" />
+                className="text-xs font-medium text-[var(--accent-blue-text)]" />
             </span>
           )}
           {!readOnly && <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{t('Toca una celda del mes actual para editarla', 'Tap a current-month cell to edit it')}</span>}
@@ -1824,7 +1825,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                 } catch (e) { console.error('[diag] copy', e) }
               }}
               className="text-xs px-2 py-0.5 rounded border shrink-0"
-              style={{ borderColor: 'var(--card-border)', color: 'var(--accent-blue)' }}>
+              style={{ borderColor: 'var(--card-border)', color: 'var(--accent-blue-text)' }}>
               {diagCopied ? t('Copiado', 'Copied') : t('Copiar para reportar', 'Copy to report')}
             </button>
           </div>
@@ -2179,7 +2180,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
               <tbody key={cat.key}>
                 <tr className={`cursor-pointer hover:bg-[var(--bg-card-hover)] transition-colors bg-theme-surface ${isDebtsRow ? 'border-t-2' : 'border-t'}`}
                   style={{ borderTopColor: isDebtsRow ? accent : 'var(--border-color)' }}
-                  onClick={() => toggleCat(cat.key)}>
+                  {...pressable(() => toggleCat(cat.key), { role: null, expanded: !isCollapsed })}>
                   <td className="py-3 pl-4 pr-2 sticky left-0 bg-theme-surface z-10" style={{ borderLeft: `3px solid ${accent}` }}>
                     <div className="flex items-center gap-2">
                       <span className="text-xs w-3" style={{ color: 'var(--text-muted)' }}>{isCollapsed ? '>' : 'v'}</span>
@@ -2282,7 +2283,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                     <Fragment key={instKey}>
                       {showInst && (
                         <tr className="cursor-pointer hover:bg-[var(--bg-card-hover)] transition-colors bg-theme-surface border-t border-[var(--border-subtle)]"
-                          onClick={() => toggleInst(instKey)}>
+                          {...pressable(() => toggleInst(instKey), { role: null, expanded: !isInstCollapsed })}>
                           <td className="py-2 pl-8 pr-2 sticky left-0 bg-theme-surface z-10">
                             <span className="font-semibold text-sm" style={{ color: 'var(--text-secondary)' }}>{inst.name}</span>
                             <span className="text-xs ml-1.5" style={{ color: 'var(--text-muted)' }}>{isInstCollapsed ? '>' : 'v'}</span>
@@ -2366,7 +2367,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                   const when = item.acquisitionDate ? ` · ${formatDate(item.acquisitionDate)}` : ''
                                   return <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>#{same.indexOf(item) + 1}{when}</span>
                                 })()}
-                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? 'var(--accent-blue)' : 'var(--text-muted)' }}>{cur}</span>
+                                <span className="text-xs font-semibold shrink-0" style={{ color: isEditing ? 'var(--accent-blue-text)' : 'var(--text-muted)' }}>{cur}</span>
                                 {item.rewardType && REWARD_ICONS[item.rewardType] && (
                                   <span className="text-xs px-1 rounded shrink-0" style={{ backgroundColor: 'var(--alert-info-bg)', color: 'var(--accent-cyan)' }} title={item.rewardType}>
                                     {REWARD_ICONS[item.rewardType]}
@@ -2378,7 +2379,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                               </div>
                             </td>
                             <td className="text-right py-2.5 px-1 text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{shareLabel(getItemValue(item), totalAssets) || ''}</td>
-                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? 'var(--accent-blue)' : 'var(--text-muted)', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
+                            {showOriginal && <td className="text-center py-2.5 px-1 text-xs" style={{ color: isEditing ? 'var(--accent-blue-text)' : 'var(--text-muted)', fontWeight: isEditing ? 600 : undefined }}>{cur}</td>}
                             {months.map(mk => {
                               const isCurrent = mk === currentMonthKey
                               if (!isCurrent) {
@@ -2406,7 +2407,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                                               title={t('Saldo fijado por ti. Toca para volver al valor calculado', 'Balance set by you. Tap to go back to the calculated value')}
                                               aria-label={t('Quitar la corrección de este mes', 'Remove this month\'s correction')}
                                               className="shrink-0 text-xs leading-none rounded px-1 min-h-[24px] min-w-[24px]"
-                                              style={{ color: 'var(--accent-blue)' }}>↺</button>
+                                              style={{ color: 'var(--accent-blue-text)' }}>↺</button>
                                           </>
                                         )}
                                         {!obs && isEst && (
@@ -2523,7 +2524,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
                       {(!showInst || !isInstCollapsed) && closedRows.length > 0 && (
                         <>
                           <tr className="border-t border-[var(--border-subtle)] cursor-pointer hover:bg-[var(--bg-card-hover)] transition-colors" style={{ backgroundColor: 'var(--bg-secondary)' }}
-                            onClick={() => setShowClosed(p => ({ ...p, [instKey]: !p[instKey] }))}
+                            {...pressable(() => setShowClosed(p => ({ ...p, [instKey]: !p[instKey] })), { role: null, expanded: closedOpen })}
                             data-closed-toggle={instKey}>
                             <td className={`py-2.5 ${showInst ? 'pl-12' : 'pl-8'} pr-2 sticky left-0 z-10`} style={{ backgroundColor: 'var(--bg-secondary)' }}>
                               <div className="flex items-center gap-1.5 min-w-0">
@@ -2623,7 +2624,7 @@ export default function PortfolioSpreadsheet({ items, snapshots, lang, onUpdateI
           {removedItems.length > 0 && (
             <tbody>
               <tr className="cursor-pointer transition-colors border-t-2 border-dashed border-[var(--border-color)] bg-theme-tertiary hover:brightness-95"
-                onClick={() => setShowRemoved(p => !p)}>
+                {...pressable(() => setShowRemoved(p => !p), { role: null, expanded: showRemoved })}>
                 <td className="py-2.5 pl-4 pr-2 sticky left-0 bg-theme-tertiary z-10" colSpan={2 + (showOriginal ? 1 : 0)}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs w-3" style={{ color: 'var(--text-muted)' }}>{showRemoved ? 'v' : '>'}</span>

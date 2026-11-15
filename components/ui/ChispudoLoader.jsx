@@ -276,7 +276,7 @@ export default function ChispudoLoader({
       ) : state === 'error' ? (
         <CircleAlert size={boltSize} style={{ color: 'var(--text-negative)' }} />
       ) : isDeterminate ? (
-        <span className="tabular-nums font-bold" style={{ fontSize: Math.max(9, Math.round(diameter * 0.24)), color: 'var(--accent-blue)', lineHeight: 1 }}>
+        <span className="tabular-nums font-bold" style={{ fontSize: Math.max(9, Math.round(diameter * 0.24)), color: 'var(--accent-blue-text)', lineHeight: 1 }}>
           {pct}%
         </span>
       ) : (

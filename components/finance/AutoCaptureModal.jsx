@@ -241,7 +241,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
       <div ref={trapRef} className="modal-glass max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-glass-border">
           <h2 id="auto-capture-title" className="text-lg font-bold text-white flex items-center gap-2">
-            <Zap size={20} style={{ color: 'var(--accent-blue)' }} />
+            <Zap size={20} style={{ color: 'var(--accent-blue-text)' }} />
             {t('Gastos automáticos', 'Automatic expenses')}
           </h2>
           <button onClick={onClose} className="hover:text-white text-xl leading-none" style={{ color: 'var(--text-secondary)' }} aria-label={closeLabel()}>&times;</button>
@@ -293,7 +293,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                         <p className="text-xs mt-0.5" style={{ color: lastUse(tk).tone }}>
                           {lastUse(tk).text}
                           <button onClick={loadIngest} disabled={initialLoading}
-                            className="ml-1.5 underline disabled:opacity-50" style={{ color: 'var(--accent-blue)' }}>
+                            className="ml-1.5 underline disabled:opacity-50" style={{ color: 'var(--accent-blue-text)' }}>
                             {initialLoading ? t('…', '…') : t('actualizar', 'refresh')}
                           </button>
                         </p>
@@ -316,13 +316,13 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                           nombre y valor en campos separados. */}
                       <button onClick={() => copyIngest(tk.token, 'auth', `Bearer ${tk.token}`)}
                         className="px-2.5 py-1 text-xs font-medium rounded-md border transition-colors hover:bg-blue-500/10"
-                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                         {copyLabel(tk.token, 'auth')} {t('header', 'header')}
                       </button>
                       {address && (
                         <button onClick={() => copyIngest(tk.token, 'email', address)}
                           className="px-2.5 py-1 text-xs font-medium rounded-md border transition-colors hover:bg-blue-500/10"
-                          style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}>
+                          style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue-text)' }}>
                           {copyLabel(tk.token, 'email')} {t('correo', 'email')}
                         </button>
                       )}
@@ -421,7 +421,7 @@ export default function AutoCaptureModal({ onClose, lang = 'es' }) {
                     botón de ejecutar de la propia app sí prueba el camino real, y
                     desde que el servidor reconoce los marcadores contesta con el
                     veredicto en vez de un error sobre el monto. */}
-                <p className="text-xs mt-1.5" style={{ color: 'var(--accent-blue)' }}>{t(
+                <p className="text-xs mt-1.5" style={{ color: 'var(--accent-blue-text)' }}>{t(
                   'Para probar sin gastar: corré la macro con el botón de ejecutar de la app. Si todavía tiene los marcadores, la respuesta te dice que la conexión y el token ya funcionan y que solo faltan las variables.',
                   'To test without spending: run the macro with the app\'s run button. If the placeholders are still there, the response tells you the connection and token already work and only the variables are missing.'
                 )}</p>

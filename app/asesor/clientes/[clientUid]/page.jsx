@@ -82,13 +82,13 @@ function ClientPageInner() {
       <div role="status" data-testid="read-only-band"
         className="sticky top-14 z-10 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm border"
         style={{ backgroundColor: 'var(--alert-info-bg)', borderColor: 'var(--alert-info-border)', color: 'var(--text-primary)' }}>
-        <Eye size={16} className="shrink-0" style={{ color: 'var(--accent-blue)' }} />
+        <Eye size={16} className="shrink-0" style={{ color: 'var(--accent-blue-text)' }} />
         <span className="min-w-0 flex-1">
           {client
             ? t(`Estás viendo el portafolio de ${client.name} en modo lectura`, `You are viewing ${client.name}'s portfolio in read-only mode`)
             : t('Modo lectura', 'Read-only mode')}
         </span>
-        <Link href="/asesor" className="shrink-0 underline text-xs" style={{ color: 'var(--accent-blue)' }}>{t('Volver a clientes', 'Back to clients')}</Link>
+        <Link href="/asesor" className="shrink-0 underline text-xs" style={{ color: 'var(--accent-blue-text)' }}>{t('Volver a clientes', 'Back to clients')}</Link>
       </div>
 
       {error && <InlineNotice tone="warn">{error}</InlineNotice>}

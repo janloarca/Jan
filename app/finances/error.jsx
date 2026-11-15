@@ -69,7 +69,7 @@ export default function FinancesError({ error, reset }) {
           style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
           <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-words m-0"
             style={{ color: 'var(--text-secondary)', fontFamily: 'ui-monospace, monospace' }}>{report}</pre>
-          <button onClick={copy} className="mt-2 text-xs underline" style={{ color: 'var(--accent-blue)' }}>
+          <button onClick={copy} className="mt-2 text-xs underline" style={{ color: 'var(--accent-blue-text)' }}>
             {copied ? 'Copiado' : 'Copiar para reportar'}
           </button>
         </div>

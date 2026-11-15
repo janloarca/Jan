@@ -132,17 +132,17 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           <div className="flex bg-theme-base rounded-lg border border-glass-border/50 overflow-hidden">
             <button onClick={() => setMode('deterministic')}
               className="px-2 py-1 text-xs font-medium transition-colors"
-              style={mode === 'deterministic' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue)' } : { color: 'var(--text-muted)' }}>
+              style={mode === 'deterministic' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue-text)' } : { color: 'var(--text-muted)' }}>
               {t('Lineal', 'Linear')}
             </button>
             <button onClick={() => setMode('montecarlo')}
               className="px-2 py-1 text-xs font-medium transition-colors"
-              style={mode === 'montecarlo' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue)' } : { color: 'var(--text-muted)' }}>
+              style={mode === 'montecarlo' ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', color: 'var(--accent-blue-text)' } : { color: 'var(--text-muted)' }}>
               Monte Carlo
             </button>
           </div>
           <button onClick={() => setExpanded(!expanded)}
-            className="text-xs transition-colors" style={{ color: 'var(--accent-blue)' }}>
+            className="text-xs transition-colors" style={{ color: 'var(--accent-blue-text)' }}>
             {expanded ? t('Cerrar', 'Close') : t('Ajustar', 'Adjust')}
           </button>
         </div>
@@ -197,7 +197,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Valor futuro', 'Future value')}</span>
-            <span className="text-base font-bold" style={{ color: 'var(--accent-blue)' }}>{formatCompact(finalBalance)}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-blue-text)' }}>{formatCompact(finalBalance)}</span>
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Invertido', 'Invested')}</span>
@@ -205,7 +205,7 @@ export default function ProjectionSimulator({ netWorth, lang, volatility, goalVa
           </div>
           <div className="bg-theme-base rounded-lg p-3 border border-glass-border/50 text-center">
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('Ganancias', 'Gains')}</span>
-            <span className="text-base font-bold" style={{ color: 'var(--accent-blue)' }}>{formatCompact(totalGains)}</span>
+            <span className="text-base font-bold" style={{ color: 'var(--accent-blue-text)' }}>{formatCompact(totalGains)}</span>
           </div>
         </div>
       )}

@@ -346,7 +346,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
           {propertyInfo && (
             <div className="border rounded-lg p-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-blue) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent-blue) 5%, transparent)' }}>
               <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                <span className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>
+                <span className="text-xs font-medium" style={{ color: 'var(--accent-blue-text)' }}>
                   🏠 {t('Tu inmueble', 'Your property')}
                 </span>
                 {propertyInfo.equity != null && (
@@ -477,7 +477,7 @@ export default function AssetDetailModal({ item, onClose, lang = 'es', uid, tran
                 <span>{t('Vence', 'Matures')}: <span className="font-medium" style={{ color: 'var(--accent-orange)' }}>{formatDate(item.maturityDate)}</span></span>
               )}
               {item.rateType === 'variable' && item.rateMin > 0 && (
-                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>{item.rateMin}% - {item.rateMax}%</span></span>
+                <span>{t('Tasa', 'Rate')}: <span className="font-medium" style={{ color: 'var(--accent-blue-text)' }}>{item.rateMin}% - {item.rateMax}%</span></span>
               )}
               {item.rateType === 'continuous' && item.incomeRate > 0 && (
                 <span>{t('Tasa continua', 'Continuous rate')}: <span className="font-medium" style={{ color: 'var(--accent-cyan)' }}>{item.incomeRate}%</span></span>

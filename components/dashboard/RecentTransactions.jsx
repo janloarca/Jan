@@ -92,7 +92,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
     if (t === 'DIVIDEND') return warn
     if (t === 'DEPOSIT') return success
     if (t === 'WITHDRAWAL') return error
-    if (t === 'TRANSFER') return { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue)' }
+    if (t === 'TRANSFER') return { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', color: 'var(--accent-blue-text)' }
     return neutral
   }
 
@@ -179,7 +179,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
           const activeStyle = {
             backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)',
             borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)',
-            color: 'var(--accent-blue)',
+            color: 'var(--accent-blue-text)',
           }
           const inactiveStyle = { backgroundColor: 'transparent', borderColor: 'var(--card-border)', color: 'var(--text-muted)' }
           return (
@@ -188,7 +188,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
               style={isActive ? activeStyle : inactiveStyle}>
               <span>{opt.icon}</span>
               <span>{opt.label}</span>
-              {count > 0 && <span className="font-bold" style={{ color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>{count}</span>}
+              {count > 0 && <span className="font-bold" style={{ color: isActive ? 'var(--accent-blue-text)' : 'var(--text-secondary)' }}>{count}</span>}
             </button>
           )
         })}
@@ -207,7 +207,7 @@ export default function RecentTransactions({ transactions, lang, onExportCSV, on
           <button key={opt.key} onClick={() => { setDateRange(opt.key); setShowAll(false) }}
             className="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors"
             style={dateRange === opt.key
-              ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)', color: 'var(--accent-blue)' }
+              ? { backgroundColor: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-blue) 35%, transparent)', color: 'var(--accent-blue-text)' }
               : { backgroundColor: 'transparent', borderColor: 'transparent', color: 'var(--text-muted)' }}>
             {opt.label}
           </button>
