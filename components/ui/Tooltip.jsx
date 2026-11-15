@@ -16,8 +16,18 @@ export default function Tooltip({ text, children }) {
     timeoutRef.current = setTimeout(() => setVisible(false), 120)
   }, [])
 
+  // FASE SH (B7): en un teléfono un toque dispara PRIMERO un mouseenter emulado
+  // (que abría la ayuda) y DESPUÉS el click (que la volvía a cerrar), así que en
+  // táctil la "i" nunca mostraba nada. El hover queda solo para un mouse de
+  // verdad (pointerType), y el click alterna solo en táctil; con mouse, el click
+  // deja la ayuda abierta en vez de cerrarla debajo del cursor.
+  const lastPointer = useRef('mouse')
+  const onPointerDown = useCallback((e) => { lastPointer.current = e.pointerType || 'mouse' }, [])
+  const onPointerEnter = useCallback((e) => { if (e.pointerType === 'mouse') show() }, [show])
+  const onPointerLeave = useCallback((e) => { if (e.pointerType === 'mouse') hide() }, [hide])
   const toggle = useCallback((e) => {
     e.stopPropagation()
+    if (lastPointer.current === 'mouse') { clearTimeout(timeoutRef.current); setVisible(true); return }
     setVisible((v) => !v)
   }, [])
 
@@ -43,8 +53,9 @@ export default function Tooltip({ text, children }) {
   return (
     <span
       ref={wrapperRef}
-      onMouseEnter={show}
-      onMouseLeave={hide}
+      onPointerDown={onPointerDown}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onClick={toggle}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'help' }}
     >
@@ -113,29 +124,35 @@ export default function Tooltip({ text, children }) {
 }
 
 export function InfoTip({ text }) {
+  // FASE SH (B7): el círculo se ve de 16px pero en un teléfono eso es un blanco
+  // de 16px, bajo los 24 que pide WCAG 2.5.8. Un envoltorio con 4px de relleno
+  // agranda el área tocable a 24x24, y los márgenes negativos devuelven el
+  // mismo espacio de antes (4+16+4-4 = 20 de ancho, 24-8 = 16 de alto), así que
+  // el encabezado donde va embebido no se mueve ni un píxel.
   return (
     <Tooltip text={text}>
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          // 14px con la "i" a 10px quedaba en el límite de lo que se distingue
-          // de una mota. Sube a 16/11, que es el cambio más grande que no mueve
-          // el alto de línea de los encabezados donde va embebida.
-          width: '16px',
-          height: '16px',
-          fontSize: '11px',
-          lineHeight: 1,
-          color: 'var(--text-muted)',
-          borderRadius: '50%',
-          border: '1px solid var(--border-primary)',
-          marginLeft: '4px',
-          flexShrink: 0,
-          userSelect: 'none',
-        }}
-      >
-        i
+      <span style={{ display: 'inline-flex', padding: '4px', margin: '-4px -4px -4px 0', flexShrink: 0 }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            // 14px con la "i" a 10px quedaba en el límite de lo que se distingue
+            // de una mota. Sube a 16/11, que es el cambio más grande que no mueve
+            // el alto de línea de los encabezados donde va embebida.
+            width: '16px',
+            height: '16px',
+            fontSize: '11px',
+            lineHeight: 1,
+            color: 'var(--text-muted)',
+            borderRadius: '50%',
+            border: '1px solid var(--border-primary)',
+            flexShrink: 0,
+            userSelect: 'none',
+          }}
+        >
+          i
+        </span>
       </span>
     </Tooltip>
   )

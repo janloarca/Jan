@@ -33,7 +33,7 @@ function CategoryCell({ tx, i, onRecategorize, setEditing, keyOf, t, model, lang
     onClick={() => onRecategorize && setEditing(keyOf(tx, i))}
     disabled={!onRecategorize}
     title={onRecategorize ? t('Cambiar categoría', 'Change category') : undefined}
-    className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors disabled:cursor-default hover:bg-theme-elevated max-w-full">
+    className="inline-flex items-center gap-1 rounded-md px-1 -mx-1 min-h-[24px] -my-1 transition-colors disabled:cursor-default hover:bg-theme-elevated max-w-full">
     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
     <span className="truncate" style={{ color: 'var(--text-secondary)' }}>
       {label}{tx.userLabel ? ` · ${tx.userLabel}` : ''}
@@ -58,17 +58,17 @@ function DeleteButton({ tx, i, onDelete, confirming, setConfirming, keyOf, t }) 
   return confirming === k ? (
     <span className="inline-flex items-center gap-1 whitespace-nowrap">
       <button onClick={() => { onDelete(tx.id); setConfirming(null) }}
-        className="font-semibold" style={{ color: 'var(--text-negative)' }}>
+        className="font-semibold min-h-[24px] px-1" style={{ color: 'var(--text-negative)' }}>
         {t('Borrar', 'Delete')}
       </button>
-      <button onClick={() => setConfirming(null)} style={{ color: 'var(--text-muted)' }}>
+      <button onClick={() => setConfirming(null)} className="min-h-[24px] px-1" style={{ color: 'var(--text-muted)' }}>
         {t('No', 'No')}
       </button>
     </span>
   ) : (
     <button onClick={() => setConfirming(k)}
       aria-label={t('Eliminar', 'Delete')}
-      className="transition-colors hover:opacity-100 opacity-60"
+      className="inline-flex items-center justify-center min-w-[28px] min-h-[28px] -my-1.5 -mr-1.5 text-base leading-none transition-colors hover:opacity-100 opacity-60"
       style={{ color: 'var(--text-muted)' }}>
       &times;
     </button>
