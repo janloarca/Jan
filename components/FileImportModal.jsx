@@ -19,7 +19,7 @@ import { reconcileStatement, enrichmentFor } from '@/lib/statementReconcile'
 import { planCardPaymentNetting, planStatementPaymentNetting, acceptNettingSuggestions } from '@/lib/cardPaymentNetting'
 import { flowSign, flowMagnitude, cashFlowOf } from '@/lib/financeAmount'
 import { formatFinanceDate } from '@/lib/financeMonth'
-import { formatCurrency } from '@/components/dashboard/utils'
+import { formatCurrency, formatDate } from '@/components/dashboard/utils'
 import { walletCoverage } from '@/lib/walletCoverage'
 import { cardBalanceSummary } from '@/lib/cardBalance'
 import { planCardDebtSync, describeCardDebtLine } from '@/lib/cardDebt'
@@ -28,6 +28,7 @@ import { validateItem, sanitizeImportItem, sanitizeCell, translateValidationErro
 import { getBrokerHowTo } from '@/lib/brokerHowTo'
 import BrokerSteps from '@/components/ui/BrokerSteps'
 import { reconcileBrokerPositions } from '@/lib/brokerReconcile'
+import { planLedgerReconcile, ledgerInstitutionOptions, defaultLedgerInstitution } from '@/lib/ledgerReconcile'
 import ChispudoLoader from '@/components/ui/ChispudoLoader'
 import { closeLabel } from '@/lib/closeLabel'
 import { pressable } from '@/lib/pressable'
@@ -101,7 +102,12 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // "posiciones" cuando un estado de tarjeta no se reconoce) manda a buscar el
   // problema donde no está. Default 'portfolio' para que ningún otro caller
   // cambie de comportamiento.
-  context = 'portfolio' }) {
+  context = 'portfolio',
+  // FASE SK. "Conciliar con mi cuenta": hace falta leer los movimientos que ya
+  // existen (para marcar los depósitos manuales que el ledger reemplaza) y
+  // guardar los cierres de mes del broker en settings. Sin estas props la
+  // opción no aparece y nada cambia para los demás callers.
+  existingTransactions = null, onSaveSettings = null, existingLedgerAccounts = null }) {
   const trapRef = useFocusTrap()
   const [mode, setMode] = useState('file')
   const [step, setStep] = useState('upload')
@@ -129,6 +135,10 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // abajo deja de pisarlo. Se resetea al aceptar un archivo nuevo.
   const ibkrModeTouchedRef = useRef(false)
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
+  // FASE SK: cuenta a conciliar (clave de accountKeyOfItem) y las posiciones
+  // que el usuario decidió NO borrar / SÍ borrar (id -> true = conservar).
+  const [reconcileKey, setReconcileKey] = useState(null)
+  const [reconcileKeep, setReconcileKeep] = useState({})
 
   const [extraSheets, setExtraSheets] = useState({ snapshots: [], transactions: [] })
   const [biData, setBiData] = useState(null)
@@ -1100,6 +1110,72 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
     if (ibkrModeTouchedRef.current) return
     setIbkrImportMode(ibkrEnrichPreview.matched > 0 ? 'enrich' : 'merge')
   }, [ibkrEnrichPreview])
+
+  // ── FASE SK: "Conciliar con mi cuenta" ────────────────────────────────────
+  // Solo con un reporte que diga hasta qué día mide y traiga cierres de mes
+  // (PortfolioAnalyst). Nunca dispara ni requiere la sincronización con el
+  // broker: todo sale del archivo.
+  const ledgerOptions = useMemo(() => ledgerInstitutionOptions(existingItems || []), [existingItems])
+  const reconcileAvailable = !!(ibkrData && ibkrData.periodEnd && (ibkrData.equityHistory || []).length > 0
+    && onBulkImport && onSaveSettings && Array.isArray(existingTransactions) && ledgerOptions.length > 0)
+  const reconcileAccountKey = reconcileKey || defaultLedgerInstitution(ledgerOptions)?.key || ledgerOptions[0]?.key || null
+  const buildReconcilePlan = useCallback((newId) => {
+    if (!reconcileAvailable || !reconcileAccountKey) return null
+    const base = {
+      parsed: ibkrData,
+      accountKey: reconcileAccountKey,
+      items: existingItems || [],
+      lots: existingLots || [],
+      transactions: existingTransactions || [],
+      tag: scopeTagFor(activePortfolio, activeEntity),
+      ...(newId ? { newId } : {}),
+    }
+    const first = planLedgerReconcile(base)
+    const keep = new Set(first.summary.deleteCandidates
+      .filter((c) => (reconcileKeep[c.id] != null ? reconcileKeep[c.id] : !c.closedAtBroker))
+      .map((c) => c.id))
+    return planLedgerReconcile({ ...base, keepIds: keep })
+  }, [reconcileAvailable, reconcileAccountKey, ibkrData, existingItems, existingLots, existingTransactions, activePortfolio, activeEntity, reconcileKeep])
+  const reconcilePreview = useMemo(
+    () => (ibkrImportMode === 'reconcile' ? buildReconcilePlan(() => 'preview') : null),
+    [ibkrImportMode, buildReconcilePlan]
+  )
+
+  const doLedgerReconcile = useCallback(async () => {
+    if (ibkrSyncBusy) {
+      setError(lang === 'es'
+        ? 'Hay una sincronización de IBKR en curso. Espera a que termine (el anillo del header) y vuelve a confirmar.'
+        : 'An IBKR sync is running. Wait for it to finish (the header ring) and confirm again.')
+      return
+    }
+    const plan = buildReconcilePlan()
+    if (!plan) return
+    setImporting(true)
+    setError('')
+    setImportProgress({ done: 0, total: 0 })
+    const summary = {
+      isIBKR: true,
+      isReconcile: true,
+      success: plan.summary.updates.length + plan.summary.creates.length,
+      failed: 0,
+      total: plan.summary.updates.length + plan.summary.creates.length,
+      deleted: plan.bulk.deleteIds.length,
+      ledgerFlows: plan.summary.ledgerFlows,
+      navMonths: plan.summary.navPoints,
+      institution: plan.institution,
+    }
+    try {
+      await onBulkImport(plan.bulk, (done, total) => setImportProgress({ done, total }))
+      await onSaveSettings({ ledgerAccounts: { ...(existingLedgerAccounts || {}), [plan.accountKey]: plan.ledgerAccount } })
+      setResult(summary)
+    } catch (err) {
+      console.error('[Ledger reconcile]', err?.message)
+      setResult({ ...summary, success: 0, failed: summary.total, errorMsg: err?.message })
+    } finally {
+      setStep('done')
+      setImporting(false)
+    }
+  }, [ibkrSyncBusy, lang, buildReconcilePlan, onBulkImport, onSaveSettings, existingLedgerAccounts])
 
   // Positions but no trades and no NAV: the statement was exported without the
   // history sections, which is exactly the case that leaves the chart estimating
@@ -2288,6 +2364,13 @@ When done, give me the .xlsx file ready to download.`
                           : t('No tienes posiciones de IBKR que borrar.', 'You have no IBKR positions to delete.'),
                         warn: ibkrCount > 0,
                       },
+                      ...(reconcileAvailable ? [{
+                        key: 'reconcile',
+                        accent: 'var(--accent-green)',
+                        title: t('Conciliar con mi cuenta', 'Reconcile with my account'),
+                        desc: t('Deja esta cuenta igual que en tu broker: posiciones y costo, depósitos y retiros reales, y el rendimiento (TWR) de tu broker. Se borran las posiciones que ya cerraste; los dividendos no se importan.',
+                          'Makes this account match your broker: positions and cost, real deposits and withdrawals, and your broker\'s return (TWR). Positions you closed are deleted; dividends are not imported.'),
+                      }] : []),
                     ]
                     return options.map((opt) => {
                       const active = ibkrImportMode === opt.key
@@ -2324,18 +2407,67 @@ When done, give me the .xlsx file ready to download.`
                 </div>
               </div>
 
+              {ibkrImportMode === 'reconcile' && reconcilePreview && (() => {
+                const sm = reconcilePreview.summary
+                const fmt = (n) => formatCurrency(n, 'USD')
+                return (
+                  <div className="mt-3 p-3 rounded-lg border text-xs space-y-2" style={{ borderColor: 'var(--card-border)', backgroundColor: 'var(--bg-card)' }}>
+                    <label className="flex items-center gap-2">
+                      <span className="text-slate-400">{t('Cuenta en Chispu', 'Account in Chispu')}</span>
+                      <select value={reconcileAccountKey || ''} onChange={(e) => { setReconcileKey(e.target.value); setReconcileKeep({}) }}
+                        className="flex-1 bg-theme-elevated border border-glass-border rounded px-2 py-1 text-slate-200">
+                        {ledgerOptions.map((o) => (
+                          <option key={o.key} value={o.key}>{o.name} ({o.count})</option>
+                        ))}
+                      </select>
+                    </label>
+                    <ul className="space-y-1 text-slate-300">
+                      <li>{t(`${sm.updates.length} posiciones se actualizan (cantidad y costo); ${sm.creates.length} se agregan.`, `${sm.updates.length} positions updated (quantity and cost); ${sm.creates.length} added.`)}</li>
+                      <li>{t(`${sm.lotsClosed} lotes viejos se cierran y se abren ${sm.lotsCreated} con el costo del broker.`, `${sm.lotsClosed} old lots closed and ${sm.lotsCreated} opened at the broker's cost.`)}</li>
+                      <li>{t(`${sm.ledgerFlows} depósitos y retiros reales (neto ${fmt(sm.netFlows)}). ${sm.supersededFlows} aportes registrados a mano dejan de contar.`, `${sm.ledgerFlows} real deposits and withdrawals (net ${fmt(sm.netFlows)}). ${sm.supersededFlows} manually recorded contributions stop counting.`)}</li>
+                      {sm.lastNav && (
+                        <li>{t(`${sm.navPoints} cierres de mes; el último, ${formatDate(sm.lastNav.d)}: ${fmt(sm.lastNav.v)}.`, `${sm.navPoints} month-end closes; the last one, ${formatDate(sm.lastNav.d)}: ${fmt(sm.lastNav.v)}.`)}</li>
+                      )}
+                      <li className="text-slate-500">{t('No se importan dividendos ni comisiones del archivo.', 'Dividends and fees from the file are not imported.')}</li>
+                    </ul>
+                    {sm.deleteCandidates.length > 0 && (
+                      <div>
+                        <p className="text-slate-400 mb-1">{t('Ya no están en tu broker. Marcadas = se borran:', 'No longer at your broker. Checked = deleted:')}</p>
+                        {sm.deleteCandidates.map((c) => {
+                          const del = !sm.keptIds.includes(c.id)
+                          return (
+                            <label key={c.id} className="flex items-center gap-2 py-0.5">
+                              <input type="checkbox" checked={del}
+                                onChange={(e) => setReconcileKeep((prev) => ({ ...prev, [c.id]: !e.target.checked }))} />
+                              <span className="font-mono text-slate-200">{c.symbol || c.name}</span>
+                              <span className="text-slate-500">
+                                {c.closedAtBroker
+                                  ? t('cerrada en el broker', 'closed at the broker')
+                                  : t('el archivo no la menciona: ¿es de otra cuenta?', 'the file never mentions it: another account?')}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               <div className="flex gap-3 mt-4">
                 <button onClick={() => { setIbkrData(null); setStep('upload') }}
                   className="flex-1 py-2.5 border border-glass-border text-slate-300 rounded-lg hover:bg-theme-elevated transition-colors text-sm">
                   {t('Atrás', 'Back')}
                 </button>
-                <button onClick={doIBKRImport} disabled={importing}
+                <button onClick={ibkrImportMode === 'reconcile' ? doLedgerReconcile : doIBKRImport} disabled={importing || (ibkrImportMode === 'reconcile' && !reconcilePreview)}
                   className="flex-1 py-2.5 text-white rounded-lg disabled:opacity-50 hover:opacity-90 transition-colors text-sm font-medium"
-                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : ibkrImportMode === 'enrich' ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
+                  style={{ backgroundColor: ibkrImportMode === 'replace' ? '#ea580c' : (ibkrImportMode === 'enrich' || ibkrImportMode === 'reconcile') ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
                   {importing
                     ? importProgress.total > 0
                       ? t(`Importando ${importProgress.done}/${importProgress.total}`, `Importing ${importProgress.done}/${importProgress.total}`)
                       : t('Preparando...', 'Preparing...')
+                    : ibkrImportMode === 'reconcile'
+                      ? t('Conciliar con mi cuenta', 'Reconcile with my account')
                     : ibkrImportMode === 'replace'
                       ? t(`Borrar y usar estas ${ibkrData.items.length}`, `Delete and use these ${ibkrData.items.length}`)
                       : ibkrImportMode === 'enrich'
@@ -2438,6 +2570,12 @@ When done, give me the .xlsx file ready to download.`
                   {result.enriched > 0
                     ? t(`Se completaron ${result.enriched} posiciones que ya tenías con sus fechas y datos faltantes.`, `${result.enriched} positions you already had were filled in with their missing dates and data.`)
                     : t(`Reconocimos tus ${result.matched} posiciones: ya estaban completas.`, `We recognized your ${result.matched} positions: they were already complete.`)}
+                </p>
+              )}
+              {result.isReconcile && result.failed === 0 && (
+                <p className="text-xs mt-1" style={{ color: 'var(--accent-green)' }}>
+                  {t(`${result.institution} quedó conciliada: ${result.ledgerFlows} depósitos/retiros y ${result.navMonths} cierres de mes del broker${result.deleted > 0 ? `; ${result.deleted} posiciones cerradas borradas` : ''}.`,
+                    `${result.institution} is reconciled: ${result.ledgerFlows} deposits/withdrawals and ${result.navMonths} month-end closes from the broker${result.deleted > 0 ? `; ${result.deleted} closed positions deleted` : ''}.`)}
                 </p>
               )}
               {result.replaced > 0 && (

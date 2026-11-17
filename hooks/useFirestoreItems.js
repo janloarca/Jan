@@ -1392,7 +1392,7 @@ export function useFirestoreItems() {
   // sería el de cuando la corrida arrancó. Las dos se mueven juntas, siempre.
   const bulkWritingRef = useRef(false)
 
-  const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds }, onProgress) => {
+  const bulkImport = useCallback(async ({ items: newItems, lots: newLots, transactions: newTxs, snapshots: newSnaps, updateItems, deleteIds, updateLots, updateTransactions }, onProgress) => {
     if (!uid) throw new Error('Not authenticated')
     setBulkWriting(true)
     bulkWritingRef.current = true
@@ -1425,12 +1425,28 @@ export function useFirestoreItems() {
       ops.push({ type: 'update', ref: fs.doc(db, `users/${uid}/items`, id), data: clean })
     }
 
+    // FASE SK. La conciliación contra el archivo del broker cierra los lotes
+    // viejos de la cuenta (nunca los borra) y marca los depósitos manuales que
+    // su ledger reemplaza. Van ANTES de los lotes/movimientos nuevos: si un
+    // lote nuevo cae en el mismo id que uno viejo (misma compra), gana el nuevo.
+    for (const { id, fields } of (updateLots || [])) {
+      if (!id || !fields) continue
+      const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+      ops.push({ type: 'update', ref: fs.doc(db, `users/${uid}/lots`, id), data: clean })
+    }
+
     for (const lot of (newLots || [])) {
       const qty = Math.round((lot.quantity || 0) * 1e8)
       const cost = Math.round((lot.costBasis || 0) * 100)
       const inst = (lot.institution || '').replace(/[/\\]/g, '-').slice(0, 20)
       const id = `${(lot.symbol || 'lot').toUpperCase()}-${lot.acquisitionDate || 'nodate'}-${qty}-${cost}${inst ? `-${inst}` : ''}`
       ops.push({ type: 'set', ref: fs.doc(db, `users/${uid}/lots`, id), data: strip({ ...lot, status: 'open', createdAt: now }) })
+    }
+
+    for (const { id, fields } of (updateTransactions || [])) {
+      if (!id || !fields) continue
+      const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
+      ops.push({ type: 'update', ref: fs.doc(db, `users/${uid}/transactions`, id), data: clean })
     }
 
     for (const tx of (newTxs || [])) {
