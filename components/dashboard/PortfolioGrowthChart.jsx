@@ -17,7 +17,7 @@ import { currentOrLastSession } from '@/lib/marketHours'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { dropLedgerSupersededFlows, ledgerKeyOf, isLedgerFlow } from '@/lib/ledgerFlows'
-import { computeLedgerTWR } from '@/lib/ledgerTwr'
+import { buildReconciledView, reconciledWindowTwr } from '@/lib/ledgerSeries'
 import ErrorState from '@/components/ui/ErrorState'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
@@ -174,6 +174,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
+  // Institución a la que pertenecen `dataPoints`. Al cambiar de cuenta el
+  // fetch anterior no sirve de forma: un nivel de otro portafolio, aunque
+  // después se calibre, le prestaría su pendiente.
+  const [shapeFor, setShapeFor] = useState(null)
   // True when the API rebuilt the past from imported transactions (deposits,
   // buys, sells, dividends) rather than holding today's state flat: that series
   // CONTAINS flow effects, so returns must net flows over the whole range and
@@ -463,8 +467,25 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       historyCacheRef.current.clear()
       cacheGuardRef.current = { allItemsSig, transactions, lots }
     }
-    const cacheable = period !== 'DAY' && period !== 'CUSTOM'
-    const cacheKey = `${shownInst}|${period}`
+    const reconciledInst = shownInst !== 'ALL' && !!ledgerKeyOf(scopedItems)
+    let apiPeriod = period === 'MTD' ? '1M' : period
+    if (period === 'CUSTOM' && customRange.from) {
+      const fromDate = new Date(customRange.from)
+      const toDate = customRange.to ? new Date(customRange.to) : new Date()
+      const diffDays = Math.ceil((toDate - fromDate) / 86400000)
+      if (diffDays <= 30) apiPeriod = '1M'
+      else if (diffDays <= 90) apiPeriod = '3M'
+      else if (diffDays <= 180) apiPeriod = '6M'
+      else if (diffDays <= 365) apiPeriod = '1Y'
+      else apiPeriod = 'ALL'
+    }
+    // FASE SL. En una cuenta conciliada este fetch NO es el valor de la
+    // línea (eso son los NAV del broker). Es la forma diaria de los últimos
+    // meses, así que tiene que ser cierre diario: 1A y TODO piden barras
+    // semanales, y 1S solo trae una semana. AÑO ya viene en cierres diarios.
+    if (reconciledInst && apiPeriod !== 'YTD') apiPeriod = '6M'
+    const cacheable = reconciledInst ? period !== 'CUSTOM' : (period !== 'DAY' && period !== 'CUSTOM')
+    const cacheKey = reconciledInst ? `${shownInst}|ledger-shape|${apiPeriod}` : `${shownInst}|${period}`
     const cachedData = cacheable ? historyCacheRef.current.get(cacheKey) : undefined
     const gen = ++fetchGenRef.current
     // A cache hit skips the loading flash entirely — that IS the point.
@@ -475,19 +496,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // flight — chartData's DAY branch maps whatever is in dataPoints without a
     // period check, so a stale point that happens to fall in the last-3-days
     // window would flash on screen until the real intraday response lands.
-    if (period === 'DAY') setDataPoints([])
+    // La cuenta conciliada no dibuja esos puntos: los usa de forma, y
+    // borrarlos dejaría el tramo reciente sin pendiente hasta que vuelva el fetch.
+    if (period === 'DAY' && !reconciledInst) setDataPoints([])
     try {
-      let apiPeriod = period === 'MTD' ? '1M' : period
-      if (period === 'CUSTOM') {
-        const fromDate = new Date(customRange.from)
-        const toDate = customRange.to ? new Date(customRange.to) : new Date()
-        const diffDays = Math.ceil((toDate - fromDate) / 86400000)
-        if (diffDays <= 30) apiPeriod = '1M'
-        else if (diffDays <= 90) apiPeriod = '3M'
-        else if (diffDays <= 180) apiPeriod = '6M'
-        else if (diffDays <= 365) apiPeriod = '1Y'
-        else apiPeriod = 'ALL'
-      }
       // Assets only — the API has no isDebt notion and would sum a debt as a
       // POSITIVE holding. FASE LU: la deuda ya ni siquiera llega acá (sale del
       // universo de la card en el tope del componente), así que tampoco se
@@ -634,20 +646,23 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         if (baseCurrency !== 'USD' && convert) {
           pts = pts.map(dp => ({ ...dp, total: convert(dp.total, 'USD', baseCurrency) }))
         }
-        if (period === 'CUSTOM' && customRange.from) {
+        // Cuenta conciliada: estos puntos son la FORMA de varios meses, no la
+        // ventana que se está viendo. Recortarlos a AÑO/MES/HOY dejaría las
+        // anclas de alrededor sin pendiente.
+        if (!reconciledInst && period === 'CUSTOM' && customRange.from) {
           const fromTs = new Date(customRange.from).getTime()
           const toTs = customRange.to ? new Date(customRange.to + 'T23:59:59').getTime() : Date.now()
           pts = pts.filter(dp => dp.ts >= fromTs && dp.ts <= toTs)
         }
-        if (period === 'YTD') {
+        if (!reconciledInst && period === 'YTD') {
           const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
           pts = pts.filter((dp) => dp.ts >= yearStart)
         }
-        if (period === 'MTD') {
+        if (!reconciledInst && period === 'MTD') {
           const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
           pts = pts.filter((dp) => dp.ts >= monthStart)
         }
-        if (period === 'DAY' && pts.length > 0) {
+        if (!reconciledInst && period === 'DAY' && pts.length > 0) {
           // Ventana de la sesión regular de NYSE (9:30am-4pm ET, resuelto por
           // hora del Este vía Intl), anclada en AHORA y no en la fecha del
           // último punto: con datos ralos (broker EOD-only) la última fila
@@ -656,6 +671,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
           pts = pts.filter(dp => dp.ts >= open && dp.ts <= close)
         }
         setDataPoints(pts)
+        if (reconciledInst) setShapeFor(shownInst)
         setApiTransactional(!!data.transactional)
         setStaticTotal(data.staticTotal != null
           ? (baseCurrency !== 'USD' && convert ? convert(data.staticTotal, 'USD', baseCurrency) : data.staticTotal)
@@ -696,58 +712,52 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       .reduce((s, it) => s + getItemValue(it), 0)
   }, [scopedItems])
 
-  // FASE SK. Una cuenta conciliada contra su archivo del broker trae sus
-  // cierres de mes REALES (NAV de PortfolioAnalyst, settings.ledgerAccounts).
-  // En su vista, YTD / MTD / ALL se dibujan y se miden sobre ellos: el
-  // arranque del año es el NAV del 31 dic (lo que el broker llama "Beginning
-  // NAV"), no una reconstrucción que sostiene hacia atrás las posiciones de
-  // hoy. Los demás rangos (1W, 1M, 3M...) no caen en un cierre de mes y
-  // siguen como siempre, ya con los flujos del ledger.
-  const LEDGER_PERIODS = ['YTD', 'MTD', 'ALL']
+  // FASE SK + SL. Una cuenta conciliada (settings.ledgerAccounts) no se
+  // dibuja con los snapshots diarios: esos docs traen los aportes manuales
+  // duplicados. Todos los rangos salen de los NAV del broker, con la forma
+  // de los cierres diarios solo en el tramo reciente y calibrada a las anclas
+  // (lib/ledgerSeries.js). "Todas" y una cuenta sin conciliar no entran aquí.
   const scopedLedgerKey = shownInst === 'ALL' ? null : ledgerKeyOf(scopedItems)
   const ledgerAccount = scopedLedgerKey && ledgerAccounts && ledgerAccounts[scopedLedgerKey]
     && Array.isArray(ledgerAccounts[scopedLedgerKey].nav) && ledgerAccounts[scopedLedgerKey].nav.length > 0
     ? ledgerAccounts[scopedLedgerKey]
     : null
-  const ledgerWindowFrom = (() => {
-    const n = new Date()
-    if (period === 'YTD') return `${n.getUTCFullYear()}-01-01`
-    if (period === 'MTD') return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, '0')}-01`
-    return null
-  })()
-  const ledgerFlowsUSD = useMemo(() => {
-    if (!ledgerAccount) return []
-    return (transactions || [])
+  const ledgerPack = useMemo(() => {
+    if (!ledgerAccount) return null
+    const bc = baseCurrency || 'USD'
+    const toBase = (usd) => (convert ? convert(usd, 'USD', bc) : usd)
+    const nav = ledgerAccount.nav
+      .filter((p) => p && p.d && Number(p.v) > 0)
+      .map((p) => ({ d: p.d, v: toBase(Number(p.v)), r: p.r }))
+    const flows = (transactions || [])
       .filter((tx) => isLedgerFlow(tx) && String(tx._ledgerAccount) === scopedLedgerKey && tx.date)
       .map((tx) => {
         const raw = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0)) || 0
-        const usd = convert ? convert(raw, tx.currency || 'USD', 'USD') : raw
-        return { date: String(tx.date).slice(0, 10), amount: (tx.type || '').toUpperCase() === 'WITHDRAWAL' ? -usd : usd }
+        const amount = convert ? convert(raw, tx.currency || 'USD', bc) : raw
+        return { date: String(tx.date).slice(0, 10), amount: (tx.type || '').toUpperCase() === 'WITHDRAWAL' ? -amount : amount }
       })
-      .sort((a, b) => a.date.localeCompare(b.date))
-  }, [ledgerAccount, transactions, scopedLedgerKey, convert])
-  const ledgerPoints = useMemo(() => {
-    if (!ledgerAccount || !LEDGER_PERIODS.includes(period)) return null
-    const bc = baseCurrency || 'USD'
-    const toBase = (v) => (convert ? convert(v, 'USD', bc) : v)
-    const nav = [...ledgerAccount.nav].filter((p) => p && p.d && Number(p.v) > 0).sort((a, b) => a.d.localeCompare(b.d))
-    let carry = null
-    const inWindow = []
-    for (const p of nav) {
-      if (ledgerWindowFrom && p.d <= ledgerWindowFrom) carry = p
-      else inWindow.push(p)
-    }
-    const mk = (d, v) => ({ ts: Date.parse(`${d}T00:00:00Z`), date: new Date(`${d}T00:00:00Z`), value: toBase(Number(v)), src: 'ledger', transactional: true })
-    const pts = []
-    if (carry) pts.push(mk(carry.d, carry.v))
-    else if (!ledgerWindowFrom && ledgerFlowsUSD.length > 0 && ledgerFlowsUSD[0].date < (nav[0]?.d || '') && ledgerFlowsUSD[0].amount > 0) {
-      // Desde siempre: la cuenta arranca con su primer depósito, no en el
-      // primer cierre de mes (ese ya trae el rendimiento del primer mes).
-      pts.push(mk(ledgerFlowsUSD[0].date, ledgerFlowsUSD[0].amount))
-    }
-    for (const p of inWindow) pts.push(mk(p.d, p.v))
-    return pts.length > 0 ? pts : null
-  }, [ledgerAccount, period, ledgerWindowFrom, ledgerFlowsUSD, convert, baseCurrency])
+    // Solo la forma de ESTA cuenta. dataPoints de otra institución, o de
+    // antes de que el fetch de 6M vuelva, no se usan: sin forma, el tramo
+    // se reparte lineal entre anclas y el nivel sigue siendo el NAV.
+    const daily = shapeFor === shownInst
+      ? (dataPoints || []).map((dp) => ({
+        d: new Date(dp.ts).toISOString().slice(0, 10),
+        v: Number(dp.total),
+      })).filter((p) => p.d && p.v > 0)
+      : []
+    const today = new Date().toISOString().slice(0, 10)
+    const view = buildReconciledView({
+      nav, flows, daily, period, today, custom: customRange,
+      endValue: currentTotal > 0 ? currentTotal : null,
+    })
+    if (!view) return null
+    const chartPoints = view.points.map((p) => {
+      const ts = Date.parse(`${p.d}T00:00:00Z`)
+      return { ts, date: new Date(ts), value: p.v, src: 'ledger', transactional: true }
+    })
+    return chartPoints.length > 0 ? { ...view, chartPoints } : null
+  }, [ledgerAccount, transactions, scopedLedgerKey, convert, baseCurrency, shapeFor, shownInst, dataPoints, period, customRange, currentTotal])
+  const ledgerPoints = ledgerPack?.chartPoints || null
   const ledgerMode = !!ledgerPoints
 
   const snapshotData = useMemo(() => {
@@ -1179,7 +1189,8 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     let pts
 
     if (ledgerMode) {
-      // FASE SK: cierres reales del broker; nada que empalmar ni escalar.
+      // FASE SL: NAV del broker (y el tramo reciente calibrado). Nada de
+      // snapshots, nada que empalmar ni escalar contra el API.
       pts = [...snapshotData]
     } else if (period === 'DAY' && snapPts.length >= 2) {
       pts = [...snapPts]
@@ -1268,7 +1279,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // DAY must measure "hoy" from yesterday's close. When the series came
     // from intraday API points only (first point = the open), add the latest
     // snapshot at/before the open as the baseline, just left of the open.
-    if (period === 'DAY' && pts.length > 0) {
+    if (!ledgerMode && period === 'DAY' && pts.length > 0) {
       const { open } = currentOrLastSession(Date.now())
       if (pts[0].ts >= open - 60000) {
         let anchor = null
@@ -1299,7 +1310,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       }
     }
 
-    if (period === 'YTD' && pts.length > 0) {
+    if (!ledgerMode && period === 'YTD' && pts.length > 0) {
       const year = new Date().getUTCFullYear()
       const yearStart = Date.UTC(year, 0, 1)
       if (pts[0].ts > yearStart + 86400000) {
@@ -1362,7 +1373,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         }
       }
     }
-    if (period === 'MTD' && pts.length > 0) {
+    if (!ledgerMode && period === 'MTD' && pts.length > 0) {
       const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
       if (pts[0].ts > monthStart + 86400000) {
         pts.unshift({ ts: monthStart, date: new Date(monthStart), value: pts[0].value })
@@ -1457,10 +1468,31 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // PREGUNTAR antes de cambiar el ancla o el re-base de esta serie. La
   // fórmula vive en computeAnchoredReturnSeries (analytics.js) — recalculada
   // con las funciones reales en lib/__tests__/corporateBondWithEntryFee.test.js.
-  const returnData = useMemo(
-    () => computeAnchoredReturnSeries(chartData, returnTransactions, convert, baseCurrency, { firstRealTs, apiTransactional }),
-    [chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional]
-  )
+  const returnData = useMemo(() => {
+    // Cuenta conciliada: la pestaña de rendimiento encadena el MISMO TWR que
+    // el encabezado (retornos mensuales del broker donde el tramo cae entero,
+    // y la serie calibrada en los pedazos). computeAnchoredReturnSeries no se
+    // toca: sin ledger sigue siendo la serie congelada.
+    if (ledgerMode && ledgerPack?.twr) {
+      const s = chartData.map((p, i) => {
+        if (i === 0) return 0
+        const d = new Date(p.ts).toISOString().slice(0, 10)
+        const r = reconciledWindowTwr({
+          nav: ledgerPack.nav,
+          flows: ledgerPack.flows,
+          series: ledgerPack.spine,
+          from: ledgerPack.from,
+          pin: ledgerPack.pin,
+          to: d,
+          endValue: p.value,
+        })
+        return r?.pct ?? 0
+      })
+      if (s.length) s[s.length - 1] = ledgerPack.twr.pct
+      return s
+    }
+    return computeAnchoredReturnSeries(chartData, returnTransactions, convert, baseCurrency, { firstRealTs, apiTransactional })
+  }, [ledgerMode, ledgerPack, chartData, returnTransactions, convert, baseCurrency, firstRealTs, apiTransactional])
   // FASE FP. The money-weighted sibling tab: same anchor, same window, same
   // inputs, only the formula differs (one Dietz window, timing of the user's
   // own flows counts, instead of chained timing-stripped segments). ADDITIVE
@@ -2071,19 +2103,12 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // una institucion seleccionada la tarjeta no aplica (es del portafolio
   // entero), asi que ahi queda el calculo de la serie.
   const useCardDay = period === 'DAY' && shownInst === 'ALL' && dayChange && Number.isFinite(dayChange.abs)
-  // FASE SK (aprobado por el usuario: el % principal de una cuenta conciliada
-  // es TWR, como lo muestra su broker). Encadena los retornos mensuales que el
-  // broker publica, más el tramo vivo desde el último cierre. El monto ($)
-  // sigue siendo el de computeWindowGrowth: ganancia sin contar aportes.
-  const ledgerTwr = ledgerMode && period !== 'DAY' && ledgerAccount
-    ? computeLedgerTWR({
-      nav: ledgerAccount.nav,
-      flows: ledgerFlowsUSD,
-      from: ledgerWindowFrom,
-      to: new Date().toISOString().slice(0, 10),
-      endValue: currentTotal > 0 ? (convert ? convert(currentTotal, baseCurrency || 'USD', 'USD') : currentTotal) : null,
-    })
-    : null
+  // FASE SK/SL (aprobado por el usuario: el % de una cuenta conciliada es TWR
+  // en TODOS los rangos, como lo muestra su broker). AÑO/MES/TODO encadenan
+  // los retornos mensuales; el resto corta en los flujos y usa la serie
+  // calibrada donde el mes no cae entero. El monto ($) sigue siendo el de
+  // computeWindowGrowth: ganancia sin contar aportes.
+  const ledgerTwr = ledgerMode && !useCardDay && ledgerPack?.twr?.pct != null ? ledgerPack.twr : null
   const growthPct = useCardDay ? dayChange.pct : (ledgerTwr ? ledgerTwr.pct : windowGrowth.growthPct)
   const displayAbs = useCardDay ? dayChange.abs : windowGrowth.displayAbs
   const { newCapitalPrincipal } = windowGrowth
