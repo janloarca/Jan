@@ -16,6 +16,8 @@ import { staticValueAt } from '@/lib/staticOverlay'
 import { currentOrLastSession } from '@/lib/marketHours'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
+import { dropLedgerSupersededFlows, ledgerKeyOf, isLedgerFlow } from '@/lib/ledgerFlows'
+import { computeLedgerTWR } from '@/lib/ledgerTwr'
 import ErrorState from '@/components/ui/ErrorState'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
@@ -139,7 +141,7 @@ function buildGeometry(values, mode, height, width, pad, extraSeries, timestamps
 // sintéticos de calibración, que no existen en Firestore y hacen que fechas sin
 // dato real se lean como cubiertas. Sin estos props el comportamiento es el de
 // antes.
-export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null, ytdStartTs = null, ytdStartValue = null }) {
+export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots, transactions: transactionsProp, lang, convert, baseCurrency, onSaveSnapshot, ibkrSyncSummary = null, onImportBroker = null, repairItems = null, repairSnapshots = null, onMigrateNav = null, dayChange = null, ytdStartTs = null, ytdStartValue = null, ledgerAccounts = null }) {
   // ⛔ FASE LU (extensión de la superficie congelada D, decisión del usuario,
   // 28 ago 2026): la gráfica mide tus ACTIVOS. La deuda no es una inversión,
   // así que sale del universo entero de esta card: de la línea, de los chips
@@ -160,7 +162,15 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     () => (debtIds.size === 0 ? (itemsProp || []) : (itemsProp || []).filter((it) => !it?.isDebt)),
     [itemsProp, debtIds]
   )
-  const transactions = useMemo(() => assetOnlyFlows(transactionsProp, debtIds), [transactionsProp, debtIds])
+  // FASE SK (extensión aprobada de la superficie D: solo QUÉ flujos entran).
+  // Los DEPOSIT/WITHDRAWAL que el ledger de una cuenta conciliada reemplaza no
+  // entran a ninguna vista. Sin cuentas conciliadas, la MISMA lista.
+  const ledgerIdsSig = (itemsProp || []).filter((it) => it?._ledgerAccount && it.id).map((it) => it.id).sort().join('|')
+  const ledgerIds = useMemo(() => new Set(ledgerIdsSig ? ledgerIdsSig.split('|') : []), [ledgerIdsSig])
+  const transactions = useMemo(
+    () => dropLedgerSupersededFlows(assetOnlyFlows(transactionsProp, debtIds), ledgerIds),
+    [transactionsProp, debtIds, ledgerIds]
+  )
   const [period, setPeriod] = useState('YTD')
   const [hoverIdx, setHoverIdx] = useState(null)
   const [dataPoints, setDataPoints] = useState([])
@@ -327,8 +337,20 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // símbolo que empiece con CASH. Un flujo inferido (FASE DQ) tiene la misma
     // semántica de cuenta de broker y viaja por la misma puerta.
     const scopedHasIbkr = scopedItems.some((it) => it._source === 'ibkr')
+    // FASE SK: en la vista de una cuenta conciliada, los ÚNICOS depósitos y
+    // retiros son los de su ledger (el dinero que de verdad entró y salió de
+    // esa cuenta). Un retiro de otra cuenta con el mismo símbolo, o el
+    // depósito "de dinero nuevo" de una compra manual, no son de ella.
+    const scopedLedgerKey = ledgerKeyOf(scopedItems)
     return transactions.filter((tx) => {
       const sym = (tx.symbol || '').toUpperCase()
+      if (scopedLedgerKey) {
+        const ty = (tx.type || '').toUpperCase()
+        if (ty === 'DEPOSIT' || ty === 'WITHDRAWAL') return isLedgerFlow(tx) && String(tx._ledgerAccount) === scopedLedgerKey
+      } else if (isLedgerFlow(tx)) {
+        // El ledger de una cuenta conciliada nunca es flujo de otra cuenta.
+        return false
+      }
       if (tx._linkedItemId && scopedIds.has(tx._linkedItemId)) return true
       if (tx._linkedItemId && allItemIds.has(tx._linkedItemId)) return false
       if ((tx._source === 'ibkr' || tx._source === 'inferred_flow') && sym.startsWith('CASH')) return scopedHasIbkr
@@ -674,7 +696,62 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       .reduce((s, it) => s + getItemValue(it), 0)
   }, [scopedItems])
 
+  // FASE SK. Una cuenta conciliada contra su archivo del broker trae sus
+  // cierres de mes REALES (NAV de PortfolioAnalyst, settings.ledgerAccounts).
+  // En su vista, YTD / MTD / ALL se dibujan y se miden sobre ellos: el
+  // arranque del año es el NAV del 31 dic (lo que el broker llama "Beginning
+  // NAV"), no una reconstrucción que sostiene hacia atrás las posiciones de
+  // hoy. Los demás rangos (1W, 1M, 3M...) no caen en un cierre de mes y
+  // siguen como siempre, ya con los flujos del ledger.
+  const LEDGER_PERIODS = ['YTD', 'MTD', 'ALL']
+  const scopedLedgerKey = shownInst === 'ALL' ? null : ledgerKeyOf(scopedItems)
+  const ledgerAccount = scopedLedgerKey && ledgerAccounts && ledgerAccounts[scopedLedgerKey]
+    && Array.isArray(ledgerAccounts[scopedLedgerKey].nav) && ledgerAccounts[scopedLedgerKey].nav.length > 0
+    ? ledgerAccounts[scopedLedgerKey]
+    : null
+  const ledgerWindowFrom = (() => {
+    const n = new Date()
+    if (period === 'YTD') return `${n.getUTCFullYear()}-01-01`
+    if (period === 'MTD') return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, '0')}-01`
+    return null
+  })()
+  const ledgerFlowsUSD = useMemo(() => {
+    if (!ledgerAccount) return []
+    return (transactions || [])
+      .filter((tx) => isLedgerFlow(tx) && String(tx._ledgerAccount) === scopedLedgerKey && tx.date)
+      .map((tx) => {
+        const raw = Math.abs(Number(tx.totalAmount ?? tx.amount ?? 0)) || 0
+        const usd = convert ? convert(raw, tx.currency || 'USD', 'USD') : raw
+        return { date: String(tx.date).slice(0, 10), amount: (tx.type || '').toUpperCase() === 'WITHDRAWAL' ? -usd : usd }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+  }, [ledgerAccount, transactions, scopedLedgerKey, convert])
+  const ledgerPoints = useMemo(() => {
+    if (!ledgerAccount || !LEDGER_PERIODS.includes(period)) return null
+    const bc = baseCurrency || 'USD'
+    const toBase = (v) => (convert ? convert(v, 'USD', bc) : v)
+    const nav = [...ledgerAccount.nav].filter((p) => p && p.d && Number(p.v) > 0).sort((a, b) => a.d.localeCompare(b.d))
+    let carry = null
+    const inWindow = []
+    for (const p of nav) {
+      if (ledgerWindowFrom && p.d <= ledgerWindowFrom) carry = p
+      else inWindow.push(p)
+    }
+    const mk = (d, v) => ({ ts: Date.parse(`${d}T00:00:00Z`), date: new Date(`${d}T00:00:00Z`), value: toBase(Number(v)), src: 'ledger', transactional: true })
+    const pts = []
+    if (carry) pts.push(mk(carry.d, carry.v))
+    else if (!ledgerWindowFrom && ledgerFlowsUSD.length > 0 && ledgerFlowsUSD[0].date < (nav[0]?.d || '') && ledgerFlowsUSD[0].amount > 0) {
+      // Desde siempre: la cuenta arranca con su primer depósito, no en el
+      // primer cierre de mes (ese ya trae el rendimiento del primer mes).
+      pts.push(mk(ledgerFlowsUSD[0].date, ledgerFlowsUSD[0].amount))
+    }
+    for (const p of inWindow) pts.push(mk(p.d, p.v))
+    return pts.length > 0 ? pts : null
+  }, [ledgerAccount, period, ledgerWindowFrom, ledgerFlowsUSD, convert, baseCurrency])
+  const ledgerMode = !!ledgerPoints
+
   const snapshotData = useMemo(() => {
+    if (ledgerPoints) return ledgerPoints
     if (!snapshots || snapshots.length === 0) return []
     // Whole-portfolio NAV snapshots can't be split per account. When viewing a
     // single manual (non-IBKR) institution they would draw the entire portfolio's
@@ -853,7 +930,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     pts = filterValueSpikes(pts)
 
     return pts
-  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, shownInst, scopedItems])
+  }, [snapshots, period, convert, baseCurrency, customRange, currentTotal, shownInst, scopedItems, ledgerPoints])
 
   // "Estimado" is not the same question as "incierto" — the lesson FASE DS
   // already settled for the spreadsheet, now applied to the chart.
@@ -896,7 +973,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // ventana medida arrancaba en el único 'daily' de hoy y "desde inicio"
     // salía +$0.00 en el último punto.
     const hasBroker = (scopedItems || []).some((it) => it?._source === 'ibkr')
-    const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(s?.src)
+    const p = snapshotData.find((s) => ['ibkr', 'ibkr_quarterly', 'daily', 'manual', 'ledger'].includes(s?.src)
       || (!hasBroker && s?.src === 'backfill'))
     return p ? p.ts : null
   }, [snapshotData, reconstructionIsExact, scopedItems])
@@ -1101,7 +1178,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
 
     let pts
 
-    if (period === 'DAY' && snapPts.length >= 2) {
+    if (ledgerMode) {
+      // FASE SK: cierres reales del broker; nada que empalmar ni escalar.
+      pts = [...snapshotData]
+    } else if (period === 'DAY' && snapPts.length >= 2) {
       pts = [...snapPts]
       const recentApi = apiPts.filter(p => p.ts > snapPts[0].ts && p.ts < snapPts[snapPts.length - 1].ts)
       if (recentApi.length > 0) {
@@ -1324,7 +1404,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       if (real.length >= 2) return real
     }
     return pts
-  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact, ytdStartTs, ytdStartValue])
+  }, [dataPoints, snapshotData, currentTotal, period, staticPoints, earliestStaticAcqTs, shownInst, manualAddedTs, snapshots, items, convert, baseCurrency, shownMode, isPerf, firstRealTs, apiTransactional, reconstructionIsExact, ytdStartTs, ytdStartValue, ledgerMode])
 
   // FASE RY. En la vista Valor la ventana MEDIDA arranca en el primer dato
   // real (valueRebasedFrom, abajo), pero la gráfica dibujaba también el tramo
@@ -1362,7 +1442,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // implicitly pre-dated); applied to a lot-aware backfill it read every IBKR
   // deposit as market gain.
   const flowAware = useMemo(
-    () => snapshotData.length >= 2 && (['ibkr', 'ibkr_quarterly', 'daily', 'manual'].includes(snapshotData[0]?.src) || !!snapshotData[0]?.transactional),
+    () => snapshotData.length >= 2 && (['ibkr', 'ibkr_quarterly', 'daily', 'manual', 'ledger'].includes(snapshotData[0]?.src) || !!snapshotData[0]?.transactional),
     [snapshotData]
   )
   const returnTransactions = useMemo(
@@ -1478,7 +1558,9 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       const acqTs = new Date(`${it.acquisitionDate}T00:00:00`).getTime()
       return !Number.isFinite(acqTs) || acqTs < windowStartTs
     })
-    const startVal = anyPredatesWindow ? chartData[0].value : 0
+    // FASE SK: el primer punto de una cuenta conciliada es un NAV real (o su
+    // primer depósito): ese valor YA es capital de la cuenta.
+    const startVal = (anyPredatesWindow || ledgerMode) ? chartData[0].value : 0
     const line = chartData.map(dp => {
       let cum = startVal
       for (const ev of events) {
@@ -1497,7 +1579,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       ), 0)
       : null
     return line
-  }, [chartData, scopedTransactions, scopedItems, shownMode, convert, baseCurrency, lots])
+  }, [chartData, scopedTransactions, scopedItems, shownMode, convert, baseCurrency, lots, ledgerMode])
 
   // FASE HP. La MISMA reparación que corre sola en useDashboardData, pero
   // disparada por el usuario y con reporte a la vista. Reusa los helpers puros
@@ -1989,7 +2071,20 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   // una institucion seleccionada la tarjeta no aplica (es del portafolio
   // entero), asi que ahi queda el calculo de la serie.
   const useCardDay = period === 'DAY' && shownInst === 'ALL' && dayChange && Number.isFinite(dayChange.abs)
-  const growthPct = useCardDay ? dayChange.pct : windowGrowth.growthPct
+  // FASE SK (aprobado por el usuario: el % principal de una cuenta conciliada
+  // es TWR, como lo muestra su broker). Encadena los retornos mensuales que el
+  // broker publica, más el tramo vivo desde el último cierre. El monto ($)
+  // sigue siendo el de computeWindowGrowth: ganancia sin contar aportes.
+  const ledgerTwr = ledgerMode && period !== 'DAY' && ledgerAccount
+    ? computeLedgerTWR({
+      nav: ledgerAccount.nav,
+      flows: ledgerFlowsUSD,
+      from: ledgerWindowFrom,
+      to: new Date().toISOString().slice(0, 10),
+      endValue: currentTotal > 0 ? (convert ? convert(currentTotal, baseCurrency || 'USD', 'USD') : currentTotal) : null,
+    })
+    : null
+  const growthPct = useCardDay ? dayChange.pct : (ledgerTwr ? ledgerTwr.pct : windowGrowth.growthPct)
   const displayAbs = useCardDay ? dayChange.abs : windowGrowth.displayAbs
   const { newCapitalPrincipal } = windowGrowth
   const lastReturn = activeReturnData.length > 0 ? activeReturnData[activeReturnData.length - 1] : 0
@@ -2292,7 +2387,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             <span className="font-mono tabular-nums"
               title={t('Cambio del valor en este periodo, sin contar aportes. El YTD del encabezado pondera los aportes por tiempo, por eso el % puede diferir.', 'Change in value over this period, net of contributions. The header YTD weights contributions by time, so the % can differ.')}>
               {displayAbs >= 0 ? '+' : ''}{formatCurrency(displayAbs)}
-              {growthPct != null && ` (${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(2)}%)`}
+              {growthPct != null && ` (${growthPct >= 0 ? '+' : ''}${growthPct.toFixed(2)}%${ledgerTwr ? ' TWR' : ''})`}
             </span>
             {/* Never claim "this year" when the measured window starts at the first
                 real data point instead of January. */}

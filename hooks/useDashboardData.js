@@ -45,6 +45,7 @@ import { attributeYtd, deriveBrokerStart, pickAnchorBreakdown } from '@/lib/ytdA
 import { snapshotAssetsUSD, assetOnlyFlows, dropManualBrokerFlows, ibkrItemIds } from '@/lib/assetReturns'
 import { buildPublishPayload, publishDayKey, shouldPublishToday, publishBlockedBy } from '@/lib/friendsPublish'
 import { isScopedView, transactionsForItems } from '@/lib/portfolioScope'
+import { dropLedgerSupersededFlows, ledgerItemIds, LEDGER_SOURCE } from '@/lib/ledgerFlows'
 import { computeNetContributions, computePeriodicReturns, computeSharpeRatio, computeVolatility, computeMaxDrawdown, computeHHI, generateInsights, computeAssetAttribution, inferPeriodsPerYear, filterValueSpikes, pairPortfolioWithBenchmark } from '@/components/dashboard/analytics'
 import { checkPriceAlerts } from '@/lib/notifications'
 
@@ -2244,8 +2245,15 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
   const ibkrIds = useMemo(() => new Set(ibkrIdsSig ? ibkrIdsSig.split('|') : []), [ibkrIdsSig])
   // FASE LU2: con el ledger real del Flex presente, los DEPOSIT/WITHDRAWAL
   // manuales vinculados a ítems de IBKR no se netean otra vez.
-  const assetTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(viewTransactions, debtIds), ibkrIds), [viewTransactions, debtIds, ibkrIds])
-  const assetDietzTransactions = useMemo(() => dropManualBrokerFlows(assetOnlyFlows(dietzTransactions, debtIds), ibkrIds), [dietzTransactions, debtIds, ibkrIds])
+  // FASE SK (extensión aprobada de la superficie C, solo QUÉ flujos entran):
+  // una cuenta conciliada contra su archivo del broker mide con su ledger real;
+  // los depósitos "de dinero nuevo" que cada compra manual escribía para ella
+  // ya no se netean. Sin cuentas conciliadas, la MISMA lista (ver
+  // lib/ledgerFlows.js).
+  const ledgerIdsSig = useMemo(() => [...ledgerItemIds(portfolioItems)].sort().join('|'), [portfolioItems])
+  const ledgerIds = useMemo(() => new Set(ledgerIdsSig ? ledgerIdsSig.split('|') : []), [ledgerIdsSig])
+  const assetTransactions = useMemo(() => dropLedgerSupersededFlows(dropManualBrokerFlows(assetOnlyFlows(viewTransactions, debtIds), ibkrIds), ledgerIds), [viewTransactions, debtIds, ibkrIds, ledgerIds])
+  const assetDietzTransactions = useMemo(() => dropLedgerSupersededFlows(dropManualBrokerFlows(assetOnlyFlows(dietzTransactions, debtIds), ibkrIds), ledgerIds), [dietzTransactions, debtIds, ibkrIds, ledgerIds])
 
   const { returnYTD, returnYTDRaw, ytdChange, returnSinceStart, sinceStartDate, ytdCalibrated, ytdStartValue, ytdStartTs, ytdStartSrc, ytdFlowsUsed, ytdStartLate, ytdStartLateByAccount, ytdAnchorDoc, ytdStartMissingLate, ytdLateToPersist } = useMemo(() => {
     const year = new Date().getUTCFullYear()
@@ -2729,9 +2737,13 @@ export function useDashboardData({ user, lang, activePortfolio, activeEntity = '
         const owner = (portfolioItems || []).find((it) => (it.symbol || '').toUpperCase() === sym)
         return owner ? accountOf.get(owner.id) : null
       }
+      // FASE SK: un movimiento del ledger de una cuenta conciliada dice de qué
+      // cuenta es (no trae vínculo ni símbolo de un activo).
       const key = (tx._source === 'ibkr' || tx._source === 'inferred_flow')
         ? 'ibkr'
-        : ((tx._linkedItemId && accountOf.get(tx._linkedItemId)) || bySymbol())
+        : (tx._source === LEDGER_SOURCE && tx._ledgerAccount)
+          ? String(tx._ledgerAccount)
+          : ((tx._linkedItemId && accountOf.get(tx._linkedItemId)) || bySymbol())
       if (!key) { unattributedFlow += amt; return }
       addFlow(key, amt, txTs)
     })

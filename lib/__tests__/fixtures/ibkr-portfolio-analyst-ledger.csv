@@ -1,0 +1,149 @@
+Introduction,Header,Name,Account,Alias,BaseCurrency,AccountType,AnalysisPeriod,PerformanceMeasure
+Introduction,Data,Test User,U***00000,,USD,Individual,"June 23, 2023 to November 16, 2026 (Monthly)",TWR
+Key Statistics,MetaInfo,Analysis Period,"June 23, 2023 - November 16, 2026"
+Key Statistics,Header,BeginningNAV,EndingNAV,CumulativeReturn,1MonthReturn,1MonthReturnDateRange,3MonthReturn,3MonthReturnDateRange,BestReturn,BestReturnDate,WorstReturn,WorstReturnDate,MTM,Deposits & Withdrawals,Dividends,Interest,Fees & Commissions,Other,ChangeInNAV
+Key Statistics,Data,0,14235.338164,77.323706421,-2.020984147,202611,-2.491756614,202609 - 202611,13.23240236,202604,-6.489441407,202308,2005.557205,11980.6363,561.4808,0.0,-157.64849,-154.68765,14235.338164
+Open Position Summary,MetaInfo,As Of,"November 16, 2026"
+Open Position Summary,Header,Date,FinancialInstrument,Currency,Symbol,Description,Sector,Quantity,ClosePrice,Value,Cost Basis,UnrealizedP&L,FXRateToBase
+Open Position Summary,Data,11/16/2026,ETFs,USD,ETFA,TEST COMPANY ETFA,Technology,5,170.5239,852.6195,956.957018,-104.337518,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKB,TEST COMPANY STKB,Telecomm,3,385.3262,1155.9786,1147.06147,8.91713,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKC,TEST COMPANY STKC,Consumer Cyclicals,3,376.2979,1128.8937,1050.07071,78.82299,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKD,TEST COMPANY STKD,Telecomm,2.0603,858.1817,1768.1083,1720.911225,47.197075,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKE,TEST COMPANY STKE,Technology,12.6881,213.9118,2714.1344,3343.880218,-629.745818,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKF,TEST COMPANY STKF,Healthcare,42.2448,56.992,2407.6106,2473.922652,-66.312052,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKG,TEST COMPANY STKG,Technology,3.986,188.1832,750.1024,803.662928,-53.560528,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKH,TEST COMPANY STKH,Real Estate,71.5392,34.0445,2435.5175,2708.141412,-272.623912,1
+Open Position Summary,Data,11/16/2026,Stocks,USD,STKI,TEST COMPANY STKI,Utilities,5.6806,178.3192,1012.9643,1146.444995,-133.480695,1
+Open Position Summary,Data,11/16/2026,Cash,USD,USD,United States Dollar,Cash,9.408864,1,9.408864, , ,1
+Allocation by Asset Class,MetaInfo,Analysis Period,"June 23, 2023 - November 16, 2026"
+Allocation by Asset Class,Header,Date,Equities,Fixed Income,Real Estate,Cash,NAV
+Allocation by Asset Class,Data,202306,614.2532,0.0,0.0,0.72231,614.97551
+Allocation by Asset Class,Data,202307,619.103,0.0,0.0,0.72231,619.82531
+Allocation by Asset Class,Data,202308,578.3592,0.0,0.0,1.24291,579.60211
+Allocation by Asset Class,Data,202309,552.384,0.0,0.0,1.24291,553.62691
+Allocation by Asset Class,Data,202310,639.2009,0.0,0.0,0.64401,639.84491
+Allocation by Asset Class,Data,202311,713.8933,0.0,0.0,1.04102,714.93432
+Allocation by Asset Class,Data,202312,617.8015,0.0,0.0,91.2941,709.0956
+Allocation by Asset Class,Data,202401,833.1655,0.0,0.0,3.07914,836.24464
+Allocation by Asset Class,Data,202402,920.0235,0.0,0.0,3.07914,923.10264
+Allocation by Asset Class,Data,202403,992.2636,0.0,0.0,2.2656,994.5292
+Allocation by Asset Class,Data,202404,1693.8817,0.0,0.0,1.53726,1695.41896
+Allocation by Asset Class,Data,202405,1680.2639,0.0,0.0,2.34541,1682.60931
+Allocation by Asset Class,Data,202406,1650.6445,0.0,0.0,9.15072,1659.79522
+Allocation by Asset Class,Data,202407,2235.6482,0.0,0.0,4.62257,2240.27077
+Allocation by Asset Class,Data,202408,2301.8466,0.0,0.0,1.53038,2303.37698
+Allocation by Asset Class,Data,202409,1313.6656,0.0,0.0,1015.85204,2329.51764
+Allocation by Asset Class,Data,202410,2039.5875,0.0,0.0,374.13305,2413.72055
+Allocation by Asset Class,Data,202411,2469.3291,0.0,0.0,2039.62748,4508.95658
+Allocation by Asset Class,Data,202412,4293.717,0.0,0.0,6.09212,4299.80912
+Allocation by Asset Class,Data,202501,4344.3522,0.0,0.0,2.03711,4346.38931
+Allocation by Asset Class,Data,202502,4335.6527,0.0,239.2568,1.09382,4576.00332
+Allocation by Asset Class,Data,202503,4367.28916,124.7111,333.4306,7.90466,4833.33552
+Allocation by Asset Class,Data,202504,4575.5055,122.8753,330.5125,0.8418,5029.7351
+Allocation by Asset Class,Data,202505,5697.03779,118.8064,326.2381,1.7945,6143.87679
+Allocation by Asset Class,Data,202506,5924.06454,121.8204,293.5225,6.25547,6345.66292
+Allocation by Asset Class,Data,202507,5935.40877,120.2997,287.0972,2.03102,6344.83669
+Allocation by Asset Class,Data,202508,6324.06241,120.1627,299.8108,1.55382,6745.58973
+Allocation by Asset Class,Data,202509,6697.09763,124.3138,307.6335,9.99206,7139.037
+Allocation by Asset Class,Data,202510,5776.70875,125.8893,1277.0455,2.6683,7182.31185
+Allocation by Asset Class,Data,202511,6178.015,0.0,1082.8891,5.68846,7266.59256
+Allocation by Asset Class,Data,202512,6168.6305,0.0,1253.139,22.74895,7444.51845
+Allocation by Asset Class,Data,202601,7661.6702,0.0,2136.6931,2.35703,9800.72033
+Allocation by Asset Class,Data,202602,8692.1294,0.0,2328.0684,10.51403,11030.71183
+Allocation by Asset Class,Data,202603,8004.3483,0.0,1821.9356,569.66848,10395.95238
+Allocation by Asset Class,Data,202604,11362.0265,0.0,2107.334,8.33225,13477.69275
+Allocation by Asset Class,Data,202605,11545.7846,0.0,2036.6009,6.59258,13588.97808
+Allocation by Asset Class,Data,202606,11591.6659,0.0,1916.082,54.15599,13561.90389
+Allocation by Asset Class,Data,202607,11514.6856,0.0,1965.3198,1.91046,13481.91586
+Allocation by Asset Class,Data,202608,11534.7835,0.0,1913.1091,0.04448,13447.93708
+Allocation by Asset Class,Data,202609,11941.331,0.0,2222.3318,30.18501,14193.84781
+Allocation by Asset Class,Data,202610,12121.8148,0.0,2397.2945,9.85697,14528.96627
+Allocation by Asset Class,Data,202611,11790.4118,0.0,2435.5175,9.40886,14235.33816
+Time Period Benchmark Comparison,MetaInfo,Analysis Period,"June 23, 2023 - November 16, 2026"
+Time Period Benchmark Comparison,Header,Date,BM1,BM1Return,BM2,BM2Return,BM3,BM3Return,U***00000,U***00000Return
+Time Period Benchmark Comparison,Data,Jun 2023,SPXTR,1.581582071,EFA,0.582685905,VT,1.200041741,U***00000,0.195543117
+Time Period Benchmark Comparison,Data,Jul 2023,SPXTR,3.212453986,EFA,2.703448276,VT,3.722416993,U***00000,0.788616776
+Time Period Benchmark Comparison,Data,Aug 2023,SPXTR,-1.592111704,EFA,-3.934998657,VT,-2.843224973,U***00000,-6.489441407
+Time Period Benchmark Comparison,Data,Sep 2023,SPXTR,-4.767819331,EFA,-3.648818677,VT,-4.254791036,U***00000,-4.481557222
+Time Period Benchmark Comparison,Data,Oct 2023,SPXTR,-2.102687001,EFA,-2.901915264,VT,-2.919081348,U***00000,2.980442226
+Time Period Benchmark Comparison,Data,Nov 2023,SPXTR,9.132586047,EFA,8.218768679,VT,9.009506964,U***00000,11.73556499
+Time Period Benchmark Comparison,Data,Dec 2023,SPXTR,4.543061964,EFA,5.36389791,VT,5.154049372,U***00000,-0.816680282
+Time Period Benchmark Comparison,Data,Jan 2024,SPXTR,1.680411083,EFA,-0.451227605,VT,-0,U***00000,2.760469639
+Time Period Benchmark Comparison,Data,Feb 2024,SPXTR,5.33958394,EFA,2.986268498,VT,4.49066874,U***00000,10.38667339
+Time Period Benchmark Comparison,Data,Mar 2024,SPXTR,3.217469362,EFA,3.378640777,VT,3.191062404,U***00000,7.737661397
+Time Period Benchmark Comparison,Data,Apr 2024,SPXTR,-4.084504945,EFA,-3.243175557,VT,-3.583710407,U***00000,-4.293190195
+Time Period Benchmark Comparison,Data,May 2024,SPXTR,4.958517704,EFA,5.060178595,VT,4.599211564,U***00000,-0.755545014
+Time Period Benchmark Comparison,Data,Jun 2024,SPXTR,3.58817542,EFA,-1.807607101,VT,1.587336699,U***00000,-1.355875375
+Time Period Benchmark Comparison,Data,Jul 2024,SPXTR,1.217251819,EFA,2.591599643,VT,1.979934298,U***00000,1.881946877
+Time Period Benchmark Comparison,Data,Aug 2024,SPXTR,2.425637379,EFA,3.260328522,VT,2.333275292,U***00000,2.816900639
+Time Period Benchmark Comparison,Data,Sep 2024,SPXTR,2.135700069,EFA,0.783321282,VT,2.19820701,U***00000,0.402364373
+Time Period Benchmark Comparison,Data,Oct 2024,SPXTR,-0.906800168,EFA,-5.273227311,VT,-2.180451128,U***00000,3.614607218
+Time Period Benchmark Comparison,Data,Nov 2024,SPXTR,5.870059726,EFA,-0.315576875,VT,4.142112905,U***00000,2.344511284
+Time Period Benchmark Comparison,Data,Dec 2024,SPXTR,-2.383812664,EFA,-2.947885862,VT,-2.941840299,U***00000,-4.638782094
+Time Period Benchmark Comparison,Data,Jan 2025,SPXTR,2.784735227,EFA,4.800952255,VT,3.055839292,U***00000,1.083308395
+Time Period Benchmark Comparison,Data,Feb 2025,SPXTR,-1.304762579,EFA,2.953054013,VT,-0.412984224,U***00000,5.282867959
+Time Period Benchmark Comparison,Data,Mar 2025,SPXTR,-5.634429716,EFA,0.183868595,VT,-3.516799031,U***00000,5.623514166
+Time Period Benchmark Comparison,Data,Apr 2025,SPXTR,-0.678143818,EFA,3.695093601,VT,0.56058646,U***00000,0.446763381
+Time Period Benchmark Comparison,Data,May 2025,SPXTR,6.294521435,EFA,4.790560472,VT,5.806174957,U***00000,2.849261135
+Time Period Benchmark Comparison,Data,Jun 2025,SPXTR,5.085243231,EFA,2.390182102,VT,4.675101641,U***00000,3.284345211
+Time Period Benchmark Comparison,Data,Jul 2025,SPXTR,2.244268274,EFA,-2.091956595,VT,1.097105509,U***00000,-0.013020333
+Time Period Benchmark Comparison,Data,Aug 2025,SPXTR,2.027180278,EFA,4.524680073,VT,2.955437543,U***00000,6.316207327
+Time Period Benchmark Comparison,Data,Sep 2025,SPXTR,3.649994268,EFA,2.066025361,VT,3.370896083,U***00000,4.543095744
+Time Period Benchmark Comparison,Data,Oct 2025,SPXTR,2.341368333,EFA,1.199528757,VT,2.02467344,U***00000,-0.227034239
+Time Period Benchmark Comparison,Data,Nov 2025,SPXTR,0.245091094,EFA,0.740819134,VT,0.213386443,U***00000,1.173448243
+Time Period Benchmark Comparison,Data,Dec 2025,SPXTR,0.061205143,EFA,2.718884508,VT,0.915355898,U***00000,2.205721922
+Time Period Benchmark Comparison,Data,Jan 2026,SPXTR,1.450022831,EFA,4.904717276,VT,3.112150858,U***00000,5.638488452
+Time Period Benchmark Comparison,Data,Feb 2026,SPXTR,-0.759982255,EFA,4.60591622,VT,1.643176349,U***00000,-6.22583686
+Time Period Benchmark Comparison,Data,Mar 2026,SPXTR,-4.979508999,EFA,-7.828810021,VT,-6.214826522,U***00000,-5.754474021
+Time Period Benchmark Comparison,Data,Apr 2026,SPXTR,10.492660062,EFA,5.343354267,VT,9.311740891,U***00000,13.23240236
+Time Period Benchmark Comparison,Data,May 2026,SPXTR,5.263305106,EFA,2.423768569,VT,4.576719577,U***00000,0.825700126
+Time Period Benchmark Comparison,Data,Jun 2026,SPXTR,-0.952327528,EFA,0.680575877,VT,-0.385677992,U***00000,-0.19923639
+Time Period Benchmark Comparison,Data,Jul 2026,SPXTR,-0.063490852,EFA,1.636503658,VT,-0.694488691,U***00000,-0.589799413
+Time Period Benchmark Comparison,Data,Aug 2026,SPXTR,2.723310637,EFA,1.771168782,VT,3.00911074,U***00000,-0.252032319
+Time Period Benchmark Comparison,Data,Sep 2026,SPXTR,-0.345703876,EFA,-3.313168916,VT,-1.428466578,U***00000,-2.775954369
+Time Period Benchmark Comparison,Data,Oct 2026,SPXTR,-0.869851012,EFA,-0.500529406,VT,-1.596452328,U***00000,2.361012035
+Time Period Benchmark Comparison,Data,Nov 2026,SPXTR,-2.097390298,EFA,-0.706201025,VT,-1.912058199,U***00000,-2.020984147
+Deposits And Withdrawals,MetaInfo,Analysis Period,"June 23, 2023 - November 16, 2026"
+Deposits And Withdrawals,Header,Date,Type,Description,Amount
+Deposits And Withdrawals,Data,06/23/23,DEPOSIT,Cash Receipts / Electronic Fund Transfers,13.17
+Deposits And Withdrawals,Data,06/27/23,DEPOSIT,Cash Receipts / Electronic Fund Transfers,599.53
+Deposits And Withdrawals,Data,10/18/23,DEPOSIT,Cash Receipts / Electronic Fund Transfers,72.61
+Deposits And Withdrawals,Data,01/10/24,DEPOSIT,Cash Receipts / Electronic Fund Transfers,104.12
+Deposits And Withdrawals,Data,04/08/24,DEPOSIT,Cash Receipts / Electronic Fund Transfers,411.0
+Deposits And Withdrawals,Data,04/08/24,DEPOSIT,Cash Receipts / Electronic Fund Transfers,342.5
+Deposits And Withdrawals,Data,07/22/24,DEPOSIT,Cash Receipts / Electronic Fund Transfers,545.26
+Deposits And Withdrawals,Data,09/06/24,DEPOSIT,Cash Receipts / Electronic Fund Transfers,16.36
+Deposits And Withdrawals,Data,11/29/24,DEPOSIT,Cash Receipts / Electronic Fund Transfers,2036.81
+Deposits And Withdrawals,Data,12/18/24,NA,Cash Receipts / Electronic Fund Transfers,0.01
+Deposits And Withdrawals,Data,04/02/25,DEPOSIT,Cash Receipts / Electronic Fund Transfers,173.87
+Deposits And Withdrawals,Data,05/07/25,DEPOSIT,Cash Receipts / Electronic Fund Transfers,335.65
+Deposits And Withdrawals,Data,05/09/25,DEPOSIT,Cash Receipts / Electronic Fund Transfers,619.24
+Deposits And Withdrawals,Data,09/03/25,DEPOSIT,Cash Receipts / Electronic Fund Transfers,82.75
+Deposits And Withdrawals,Data,10/21/25,DEPOSIT,Cash Receipts / Electronic Fund Transfers,61.36
+Deposits And Withdrawals,Data,12/29/25,DEPOSIT,Cash Receipts / Electronic Fund Transfers,17.81
+Deposits And Withdrawals,Data,01/27/26,DEPOSIT,Cash Receipts / Electronic Fund Transfers,1986.5
+Deposits And Withdrawals,Data,02/26/26,DEPOSIT,Cash Receipts / Electronic Fund Transfers,1849.5
+Deposits And Withdrawals,Data,04/10/26,DEPOSIT,Cash Receipts / Electronic Fund Transfers,1575.5
+Deposits And Withdrawals,Data,04/17/26,WITHDRAWAL,Disbursement,-6.85
+Deposits And Withdrawals,Data,09/25/26,DEPOSIT,Cash Receipts / Electronic Fund Transfers,1143.95
+Dividends,MetaInfo,Analysis Period,"June 23, 2023 - November 16, 2026"
+Dividends,Header,PayDate,Ex-Date,Symbol,Quantity,DividendPerShare,Amount
+Dividends,Data,20250915,20250830,STKC,3,1.77,5.31
+Dividends,Data,20251215,20251130,OLDA,4,0.50,2.00
+Performance by Symbol,MetaInfo,Analysis Period,"June 23, 2023 - November 16, 2026"
+Performance by Symbol,Header,Symbol,Description,FinancialInstrument,Sector,AvgWeight,Return,Contribution,Unrealized_P&L,Realized_P&L,Open
+Performance by Symbol,Data,ETFA,TEST COMPANY ETFA,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKB,TEST COMPANY STKB,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKC,TEST COMPANY STKC,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKD,TEST COMPANY STKD,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKE,TEST COMPANY STKE,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKF,TEST COMPANY STKF,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKG,TEST COMPANY STKG,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKH,TEST COMPANY STKH,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,STKI,TEST COMPANY STKI,Stocks,Other,1,1,0.01,0.00,0.00,Yes
+Performance by Symbol,Data,OLDA,TEST COMPANY OLDA,Stocks,Other,1,1,0.01,0.00,0.00,No
+Performance by Symbol,Data,OLDB,TEST COMPANY OLDB,Stocks,Other,1,1,0.01,0.00,0.00,No
+Performance by Symbol,Data,OLDC,TEST COMPANY OLDC,Stocks,Other,1,1,0.01,0.00,0.00,No
+Performance by Symbol,Data,OLDD,TEST COMPANY OLDD,Stocks,Other,1,1,0.01,0.00,0.00,No
+Performance by Symbol,Data,OLDE,TEST COMPANY OLDE,Stocks,Other,1,1,0.01,0.00,0.00,No
+Performance by Symbol,Data,ZZZ.OLD,TEST COMPANY ZZZ.OLD,Stocks,Other,1,1,0.01,0.00,0.00,No

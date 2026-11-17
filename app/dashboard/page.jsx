@@ -143,6 +143,7 @@ import { scopeTagFor } from '@/lib/scopeTag'
 import { investableValue, benchmarkTwrYtd } from '@/lib/investable'
 import { computePeriodicReturns } from '@/components/dashboard/analytics'
 import { useInstitutional } from '@/hooks/useInstitutional'
+import { dropLedgerSupersededFlows, ledgerItemIds } from '@/lib/ledgerFlows'
 import { useAdvisorSummaryPublisher } from '@/hooks/useAdvisorSummary'
 
 // Sits in the dashboard's composition grid as Asset Allocation's sibling, so it
@@ -396,6 +397,16 @@ export default function DashboardPage() {
   // se queda congelada en la foto de la última visita mientras el grupo la
   // rankea al lado de filas de hoy. Ver lib/friendsPublish.js.
   } = useDashboardData({ user, lang, activePortfolio, activeEntity, publishFriends: true })
+
+  // FASE SK: "Invertido por año" cuenta los aportes con la misma regla que el
+  // rendimiento: con una cuenta conciliada, su ledger real reemplaza los
+  // depósitos manuales de sus compras (sin esto se contaban los dos). Sin
+  // cuentas conciliadas, la MISMA lista.
+  const ledgerIdsSig = useMemo(() => [...ledgerItemIds(items)].sort().join('|'), [items])
+  const ledgerAwareTransactions = useMemo(
+    () => dropLedgerSupersededFlows(transactions, new Set(ledgerIdsSig ? ledgerIdsSig.split('|') : [])),
+    [transactions, ledgerIdsSig]
+  )
 
   // FASE OI. Borrar el portafolio (o la entidad) que está SELECCIONADA dejaba
   // `activePortfolio`/`activeEntity` apuntando a un id que ya no existe: el
@@ -1772,7 +1783,7 @@ export default function DashboardPage() {
 
           {QUICK_ACTIONS_CARD_ENABLED && <CardBoundary id="ACT-01-M" className="lg:hidden">{quickActions}</CardBoundary>}
 
-          <CardBoundary id="OR-01"><PortfolioGrowthChart ytdStartTs={scopedView ? null : ytdStartTs} ytdStartValue={scopedView ? null : ytdStartValue} items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} dayChange={dailyChange} /></CardBoundary>
+          <CardBoundary id="OR-01"><PortfolioGrowthChart ytdStartTs={scopedView ? null : ytdStartTs} ytdStartValue={scopedView ? null : ytdStartValue} items={portfolioItems} lots={lots} snapshots={chartSnapshots} transactions={viewTransactions} lang={lang} convert={convert} baseCurrency={baseCurrency} onSaveSnapshot={saveSnapshot} ibkrSyncSummary={ibkrSyncSummary} onImportBroker={handleOpenImport} repairItems={enrichedItems} repairSnapshots={snapshots} onMigrateNav={migrateMisplacedNav} dayChange={dailyChange} ledgerAccounts={settings?.ledgerAccounts || null} /></CardBoundary>
         </div>
         </ErrorBoundary>
 
@@ -1879,7 +1890,7 @@ export default function DashboardPage() {
                       </CardBoundary>
                     ) },
                     { key: 'invested', label: lang === 'es' ? 'Por año' : 'By year', node: (
-                      <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard embedded transactions={transactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
+                      <CardBoundary id="INV-01" className="min-w-0"><InvestedByYearCard embedded transactions={ledgerAwareTransactions} items={items} snapshots={augmentedSnapshots} netWorth={netWorth} totalAssets={totalAssets} returnYTD={returnYTD} ytdChange={ytdChange} ytdStartValue={ytdStartValue} convert={convert} baseCurrency={baseCurrency} lang={lang} fxItems={showFx ? portfolioItems : null} rates={rates} ratesUpdate={ratesUpdate} ratesStale={ratesStale} ratesLoading={ratesLoading} /></CardBoundary>
                     ) },
                   ]}
                 />
@@ -2012,6 +2023,7 @@ export default function DashboardPage() {
           ingestRules={ingestRules} onLearnCategories={learnCategories}
           onUpdateItem={updateItem} onDeleteItem={deleteItem} onBulkImport={bulkImport}
           existingItems={items} existingLots={lots}
+          existingTransactions={transactions} onSaveSettings={saveSettings} existingLedgerAccounts={settings?.ledgerAccounts || null}
           activePortfolio={activePortfolio} activeEntity={activeEntity !== '__all__' ? activeEntity : 'default'}
           lang={lang} brokerHint={importBrokerHint} journeyActive={ibkrJourney != null}
           apiAlreadySyncs={importBrokerHint === 'ibkr' && ibkrConnected}
