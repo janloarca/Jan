@@ -17,7 +17,7 @@ import { currentOrLastSession } from '@/lib/marketHours'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { dropLedgerSupersededFlows, ledgerKeyOf, isLedgerFlow } from '@/lib/ledgerFlows'
-import { buildReconciledView, reconciledWindowTwr } from '@/lib/ledgerSeries'
+import { buildReconciledView, reconciledWindowTwr, reconciledShapeItems } from '@/lib/ledgerSeries'
 import ErrorState from '@/components/ui/ErrorState'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
@@ -485,7 +485,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     // semanales, y 1S solo trae una semana. AÑO ya viene en cierres diarios.
     if (reconciledInst && apiPeriod !== 'YTD') apiPeriod = '6M'
     const cacheable = reconciledInst ? period !== 'CUSTOM' : (period !== 'DAY' && period !== 'CUSTOM')
-    const cacheKey = reconciledInst ? `${shownInst}|ledger-shape|${apiPeriod}` : `${shownInst}|${period}`
+    const cacheKey = reconciledInst ? `${shownInst}|ledger-flat|${apiPeriod}` : `${shownInst}|${period}`
     const cachedData = cacheable ? historyCacheRef.current.get(cacheKey) : undefined
     const gen = ++fetchGenRef.current
     // A cache hit skips the loading flash entirely — that IS the point.
@@ -588,45 +588,53 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
       // block comment above fetchHistory for what makes this safe to reuse.
       let data = cachedData
       if (!data) {
+        const payloadItems = chartItems.map((it) => {
+          // The API sums values assuming USD — convert original-currency prices first
+          const cur = it._originalCurrency || it.currency || 'USD'
+          const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
+          return {
+            id: it.id,
+            symbol: it.symbol, type: it.type, quantity: it.quantity,
+            currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
+            purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
+            currency: 'USD',
+            acquisitionDate: it.acquisitionDate,
+            _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
+            // FASE HL: ver hasUnreliableAcqDate (utils.js). Sin esto, una
+            // posición de broker desaparecía del pasado reconstruido.
+            _dateUnreliable: hasUnreliableAcqDate(it),
+            txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
+            // _flowIsAccountLevel: only the broker's real reconciled cash line
+            // promotes the response to "transactional" server-side — see the
+            // comment next to usedTransactional in the API route.
+            ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows, _flowIsAccountLevel: true } : {}),
+            // _flowClampZero: an opening deposit can exceed the asset it funded
+            // (it carries the entry fee), so rewinding past it lands on a negative
+            // that means "did not exist yet", not "was worth less than nothing".
+            ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id], _flowClampZero: true } : {}),
+          }
+        })
+        // FASE SL2. Cuenta conciliada: el fetch es solo la FORMA (cantidad de
+        // hoy × cierre). Los lotes de esa cuenta incluyen los manuales que la
+        // conciliación cerró en el fin del estado de cuenta más el lote nuevo
+        // fechado en la compra original; rebobinar con los dos duplicaba las
+        // acciones hasta ese día (el pico fantasma de 1S/MES/AÑO).
         const res = await authFetch('/api/prices/portfolio-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: chartItems.map((it) => {
-              // The API sums values assuming USD — convert original-currency prices first
-              const cur = it._originalCurrency || it.currency || 'USD'
-              const toUSD = (p) => convert ? convert(p || 0, cur, 'USD') : (p || 0)
-              return {
-                id: it.id,
-                symbol: it.symbol, type: it.type, quantity: it.quantity,
-                currentPrice: toUSD(it._originalPrice ?? it.currentPrice),
-                purchasePrice: toUSD(it._originalPurchasePrice ?? it.purchasePrice),
-                currency: 'USD',
-                acquisitionDate: it.acquisitionDate,
-                _holdFlat: shouldHoldFlat(it, scopedTransactions, lots),
-                // FASE HL: ver hasUnreliableAcqDate (utils.js). Sin esto, una
-                // posición de broker desaparecía del pasado reconstruido.
-                _dateUnreliable: hasUnreliableAcqDate(it),
-                txEvents: txEventsBySym[(it.symbol || '').toUpperCase()] || undefined,
-                // _flowIsAccountLevel: only the broker's real reconciled cash line
-                // promotes the response to "transactional" server-side — see the
-                // comment next to usedTransactional in the API route.
-                ...(cashItem && it.id === cashItem.id ? { cashFlows: accountCashFlows, _flowIsAccountLevel: true } : {}),
-                // _flowClampZero: an opening deposit can exceed the asset it funded
-                // (it carries the entry fee), so rewinding past it lands on a negative
-                // that means "did not exist yet", not "was worth less than nothing".
-                ...(perItemCashFlows[it.id] ? { cashFlows: perItemCashFlows[it.id], _flowClampZero: true } : {}),
-              }
+          body: JSON.stringify(reconciledInst
+            ? { items: reconciledShapeItems(payloadItems), period: apiPeriod }
+            : {
+              items: payloadItems,
+              lots: allLots.length > 0 ? allLots.map(l => ({
+                symbol: l.symbol, quantity: l.quantity,
+                acquisitionDate: l.acquisitionDate,
+                closedDate: l.closedDate || null,
+                costBasis: l.costBasis,
+              })) : undefined,
+              income: buildIncomeEvents(scopedTransactions, chartItems, convert, 'USD'),
+              period: apiPeriod,
             }),
-            lots: allLots.length > 0 ? allLots.map(l => ({
-              symbol: l.symbol, quantity: l.quantity,
-              acquisitionDate: l.acquisitionDate,
-              closedDate: l.closedDate || null,
-              costBasis: l.costBasis,
-            })) : undefined,
-            income: buildIncomeEvents(scopedTransactions, chartItems, convert, 'USD'),
-            period: apiPeriod,
-          }),
         })
         if (res.ok) {
           data = await safeJson(res)
