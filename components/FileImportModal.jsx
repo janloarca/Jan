@@ -1116,9 +1116,14 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
   // (PortfolioAnalyst). Nunca dispara ni requiere la sincronización con el
   // broker: todo sale del archivo.
   const ledgerOptions = useMemo(() => ledgerInstitutionOptions(existingItems || []), [existingItems])
-  const reconcileAvailable = !!(ibkrData && ibkrData.periodEnd && (ibkrData.equityHistory || []).length > 0
-    && onBulkImport && onSaveSettings && Array.isArray(existingTransactions) && ledgerOptions.length > 0)
   const reconcileAccountKey = reconcileKey || defaultLedgerInstitution(ledgerOptions)?.key || ledgerOptions[0]?.key || null
+  // FASE SM-c. Una cuenta YA conciliada también acepta un Flex Query con los
+  // lotes del broker (Open Positions a nivel "Lot"): cambia los lotes, deja
+  // sus cierres y retornos como estaban.
+  const reconcileLotsOnly = !!(ibkrData && reconcileAccountKey && (existingLedgerAccounts || {})[reconcileAccountKey]
+    && (ibkrData.items || []).some((it) => Array.isArray(it._lots) && it._lots.length > 0))
+  const reconcileAvailable = !!(ibkrData && ((ibkrData.periodEnd && (ibkrData.equityHistory || []).length > 0) || reconcileLotsOnly)
+    && onBulkImport && onSaveSettings && Array.isArray(existingTransactions) && ledgerOptions.length > 0)
   const buildReconcilePlan = useCallback((newId) => {
     if (!reconcileAvailable || !reconcileAccountKey) return null
     const base = {
