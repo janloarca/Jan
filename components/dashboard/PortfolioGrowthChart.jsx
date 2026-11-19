@@ -17,7 +17,7 @@ import { currentOrLastSession } from '@/lib/marketHours'
 import { computeTWRSeries, computeAnchoredReturnSeries, computeAnchoredMWRSeries, filterValueSpikes } from './analytics'
 import { authFetch, safeJson } from '@/lib/authFetch'
 import { dropLedgerSupersededFlows, ledgerKeyOf, isLedgerFlow } from '@/lib/ledgerFlows'
-import { buildReconciledView, reconciledWindowTwr, reconciledShapeItems } from '@/lib/ledgerSeries'
+import { buildReconciledView, reconciledWindowTwr, reconciledShapeItems, timeTickIndices } from '@/lib/ledgerSeries'
 import ErrorState from '@/components/ui/ErrorState'
 import InlineNotice from '@/components/ui/InlineNotice'
 import { useEdgeFade } from '@/hooks/useEdgeFade'
@@ -1964,6 +1964,15 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
   const pad = { top: 26, right: 16, bottom: 40, left: 52 }
 
   const step = Math.max(1, Math.floor(chartData.length / 6))
+  // FASE SL2 (solo cuenta conciliada). Su serie mezcla cierres de MES (lejos)
+  // con cierres DIARIOS (últimos ~100 días): elegir etiquetas cada `step`
+  // índices las amontonaba en el tramo diario y AÑO/1A saltaban de "dic 25" a
+  // "ago 26". Aquí se eligen por TIEMPO: el punto más cercano a 7 marcas
+  // parejas. Las demás vistas no cambian.
+  const timeTickIdx = useMemo(
+    () => (ledgerMode ? timeTickIndices(chartData.map((d) => d.ts), 6) : new Set()),
+    [ledgerMode, chartData]
+  )
   const xLabels = useMemo(() => {
     if (chartData.length === 0) return []
     const spanDays = (chartData[chartData.length - 1].ts - chartData[0].ts) / 86400000
@@ -1977,9 +1986,9 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
             : d.date.toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
         idx: i,
       }))
-      .filter((_, i) => i % step === 0 || i === chartData.length - 1)
+      .filter((_, i) => (ledgerMode ? timeTickIdx.has(i) : (i % step === 0 || i === chartData.length - 1)))
     return raw.filter((xl, i) => i === 0 || xl.label !== raw[i - 1].label)
-  }, [chartData, step, period, lang])
+  }, [chartData, step, period, lang, ledgerMode, timeTickIdx])
 
   const growthValues = useMemo(() => chartData.map((d) => d.value), [chartData])
 
