@@ -1127,6 +1127,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       items: existingItems || [],
       lots: existingLots || [],
       transactions: existingTransactions || [],
+      existingLedgerAccount: (existingLedgerAccounts || {})[reconcileAccountKey] || null,
       tag: scopeTagFor(activePortfolio, activeEntity),
       ...(newId ? { newId } : {}),
     }
@@ -1135,7 +1136,7 @@ export default function FileImportModal({ onClose, onImportItems, onImportTransa
       .filter((c) => (reconcileKeep[c.id] != null ? reconcileKeep[c.id] : !c.closedAtBroker))
       .map((c) => c.id))
     return planLedgerReconcile({ ...base, keepIds: keep })
-  }, [reconcileAvailable, reconcileAccountKey, ibkrData, existingItems, existingLots, existingTransactions, activePortfolio, activeEntity, reconcileKeep])
+  }, [reconcileAvailable, reconcileAccountKey, ibkrData, existingItems, existingLots, existingTransactions, existingLedgerAccounts, activePortfolio, activeEntity, reconcileKeep])
   const reconcilePreview = useMemo(
     () => (ibkrImportMode === 'reconcile' ? buildReconcilePlan(() => 'preview') : null),
     [ibkrImportMode, buildReconcilePlan]

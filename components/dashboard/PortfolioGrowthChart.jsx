@@ -736,7 +736,7 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     const toBase = (usd) => (convert ? convert(usd, 'USD', bc) : usd)
     const nav = ledgerAccount.nav
       .filter((p) => p && p.d && Number(p.v) > 0)
-      .map((p) => ({ d: p.d, v: toBase(Number(p.v)), r: p.r }))
+      .map((p) => ({ d: p.d, v: toBase(Number(p.v)), r: p.r, ...(p.f === 'd' ? { f: 'd' } : {}) }))
     const flows = (transactions || [])
       .filter((tx) => isLedgerFlow(tx) && String(tx._ledgerAccount) === scopedLedgerKey && tx.date)
       .map((tx) => {
