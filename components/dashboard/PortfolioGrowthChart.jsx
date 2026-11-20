@@ -753,6 +753,11 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
         v: Number(dp.total),
       })).filter((p) => p.d && p.v > 0)
       : []
+    // FASE SN. Este `today` es el reloj (UTC): de noche en Guatemala ya es el
+    // día siguiente en Nueva York. 1S/1M/3M/1A no miden desde aquí; adentro,
+    // el inicio es el último cierre de `nav`. El primer punto de la serie ES
+    // ese inicio, y el encabezado ("desde …") lee su fecha: los dos coinciden
+    // y en ese punto el cambio desde el arranque es +$0.00.
     const today = new Date().toISOString().slice(0, 10)
     const view = buildReconciledView({
       nav, flows, daily, period, today, custom: customRange,
