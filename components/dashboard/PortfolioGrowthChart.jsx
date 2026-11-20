@@ -765,7 +765,10 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     })
     if (!view) return null
     const chartPoints = view.points.map((p) => {
-      const ts = Date.parse(`${p.d}T00:00:00Z`)
+      // Mediodía UTC, no medianoche: en Guatemala (UTC-6) la medianoche UTC
+      // del 12 nov es todavía el 11, y un formateador en hora local imprimía
+      // el día hábil anterior. El día calendario sigue siendo p.d.
+      const ts = Date.parse(`${p.d}T12:00:00Z`)
       return { ts, date: new Date(ts), value: p.v, src: 'ledger', transactional: true }
     })
     return chartPoints.length > 0 ? { ...view, chartPoints } : null
@@ -2443,7 +2446,9 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
                   primer punto visible), en vez de "1W"/"1M"/"ALL" pelados. */}
               {period === 'DAY'
                 ? t('hoy', 'today')
-                : (valueRebasedFrom || chartData[0]?.ts)
+                : (ledgerMode && ledgerPack?.points?.[0]?.d)
+                  ? `${t('desde', 'since')} ${formatDate(ledgerPack.points[0].d)}`
+                  : (valueRebasedFrom || chartData[0]?.ts)
                   ? `${t('desde', 'since')} ${formatDate(new Date(valueRebasedFrom || chartData[0].ts).toISOString())}`
                   : period === 'YTD' ? t('este año', 'this year') : t('en el periodo', 'in this period')}
             </span>
