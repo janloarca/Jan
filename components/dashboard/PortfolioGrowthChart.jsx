@@ -762,6 +762,9 @@ export default function PortfolioGrowthChart({ items: itemsProp, lots, snapshots
     const view = buildReconciledView({
       nav, flows, daily, period, today, custom: customRange,
       endValue: currentTotal > 0 ? currentTotal : null,
+      // FASE SN-b. El valor vivo de antes de la apertura es el cierre de la
+      // sesión anterior de NY: E sale de aquí si el archivo no lo trae.
+      now: Date.now(),
     })
     if (!view) return null
     const chartPoints = view.points.map((p) => {
